@@ -1,3 +1,23 @@
+
+-- Keep Prompt 7 vault status truthful when RAID persistence fails after the
+-- document and operational signals have already been preserved.
+do $$
+begin
+  alter table public.vault_documents drop constraint if exists vault_documents_ingestion_status_check;
+  alter table public.vault_documents
+    add constraint vault_documents_ingestion_status_check
+    check (ingestion_status in (
+      'received',
+      'document_persisted',
+      'completed',
+      'extraction_failed',
+      'signals_persistence_failed',
+      'raid_persistence_failed',
+      'executive_synthesis_failed',
+      'document_persistence_failed'
+    ));
+end $$;
+
 -- RAID Auto Extraction Engine
 -- Canonical PMO RAID entities generated from deterministic vault signals.
 

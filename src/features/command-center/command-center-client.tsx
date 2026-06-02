@@ -190,7 +190,7 @@ export function CommandCenterClient({ firstRun = false, projectId, projectName, 
       interventions.mutate();
       coordination.mutate();
       liveOps.mutate();
-      retryBrief();
+      void retryBrief();
     } catch (error) {
       setVaultIntakeError(error instanceof Error ? error.message : "Vault intake failed.");
     } finally {

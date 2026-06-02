@@ -211,6 +211,7 @@ function toRaidItem(input: {
     status: "open",
     confidenceScore: scoreRaidConfidence({ category: input.category, text: input.text, sourceType: input.document.sourceType, sourceSignal: input.sourceSignal }),
     detectedAt: input.document.createdAt,
+    lastDetectedAt: input.document.createdAt,
     detectedBy: input.document.createdBy,
     owner,
     dueDate,

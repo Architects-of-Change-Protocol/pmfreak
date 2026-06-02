@@ -68,14 +68,29 @@ export async function ingestVaultDocument(input: VaultDocumentInput & { store: V
     }
   }
 
-  const raidCandidates = extractionFailed ? [] : extractRaidItems({ document, signals, idFactory });
+  let raidCandidates: ReturnType<typeof extractRaidItems> = [];
+  let raidPersistenceFailed = false;
+  if (!extractionFailed) {
+    try {
+      raidCandidates = extractRaidItems({ document, signals, idFactory });
+    } catch (error) {
+      raidPersistenceFailed = true;
+      errors.push(error instanceof Error ? `raid_extraction_failed: ${error.message}` : "raid_extraction_failed");
+      await input.store.updateDocumentStatus(documentId, "raid_persistence_failed");
+    }
+  }
+
   let persistedRaidItems = raidCandidates;
-  let raidItemsCreated = raidCandidates.length;
+  let raidItemsCreated = input.store.persistRaidItems ? 0 : raidCandidates.length;
   let raidItemsUpdated = 0;
-  if (!extractionFailed && input.store.persistRaidItems) {
+  if (!extractionFailed && !raidPersistenceFailed && input.store.persistRaidItems) {
     const raidPersistence = await input.store.persistRaidItems(raidCandidates);
     if (!raidPersistence.ok) {
-      errors.push(raidPersistence.error);
+      raidPersistenceFailed = true;
+      persistedRaidItems = [];
+      raidItemsCreated = 0;
+      errors.push(`raid_persistence_failed: ${raidPersistence.error}`);
+      await input.store.updateDocumentStatus(documentId, "raid_persistence_failed");
     } else {
       persistedRaidItems = [...raidPersistence.created, ...raidPersistence.updated];
       raidItemsCreated = raidPersistence.created.length;
@@ -102,11 +117,13 @@ export async function ingestVaultDocument(input: VaultDocumentInput & { store: V
   const confidenceScore = calculateVaultConfidenceScore(signals.length + persistedRaidItems.length, classification, extractionFailed);
   const status = extractionFailed
     ? "extraction_failed"
-    : errors.some((error) => error.includes("signal") || error.includes("persist"))
+    : errors.some((error) => error.includes("signal"))
       ? "signals_persistence_failed"
-      : executiveSynthesisUpdated
-        ? "completed"
-        : "executive_synthesis_failed";
+      : raidPersistenceFailed
+        ? "raid_persistence_failed"
+        : executiveSynthesisUpdated
+          ? "completed"
+          : "executive_synthesis_failed";
 
   return {
     documentId,

@@ -14,6 +14,7 @@ export type RaidItem = {
   status: RaidStatus;
   confidenceScore: number;
   detectedAt: string;
+  lastDetectedAt: string;
   detectedBy: string | null;
   owner: string | null;
   dueDate: string | null;

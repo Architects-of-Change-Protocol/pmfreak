@@ -34,6 +34,7 @@ create table if not exists public.vault_documents (
     'completed',
     'extraction_failed',
     'signals_persistence_failed',
+    'raid_persistence_failed',
     'executive_synthesis_failed',
     'document_persistence_failed'
   )),

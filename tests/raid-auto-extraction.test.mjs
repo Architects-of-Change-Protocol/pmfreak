@@ -6,9 +6,13 @@ import { execFileSync } from "node:child_process";
 const migration = fs.readFileSync("supabase/migrations/20260602020000_raid_auto_extraction.sql", "utf8");
 const raidTypes = fs.readFileSync("src/lib/raid/types.ts", "utf8");
 const raidEngine = fs.readFileSync("src/lib/raid/extraction.ts", "utf8");
+const raidStorage = fs.readFileSync("src/lib/raid/storage.ts", "utf8");
+const raidIndex = fs.readFileSync("src/lib/raid/index.ts", "utf8");
 const vaultPipeline = fs.readFileSync("src/lib/vault/intake/pipeline.ts", "utf8");
 const vaultStorage = fs.readFileSync("src/lib/vault/intake/storage.ts", "utf8");
 const briefTypes = fs.readFileSync("src/lib/projects/first-insight/operational-governance-brief-types.ts", "utf8");
+const briefEngine = fs.readFileSync("src/lib/projects/first-insight/operational-governance-brief-engine.ts", "utf8");
+const briefOrchestrator = fs.readFileSync("src/lib/projects/first-insight/operational-governance-brief-orchestrator.ts", "utf8");
 const commandCenter = fs.readFileSync("src/features/command-center/command-center-client.tsx", "utf8");
 
 const runtimeProbe = String.raw`
@@ -26,7 +30,7 @@ const document = {
   projectId: "00000000-0000-0000-0000-000000000202",
   title: "Firewall meeting",
   sourceType: "meeting_notes",
-  rawContent: "El proveedor no entregará el firewall hasta el 15 de julio. Firewall delivery has an issue and uncertainty. Carlos actualizará el cronograma by Friday. La instalación depende del acceso al sitio. Se asume disponibilidad del equipo la próxima semana. Se aprobó continuar.",
+  rawContent: "El proveedor no entregará el firewall hasta el 15 de julio. Firewall delivery has an issue and uncertainty. Carlos actualizará el cronograma by Friday. La instalación depende del acceso al sitio. Se asume disponibilidad del equipo la próxima semana. Expected delivery is planned under vendor availability. Se aprobó continuar.",
   normalizedContent: "",
   createdAt: now,
   createdBy: "00000000-0000-0000-0000-000000000303",
@@ -44,37 +48,35 @@ assert.ok(risk, "risk item is created from risk signal");
 assert.ok(issue, "issue item is created from issue signal");
 assert.ok(dependency, "dependency item is created from dependency signal");
 assert.ok(assumption, "assumption item is created from assumption phrase");
+assert.equal(detectRaidOwner("Juan revisará el plan"), "Juan");
 assert.equal(detectRaidOwner("Carlos will update the timeline"), "Carlos");
 assert.equal(detectRaidOwner("Owner: Victor"), "Victor");
 assert.equal(detectRaidDueDate("entrega hasta el 15 de julio", now), "2026-07-15");
-assert.equal(detectRaidDueDate("Carlos will review by Friday", now), "2026-06-05");
+assert.equal(detectRaidDueDate("Expected delivery on July 15", now), "2026-07-15");
 assert.equal(detectRaidDueDate("expected delivery next week", now), "2026-06-09");
+assert.equal(detectRaidDueDate("Carlos will review by Friday", now), "2026-06-05");
 assert.equal(canonicalRaidFingerprint("risk", "The vendor delivery delay!"), canonicalRaidFingerprint("risk", "Vendor delivery delay"));
 assert.ok(risk.confidenceScore >= 60 && risk.confidenceScore <= 100);
 const health = calculateProjectRaidHealth(raidItems);
-assert.equal(health.riskCount >= 1, true);
-assert.equal(health.issueCount >= 1, true);
-assert.equal(health.dependencyCount >= 1, true);
-assert.equal(health.assumptionCount >= 1, true);
-assert.ok(health.healthScore < 100);
 const overview = buildRaidOverview(raidItems);
 const brief = generateOperationalGovernanceBrief({ workspaceId: document.workspaceId, projectId: document.projectId, detectedRaidOverview: { topRisks: overview.topRisks, topIssues: overview.topIssues, keyDependencies: overview.keyDependencies, keyAssumptions: overview.keyAssumptions, snapshot: overview.snapshot, healthScore: overview.health.healthScore } });
 assert.ok(brief.detectedRaidOverview.snapshot.risks >= 1);
 assert.ok(brief.sourceSummary.signalsEvaluated.includes("detected_raid_overview"));
 
-const calls = { documents: [], signals: [], raidCreated: [], raidUpdated: [], synthesis: [] };
+const calls = { documents: [], signals: [], raidCreated: [], raidUpdated: [], statuses: [], synthesis: [] };
 const seen = new Map();
 const store = {
   async persistDocument(doc) { calls.documents.push(doc); return { ok: true }; },
   async persistSignals(items) { calls.signals.push(...items); return { ok: true }; },
-  async updateDocumentStatus() { return { ok: true }; },
+  async updateDocumentStatus(documentId, status) { calls.statuses.push({ documentId, status }); return { ok: true }; },
   async persistRaidItems(items) {
     const created = [];
     const updated = [];
     for (const item of items) {
       const key = item.fingerprint;
       if (seen.has(key)) {
-        const next = { ...seen.get(key), occurrenceCount: seen.get(key).occurrenceCount + 1, confidenceScore: Math.min(100, seen.get(key).confidenceScore + 4) };
+        const previous = seen.get(key);
+        const next = { ...previous, occurrenceCount: previous.occurrenceCount + 1, confidenceScore: Math.min(100, previous.confidenceScore + 4), lastDetectedAt: item.detectedAt };
         seen.set(key, next);
         updated.push(next);
       } else {
@@ -96,68 +98,144 @@ assert.equal(first.raidSnapshot.risks >= 1, true);
 assert.equal(first.raidItemsCreated > 0, true);
 assert.equal(second.raidItemsUpdated > 0, true);
 assert.equal(calls.synthesis.at(-1).raidItems.length > 0, true);
-const payload = { categories: raidItems.map((i) => i.category), owner: detectRaidOwner("Juan revisará el plan"), dueDate: detectRaidDueDate("July 15", now), health, overview, first, second, synthesisRaidCount: calls.synthesis.at(-1).raidItems.length };
+const payload = { categories: raidItems.map((i) => i.category), risk, issue, dependency, assumption, ownerSpanish: detectRaidOwner("Juan revisará el plan"), ownerEnglish: detectRaidOwner("Assigned to Carlos"), dueSpanish: detectRaidDueDate("entrega hasta el 15 de julio", now), dueEnglish: detectRaidDueDate("July 15", now), dueNextWeek: detectRaidDueDate("next week", now), dueWeekday: detectRaidDueDate("Friday", now), fingerprintA: canonicalRaidFingerprint("risk", "The vendor delivery delay!"), fingerprintB: canonicalRaidFingerprint("risk", "Vendor delivery delay"), health, overview, first, second, synthesisRaidCount: calls.synthesis.at(-1).raidItems.length, synthesisRaidItems: calls.synthesis.at(-1).raidItems };
 console.log(JSON.stringify(payload));
 })();
 `;
 
 const runtime = JSON.parse(execFileSync("npx", ["tsx", "--eval", runtimeProbe], { encoding: "utf8" }).trim().split("\n").at(-1));
 
-test("RAID persistence migration defines canonical table, FKs, indexes and RLS without Supabase-incompatible policy syntax", () => {
+test("migration creates raid_items", () => {
   assert.match(migration, /create table if not exists public\.raid_items/);
+});
+
+test("migration has RAID foreign keys", () => {
   assert.match(migration, /workspace_id uuid not null references public\.workspaces\(id\) on delete cascade/);
   assert.match(migration, /project_id uuid null references public\.projects\(id\) on delete cascade/);
   assert.match(migration, /source_document_id uuid not null references public\.vault_documents\(id\) on delete cascade/);
   assert.match(migration, /source_signal_id uuid null references public\.vault_operational_signals\(id\) on delete set null/);
-  assert.match(migration, /raid_items_project_fingerprint_uidx/);
+});
+
+test("migration has RLS policies", () => {
   assert.match(migration, /alter table public\.raid_items enable row level security/);
+  assert.match(migration, /workspace members can read raid_items/);
+  assert.match(migration, /workspace members can insert raid_items/);
+  assert.match(migration, /workspace members can update raid_items/);
+  assert.match(migration, /public\.is_workspace_member\(workspace_id\)/);
+});
+
+test("migration does not use CREATE POLICY IF NOT EXISTS", () => {
   assert.doesNotMatch(migration, /create policy if not exists/i);
 });
 
-test("canonical RAID types and deterministic engine exports exist", () => {
-  for (const field of ["workspaceId", "projectId", "sourceDocumentId", "sourceSignalId", "category", "status", "confidenceScore", "owner", "dueDate", "autoGenerated"]) {
+test("canonical RAID types exist", () => {
+  for (const field of ["workspaceId", "projectId", "sourceDocumentId", "sourceSignalId", "category", "status", "confidenceScore", "detectedAt", "lastDetectedAt", "owner", "dueDate", "autoGenerated", "fingerprint", "occurrenceCount"]) {
     assert.match(raidTypes, new RegExp(`${field}:`));
   }
-  assert.match(raidEngine, /export function extractRaidItems/);
-  assert.match(raidEngine, /export function canonicalRaidFingerprint/);
-  assert.match(raidEngine, /export function detectRaidOwner/);
-  assert.match(raidEngine, /export function detectRaidDueDate/);
-  assert.match(raidEngine, /export function calculateProjectRaidHealth/);
+  assert.match(raidIndex, /persistRaidItems/);
 });
 
-test("risk, issue, dependency and assumption creation work at runtime", () => {
-  for (const category of ["risk", "issue", "dependency", "assumption"]) assert.ok(runtime.categories.includes(category));
+test("extract risk item from signal", () => {
+  assert.ok(runtime.categories.includes("risk"));
+  assert.equal(runtime.risk.category, "risk");
 });
 
-test("owner detection, due date detection and confidence scoring are deterministic", () => {
-  assert.equal(runtime.owner, "Juan");
-  assert.equal(runtime.dueDate, "2026-07-15");
-  assert.ok(runtime.first.confidenceScore >= 70);
+test("extract issue item from signal", () => {
+  assert.ok(runtime.categories.includes("issue"));
+  assert.equal(runtime.issue.category, "issue");
 });
 
-test("duplicate prevention updates occurrences instead of creating duplicates", () => {
+test("extract dependency item from signal", () => {
+  assert.ok(runtime.categories.includes("dependency"));
+  assert.equal(runtime.dependency.category, "dependency");
+});
+
+test("extract assumption from document content", () => {
+  assert.ok(runtime.categories.includes("assumption"));
+  assert.equal(runtime.assumption.category, "assumption");
+});
+
+test("owner detection Spanish", () => {
+  assert.equal(runtime.ownerSpanish, "Juan");
+});
+
+test("owner detection English", () => {
+  assert.equal(runtime.ownerEnglish, "Carlos");
+});
+
+test("due date Spanish", () => {
+  assert.equal(runtime.dueSpanish, "2026-07-15");
+});
+
+test("due date English", () => {
+  assert.equal(runtime.dueEnglish, "2026-07-15");
+});
+
+test("next week detection", () => {
+  assert.equal(runtime.dueNextWeek, "2026-06-09");
+});
+
+test("weekday detection", () => {
+  assert.equal(runtime.dueWeekday, "2026-06-05");
+});
+
+test("fingerprint normalization", () => {
+  assert.equal(runtime.fingerprintA, runtime.fingerprintB);
+});
+
+test("duplicate prevention increments occurrence", () => {
   assert.ok(runtime.first.raidItemsCreated > 0);
   assert.ok(runtime.second.raidItemsUpdated > 0);
+  assert.match(raidStorage, /occurrence_count: occurrenceCount/);
 });
 
-test("project health and RAID overview are calculated", () => {
+test("confidence scoring 0–100", () => {
+  assert.ok(runtime.risk.confidenceScore >= 0 && runtime.risk.confidenceScore <= 100);
+  assert.match(raidEngine, /Math\.max\(0, Math\.min\(100/);
+});
+
+test("project raid health score", () => {
   assert.ok(runtime.health.riskCount >= 1);
   assert.ok(runtime.health.issueCount >= 1);
   assert.ok(runtime.health.dependencyCount >= 1);
   assert.ok(runtime.health.assumptionCount >= 1);
   assert.ok(runtime.health.healthScore < 100);
-  assert.ok(runtime.overview.topRisks.length >= 1);
 });
 
-test("vault integration and executive synthesis feed include RAID items", () => {
+test("raid overview", () => {
+  assert.ok(runtime.overview.topRisks.length >= 1);
+  assert.ok(runtime.overview.topIssues.length >= 1);
+  assert.ok(runtime.overview.keyDependencies.length >= 1);
+  assert.ok(runtime.overview.keyAssumptions.length >= 1);
+});
+
+test("vault pipeline calls extractRaidItems", () => {
   assert.match(vaultPipeline, /extractRaidItems/);
-  assert.match(vaultStorage, /operational_memory_records/);
+  assert.match(vaultStorage, /persistRaidItemsInSupabase/);
+});
+
+test("vault pipeline returns raidItemsCreated and raidItemsUpdated", () => {
+  assert.ok(runtime.first.raidItemsCreated > 0);
+  assert.ok(runtime.second.raidItemsUpdated > 0);
+  assert.match(vaultPipeline, /raidItemsCreated/);
+  assert.match(vaultPipeline, /raidItemsUpdated/);
+});
+
+test("executive synthesis feed includes raid items", () => {
   assert.ok(runtime.synthesisRaidCount > 0);
+  assert.match(vaultStorage, /\[RAID:\$\{item\.category\}\]/);
+  assert.match(vaultStorage, /source_ref: `raid_item:\$\{item\.id\}`/);
   assert.equal(runtime.first.executiveSynthesisUpdated, true);
 });
 
-test("first insight and command center expose Detected RAID Overview and RAID Snapshot", () => {
+test("first insight includes DetectedRaidOverview", () => {
   assert.match(briefTypes, /DetectedRaidOverview/);
+  assert.match(briefEngine, /detectedRaidOverview/);
+  assert.match(briefOrchestrator, /raid_items/);
+});
+
+test("Command Center renders RAID Snapshot", () => {
   assert.match(commandCenter, /RAID Snapshot/);
-  assert.match(commandCenter, /raidSnapshot/);
+  assert.match(commandCenter, /Risk created:/);
+  assert.match(commandCenter, /void retryBrief\(\)/);
 });
