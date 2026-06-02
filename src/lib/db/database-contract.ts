@@ -182,6 +182,58 @@ export const OPERATIONAL_GOVERNANCE_BRIEF_SELECTABLE_COLUMNS = [
   "created_by",
 ] as const satisfies ReadonlyArray<keyof OperationalGovernanceBriefRow>;
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// raid_items
+// Source: 20260602020000_raid_auto_extraction.sql
+// Canonical PMO RAID entities generated from deterministic vault intake.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type RaidItemCategory = "risk" | "assumption" | "issue" | "dependency";
+export type RaidItemStatus = "open" | "monitoring" | "mitigated" | "closed";
+
+export type RaidItemRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string | null;
+  source_document_id: string;
+  source_signal_id: string | null;
+  category: RaidItemCategory;
+  title: string;
+  description: string;
+  status: RaidItemStatus;
+  confidence_score: number;
+  detected_at: string;
+  last_detected_at: string;
+  detected_by: string | null;
+  owner: string | null;
+  due_date: string | null;
+  auto_generated: boolean;
+  fingerprint: string;
+  occurrence_count: number;
+};
+
+export const RAID_ITEM_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "source_document_id",
+  "source_signal_id",
+  "category",
+  "title",
+  "description",
+  "status",
+  "confidence_score",
+  "detected_at",
+  "last_detected_at",
+  "detected_by",
+  "owner",
+  "due_date",
+  "auto_generated",
+  "fingerprint",
+  "occurrence_count",
+] as const satisfies ReadonlyArray<keyof RaidItemRow>;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // trial_licenses
 // Source: 20260512198000_early_access_trials.sql
@@ -320,4 +372,4 @@ export type PmoTeamInviteRow = {
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-01-v1" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-02-raid-v1" as const;

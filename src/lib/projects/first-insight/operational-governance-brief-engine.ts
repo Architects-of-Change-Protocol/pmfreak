@@ -85,6 +85,7 @@ export function generateOperationalGovernanceBrief({
   pmoGovernance = null,
   projectOnboardingPayload = null,
   workspaceRuntimeState = null,
+  detectedRaidOverview = null,
   generatedAt,
   briefId,
 }: GenerateOperationalGovernanceBriefInput): OperationalGovernanceBrief {
@@ -217,7 +218,8 @@ export function generateOperationalGovernanceBrief({
 
   const rankedRisks = risks.sort((a, b) => rankRisk(b) - rankRisk(a));
   const topDomains = [...new Set(rankedRisks.slice(0, 4).map((risk) => risk.relatedDomain))];
-  const confidenceScore = calculateConfidence({ pmoGovernance: pmo, projectOnboardingPayload: payload, workspaceRuntimeState: readRecord(workspaceRuntimeState), gaps, risks: rankedRisks });
+  const raidOverview = detectedRaidOverview ?? { topRisks: [], topIssues: [], keyDependencies: [], keyAssumptions: [], snapshot: { risks: 0, issues: 0, dependencies: 0, assumptions: 0 }, healthScore: 100 };
+  const confidenceScore = Math.min(96, calculateConfidence({ pmoGovernance: pmo, projectOnboardingPayload: payload, workspaceRuntimeState: readRecord(workspaceRuntimeState), gaps, risks: rankedRisks }) + (raidOverview.snapshot.risks + raidOverview.snapshot.issues + raidOverview.snapshot.dependencies + raidOverview.snapshot.assumptions > 0 ? 4 : 0));
   const primaryDomain = topDomains[0] ?? "governance";
 
   return {
@@ -227,6 +229,7 @@ export function generateOperationalGovernanceBrief({
     generatedAt: generatedAt ?? new Date().toISOString(),
     confidenceScore,
     topExecutionRisks: rankedRisks,
+    detectedRaidOverview: raidOverview,
     governanceGaps: gaps,
     recommendedNextAction: gaps.length
       ? `Stabilize ${primaryDomain} first: ${rankedRisks[0]?.recommendedMitigation ?? "complete the missing governance baseline."}`
@@ -244,7 +247,7 @@ export function generateOperationalGovernanceBrief({
       pmoGovernanceAvailable: Boolean(pmo),
       projectOnboardingPayloadAvailable: Boolean(payload),
       workspaceRuntimeStateAvailable: Boolean(readRecord(workspaceRuntimeState)),
-      signalsEvaluated,
+      signalsEvaluated: [...signalsEvaluated, ...(raidOverview.snapshot.risks + raidOverview.snapshot.issues + raidOverview.snapshot.dependencies + raidOverview.snapshot.assumptions > 0 ? ["detected_raid_overview"] : [])],
     },
   };
 }

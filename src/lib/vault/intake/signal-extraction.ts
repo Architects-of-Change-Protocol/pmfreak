@@ -4,9 +4,9 @@ const MAX_SIGNAL_LENGTH = 360;
 
 const SIGNAL_PATTERNS: Record<VaultOperationalSignalType, RegExp[]> = {
   risk: [/\batraso\b/i, /\bretraso\b/i, /\bblocked\b/i, /\bblocker\b/i, /\bdependency\b/i, /\bwaiting\b/i, /\bissue\b/i, /no entregar[áa]?/i, /\bslip(?:ping)?\b/i, /\bat risk\b/i],
-  issue: [/\bfalla\b/i, /\bproblema\b/i, /\boutage\b/i, /\bdefect\b/i, /\berror\b/i, /\bincident\b/i],
+  issue: [/\bfalla\b/i, /\bproblema\b/i, /\bissue\b/i, /\buncertainty\b/i, /\bincertidumbre\b/i, /\boutage\b/i, /\bdefect\b/i, /\berror\b/i, /\bincident\b/i],
   dependency: [/\bdepende\b/i, /\bdependency\b/i, /\brequires\b/i, /\brequiere\b/i, /\bdepends on\b/i, /\bwaiting for\b/i, /\bpending access\b/i],
-  action: [/[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s+(?:hará|actualizará|enviará|coordinará|revisará|preparará)/u, /\b[A-Z][a-z]+\s+(?:will|to)\s+\w+/i, /\bse acuerda\b/i, /\baction item\b/i, /\bdue\b/i, /\bowner\b/i],
+  action: [/[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s+(?:hará|actualizará|enviará|coordinará|revisará|preparará)/u, /\b[A-Z][a-z]+\s+(?:will|to)\s+\w+/i, /\bAssigned to\s+[A-Z][a-z]+/i, /\bOwner:\s*[A-Z][a-z]+/i, /\b[A-Z][a-z]+\s+will\s+(?:review|update|coordinate|send|prepare)\b/i, /\bse acuerda\b/i, /\baction item\b/i, /\bdue\b/i, /\bowner\b/i],
   decision: [/se aprobó/i, /se aprobo/i, /se decidió/i, /se decidio/i, /\bapproved\b/i, /\bdecision\b/i, /\bdecided\b/i, /\bsign off\b/i],
 };
 

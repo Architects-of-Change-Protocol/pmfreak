@@ -60,6 +60,9 @@ export type VaultIngestionResult = {
   dependenciesDetected: number;
   actionsDetected: number;
   decisionsDetected: number;
+  raidItemsCreated: number;
+  raidItemsUpdated: number;
+  raidSnapshot: { risks: number; issues: number; dependencies: number; assumptions: number };
   confidenceScore: number;
   ingestionSummary: string;
   ingestionStatus: VaultDocumentIngestionStatus;

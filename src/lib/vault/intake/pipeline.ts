@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { buildRaidSnapshot, extractRaidItems } from "@/lib/raid";
 import { calculateVaultConfidenceScore, classifyVaultDocument, extractVaultOperationalSignals, normalizeVaultContent } from "./signal-extraction";
 import type { VaultDocument, VaultDocumentInput, VaultIngestionResult, VaultOperationalSignalType } from "./types";
 import type { VaultIntakeStore } from "./storage";
@@ -36,6 +37,9 @@ export async function ingestVaultDocument(input: VaultDocumentInput & { store: V
       dependenciesDetected: 0,
       actionsDetected: 0,
       decisionsDetected: 0,
+      raidItemsCreated: 0,
+      raidItemsUpdated: 0,
+      raidSnapshot: { risks: 0, issues: 0, dependencies: 0, assumptions: 0 },
       confidenceScore: 0,
       ingestionSummary: "Document persistence failed. Evidence was not stored.",
       ingestionStatus: "document_persistence_failed",
@@ -64,9 +68,24 @@ export async function ingestVaultDocument(input: VaultDocumentInput & { store: V
     }
   }
 
+  const raidCandidates = extractionFailed ? [] : extractRaidItems({ document, signals, idFactory });
+  let persistedRaidItems = raidCandidates;
+  let raidItemsCreated = raidCandidates.length;
+  let raidItemsUpdated = 0;
+  if (!extractionFailed && input.store.persistRaidItems) {
+    const raidPersistence = await input.store.persistRaidItems(raidCandidates);
+    if (!raidPersistence.ok) {
+      errors.push(raidPersistence.error);
+    } else {
+      persistedRaidItems = [...raidPersistence.created, ...raidPersistence.updated];
+      raidItemsCreated = raidPersistence.created.length;
+      raidItemsUpdated = raidPersistence.updated.length;
+    }
+  }
+
   let executiveSynthesisUpdated = false;
   if (!extractionFailed) {
-    const synthesis = await input.store.triggerExecutiveSynthesisUpdate({ workspaceId: input.workspaceId, companyId: input.companyId ?? null, projectId: input.projectId ?? null, documentId, signals });
+    const synthesis = await input.store.triggerExecutiveSynthesisUpdate({ workspaceId: input.workspaceId, companyId: input.companyId ?? null, projectId: input.projectId ?? null, documentId, signals, raidItems: persistedRaidItems });
     executiveSynthesisUpdated = synthesis.ok;
     if (!synthesis.ok) {
       errors.push(synthesis.error);
@@ -79,7 +98,8 @@ export async function ingestVaultDocument(input: VaultDocumentInput & { store: V
   const dependenciesDetected = countType(signals, "dependency");
   const actionsDetected = countType(signals, "action");
   const decisionsDetected = countType(signals, "decision");
-  const confidenceScore = calculateVaultConfidenceScore(signals.length, classification, extractionFailed);
+  const raidSnapshot = buildRaidSnapshot(persistedRaidItems);
+  const confidenceScore = calculateVaultConfidenceScore(signals.length + persistedRaidItems.length, classification, extractionFailed);
   const status = extractionFailed
     ? "extraction_failed"
     : errors.some((error) => error.includes("signal") || error.includes("persist"))
@@ -95,8 +115,11 @@ export async function ingestVaultDocument(input: VaultDocumentInput & { store: V
     dependenciesDetected,
     actionsDetected,
     decisionsDetected,
+    raidItemsCreated,
+    raidItemsUpdated,
+    raidSnapshot,
     confidenceScore,
-    ingestionSummary: `Meeting captured. ${risksDetected} Risks detected. ${dependenciesDetected} Dependency detected. ${actionsDetected} Action Items detected. Executive synthesis ${executiveSynthesisUpdated ? "updated" : "not updated"}.`,
+    ingestionSummary: `Meeting captured. ${risksDetected} Risks detected. ${dependenciesDetected} Dependency detected. ${actionsDetected} Action Items detected. Risk created: ${raidSnapshot.risks}. Issue created: ${raidSnapshot.issues}. Dependency created: ${raidSnapshot.dependencies}. RAID Snapshot updated. Project Health recalculated. Executive synthesis ${executiveSynthesisUpdated ? "updated" : "not updated"}.`,
     ingestionStatus: status,
     classification,
     executiveSynthesisUpdated,
