@@ -18,6 +18,9 @@ type VaultIntakeResult = {
   dependenciesDetected: number;
   actionsDetected: number;
   decisionsDetected: number;
+  raidItemsCreated: number;
+  raidItemsUpdated: number;
+  raidSnapshot: { risks: number; issues: number; dependencies: number; assumptions: number };
   confidenceScore: number;
   ingestionSummary: string;
   ingestionStatus: string;
@@ -153,6 +156,10 @@ export function CommandCenterClient({ firstRun = false, projectId, projectName, 
     liveOps.data?.timeline?.escalationChain?.length ? `Escalation chain depth: ${String(liveOps.data.timeline.escalationChain.length)}.` : null,
   ].filter(Boolean).slice(0, 3) as string[];
 
+
+  const raidSnapshot = brief?.detectedRaidOverview?.snapshot ?? vaultIntakeResult?.raidSnapshot ?? { risks: 0, issues: 0, dependencies: 0, assumptions: 0 };
+  const raidHealthScore = brief?.detectedRaidOverview?.healthScore ?? null;
+
   const suggestedBriefPrompts = brief ? [
     "Turn this brief into a 7-day governance plan",
     "Draft stakeholder alignment actions",
@@ -183,6 +190,7 @@ export function CommandCenterClient({ firstRun = false, projectId, projectName, 
       interventions.mutate();
       coordination.mutate();
       liveOps.mutate();
+      retryBrief();
     } catch (error) {
       setVaultIntakeError(error instanceof Error ? error.message : "Vault intake failed.");
     } finally {
@@ -272,6 +280,22 @@ export function CommandCenterClient({ firstRun = false, projectId, projectName, 
             <p className="mt-2 text-[11px] text-cyan-200/80">First intervention: {brief.firstInterventionSuggestion}</p>
           </div>}
 
+          <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.05] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-cyan-100/70">RAID Snapshot</p>
+                <p className="mt-1 text-sm text-slate-300">Open PMO intelligence items generated from deterministic Vault evidence.</p>
+              </div>
+              {raidHealthScore !== null && <span className="rounded-full border border-cyan-300/30 px-2 py-1 text-[10px] text-cyan-100">Health {raidHealthScore}</span>}
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
+              <div className="rounded-lg border border-white/10 bg-slate-950/35 p-3"><p className="text-slate-400">Risks</p><p className="mt-1 text-xl font-semibold text-rose-100">{raidSnapshot.risks}</p></div>
+              <div className="rounded-lg border border-white/10 bg-slate-950/35 p-3"><p className="text-slate-400">Issues</p><p className="mt-1 text-xl font-semibold text-amber-100">{raidSnapshot.issues}</p></div>
+              <div className="rounded-lg border border-white/10 bg-slate-950/35 p-3"><p className="text-slate-400">Dependencies</p><p className="mt-1 text-xl font-semibold text-cyan-100">{raidSnapshot.dependencies}</p></div>
+              <div className="rounded-lg border border-white/10 bg-slate-950/35 p-3"><p className="text-slate-400">Assumptions</p><p className="mt-1 text-xl font-semibold text-violet-100">{raidSnapshot.assumptions}</p></div>
+            </div>
+          </div>
+
           <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.04] p-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -303,11 +327,12 @@ export function CommandCenterClient({ firstRun = false, projectId, projectName, 
             {vaultIntakeResult && (
               <div className="mt-3 rounded-lg border border-emerald-300/25 bg-emerald-300/[0.06] p-3 text-sm text-emerald-50">
                 <p className="font-semibold">Meeting captured.</p>
-                <p>{vaultIntakeResult.risksDetected} Risks detected.</p>
-                <p>{vaultIntakeResult.dependenciesDetected} Dependency detected.</p>
-                <p>{vaultIntakeResult.actionsDetected} Action Items detected.</p>
-                <p>{vaultIntakeResult.issuesDetected} Issues detected · {vaultIntakeResult.decisionsDetected} Decisions detected.</p>
-                <p className="mt-2 text-xs text-emerald-100/80">Executive synthesis {vaultIntakeResult.executiveSynthesisUpdated ? "updated" : "not updated"}. Classification: {vaultIntakeResult.classification}. Confidence: {vaultIntakeResult.confidenceScore}%.</p>
+                <p>Risk created: {vaultIntakeResult.raidSnapshot.risks}.</p>
+                <p>Issue created: {vaultIntakeResult.raidSnapshot.issues}.</p>
+                <p>Dependency created: {vaultIntakeResult.raidSnapshot.dependencies}.</p>
+                <p>Assumptions created: {vaultIntakeResult.raidSnapshot.assumptions} · Duplicates updated: {vaultIntakeResult.raidItemsUpdated}.</p>
+                <p>Signals: {vaultIntakeResult.risksDetected} risks · {vaultIntakeResult.issuesDetected} issues · {vaultIntakeResult.dependenciesDetected} dependencies · {vaultIntakeResult.actionsDetected} actions · {vaultIntakeResult.decisionsDetected} decisions.</p>
+                <p className="mt-2 text-xs text-emerald-100/80">RAID Snapshot updated. Project Health recalculated. Executive synthesis {vaultIntakeResult.executiveSynthesisUpdated ? "updated" : "not updated"}. Classification: {vaultIntakeResult.classification}. Confidence: {vaultIntakeResult.confidenceScore}%.</p>
               </div>
             )}
           </div>

@@ -56,17 +56,20 @@ create index if not exists vault_documents_source_type_idx
 
 alter table public.vault_documents enable row level security;
 
-create policy if not exists "workspace members can read vault_documents"
+drop policy if exists "workspace members can read vault_documents" on public.vault_documents;
+create policy "workspace members can read vault_documents"
   on public.vault_documents
   for select to authenticated
   using (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace members can insert vault_documents"
+drop policy if exists "workspace members can insert vault_documents" on public.vault_documents;
+create policy "workspace members can insert vault_documents"
   on public.vault_documents
   for insert to authenticated
   with check (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace members can update vault_documents"
+drop policy if exists "workspace members can update vault_documents" on public.vault_documents;
+create policy "workspace members can update vault_documents"
   on public.vault_documents
   for update to authenticated
   using (public.is_workspace_member(workspace_id))
@@ -95,12 +98,14 @@ create index if not exists vault_operational_signals_project_type_idx
 
 alter table public.vault_operational_signals enable row level security;
 
-create policy if not exists "workspace members can read vault_operational_signals"
+drop policy if exists "workspace members can read vault_operational_signals" on public.vault_operational_signals;
+create policy "workspace members can read vault_operational_signals"
   on public.vault_operational_signals
   for select to authenticated
   using (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace members can insert vault_operational_signals"
+drop policy if exists "workspace members can insert vault_operational_signals" on public.vault_operational_signals;
+create policy "workspace members can insert vault_operational_signals"
   on public.vault_operational_signals
   for insert to authenticated
   with check (public.is_workspace_member(workspace_id));

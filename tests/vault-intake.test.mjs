@@ -50,7 +50,7 @@ const payload = {
   risk: extractionFor("Hay atraso y blocked dependency waiting on vendor.").map((s) => s.signalType),
   issue: extractionFor("Hay una falla y un problema de outage.").map((s) => s.signalType),
   dependency: extractionFor("La instalación depende del acceso and requires site approval.").map((s) => s.signalType),
-  actionCount: extractionFor("Carlos hará la actualización. Juan actualizará el cronograma. Se acuerda enviar minuta.").filter((s) => s.signalType === "action").length,
+  actionCount: extractionFor("Carlos hará la actualización. Juan actualizará el cronograma. Se acuerda enviar minuta. Assigned to Carlos. Assigned to Juan. Owner: Victor. Victor will review. Carlos will update.").filter((s) => s.signalType === "action").length,
   decisionCount: extractionFor("Se aprobó el cambio. Se decidió continuar. Approved by sponsor.").filter((s) => s.signalType === "decision").length,
   classification: classifyVaultDocument("Firewall technical issue with sponsor approval and budget payment"),
   extractionFailure: { result: extractionFailure, documents: extractionFailureStore.calls.documents.length, signals: extractionFailureStore.calls.signals.length, statuses: extractionFailureStore.calls.statuses },
@@ -111,7 +111,7 @@ test("dependency extraction detects depende/dependency/requires", () => {
 });
 
 test("action extraction detects owner commitments", () => {
-  assert.ok(runtime.actionCount >= 3);
+  assert.ok(runtime.actionCount >= 8);
 });
 
 test("decision extraction detects approvals and decisions", () => {

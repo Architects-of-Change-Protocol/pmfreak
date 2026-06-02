@@ -50,6 +50,7 @@ const CONTRACT = {
   workspace_governance: extractDeclaredColumns("WORKSPACE_GOVERNANCE_SELECTABLE_COLUMNS"),
   workspace_runtime_state: extractDeclaredColumns("WORKSPACE_RUNTIME_STATE_SELECTABLE_COLUMNS"),
   operational_governance_briefs: extractDeclaredColumns("OPERATIONAL_GOVERNANCE_BRIEF_SELECTABLE_COLUMNS"),
+  raid_items: extractDeclaredColumns("RAID_ITEM_SELECTABLE_COLUMNS"),
   trial_licenses: extractDeclaredColumns("TRIAL_LICENSE_SELECTABLE_COLUMNS"),
   early_access_invites: extractDeclaredColumns("EARLY_ACCESS_INVITE_SELECTABLE_COLUMNS"),
 };
