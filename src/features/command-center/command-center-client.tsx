@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { computeCapabilityRevealState } from "@/features/runtime/capability-reveal/capability-reveal-selectors";
+import type { OperationalGovernanceBrief } from "@/lib/projects/first-insight";
 
 type AnyRecord = Record<string, unknown>;
 type UserProject = { id: string; name: string };
@@ -53,7 +54,7 @@ function statusTone(status: DomainStatus) {
   return "text-slate-300 border-white/10 bg-white/[0.04]";
 }
 
-export function CommandCenterClient({ firstRun = false, projectId, projectName, workspaceId, projects, role, onboardingCompleted, planTier, canUseAdvancedAi, canUsePortfolioMemory, canUseGovernanceDirectives }: { firstRun?: boolean; projectId: string; projectName: string; workspaceId: string; projects: UserProject[]; role: string; onboardingCompleted: boolean; planTier: "free" | "pro" | "pmo"; canUseAdvancedAi: boolean; canUsePortfolioMemory: boolean; canUseGovernanceDirectives: boolean; }) {
+export function CommandCenterClient({ firstRun = false, projectId, projectName, workspaceId, projects, role, onboardingCompleted, planTier, canUseAdvancedAi, canUsePortfolioMemory, canUseGovernanceDirectives, initialBrief, briefGenerationFailed = false }: { firstRun?: boolean; projectId: string; projectName: string; workspaceId: string; projects: UserProject[]; role: string; onboardingCompleted: boolean; planTier: "free" | "pro" | "pmo"; canUseAdvancedAi: boolean; canUsePortfolioMemory: boolean; canUseGovernanceDirectives: boolean; initialBrief?: OperationalGovernanceBrief | null; briefGenerationFailed?: boolean; }) {
   const router = useRouter();
   const swrOptions = { refreshInterval: 20000, revalidateOnFocus: true, dedupingInterval: 3000 };
   const key = (path: string): [string, string, string] => [path, projectId, workspaceId];
@@ -71,6 +72,9 @@ export function CommandCenterClient({ firstRun = false, projectId, projectName, 
   const [activeDomainId, setActiveDomainId] = useState("core");
   const [draftPrompt, setDraftPrompt] = useState("");
   const [interactionState, setInteractionState] = useState<"idle" | "drafted">("idle");
+  const [brief, setBrief] = useState<OperationalGovernanceBrief | null>(initialBrief ?? null);
+  const [briefFallback, setBriefFallback] = useState(briefGenerationFailed);
+  const [retryingBrief, setRetryingBrief] = useState(false);
 
   const evidenceSignals = useMemo(() => {
     const queueLen = (coordination.data?.coordination?.operational_priority_queue?.actions ?? coordination.data?.operational_priority_queue?.actions ?? []).length;
@@ -121,12 +125,40 @@ export function CommandCenterClient({ firstRun = false, projectId, projectName, 
   };
 
   const queueActions = (coordination.data?.coordination?.operational_priority_queue?.actions ?? coordination.data?.operational_priority_queue?.actions ?? []) as AnyRecord[];
+  const briefRiskItems = (brief?.topExecutionRisks ?? []).slice(0, 3).map((item) => `${item.severity.toUpperCase()}: ${item.title}`);
   const topAttention = [
+    ...briefRiskItems,
     risk.data?.overallRisk ? `Delivery risk is ${String(risk.data?.overallRisk)}.` : null,
     stakeholders.data?.executivePressure ? `Stakeholder pressure is ${String(stakeholders.data?.executivePressure)}.` : null,
     queueActions.length ? `${queueActions.length} coordinated interventions are queued.` : null,
     liveOps.data?.timeline?.escalationChain?.length ? `Escalation chain depth: ${String(liveOps.data.timeline.escalationChain.length)}.` : null,
   ].filter(Boolean).slice(0, 3) as string[];
+
+  const suggestedBriefPrompts = brief ? [
+    "Turn this brief into a 7-day governance plan",
+    "Draft stakeholder alignment actions",
+    "Create the first RAID checkpoint",
+    "Explain the top execution risk",
+  ] : PROMPTS;
+
+  const retryBrief = async () => {
+    setRetryingBrief(true);
+    setBriefFallback(false);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/operational-governance-brief`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId }),
+      });
+      if (!response.ok) throw new Error("retry_failed");
+      const payload = await response.json();
+      setBrief(payload.brief ?? null);
+    } catch {
+      setBriefFallback(true);
+    } finally {
+      setRetryingBrief(false);
+    }
+  };
 
   const briefing = hasEvidence
     ? [
@@ -167,21 +199,33 @@ export function CommandCenterClient({ firstRun = false, projectId, projectName, 
         <main className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           <div>
             <p className="text-[10px] uppercase tracking-[0.28em] text-indigo-300">PMFreak Core</p>
-            <p className="mt-2 text-lg font-medium text-slate-100">{firstRun ? "Your project context is active." : "Operational cognition is online."}</p>
-            <p className="mt-2 text-sm text-slate-300">{firstRun ? "PMFreak will begin learning from blockers, meetings, stakeholders, risks, and decisions as they enter the Vault." : briefing}</p>
-            {firstRun && <p className="mt-2 text-xs text-slate-400">The runtime gets smarter as the Vault receives operational nutrients. Start by adding context; deeper intelligence requires evidence.</p>}
-            <p className="mt-2 text-xs text-cyan-200">Reveal stage: {revealState.stage} · Evidence: {revealState.evidenceDensity} · Continuity: {revealState.continuityMaturity}</p>
+            <p className="mt-2 text-lg font-medium text-slate-100">Based on your PMO and project setup, I detected the following execution signals…</p>
+            <p className="mt-2 text-sm text-slate-300">{brief ? brief.recommendedNextAction : (firstRun ? "PMFreak will begin learning from blockers, meetings, stakeholders, risks, and decisions as they enter the Vault." : briefing)}</p>
+            {briefFallback && <div className="mt-3 rounded-xl border border-amber-300/25 bg-amber-300/[0.06] p-3"><p className="text-sm text-amber-100">Project created. Initial governance brief could not be generated yet.</p><button type="button" onClick={retryBrief} disabled={retryingBrief} className="mt-2 rounded-lg border border-amber-200/40 px-3 py-1.5 text-xs font-semibold text-amber-100 disabled:opacity-50">{retryingBrief ? "Retrying…" : "Retry brief generation"}</button></div>}
+            {firstRun && !brief && <p className="mt-2 text-xs text-slate-400">The runtime gets smarter as the Vault receives operational nutrients. Start by adding context; deeper intelligence requires evidence.</p>}
+            <p className="mt-2 text-xs text-cyan-200">Reveal stage: {revealState.stage} · Evidence: {revealState.evidenceDensity} · Continuity: {revealState.continuityMaturity}{brief ? ` · Brief confidence: ${brief.confidenceScore}%` : ""}</p>
             <ul className="mt-2 space-y-1">{revealState.educationalHints.slice(0,2).map((h)=> <li key={h} className="text-xs text-slate-400">• {h}</li>)}</ul>
           </div>
 
           <div>
-            <p className="text-xs font-semibold text-slate-300">Top attention items</p>
-            <ul className="mt-2 space-y-2">{topAttention.length ? topAttention.map((item) => <li key={item} className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-slate-200">{item}</li>) : <li className="rounded-lg border border-amber-300/20 bg-amber-300/[0.05] px-3 py-2 text-sm text-amber-100">Not enough operational evidence yet.</li>}</ul>
+            <p className="text-xs font-semibold text-slate-300">Top execution risks</p>
+            <ul className="mt-2 space-y-2">{topAttention.length ? topAttention.slice(0,3).map((item) => <li key={item} className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-slate-200">{item}</li>) : <li className="rounded-lg border border-amber-300/20 bg-amber-300/[0.05] px-3 py-2 text-sm text-amber-100">Not enough operational evidence yet.</li>}</ul>
           </div>
 
+          {brief && <div>
+            <p className="text-xs font-semibold text-slate-300">Governance gaps</p>
+            <ul className="mt-2 grid gap-2 md:grid-cols-2">{brief.governanceGaps.slice(0,4).map((gap) => <li key={gap} className="rounded-lg border border-indigo-300/15 bg-indigo-300/[0.04] px-3 py-2 text-xs text-indigo-100">{gap}</li>)}</ul>
+          </div>}
+
+          {brief && <div className="rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] p-3">
+            <p className="text-xs font-semibold text-cyan-100">Recommended next action</p>
+            <p className="mt-1 text-sm text-slate-200">{brief.recommendedNextAction}</p>
+            <p className="mt-2 text-[11px] text-cyan-200/80">First intervention: {brief.firstInterventionSuggestion}</p>
+          </div>}
+
           <div>
-            <p className="text-xs font-semibold text-slate-300">Suggested prompts</p>
-            <div className="mt-2 flex flex-wrap gap-2">{PROMPTS.map((prompt) => <button key={prompt} onClick={() => { setDraftPrompt(prompt); setInteractionState("drafted"); }} className="rounded-full border border-white/15 bg-white/[0.03] px-3 py-1.5 text-xs text-slate-200 hover:bg-white/[0.06]">{prompt}</button>)}</div>
+            <p className="text-xs font-semibold text-slate-300">Suggested prompt chips</p>
+            <div className="mt-2 flex flex-wrap gap-2">{suggestedBriefPrompts.map((prompt) => <button key={prompt} onClick={() => { setDraftPrompt(prompt); setInteractionState("drafted"); }} className="rounded-full border border-white/15 bg-white/[0.03] px-3 py-1.5 text-xs text-slate-200 hover:bg-white/[0.06]">{prompt}</button>)}</div>
           </div>
 
           <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
@@ -197,7 +241,7 @@ export function CommandCenterClient({ firstRun = false, projectId, projectName, 
           <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Evidence & trust context</p>
           <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-xs text-slate-300"><p className="text-slate-100">Active project</p><p>{projectName}</p><p className="mt-2 text-slate-100">Runtime scope</p><p>workspaceId: {workspaceId.slice(0, 8)}… · projectId: {projectId.slice(0, 8)}…</p></div>
           <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-xs text-slate-300"><p className="text-slate-100">Top signals</p><ul className="mt-1 list-disc space-y-1 pl-4"><li>Execution risk: {String(risk.data?.overallRisk ?? "needs more evidence")}</li><li>Stakeholder pressure: {String(stakeholders.data?.executivePressure ?? "needs more evidence")}</li><li>Coordination urgency: {String(coordination.data?.coordination?.machineOutput?.coordination_urgency ?? "needs more evidence")}</li></ul></div>
-          <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-xs text-slate-300"><p className="text-slate-100">Interventions & lineage</p><p>Active interventions: {String(queueActions.length)}</p><p>Evidence sources: execution-risk, stakeholders, interventions, coordination, operational-live</p><p>Confidence label: {hasEvidence ? "inferred from live endpoints" : "needs more evidence"}</p><p>Simulation label: Scope/Lessons domains currently simulated.</p></div>
+          <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-xs text-slate-300"><p className="text-slate-100">Interventions & lineage</p><p>Active interventions: {String(queueActions.length)}</p><p>Evidence sources: execution-risk, stakeholders, interventions, coordination, operational-live</p><p>Confidence label: {brief ? `${brief.confidenceScore}% from initial governance brief` : (hasEvidence ? "inferred from live endpoints" : "needs more evidence")}</p><p>Simulation label: Scope/Lessons domains currently simulated.</p></div>
         </aside>
       </section>
     </div>

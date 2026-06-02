@@ -4,10 +4,11 @@ import { getAuthUser } from "@/lib/auth";
 import { canCreateMoreProjects } from "@/lib/feature-gates";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ensureUserWorkspace } from "@/lib/workspaces";
+import { generateAndPersistOperationalGovernanceBrief } from "@/lib/projects/first-insight";
 import type { ProjectOnboardingPayload } from "./project-onboarding-types";
 
 export type ProjectSaveResult =
-  | { status: "success"; projectId: string; correlationId: string }
+  | { status: "success"; projectId: string; correlationId: string; briefStatus: "generated" | "generation_failed"; briefError?: string }
   | {
       status: "recoverable_failure";
       error: string;
@@ -160,11 +161,51 @@ export async function saveProjectOnboarding(
       };
     }
 
-    // Insert confirmed — track for potential rollback in downstream steps
+    // Insert confirmed — project creation must survive first-insight failures.
     insertedProjectId = data.id;
 
-    // Downstream initialization steps go here.
-    // Any exception thrown below triggers the rollback in the outer catch.
+    let briefStatus: "generated" | "generation_failed" = "generated";
+    let briefError: string | undefined;
+    try {
+      const briefResult = await generateAndPersistOperationalGovernanceBrief({
+        workspaceId: ensured.workspaceId,
+        projectId: data.id,
+        projectOnboardingPayload: payload as unknown as Record<string, unknown>,
+        createdBy: user.id,
+        supabase,
+      });
+
+      if (!briefResult.ok) {
+        briefStatus = "generation_failed";
+        briefError = briefResult.error;
+        emit("project.create.brief_generation_failed", {
+          correlationId: cid,
+          projectId: data.id,
+          userId: user.id,
+          workspaceId: ensured.workspaceId,
+          detail: briefResult.error,
+        });
+      } else {
+        emit("project.create.brief_generated", {
+          correlationId: cid,
+          projectId: data.id,
+          briefId: briefResult.brief.briefId,
+          confidenceScore: briefResult.brief.confidenceScore,
+          userId: user.id,
+          workspaceId: ensured.workspaceId,
+        });
+      }
+    } catch (briefErr) {
+      briefStatus = "generation_failed";
+      briefError = briefErr instanceof Error ? briefErr.message : "brief_generation_exception";
+      emit("project.create.brief_generation_failed", {
+        correlationId: cid,
+        projectId: data.id,
+        userId: user.id,
+        workspaceId: ensured.workspaceId,
+        detail: briefError,
+      });
+    }
 
     emit("project.create.persisted", {
       correlationId: cid,
@@ -180,7 +221,7 @@ export async function saveProjectOnboarding(
       workspaceId: ensured.workspaceId,
     });
 
-    return { status: "success", projectId: data.id, correlationId: cid };
+    return { status: "success", projectId: data.id, correlationId: cid, briefStatus, briefError };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
 

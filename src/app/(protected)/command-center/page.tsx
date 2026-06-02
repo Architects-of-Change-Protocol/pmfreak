@@ -8,11 +8,12 @@ import { resolveActiveProject } from "@/lib/resolve-active-project";
 import { getCompanySubscription } from "@/lib/billing";
 import { getPlanCapabilities } from "@/lib/feature-gates";
 import { WorkspaceContextBanner } from "@/components/pmfreak/workspace/workspace-context-banner";
+import { loadLatestOperationalGovernanceBrief } from "@/lib/projects/first-insight";
 
 export default async function CommandCenterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; projectId?: string }>;
+  searchParams: Promise<{ from?: string; projectId?: string; briefGeneration?: string }>;
 }) {
   const user = await requireAuthUser();
   const workspace = await ensureUserWorkspace(user.id);
@@ -21,6 +22,7 @@ export default async function CommandCenterPage({
   const fromOnboarding = params.from === "onboarding";
   const subscription = await getCompanySubscription(user.companyId);
   const capabilities = getPlanCapabilities(subscription.plan);
+  const briefGenerationFailed = params.briefGeneration === "failed";
 
   const { data: projects } = await supabase
     .from("projects")
@@ -180,6 +182,8 @@ export default async function CommandCenterPage({
     );
   }
 
+  const initialBrief = await loadLatestOperationalGovernanceBrief(resolution.project!.id, supabase);
+
   return (
     <div className="space-y-4">
       <WorkspaceContextBanner lens="Execution Coordination Lens" />
@@ -195,6 +199,8 @@ export default async function CommandCenterPage({
         canUseAdvancedAi={capabilities.advanced_ai_actions}
         canUsePortfolioMemory={capabilities.organizational_memory}
         canUseGovernanceDirectives={capabilities.governance_directives}
+        initialBrief={initialBrief}
+        briefGenerationFailed={briefGenerationFailed && !initialBrief}
       />
     </div>
   );

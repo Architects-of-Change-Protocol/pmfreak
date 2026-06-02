@@ -28,11 +28,11 @@ const projectDetailPage = readFileSync(
 // 1. success — explicit contract
 // ─────────────────────────────────────────────────────────────────────────────
 
-test("saveProjectOnboarding success result includes projectId and correlationId", () => {
+test("saveProjectOnboarding success result includes projectId, correlationId, and briefStatus", () => {
   assert.match(
     saveProject,
-    /status: "success", projectId: data\.id, correlationId: cid/,
-    "success return must include projectId and correlationId"
+    /status: "success", projectId: data\.id, correlationId: cid, briefStatus/,
+    "success return must include projectId, correlationId, and briefStatus"
   );
 });
 
@@ -100,7 +100,7 @@ test("wizard emits project.create.retry event before retrying", () => {
 
 test("wizard does not call router.push before status check", () => {
   const statusCheckIdx = wizard.indexOf('result.status !== "success"');
-  const pushIdx = wizard.indexOf("router.push(`/projects/");
+  const pushIdx = wizard.indexOf("router.push(`/command-center?projectId=");
   assert.ok(statusCheckIdx > 0, "status check must exist");
   assert.ok(pushIdx > statusCheckIdx, "router.push must not appear before the status check");
 });
@@ -156,9 +156,29 @@ test("activate button disabled when saveError is present", () => {
   );
 });
 
-test("wizard has exactly one router.push to /projects/:id and only on success", () => {
-  const allPushes = [...wizard.matchAll(/router\.push\(`\/projects\/\$\{result\.projectId\}`\)/g)];
-  assert.equal(allPushes.length, 1, "router.push to project must appear exactly once");
+test("wizard has exactly one router.push to command center with projectId and only on success", () => {
+  const allPushes = [...wizard.matchAll(/router\.push\(`\/command-center\?projectId=\$\{result\.projectId/g)];
+  assert.equal(allPushes.length, 1, "router.push to command center must appear exactly once");
+});
+
+
+
+test("wizard has no legacy /projects/:id navigation after activation success", () => {
+  assert.equal(
+    /router\.push\(`\/projects\/\$\{result\.projectId\}`\)/.test(wizard),
+    false,
+    "wizard must not navigate to /projects/:id after activation"
+  );
+});
+
+test("wizard guards activation against duplicate final navigation", () => {
+  assert.match(wizard, /navigationCommittedRef/, "navigation committed ref must exist");
+  assert.match(wizard, /activationInFlightRef/, "activation in-flight ref must exist");
+  assert.match(
+    wizard,
+    /activationInFlightRef\.current \|\| navigationCommittedRef\.current/,
+    "handleActivate must return when activation/navigation is already in flight"
+  );
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -255,9 +275,9 @@ test("saveProjectOnboarding returns fatal_failure with failureClass=invalid_payl
 // ─────────────────────────────────────────────────────────────────────────────
 
 test("wizard navigates only using result.projectId from a confirmed success result", () => {
-  assert.match(wizard, /router\.push\(`\/projects\/\$\{result\.projectId\}`\)/);
+  assert.match(wizard, /router\.push\(`\/command-center\?projectId=\$\{result\.projectId\}/);
   // projectId in the navigation comes from result, not from any intermediate variable
-  const navIdx = wizard.indexOf("router.push(`/projects/${result.projectId}`)");
+  const navIdx = wizard.indexOf("router.push(`/command-center?projectId=${result.projectId}");
   assert.ok(navIdx > 0, "navigation must use result.projectId");
 });
 
