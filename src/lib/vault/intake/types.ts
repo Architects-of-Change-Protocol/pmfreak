@@ -23,6 +23,7 @@ export type VaultDocumentIngestionStatus =
   | "completed"
   | "extraction_failed"
   | "signals_persistence_failed"
+  | "raid_persistence_failed"
   | "executive_synthesis_failed"
   | "document_persistence_failed";
 
