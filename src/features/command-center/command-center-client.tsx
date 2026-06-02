@@ -11,6 +11,21 @@ type AnyRecord = Record<string, unknown>;
 type UserProject = { id: string; name: string };
 type DomainStatus = "active" | "watching" | "needs-data" | "simulated";
 
+type VaultIntakeResult = {
+  documentId: string;
+  risksDetected: number;
+  issuesDetected: number;
+  dependenciesDetected: number;
+  actionsDetected: number;
+  decisionsDetected: number;
+  confidenceScore: number;
+  ingestionSummary: string;
+  ingestionStatus: string;
+  classification: string;
+  executiveSynthesisUpdated: boolean;
+  errors: string[];
+};
+
 type DomainAgent = {
   id: string;
   label: string;
@@ -75,6 +90,10 @@ export function CommandCenterClient({ firstRun = false, projectId, projectName, 
   const [brief, setBrief] = useState<OperationalGovernanceBrief | null>(initialBrief ?? null);
   const [briefFallback, setBriefFallback] = useState(briefGenerationFailed);
   const [retryingBrief, setRetryingBrief] = useState(false);
+  const [vaultNotes, setVaultNotes] = useState("");
+  const [vaultIntakeResult, setVaultIntakeResult] = useState<VaultIntakeResult | null>(null);
+  const [vaultIntakeError, setVaultIntakeError] = useState("");
+  const [analyzingVaultNotes, setAnalyzingVaultNotes] = useState(false);
 
   const evidenceSignals = useMemo(() => {
     const queueLen = (coordination.data?.coordination?.operational_priority_queue?.actions ?? coordination.data?.operational_priority_queue?.actions ?? []).length;
@@ -140,6 +159,36 @@ export function CommandCenterClient({ firstRun = false, projectId, projectName, 
     "Create the first RAID checkpoint",
     "Explain the top execution risk",
   ] : PROMPTS;
+
+  const analyzeVaultNotes = async () => {
+    if (!vaultNotes.trim()) {
+      setVaultIntakeError("Paste notes before analyzing.");
+      return;
+    }
+    setAnalyzingVaultNotes(true);
+    setVaultIntakeError("");
+    setVaultIntakeResult(null);
+    try {
+      const response = await fetch("/api/vault/intake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId, projectId, rawContent: vaultNotes, sourceType: "meeting_notes" }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? "vault_intake_failed");
+      setVaultIntakeResult(payload);
+      setVaultNotes("");
+      risk.mutate();
+      stakeholders.mutate();
+      interventions.mutate();
+      coordination.mutate();
+      liveOps.mutate();
+    } catch (error) {
+      setVaultIntakeError(error instanceof Error ? error.message : "Vault intake failed.");
+    } finally {
+      setAnalyzingVaultNotes(false);
+    }
+  };
 
   const retryBrief = async () => {
     setRetryingBrief(true);
@@ -222,6 +271,46 @@ export function CommandCenterClient({ firstRun = false, projectId, projectName, 
             <p className="mt-1 text-sm text-slate-200">{brief.recommendedNextAction}</p>
             <p className="mt-2 text-[11px] text-cyan-200/80">First intervention: {brief.firstInterventionSuggestion}</p>
           </div>}
+
+          <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.04] p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-cyan-300">Vault Intake Panel</p>
+                <p className="mt-1 text-sm font-semibold text-slate-100">Paste Notes</p>
+                <p className="mt-1 text-xs text-slate-400">Meeting notes, emails, transcripts, decisions, RAID snippets, and project updates become operational evidence.</p>
+              </div>
+              <span className="rounded-full border border-cyan-300/30 px-2 py-1 text-[10px] text-cyan-200">deterministic · no LLM</span>
+            </div>
+            <textarea
+              value={vaultNotes}
+              onChange={(e) => setVaultNotes(e.target.value)}
+              rows={6}
+              className="mt-3 w-full rounded-lg border border-white/10 bg-slate-950/50 p-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-cyan-300/40"
+              placeholder="El proveedor no entregará el firewall hasta el 15 de julio. Carlos actualizará el cronograma. La instalación depende del acceso al sitio."
+            />
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[11px] text-slate-500">Document persists first; signal extraction and synthesis updates run after evidence is safe.</p>
+              <button
+                type="button"
+                onClick={analyzeVaultNotes}
+                disabled={analyzingVaultNotes || !vaultNotes.trim()}
+                className="rounded-lg border border-cyan-300/40 bg-cyan-300/[0.08] px-4 py-2 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-300/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {analyzingVaultNotes ? "Analyzing…" : "Analyze Notes"}
+              </button>
+            </div>
+            {vaultIntakeError && <p className="mt-2 rounded-lg border border-rose-300/25 bg-rose-300/[0.06] px-3 py-2 text-xs text-rose-100">{vaultIntakeError}</p>}
+            {vaultIntakeResult && (
+              <div className="mt-3 rounded-lg border border-emerald-300/25 bg-emerald-300/[0.06] p-3 text-sm text-emerald-50">
+                <p className="font-semibold">Meeting captured.</p>
+                <p>{vaultIntakeResult.risksDetected} Risks detected.</p>
+                <p>{vaultIntakeResult.dependenciesDetected} Dependency detected.</p>
+                <p>{vaultIntakeResult.actionsDetected} Action Items detected.</p>
+                <p>{vaultIntakeResult.issuesDetected} Issues detected · {vaultIntakeResult.decisionsDetected} Decisions detected.</p>
+                <p className="mt-2 text-xs text-emerald-100/80">Executive synthesis {vaultIntakeResult.executiveSynthesisUpdated ? "updated" : "not updated"}. Classification: {vaultIntakeResult.classification}. Confidence: {vaultIntakeResult.confidenceScore}%.</p>
+              </div>
+            )}
+          </div>
 
           <div>
             <p className="text-xs font-semibold text-slate-300">Suggested prompt chips</p>
