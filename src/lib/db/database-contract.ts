@@ -154,6 +154,34 @@ export const WORKSPACE_RUNTIME_STATE_SELECTABLE_COLUMNS = [
   "updated_at",
 ] as const satisfies ReadonlyArray<keyof WorkspaceRuntimeStateRow>;
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// operational_governance_briefs
+// Source: 20260602000000_operational_governance_briefs.sql
+// Stores the deterministic First Insight Engine brief generated immediately
+// after project creation.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type OperationalGovernanceBriefRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  brief_payload: Record<string, unknown>;
+  confidence_score: number;
+  generated_at: string;
+  created_by: string | null;
+};
+
+export const OPERATIONAL_GOVERNANCE_BRIEF_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "brief_payload",
+  "confidence_score",
+  "generated_at",
+  "created_by",
+] as const satisfies ReadonlyArray<keyof OperationalGovernanceBriefRow>;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // trial_licenses
 // Source: 20260512198000_early_access_trials.sql

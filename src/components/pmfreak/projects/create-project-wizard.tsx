@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type {
   ProjectIdentity,
@@ -696,6 +696,8 @@ export function CreateProjectWizard() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveFailureClass, setSaveFailureClass] = useState<"recoverable_failure" | "fatal_failure" | null>(null);
   const [saveFailureDetail, setSaveFailureDetail] = useState<string | null>(null);
+  const activationInFlightRef = useRef(false);
+  const navigationCommittedRef = useRef(false);
   const [correlationId] = useState(() => `proj_${Date.now()}`);
 
   const [identity, setIdentity] = useState<ProjectIdentity>(() => {
@@ -759,8 +761,9 @@ export function CreateProjectWizard() {
 
   const handleActivate = async () => {
     const contextReady = hasMinimumContext(identity, delivery);
-    if (!contextReady) return;
+    if (!contextReady || activationInFlightRef.current || navigationCommittedRef.current) return;
 
+    activationInFlightRef.current = true;
     setActivating(true);
     setSaveError(null);
     setSaveFailureClass(null);
@@ -781,6 +784,7 @@ export function CreateProjectWizard() {
       setSaveError("A network error occurred. Your draft is preserved. Please try again.");
       setSaveFailureClass("recoverable_failure");
       setSaveFailureDetail("network_error");
+      activationInFlightRef.current = false;
       setActivating(false);
       return;
     }
@@ -790,13 +794,16 @@ export function CreateProjectWizard() {
       setSaveError(result.error);
       setSaveFailureClass(result.status);
       setSaveFailureDetail(result.failureClass);
+      activationInFlightRef.current = false;
       setActivating(false);
       return;
     }
 
     // Persistence confirmed — safe to clear draft and navigate
     clearDraft();
-    router.push(`/projects/${result.projectId}`);
+    const briefParam = result.briefStatus === "generation_failed" ? "&briefGeneration=failed" : "";
+    navigationCommittedRef.current = true;
+    router.push(`/command-center?projectId=${result.projectId}${briefParam}`);
   };
 
   const handleRetry = () => {
