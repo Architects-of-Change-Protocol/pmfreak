@@ -55,7 +55,7 @@ export async function resolveAuthorityChain(runtime: RuntimeContext, input: { wo
     actorTransitions.add(edge);
     chain.push(data);
     if (chain.length > maxDepth) return { ok: false as const, reason: "exceeded_depth" as DelegationDecision, chain };
-    currentId = data.parent_delegation_id ?? null;
+    currentId = (data.parent_delegation_id as string | null | undefined) ?? null;
   }
   return { ok: true as const, chain };
 }
