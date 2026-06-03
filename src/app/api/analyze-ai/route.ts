@@ -69,7 +69,7 @@ export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
   let workspaceId = "";
   try {
-    const access = await requireProjectPermission(projectId, "read");
+    const access = await requireProjectPermission(projectId, "read") as { workspaceId: string };
     workspaceId = access.workspaceId;
   } catch (error) {
     if (error instanceof AccessDeniedError) return Response.json({ error: "Invalid project context." }, { status: 403 });

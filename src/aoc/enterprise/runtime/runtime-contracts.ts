@@ -106,23 +106,23 @@ export class RuntimeAuthorityDependencyError extends Error {}
 export class RuntimeAuthorityUnavailableError extends Error {}
 
 export type InProcessAuthorityDependencies = {
-  authorizeAction(input: RuntimeGovernanceEvaluationInput): Promise<any>;
-  enforceAuthorization(input: RuntimeGovernanceEvaluationInput): Promise<any>;
-  issueExecutionGrant(input: ExecutionGrantInput): Promise<any>;
-  consumeExecutionGrant(input: ExecutionGrantInput): Promise<any>;
-  verifyExecutionGrant(input: ExecutionGrantInput): Promise<any>;
-  issueDelegatedCapability(input: DelegationInput): Promise<any>;
-  consumeDelegatedCapability(input: DelegationInput): Promise<any>;
-  revokeDelegatedCapability(input: DelegationInput): Promise<any>;
-  evaluateDelegatedAccess(input: DelegationInput): Promise<any>;
-  resolveAuthorityChain(input: any): Promise<any>;
-  validateDelegatedCapability(input: DelegationInput): Promise<any>;
-  evaluateAgentAccess(input: RuntimeAgentAccessInput): Promise<any>;
-  requireAgentScope(input: RuntimeAgentScopeInput): Promise<any>;
-  grantAgentScope(input: RuntimeAgentScopeInput): Promise<any>;
-  requireWorkspaceMembership(workspaceId: string): Promise<any>;
-  requireWorkspaceRole(workspaceId: string, allowedRoles: RuntimeWorkspaceRole[]): Promise<any>;
-  requireProjectAccess(projectId: string): Promise<any>;
-  requireProjectPermission(projectId: string, permission: RuntimePermission): Promise<any>;
-  requireGovernancePermission(workspaceId: string, permission: RuntimePermission): Promise<any>;
+  authorizeAction(input: RuntimeGovernanceEvaluationInput): Promise<unknown>;
+  enforceAuthorization(input: RuntimeGovernanceEvaluationInput): Promise<unknown>;
+  issueExecutionGrant(input: ExecutionGrantInput): Promise<unknown>;
+  consumeExecutionGrant(input: ExecutionGrantInput): Promise<unknown>;
+  verifyExecutionGrant(input: ExecutionGrantInput): Promise<unknown>;
+  issueDelegatedCapability(input: DelegationInput): Promise<unknown>;
+  consumeDelegatedCapability(input: DelegationInput): Promise<unknown>;
+  revokeDelegatedCapability(input: DelegationInput): Promise<unknown>;
+  evaluateDelegatedAccess(input: DelegationInput): Promise<unknown>;
+  resolveAuthorityChain(input: Record<string, unknown>): Promise<unknown>;
+  validateDelegatedCapability(input: DelegationInput): Promise<unknown>;
+  evaluateAgentAccess(input: RuntimeAgentAccessInput): Promise<unknown>;
+  requireAgentScope(input: RuntimeAgentScopeInput): Promise<unknown>;
+  grantAgentScope(input: RuntimeAgentScopeInput): Promise<unknown>;
+  requireWorkspaceMembership(workspaceId: string): Promise<unknown>;
+  requireWorkspaceRole(workspaceId: string, allowedRoles: RuntimeWorkspaceRole[]): Promise<unknown>;
+  requireProjectAccess(projectId: string): Promise<unknown>;
+  requireProjectPermission(projectId: string, permission: RuntimePermission): Promise<unknown>;
+  requireGovernancePermission(workspaceId: string, permission: RuntimePermission): Promise<unknown>;
 };

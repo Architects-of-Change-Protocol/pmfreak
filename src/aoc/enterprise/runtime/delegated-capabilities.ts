@@ -14,7 +14,7 @@ const DEFAULT_MAX_DELEGATION_DEPTH = 3;
 
 const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
 const genToken = () => randomBytes(32).toString("base64url");
-const getActorKey = (row: any, mode: "delegator" | "delegate") => row?.[`${mode}_user_id`] ? `user:${row[`${mode}_user_id`]}` : row?.[`${mode}_agent_id`] ? `agent:${row[`${mode}_agent_id`]}` : `${mode}:unknown`;
+const getActorKey = (row: Record<string, unknown>, mode: "delegator" | "delegate") => row?.[`${mode}_user_id`] ? `user:${row[`${mode}_user_id`]}` : row?.[`${mode}_agent_id`] ? `agent:${row[`${mode}_agent_id`]}` : `${mode}:unknown`;
 
 
 export function buildAuthorityLineage(input: DelegationInput) {
@@ -41,13 +41,13 @@ export async function resolveAuthorityChain(runtime: RuntimeContext, input: { wo
   const supabase = runtime.privilegedDb.createClient({ routeId: "governance.delegations.resolve_chain", operation: "resolve_delegation_chain", reason: "delegation_evaluation", systemActor: "system", workspaceId: input.workspaceId });
   const seen = new Set<string>();
   const actorTransitions = new Set<string>();
-  const chain: any[] = [];
+  const chain: Record<string, unknown>[] = [];
   let currentId: string | null = input.delegationId;
   const maxDepth = input.maxDepth ?? DEFAULT_MAX_DELEGATION_DEPTH;
   while (currentId) {
     if (seen.has(currentId)) return { ok: false as const, reason: "invalid_chain" as DelegationDecision, chain };
     seen.add(currentId);
-    const rowResult: { data: any } = await supabase.from("governance_delegations").select("*").eq("id", currentId).eq("workspace_id", input.workspaceId).maybeSingle();
+    const rowResult: { data: Record<string, unknown> | null } = await supabase.from("governance_delegations").select("*").eq("id", currentId).eq("workspace_id", input.workspaceId).maybeSingle();
     const data = rowResult.data;
     if (!data) return { ok: false as const, reason: "invalid_chain" as DelegationDecision, chain };
     const edge = `${getActorKey(data, "delegator")}=>${getActorKey(data, "delegate")}`;
@@ -55,7 +55,7 @@ export async function resolveAuthorityChain(runtime: RuntimeContext, input: { wo
     actorTransitions.add(edge);
     chain.push(data);
     if (chain.length > maxDepth) return { ok: false as const, reason: "exceeded_depth" as DelegationDecision, chain };
-    currentId = data.parent_delegation_id ?? null;
+    currentId = (data.parent_delegation_id as string | null | undefined) ?? null;
   }
   return { ok: true as const, chain };
 }
@@ -70,7 +70,7 @@ export async function evaluateDelegatedAccess(runtime: RuntimeContext, input: De
     : validated.delegation.delegatee_user_id
       ? { actorId: validated.delegation.delegatee_user_id, actorType: "user", workspaceId: input.workspaceId }
       : { actorId: "system:delegation", actorType: "system", workspaceId: input.workspaceId };
-  const policy = await runtime.policyEvaluator.evaluatePolicyDecision({ actor: delegationActor, workspaceId: input.workspaceId, resourceType: (validated.delegation.resource_type ?? "workspace") as any, resourceId: (validated.delegation.resource_id ?? input.workspaceId) as string, permission: validated.delegation.requested_permission as PolicyDecision extends never ? never : any, rbacAllowed: true });
+  const policy = await runtime.policyEvaluator.evaluatePolicyDecision({ actor: delegationActor, workspaceId: input.workspaceId, resourceType: (validated.delegation.resource_type ?? "workspace") as string, resourceId: (validated.delegation.resource_id ?? input.workspaceId) as string, permission: validated.delegation.requested_permission as string, rbacAllowed: true });
   if (policy.decision !== "allow") return { decision: "policy_denied" as const, allowed: false, delegation: validated.delegation, chain: chainRes.chain, policy };
   return { decision: "allow" as const, allowed: true, delegation: validated.delegation, chain: chainRes.chain, policy };
 }

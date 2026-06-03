@@ -12,14 +12,15 @@ function resolveHealthTrend(status: DashboardCardStatus): string {
   return 'Immediate executive intervention required'
 }
 
-export function adaptPortfolioHealthPanel(executiveDashboardReport: any): PortfolioHealthPanelDTO {
-  const score: number = executiveDashboardReport?.healthSummary?.portfolioHealthScore ?? 0
+export function adaptPortfolioHealthPanel(executiveDashboardReport: Record<string, unknown>): PortfolioHealthPanelDTO {
+  const healthSummary = executiveDashboardReport?.healthSummary as Record<string, unknown> | undefined
+  const score: number = (healthSummary?.portfolioHealthScore as number | undefined) ?? 0
   const status = resolveHealthStatus(score)
 
   return {
     score,
     status,
-    label: executiveDashboardReport?.healthSummary?.summary ?? 'Portfolio health data unavailable',
+    label: (healthSummary?.summary as string | undefined) ?? 'Portfolio health data unavailable',
     trend: resolveHealthTrend(status),
   }
 }

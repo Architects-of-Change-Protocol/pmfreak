@@ -4,7 +4,7 @@ import type { DashboardTaskLifecycleRecord } from '../task-lifecycle/index'
 import { normalizeConnectorError } from './connector-error-normalizer'
 import type { WebhookClientContract, WebhookConnectorConfig } from './types'
 
-export function buildWebhookPayload(input: { payload: DashboardProjectedTaskPayload; lifecycle: DashboardTaskLifecycleRecord }): any {
+export function buildWebhookPayload(input: { payload: DashboardProjectedTaskPayload; lifecycle: DashboardTaskLifecycleRecord }): Record<string, unknown> {
   return {
     title: input.payload.title,
     description: input.payload.description,

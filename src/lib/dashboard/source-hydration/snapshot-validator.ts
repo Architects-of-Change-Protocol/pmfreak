@@ -1,4 +1,4 @@
-import { DASHBOARD_SOURCE_KINDS, type DashboardSourceSnapshot } from './types'
+import { DASHBOARD_SOURCE_KINDS, type DashboardSourceKind, type DashboardSourceSnapshot } from './types'
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -23,7 +23,7 @@ export function validateDashboardSnapshot(input: unknown): {
   if (typeof input.tenantId !== 'string' || input.tenantId.length === 0) {
     errors.push('tenantId must be a non-empty string.')
   }
-  if (!DASHBOARD_SOURCE_KINDS.includes(input.sourceKind as any)) {
+  if (!DASHBOARD_SOURCE_KINDS.includes(input.sourceKind as string as DashboardSourceKind)) {
     errors.push('sourceKind is invalid.')
   }
   if (!('payload' in input)) errors.push('payload is required.')

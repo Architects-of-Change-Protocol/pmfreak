@@ -13,7 +13,7 @@ function inferRecordType(payload: DashboardProjectedTaskPayload, config: AteneaC
   return 'follow_up'
 }
 
-export function buildAteneaPayload(input: { payload: DashboardProjectedTaskPayload; lifecycle: DashboardTaskLifecycleRecord; config: AteneaConnectorConfig }): any {
+export function buildAteneaPayload(input: { payload: DashboardProjectedTaskPayload; lifecycle: DashboardTaskLifecycleRecord; config: AteneaConnectorConfig }): Record<string, unknown> {
   const recordType = inferRecordType(input.payload, input.config)
   const projectCode = input.config.defaultProjectCode
     ?? input.payload.metadata?.projectCode

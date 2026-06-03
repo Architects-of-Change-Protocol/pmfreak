@@ -15,7 +15,7 @@ export interface DashboardSourceSnapshotRecord {
   workspace_id?: string | null
   portfolio_id?: string | null
   source_kind: DashboardSourceKind
-  payload: any
+  payload: unknown
   generated_at: string
   expires_at?: string | null
   schema_version: string
@@ -26,8 +26,8 @@ export interface DashboardSourceSnapshotRecord {
 
 export interface PersistentSnapshotStoreConfig {
   provider: PersistentSnapshotStoreProvider
-  supabaseClient?: any
-  vaultClient?: any
+  supabaseClient?: unknown
+  vaultClient?: unknown
   tableName?: string
 }
 

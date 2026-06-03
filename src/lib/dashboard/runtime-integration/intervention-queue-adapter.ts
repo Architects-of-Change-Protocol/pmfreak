@@ -15,25 +15,25 @@ function mapUrgencyToSeverity(urgency: string): DashboardSeverity {
   return 'info'
 }
 
-export function adaptInterventionQueue(interventionReport: any): InterventionQueueItemDTO[] {
+export function adaptInterventionQueue(interventionReport: Record<string, unknown> | null | undefined): InterventionQueueItemDTO[] {
   if (!interventionReport) return []
 
-  const interventions: any[] = interventionReport.interventions ?? []
+  const interventions: Record<string, unknown>[] = (interventionReport?.interventions as Record<string, unknown>[] | undefined) ?? []
 
   return interventions
     .slice()
-    .sort((a: any, b: any) => {
-      const aOrder = URGENCY_SORT_ORDER[a.urgency ?? 'low'] ?? 3
-      const bOrder = URGENCY_SORT_ORDER[b.urgency ?? 'low'] ?? 3
+    .sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
+      const aOrder = URGENCY_SORT_ORDER[(a.urgency as string | undefined) ?? 'low'] ?? 3
+      const bOrder = URGENCY_SORT_ORDER[(b.urgency as string | undefined) ?? 'low'] ?? 3
       return aOrder - bOrder
     })
     .slice(0, MAX_INTERVENTIONS)
-    .map((intervention: any): InterventionQueueItemDTO => ({
-      id: intervention.id ?? '',
-      title: intervention.title ?? '',
-      urgency: mapUrgencyToSeverity(intervention.urgency ?? 'low'),
-      ownerLane: intervention.ownerLane ?? '',
-      cadence: intervention.recommendedCadence ?? '',
-      affectedProjects: intervention.affectedProjects ?? [],
+    .map((intervention: Record<string, unknown>): InterventionQueueItemDTO => ({
+      id: (intervention.id as string | undefined) ?? '',
+      title: (intervention.title as string | undefined) ?? '',
+      urgency: mapUrgencyToSeverity((intervention.urgency as string | undefined) ?? 'low'),
+      ownerLane: (intervention.ownerLane as string | undefined) ?? '',
+      cadence: (intervention.recommendedCadence as string | undefined) ?? '',
+      affectedProjects: (intervention.affectedProjects as string[] | undefined) ?? [],
     }))
 }

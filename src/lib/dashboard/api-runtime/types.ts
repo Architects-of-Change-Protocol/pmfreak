@@ -25,7 +25,7 @@ export interface DashboardApiMetadata {
 
 export interface DashboardApiResponse {
   status: DashboardApiRuntimeStatus
-  data: any
+  data: unknown
   metadata?: DashboardApiMetadata
   warnings: string[]
 }
@@ -37,8 +37,8 @@ export interface DashboardApiError {
 }
 
 export interface DashboardSourceData {
-  executiveDashboardReport?: any
-  interventionReport?: any
-  decisionSimulationReports?: any[]
-  conflictReport?: any
+  executiveDashboardReport?: unknown
+  interventionReport?: unknown
+  decisionSimulationReports?: unknown
+  conflictReport?: unknown
 }

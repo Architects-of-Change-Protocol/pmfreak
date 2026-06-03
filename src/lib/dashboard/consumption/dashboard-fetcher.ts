@@ -1,6 +1,6 @@
 import type { DashboardFetchOptions, DashboardConsumptionError } from './types'
 
-export async function fetchPortfolioDashboard(options: DashboardFetchOptions = {}): Promise<any> {
+export async function fetchPortfolioDashboard(options: DashboardFetchOptions = {}): Promise<Record<string, unknown>> {
   const { baseUrl, signal } = options
   const path = '/api/dashboard/portfolio'
   const url = baseUrl ? `${baseUrl}${path}` : path

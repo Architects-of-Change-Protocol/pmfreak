@@ -17,7 +17,7 @@ export interface DashboardSourceSnapshot {
   workspaceId?: string
   portfolioId?: string
   sourceKind: DashboardSourceKind
-  payload: any
+  payload: unknown
   generatedAt: string
   expiresAt?: string
   schemaVersion: string
@@ -49,10 +49,10 @@ export interface DashboardSourceCompleteness {
 
 export interface DashboardHydrationResult {
   sourceData: {
-    executiveDashboardReport?: any
-    interventionReport?: any
-    decisionSimulationReports?: any[]
-    conflictReport?: any
+    executiveDashboardReport?: unknown
+    interventionReport?: unknown
+    decisionSimulationReports?: unknown
+    conflictReport?: unknown
   }
   snapshots: DashboardSourceSnapshot[]
   freshness: DashboardSourceFreshness[]

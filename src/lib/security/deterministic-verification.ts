@@ -1,16 +1,70 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { logSecurityEvent } from "@/lib/security/telemetry";
 
+type TrustDecisionInput = {
+  anchorSet?: unknown[];
+  policy?: { status?: string };
+  replayWindow?: { isReplay?: boolean; [key: string]: unknown };
+  trustPath?: { trusted?: boolean; [key: string]: unknown };
+  evaluationTimestamp?: unknown;
+  revocations?: unknown[];
+};
+
+type VerificationReceiptInput = {
+  receiptId?: string;
+  verifierId?: string;
+  trustDomain?: string;
+  verificationDecision?: string;
+  verificationReason?: string;
+  evaluatedPolicies?: unknown[];
+  evaluatedAnchors?: unknown[];
+  evaluatedRevocations?: unknown[];
+  evaluatedTrustPath?: unknown;
+  replayValidation?: unknown;
+  snapshotHash?: string;
+  verifierStateHash?: string;
+  canonicalEventHash?: string;
+  verifiedAt?: string;
+};
+
+type VerificationReceipt = {
+  receiptId: string;
+  verifierId: unknown;
+  trustDomain: unknown;
+  verificationDecision: unknown;
+  verificationReason: unknown;
+  evaluatedPolicies: unknown[];
+  evaluatedAnchors: unknown[];
+  evaluatedRevocations: unknown[];
+  evaluatedTrustPath: unknown;
+  replayValidation: unknown;
+  snapshotHash: unknown;
+  verifierStateHash: unknown;
+  canonicalEventHash: unknown;
+  verifiedAt: unknown;
+  signature: string | null;
+};
+
+type VerifierOutcomeInput = {
+  left: Record<string, unknown>;
+  right: Record<string, unknown>;
+};
+
+type ReplayScenarioInput = {
+  historical: TrustDecisionInput;
+  current: TrustDecisionInput;
+};
+
 function normalizeUnicode(value: string) { return value.normalize("NFC").replace(/\s+/g, " ").trim(); }
 function normalizeTimestamp(value: unknown) {
   if (typeof value === "string" || value instanceof Date || typeof value === "number") {
-    const d = new Date(value as any);
+    const d = new Date(value as string | number | Date);
     if (Number.isFinite(d.getTime())) return d.toISOString();
   }
   return value;
 }
 
-function canonicalizeValue(value: any): any {
+function canonicalizeValue(value: unknown): unknown {
   if (value === null || value === undefined) return null;
   if (typeof value === "string") return normalizeUnicode(value);
   if (typeof value === "number" || typeof value === "boolean") return value;
@@ -20,9 +74,10 @@ function canonicalizeValue(value: any): any {
     return normalized.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b), "en", { sensitivity: "base" }));
   }
   if (typeof value === "object") {
-    const out: Record<string, any> = {};
-    for (const key of Object.keys(value).sort()) {
-      const maybeTs = key.endsWith("_at") || key.toLowerCase().includes("timestamp") ? normalizeTimestamp(value[key]) : value[key];
+    const out: Record<string, unknown> = {};
+    const obj = value as Record<string, unknown>;
+    for (const key of Object.keys(obj).sort()) {
+      const maybeTs = key.endsWith("_at") || key.toLowerCase().includes("timestamp") ? normalizeTimestamp(obj[key]) : obj[key];
       out[key] = canonicalizeValue(maybeTs);
     }
     return out;
@@ -55,9 +110,9 @@ export function hashVerifierState(input: { anchors: Record<string, unknown>[]; p
   }));
 }
 
-export function evaluateDeterministicTrustDecision(input: any) {
+export function evaluateDeterministicTrustDecision(input: TrustDecisionInput) {
   const checks = [
-    { step: "anchor", ok: input.anchorSet?.length > 0, reason: "anchor_missing" },
+    { step: "anchor", ok: (input.anchorSet?.length ?? 0) > 0, reason: "anchor_missing" },
     { step: "policy", ok: input.policy?.status === "active", reason: "policy_inactive" },
     { step: "replay", ok: !input.replayWindow?.isReplay, reason: "replay_detected" },
     { step: "path", ok: input.trustPath?.trusted === true, reason: "trust_path_denied" },
@@ -69,15 +124,15 @@ export function evaluateDeterministicTrustDecision(input: any) {
   return out;
 }
 
-export function createVerificationReceipt(input: any) {
+export function createVerificationReceipt(input: VerificationReceiptInput): VerificationReceipt {
   const receipt = { receiptId: input.receiptId ?? randomUUID(), verifierId: input.verifierId, trustDomain: input.trustDomain, verificationDecision: input.verificationDecision, verificationReason: input.verificationReason, evaluatedPolicies: input.evaluatedPolicies ?? [], evaluatedAnchors: input.evaluatedAnchors ?? [], evaluatedRevocations: input.evaluatedRevocations ?? [], evaluatedTrustPath: input.evaluatedTrustPath ?? null, replayValidation: input.replayValidation ?? null, snapshotHash: input.snapshotHash, verifierStateHash: input.verifierStateHash, canonicalEventHash: input.canonicalEventHash, verifiedAt: normalizeTimestamp(input.verifiedAt ?? new Date().toISOString()), signature: null };
   return receipt;
 }
-export function signVerificationReceipt(receipt: any, secret: string) { const unsigned = { ...receipt, signature: undefined }; const signature = createHmac("sha256", secret).update(canonicalize(unsigned)).digest("base64url"); void logSecurityEvent("verification_receipt_signed", { metadata: { receiptId: receipt.receiptId } }); return { ...receipt, signature }; }
-export function verifyVerificationReceipt(receipt: any, secret: string) { const unsigned = { ...receipt, signature: undefined }; const expected = createHmac("sha256", secret).update(canonicalize(unsigned)).digest("base64url"); const valid = !!receipt.signature && timingSafeEqual(Buffer.from(receipt.signature), Buffer.from(expected)); void logSecurityEvent("verification_receipt_verified", { metadata: { receiptId: receipt.receiptId, valid } }); return valid; }
-export function explainVerificationReceipt(receipt: any) { return { receiptId: receipt.receiptId, decision: receipt.verificationDecision, reason: receipt.verificationReason, snapshotHash: receipt.snapshotHash, verifierStateHash: receipt.verifierStateHash, independentlyAuditable: true }; }
+export function signVerificationReceipt(receipt: VerificationReceipt, secret: string) { const unsigned = { ...receipt, signature: undefined }; const signature = createHmac("sha256", secret).update(canonicalize(unsigned)).digest("base64url"); void logSecurityEvent("verification_receipt_signed", { metadata: { receiptId: receipt.receiptId } }); return { ...receipt, signature }; }
+export function verifyVerificationReceipt(receipt: VerificationReceipt & { signature?: string }, secret: string) { const unsigned = { ...receipt, signature: undefined }; const expected = createHmac("sha256", secret).update(canonicalize(unsigned)).digest("base64url"); const valid = !!receipt.signature && timingSafeEqual(Buffer.from(receipt.signature), Buffer.from(expected)); void logSecurityEvent("verification_receipt_verified", { metadata: { receiptId: receipt.receiptId, valid } }); return valid; }
+export function explainVerificationReceipt(receipt: VerificationReceipt) { return { receiptId: receipt.receiptId, decision: receipt.verificationDecision, reason: receipt.verificationReason, snapshotHash: receipt.snapshotHash, verifierStateHash: receipt.verifierStateHash, independentlyAuditable: true }; }
 
-export function replayVerificationScenario(input: any) {
+export function replayVerificationScenario(input: ReplayScenarioInput) {
   const historical = evaluateDeterministicTrustDecision(input.historical);
   const current = evaluateDeterministicTrustDecision(input.current);
   const changed = historical.decision !== current.decision;
@@ -86,7 +141,7 @@ export function replayVerificationScenario(input: any) {
   return { historical, current, changed, diffs: { anchorDiff: [input.historical.anchorSet, input.current.anchorSet], graphDiff: [input.historical.trustPath, input.current.trustPath], revocationDiff: [input.historical.revocations, input.current.revocations], replayDiff: [input.historical.replayWindow, input.current.replayWindow] } };
 }
 
-export function compareVerifierOutcomes(input: any) {
+export function compareVerifierOutcomes(input: VerifierOutcomeInput) {
   const divergence: string[] = [];
   if (input.left.verifierStateHash !== input.right.verifierStateHash) divergence.push("state_hash_mismatch");
   if (input.left.snapshotHash !== input.right.snapshotHash) divergence.push("snapshot_mismatch");

@@ -6,13 +6,14 @@ function resolveStatusFromScore(score: number): DashboardCardStatus {
   return 'critical'
 }
 
-export function adaptExecutiveSummaryCard(executiveDashboardReport: any): ExecutiveSummaryCardDTO {
-  const score: number = executiveDashboardReport?.healthSummary?.portfolioHealthScore ?? 0
+export function adaptExecutiveSummaryCard(executiveDashboardReport: Record<string, unknown>): ExecutiveSummaryCardDTO {
+  const healthSummary = executiveDashboardReport?.healthSummary as Record<string, unknown> | undefined
+  const score: number = (healthSummary?.portfolioHealthScore as number | undefined) ?? 0
 
   return {
     title: 'Portfolio Executive Summary',
-    summary: executiveDashboardReport?.executiveSummary ?? '',
+    summary: (executiveDashboardReport?.executiveSummary as string | undefined) ?? '',
     status: resolveStatusFromScore(score),
-    recommendation: executiveDashboardReport?.portfolioRecommendation ?? '',
+    recommendation: (executiveDashboardReport?.portfolioRecommendation as string | undefined) ?? '',
   }
 }

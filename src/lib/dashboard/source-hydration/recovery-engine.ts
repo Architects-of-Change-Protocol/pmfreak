@@ -11,7 +11,7 @@ export function buildDashboardHydrationRecoveryPlan(result: DashboardHydrationRe
     actions.push('Regenerate executive dashboard aggregation snapshot.')
   }
   if (!result.sourceData.interventionReport) actions.push('Refresh PMO intervention report snapshot.')
-  if (!result.sourceData.decisionSimulationReports?.length) actions.push('Refresh decision simulation snapshots.')
+  if (!(result.sourceData.decisionSimulationReports as unknown[] | undefined)?.length) actions.push('Refresh decision simulation snapshots.')
   if (!result.sourceData.conflictReport) actions.push('Refresh conflict arbitration snapshot.')
 
   let fallbackMode: 'none' | 'partial' | 'empty' = 'none'

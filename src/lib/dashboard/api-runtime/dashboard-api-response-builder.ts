@@ -56,7 +56,7 @@ export function buildDashboardApiResponse({
     interventionReport: !!sourceData.interventionReport,
     decisionSimulationReports: !!(
       sourceData.decisionSimulationReports &&
-      sourceData.decisionSimulationReports.length > 0
+      (sourceData.decisionSimulationReports as unknown[]).length > 0
     ),
     conflictReport: !!sourceData.conflictReport,
   }
@@ -80,10 +80,10 @@ export function buildDashboardApiResponse({
   }
 
   const data = runDashboardRuntimeIntegration({
-    executiveDashboardReport: sourceData.executiveDashboardReport,
-    interventionReport: sourceData.interventionReport,
-    decisionSimulationReports: sourceData.decisionSimulationReports,
-    conflictReport: sourceData.conflictReport,
+    executiveDashboardReport: sourceData.executiveDashboardReport as Record<string, unknown>,
+    interventionReport: sourceData.interventionReport as Record<string, unknown> | undefined,
+    decisionSimulationReports: sourceData.decisionSimulationReports as Record<string, unknown>[] | undefined,
+    conflictReport: sourceData.conflictReport as Record<string, unknown> | undefined,
   })
 
   const status = warnings.length > 0 ? 'partial' : 'ok'

@@ -11,7 +11,7 @@ export function deriveDashboardConsumptionStatus(
   if (input.fetchError) return 'error'
   if (!input.apiResponse) return 'idle'
 
-  switch (input.apiResponse.status) {
+  switch ((input.apiResponse as { status?: string } | null | undefined)?.status) {
     case 'ok':
       return 'ready'
     case 'partial':

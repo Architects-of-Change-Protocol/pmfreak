@@ -37,7 +37,7 @@ export default async function InviteTeamPage() {
             Your PMO Brain is active. Now introduce the people who shape delivery reality.
           </p>
           <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-zinc-600">
-            Inviting your PMO team helps PMFreak understand governance ownership, reporting structure, and operational accountability. Each person's role and domain focus becomes a signal routing layer for future intelligence.
+            Inviting your PMO team helps PMFreak understand governance ownership, reporting structure, and operational accountability. Each person&apos;s role and domain focus becomes a signal routing layer for future intelligence.
           </p>
         </header>
 

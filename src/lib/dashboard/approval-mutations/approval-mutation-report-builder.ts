@@ -1,4 +1,4 @@
-import type { DashboardApprovalRequest } from '../approval-workflow/index'
+import type { DashboardApprovalDecision, DashboardApprovalRequest } from '../approval-workflow/index'
 import type { DashboardTaskLifecycleEvent, DashboardTaskLifecycleRecord } from '../task-lifecycle/index'
 import type {
   DashboardApprovalMutationAuthorizationResult,
@@ -12,7 +12,7 @@ export function buildApprovalMutationResult(input: {
   status: DashboardApprovalMutationStatus
   approvalRequest?: DashboardApprovalRequest
   lifecycle?: DashboardTaskLifecycleRecord
-  decision?: any
+  decision?: DashboardApprovalDecision
   event?: DashboardTaskLifecycleEvent
   authorization?: DashboardApprovalMutationAuthorizationResult
   errors?: string[]

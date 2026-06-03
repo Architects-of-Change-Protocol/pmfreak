@@ -6,7 +6,7 @@ import type { DashboardAction, DashboardActionPriority } from './types'
 
 const rank: Record<DashboardActionPriority, number> = { critical: 0, high: 1, medium: 2, low: 3 }
 
-export function assignDashboardActionPriority(signal: Record<string, any> = {}): DashboardActionPriority {
+export function assignDashboardActionPriority(signal: Record<string, unknown> = {}): DashboardActionPriority {
   const s = String(signal.severity ?? signal.sourceSeverity ?? '').toLowerCase()
   const u = String(signal.urgency ?? signal.sourceUrgency ?? '').toLowerCase()
   const rp = String(signal.refreshPriority ?? '').toLowerCase()

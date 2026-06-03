@@ -4,8 +4,8 @@ function sanitizeRawMessage(rawMessage: string): string {
     .slice(0, 500)
 }
 
-export function normalizeConnectorError(error: unknown): { message: string; retryable: boolean; metadata: Record<string, any> } {
-  const status = typeof error === 'object' && error && 'status' in error ? Number((error as any).status) : undefined
+export function normalizeConnectorError(error: unknown): { message: string; retryable: boolean; metadata: Record<string, unknown> } {
+  const status = typeof error === 'object' && error && 'status' in error ? Number((error as { status: unknown }).status) : undefined
   const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : JSON.stringify(error ?? 'unknown')
   const rawMessage = sanitizeRawMessage(raw ?? 'unknown')
   const lower = rawMessage.toLowerCase()

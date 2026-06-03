@@ -543,7 +543,7 @@ export function GettingStartedFlow() {
               </div>
 
               <blockquote className="rounded-xl border-l-4 border-indigo-400/60 bg-indigo-400/[0.06] px-5 py-4 text-sm italic text-slate-300">
-                "Your project memory should stay with your team — not scattered across disconnected tools."
+                &quot;Your project memory should stay with your team — not scattered across disconnected tools.&quot;
               </blockquote>
 
               <div className="grid gap-4 lg:grid-cols-3">

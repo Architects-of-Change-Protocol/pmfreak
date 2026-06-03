@@ -33,9 +33,9 @@ export function getRealConnectorClientHealth(input: RealDashboardConnectorRegist
   if (input.jira) {
     const h = health('jira')
     h.available = Boolean(input.jira.client)
-    h.canCreateTask = typeof (input.jira.client as any).createIssue === 'function'
-    h.canComment = typeof (input.jira.client as any).addComment === 'function'
-    h.canTransition = typeof (input.jira.client as any).transitionIssue === 'function'
+    h.canCreateTask = typeof (input.jira.client as unknown as Record<string, unknown>).createIssue === 'function'
+    h.canComment = typeof (input.jira.client as unknown as Record<string, unknown>).addComment === 'function'
+    h.canTransition = typeof (input.jira.client as unknown as Record<string, unknown>).transitionIssue === 'function'
     if (!h.canCreateTask) h.errors.push('Missing required createIssue method.')
     if (!h.canComment) h.warnings.push('Optional addComment method is unavailable.')
     if (!h.canTransition) h.warnings.push('Optional transitionIssue method is unavailable.')
@@ -44,25 +44,25 @@ export function getRealConnectorClientHealth(input: RealDashboardConnectorRegist
   if (input.linear) {
     const h = health('linear')
     h.available = Boolean(input.linear.client)
-    h.canCreateTask = typeof (input.linear.client as any).createIssue === 'function'
-    h.canComment = typeof (input.linear.client as any).createComment === 'function'
-    h.canTransition = typeof (input.linear.client as any).updateIssueState === 'function'
+    h.canCreateTask = typeof (input.linear.client as unknown as Record<string, unknown>).createIssue === 'function'
+    h.canComment = typeof (input.linear.client as unknown as Record<string, unknown>).createComment === 'function'
+    h.canTransition = typeof (input.linear.client as unknown as Record<string, unknown>).updateIssueState === 'function'
     if (!h.canCreateTask) h.errors.push('Missing required createIssue method.')
     report.push(h)
   }
   if (input.asana) {
     const h = health('asana')
     h.available = Boolean(input.asana.client)
-    h.canCreateTask = typeof (input.asana.client as any).createTask === 'function'
-    h.canComment = typeof (input.asana.client as any).addComment === 'function'
-    h.canTransition = typeof (input.asana.client as any).completeTask === 'function'
+    h.canCreateTask = typeof (input.asana.client as unknown as Record<string, unknown>).createTask === 'function'
+    h.canComment = typeof (input.asana.client as unknown as Record<string, unknown>).addComment === 'function'
+    h.canTransition = typeof (input.asana.client as unknown as Record<string, unknown>).completeTask === 'function'
     if (!h.canCreateTask) h.errors.push('Missing required createTask method.')
     report.push(h)
   }
   if (input.webhook) {
     const h = health('webhook')
     h.available = Boolean(input.webhook.client)
-    h.canCreateTask = typeof (input.webhook.client as any).post === 'function'
+    h.canCreateTask = typeof (input.webhook.client as unknown as Record<string, unknown>).post === 'function'
     if (!h.canCreateTask) h.errors.push('Missing required post method.')
     report.push(h)
   }

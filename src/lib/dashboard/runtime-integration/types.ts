@@ -60,8 +60,8 @@ export interface PortfolioExecutiveDashboardDTO {
 }
 
 export interface DashboardRuntimeInput {
-  executiveDashboardReport: any
-  interventionReport?: any
-  decisionSimulationReports?: any[]
-  conflictReport?: any
+  executiveDashboardReport: Record<string, unknown>
+  interventionReport?: Record<string, unknown>
+  decisionSimulationReports?: Record<string, unknown>[]
+  conflictReport?: Record<string, unknown>
 }

@@ -11,7 +11,7 @@ function mapPriority(priority: string): string {
   return 'Medium'
 }
 
-export function buildJiraIssuePayload(input: { payload: DashboardProjectedTaskPayload; config: JiraConnectorConfig }): any {
+export function buildJiraIssuePayload(input: { payload: DashboardProjectedTaskPayload; config: JiraConnectorConfig }): Record<string, unknown> {
   const labels = [...(input.config.defaultLabels ?? []), ...(input.payload.labels ?? [])]
   let description = input.payload.description
   if (input.payload.metadata && Object.keys(input.payload.metadata).length > 0) {

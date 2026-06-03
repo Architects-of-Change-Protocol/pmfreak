@@ -25,19 +25,19 @@ export interface DashboardViewModel {
   alertsCount: number
   hasCriticalAttention: boolean
   sections: {
-    healthPanel: any
-    executiveSummaryCard: any
-    topRisksTable: any[]
-    decisionsWidget: any[]
-    interventionsQueue: any[]
-    alertPanel: any[]
+    healthPanel: Record<string, unknown> | null
+    executiveSummaryCard: Record<string, unknown> | null
+    topRisksTable: Record<string, unknown>[]
+    decisionsWidget: Record<string, unknown>[]
+    interventionsQueue: Record<string, unknown>[]
+    alertPanel: Record<string, unknown>[]
   }
   warnings: string[]
   error?: DashboardConsumptionError
 }
 
 export interface DashboardConsumptionInput {
-  apiResponse?: any
+  apiResponse?: unknown
   fetchError?: DashboardConsumptionError
   loading?: boolean
 }

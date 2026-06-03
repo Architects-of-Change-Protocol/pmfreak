@@ -60,7 +60,7 @@ export interface DashboardTaskLifecycleEvent {
   occurredAt: string
   actor?: string
   message: string
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
 }
 
 export interface DashboardTaskLifecycleTransition {

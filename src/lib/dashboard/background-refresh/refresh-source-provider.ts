@@ -3,7 +3,7 @@ import type { DashboardSourceRefreshProvider } from './types'
 
 export function createStaticDashboardSourceProvider(input: {
   sourceKind: DashboardSourceKind
-  payload: any
+  payload: unknown
   schemaVersion?: string
   runtimeVersion?: string
   ttlMinutes?: number
@@ -26,10 +26,10 @@ export function createStaticDashboardSourceProvider(input: {
 }
 
 export function createDefaultDashboardSourceProviders(payloads?: {
-  executiveDashboardReport?: any
-  interventionReport?: any
-  decisionSimulationReports?: any[]
-  conflictReport?: any
+  executiveDashboardReport?: unknown
+  interventionReport?: unknown
+  decisionSimulationReports?: unknown[]
+  conflictReport?: unknown
 }): Partial<Record<DashboardSourceKind, DashboardSourceRefreshProvider>> {
   const result: Partial<Record<DashboardSourceKind, DashboardSourceRefreshProvider>> = {}
   if (!payloads) return result

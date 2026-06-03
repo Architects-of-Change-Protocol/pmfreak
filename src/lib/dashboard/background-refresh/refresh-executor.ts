@@ -45,7 +45,7 @@ export async function executeDashboardRefreshActions(input: {
     }
 
     let providerResult: {
-      payload: any
+      payload: unknown
       schemaVersion: string
       runtimeVersion: string
       expiresAt?: string

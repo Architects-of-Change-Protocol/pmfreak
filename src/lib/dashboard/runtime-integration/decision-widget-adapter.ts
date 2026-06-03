@@ -13,14 +13,18 @@ function resolveDecisionSeverity(recommendation: string, confidenceScore: number
   return 'warning'
 }
 
-export function adaptDecisionWidget(decisionSimulationReports: any[]): DecisionWidgetItemDTO[] {
+export function adaptDecisionWidget(decisionSimulationReports: Record<string, unknown>[]): DecisionWidgetItemDTO[] {
   if (!decisionSimulationReports?.length) return []
 
-  return decisionSimulationReports.slice(0, MAX_DECISION_ITEMS).map((report: any): DecisionWidgetItemDTO => ({
-    id: report.decisionId ?? '',
-    title: report.executiveSummary ?? report.decisionType ?? '',
-    recommendation: report.recommendation ?? '',
-    confidenceScore: report.confidenceScore ?? 0,
-    severity: resolveDecisionSeverity(report.recommendation ?? '', report.confidenceScore ?? 0),
-  }))
+  return decisionSimulationReports.slice(0, MAX_DECISION_ITEMS).map((report: Record<string, unknown>): DecisionWidgetItemDTO => {
+    const recommendation = (report.recommendation as string | undefined) ?? ''
+    const confidenceScore = (report.confidenceScore as number | undefined) ?? 0
+    return {
+      id: (report.decisionId as string | undefined) ?? '',
+      title: (report.executiveSummary as string | undefined) ?? (report.decisionType as string | undefined) ?? '',
+      recommendation,
+      confidenceScore,
+      severity: resolveDecisionSeverity(recommendation, confidenceScore),
+    }
+  })
 }

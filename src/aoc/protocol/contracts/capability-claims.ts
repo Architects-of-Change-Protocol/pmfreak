@@ -67,7 +67,7 @@ const ALL_KNOWN_VERSIONS: CapabilityClaimVersion[] = [
   CAPABILITY_CLAIM_VERSION_LEGACY_V1, CAPABILITY_CLAIM_VERSION_LEGACY_V11, CAPABILITY_CLAIM_VERSION_LEGACY_V12,
 ];
 
-export async function verifyCapabilityClaim(claim: CapabilityClaim, expected: any = {}, ports: Pick<CapabilityClaimPorts, "trustDomain" | "trustCoordination">) {
+export async function verifyCapabilityClaim(claim: CapabilityClaim, expected: { expectedTrustDomain?: string; enforceVerifierPolicy?: boolean; verifierWorkspaceId?: string } = {}, ports: Pick<CapabilityClaimPorts, "trustDomain" | "trustCoordination">) {
   const claimHash = hashCapabilityClaim(claim);
   if (!ALL_KNOWN_VERSIONS.includes(claim.version)) return { valid: false, reason: "unsupported_version", claimHash };
   const trustDomainPort = ports.trustDomain;

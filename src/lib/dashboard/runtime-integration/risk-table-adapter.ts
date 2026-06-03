@@ -8,15 +8,15 @@ function mapRiskLevelToSeverity(riskLevel: string): DashboardSeverity {
   return 'info'
 }
 
-export function adaptRiskTable(executiveDashboardReport: any): RiskTableRowDTO[] {
-  const topRisks: any[] = executiveDashboardReport?.topRisks ?? []
+export function adaptRiskTable(executiveDashboardReport: Record<string, unknown>): RiskTableRowDTO[] {
+  const topRisks: Record<string, unknown>[] = (executiveDashboardReport?.topRisks as Record<string, unknown>[] | undefined) ?? []
 
-  return topRisks.slice(0, MAX_RISK_ROWS).map((risk: any): RiskTableRowDTO => ({
-    id: risk.id ?? '',
-    title: risk.title ?? '',
-    severity: mapRiskLevelToSeverity(risk.riskLevel ?? ''),
-    source: risk.source ?? '',
-    affectedProjects: risk.affectedProjects ?? [],
-    rationale: risk.rationale ?? '',
+  return topRisks.slice(0, MAX_RISK_ROWS).map((risk: Record<string, unknown>): RiskTableRowDTO => ({
+    id: risk.id as string ?? '',
+    title: risk.title as string ?? '',
+    severity: mapRiskLevelToSeverity(risk.riskLevel as string ?? ''),
+    source: risk.source as string ?? '',
+    affectedProjects: risk.affectedProjects as string[] ?? [],
+    rationale: risk.rationale as string ?? '',
   }))
 }

@@ -15,7 +15,7 @@ export function resolveDashboardSourceData(
     warnings.push('PMO intervention report unavailable.')
   }
 
-  if (!raw.decisionSimulationReports || raw.decisionSimulationReports.length === 0) {
+  if (!raw.decisionSimulationReports || (raw.decisionSimulationReports as unknown[]).length === 0) {
     warnings.push('Decision simulation reports unavailable.')
   }
 

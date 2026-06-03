@@ -3,7 +3,7 @@ import type { DashboardProjectedTaskPayload } from '../task-adapters/index'
 import { normalizeConnectorError } from './connector-error-normalizer'
 import type { AsanaClientContract, AsanaConnectorConfig } from './types'
 
-export function buildAsanaTaskPayload(input: { payload: DashboardProjectedTaskPayload; config: AsanaConnectorConfig }): any {
+export function buildAsanaTaskPayload(input: { payload: DashboardProjectedTaskPayload; config: AsanaConnectorConfig }): Record<string, unknown> {
   return {
     name: input.payload.title,
     notes: input.payload.description,

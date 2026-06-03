@@ -9,7 +9,7 @@ export interface DashboardRealConnectorExecutionResult {
   status: 'created' | 'updated' | 'commented' | 'simulated' | 'failed'
   message: string
   retryable?: boolean
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface DashboardConnectorClientHealth {
@@ -23,31 +23,31 @@ export interface DashboardConnectorClientHealth {
 }
 
 export interface JiraClientContract {
-  createIssue(input: any): Promise<{ id: string; key?: string; url?: string }>
-  addComment?(issueIdOrKey: string, body: string): Promise<any>
-  transitionIssue?(issueIdOrKey: string, transition: string): Promise<any>
+  createIssue(input: Record<string, unknown>): Promise<{ id: string; key?: string; url?: string }>
+  addComment?(issueIdOrKey: string, body: string): Promise<unknown>
+  transitionIssue?(issueIdOrKey: string, transition: string): Promise<unknown>
 }
 
 export interface LinearClientContract {
-  createIssue(input: any): Promise<{ id: string; identifier?: string; url?: string }>
-  createComment?(issueId: string, body: string): Promise<any>
-  updateIssueState?(issueId: string, state: string): Promise<any>
+  createIssue(input: Record<string, unknown>): Promise<{ id: string; identifier?: string; url?: string }>
+  createComment?(issueId: string, body: string): Promise<unknown>
+  updateIssueState?(issueId: string, state: string): Promise<unknown>
 }
 
 export interface AsanaClientContract {
-  createTask(input: any): Promise<{ gid: string; permalink_url?: string }>
-  addComment?(taskGid: string, text: string): Promise<any>
-  completeTask?(taskGid: string): Promise<any>
+  createTask(input: Record<string, unknown>): Promise<{ gid: string; permalink_url?: string }>
+  addComment?(taskGid: string, text: string): Promise<unknown>
+  completeTask?(taskGid: string): Promise<unknown>
 }
 
 export interface WebhookClientContract {
-  post(input: { url: string; payload: any; headers?: Record<string, string> }): Promise<{ id?: string; status?: number; url?: string; body?: any }>
+  post(input: { url: string; payload: Record<string, unknown>; headers?: Record<string, string> }): Promise<{ id?: string; status?: number; url?: string; body?: unknown }>
 }
 
 export interface AteneaClientContract {
-  createImpediment?(input: any): Promise<{ id: string; url?: string }>
-  createFollowUp?(input: any): Promise<{ id: string; url?: string }>
-  createApprovalRequest?(input: any): Promise<{ id: string; url?: string }>
+  createImpediment?(input: Record<string, unknown>): Promise<{ id: string; url?: string }>
+  createFollowUp?(input: Record<string, unknown>): Promise<{ id: string; url?: string }>
+  createApprovalRequest?(input: Record<string, unknown>): Promise<{ id: string; url?: string }>
 }
 
 export interface JiraConnectorConfig {

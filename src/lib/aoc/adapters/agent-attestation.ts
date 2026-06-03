@@ -2,6 +2,7 @@
 // Delegates to PMFreak's verifyAgentAttestation including replay protection and revocation.
 import { verifyAgentAttestation } from "@/lib/security/agent-attestation";
 import { AccessDeniedError } from "@/lib/security/access-guards";
+import type { Permission } from "@/lib/security/rbac";
 import type { AgentAttestationPort } from "@/aoc/protocol/ports/agent-attestation";
 import { AocAccessDeniedError } from "@/aoc/protocol/ports/access-verification";
 
@@ -18,7 +19,7 @@ export class PmfreakAgentAttestationAdapter implements AgentAttestationPort {
         token: input.token,
         expectedAgentId: input.expectedAgentId,
         workspaceId: input.workspaceId,
-        permission: input.permission as any,
+        permission: input.permission as Permission,
         projectId: input.projectId,
       });
       return { agentId: claims.agentId, workspaceId: claims.workspaceId };

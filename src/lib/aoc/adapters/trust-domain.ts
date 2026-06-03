@@ -30,7 +30,7 @@ export class PmfreakTrustDomainAdapter implements TrustDomainPort {
   async verifyIssuerTrust(input: { trustDomain: string; issuerApp: string; expectedTrustDomain?: string }): Promise<TrustVerificationResult> {
     const result = await verifyIssuerTrust(input);
     if (!result.ok || !result.trustDomain) {
-      return { ok: false, reason: result.reason, trustDomain: result.trustDomain as any };
+      return { ok: false, reason: result.reason, trustDomain: result.trustDomain as unknown as TrustVerificationResult["trustDomain"] };
     }
     return { ok: true, reason: result.reason, trustDomain: result.trustDomain };
   }

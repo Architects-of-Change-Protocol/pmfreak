@@ -1,7 +1,7 @@
 import { applyDashboardApprovalDecision, deriveDashboardEnvelopeExecutionGate } from '../approval-workflow/index'
 import { mergeApprovalIntoLifecycle } from '../task-lifecycle/index'
 import type { DashboardTaskLifecycleEvent, DashboardTaskLifecycleRecord } from '../task-lifecycle/index'
-import type { DashboardApprovalRequest } from '../approval-workflow/index'
+import type { DashboardApprovalDecision, DashboardApprovalRequest } from '../approval-workflow/index'
 import { buildApprovalDecisionFromMutation } from './approval-decision-builder'
 import type { DashboardApprovalMutationRequest } from './types'
 
@@ -13,7 +13,7 @@ export function applyApprovalMutation(input: {
 }): {
   updatedApprovalRequest: DashboardApprovalRequest
   updatedLifecycle: DashboardTaskLifecycleRecord
-  decision: any
+  decision: DashboardApprovalDecision
   event: DashboardTaskLifecycleEvent
 } {
   const decision = buildApprovalDecisionFromMutation({ mutation: input.mutation, now: input.now })

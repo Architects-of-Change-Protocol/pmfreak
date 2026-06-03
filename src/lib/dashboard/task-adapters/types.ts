@@ -35,7 +35,7 @@ export interface DashboardProjectedTaskPayload {
   assignee?: string
   labels?: string[]
   dueHours?: number
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
 }
 
 export interface DashboardTaskProjection {
