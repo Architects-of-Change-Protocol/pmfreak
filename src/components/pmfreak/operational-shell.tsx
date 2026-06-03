@@ -57,7 +57,7 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
 
   // Once projects finish loading: clean stale localStorage and hydrate URL from stored id.
   // Skip on network error — a failed fetch must not incorrectly invalidate a valid stored context.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
   useEffect(() => {
     if (projectsLoading || initializedRef.current) return;
     if (projectsError) return;
@@ -70,6 +70,7 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
     if (urlProjectId) {
       if (!validIds.has(urlProjectId)) {
         globalThis.localStorage?.removeItem("pmfreak.currentProjectId");
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setProjectId("");
       }
       return;
