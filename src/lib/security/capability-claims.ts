@@ -49,7 +49,7 @@ export async function createCapabilityClaim(input: Omit<CapabilityClaim, "versio
   );
 }
 
-export async function verifyCapabilityClaim(claim: CapabilityClaim, expected: any = {}) {
+export async function verifyCapabilityClaim(claim: CapabilityClaim, expected: Record<string, unknown> = {}) {
   ensurePmfreakAocAdaptersRegistered();
   const runtime = composeRuntimeContext(getEnterpriseRuntimeComposeOptions());
   return verifyProtocolCapabilityClaim(claim, expected, composeCapabilityVerificationPorts(runtime));

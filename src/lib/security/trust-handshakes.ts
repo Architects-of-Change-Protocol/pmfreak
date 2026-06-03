@@ -34,7 +34,7 @@ export async function approveTrustHandshake(input: { id: string; approverUserId?
 export async function rejectTrustHandshake(input: { id: string; rejectorUserId?: string | null; reason?: string }) { return mutateStatus(input, "rejected", "trust_handshake_rejected"); }
 export async function revokeTrustHandshake(input: { id: string; revokerUserId?: string | null; reason?: string }) { return mutateStatus(input, "revoked", "trust_handshake_revoked"); }
 
-async function mutateStatus(input: any, status: "rejected" | "revoked", event: "trust_handshake_rejected" | "trust_handshake_revoked") {
+async function mutateStatus(input: { id: string; rejectorUserId?: string | null; revokerUserId?: string | null; reason?: string }, status: "rejected" | "revoked", event: "trust_handshake_rejected" | "trust_handshake_revoked") {
   const supabase = createPrivilegedSupabaseClient({ routeId: "security.trust_handshakes", operation: `${status}_handshake`, reason: "external_verifier_interop" });
   const now = new Date().toISOString();
   const field = status === "rejected" ? { rejected_by_user_id: input.rejectorUserId ?? null, rejected_at: now } : { revoked_by_user_id: input.revokerUserId ?? null, revoked_at: now };
@@ -67,7 +67,7 @@ export async function consumeOrAssertHandshake(input: Parameters<typeof validate
   return result;
 }
 
-export function explainTrustHandshake(handshake: any) { return { id: handshake.id, verifierName: handshake.verifier_name, verifierDomain: handshake.verifier_domain, requestedTrustDomain: handshake.requested_trust_domain, requestedActions: handshake.requested_actions, requestedResourceTypes: handshake.requested_resource_types, status: handshake.status, expiresAt: handshake.expires_at }; }
+export function explainTrustHandshake(handshake: { id: string; verifier_name: string; verifier_domain: string | null; requested_trust_domain: string; requested_actions: string[] | null; requested_resource_types: string[] | null; status: string; expires_at: string }) { return { id: handshake.id, verifierName: handshake.verifier_name, verifierDomain: handshake.verifier_domain, requestedTrustDomain: handshake.requested_trust_domain, requestedActions: handshake.requested_actions, requestedResourceTypes: handshake.requested_resource_types, status: handshake.status, expiresAt: handshake.expires_at }; }
 
 
 export function negotiateVerifierCapabilities(input: { localCapabilities: string[]; remoteCapabilities: string[]; minimumProtocolVersion: number; remoteProtocolVersion: number }) {
@@ -81,7 +81,7 @@ export function createVerifierHandshake(input: { verifierId: string; trustDomain
   return { verifierId: input.verifierId, trustDomain: input.trustDomain, targetDomain: input.targetDomain, protocolVersion: input.protocolVersion, capabilities: input.capabilities, challenge, challengeExpiresAt: new Date(Date.now() + 1000 * (input.challengeTtlSeconds ?? 120)).toISOString(), createdAt: new Date().toISOString() };
 }
 
-export async function verifyVerifierHandshake(input: { handshake: any; signedChallenge?: string; trustAnchorId?: string; localDomain: string; minimumProtocolVersion: number; localCapabilities: string[] }) {
+export async function verifyVerifierHandshake(input: { handshake: { verifierId: string; trustDomain: string; targetDomain: string; protocolVersion: number; capabilities: string[]; challenge: string; challengeExpiresAt: string; createdAt: string }; signedChallenge?: string; trustAnchorId?: string; localDomain: string; minimumProtocolVersion: number; localCapabilities: string[] }) {
   await logSecurityEvent('verifier_handshake_started', { metadata: { verifierId: input.handshake?.verifierId ?? null, trustDomain: input.handshake?.trustDomain ?? null } });
   if (input.handshake.protocolVersion < input.minimumProtocolVersion) { await logSecurityEvent('verifier_handshake_failed', { metadata: { reason: 'protocol_too_old' } }); return { ok: false, reason: 'protocol_too_old' }; }
   if (new Date(input.handshake.challengeExpiresAt).getTime() <= Date.now()) { await logSecurityEvent('verifier_handshake_failed', { metadata: { reason: 'challenge_expired' } }); return { ok: false, reason: 'challenge_expired' }; }
@@ -95,4 +95,4 @@ export async function verifyVerifierHandshake(input: { handshake: any; signedCha
   return { ok: true, reason: 'handshake_valid', negotiatedCapabilities: negotiated.capabilities, anchorId: anchor.anchor_id };
 }
 
-export function explainVerifierHandshake(input: { verification: any; handshake: any }) { return { verifierId: input.handshake.verifierId, trustDomain: input.handshake.trustDomain, targetDomain: input.handshake.targetDomain, protocolVersion: input.handshake.protocolVersion, result: input.verification.reason, controlledInteroperabilityOnly: true }; }
+export function explainVerifierHandshake(input: { verification: { reason: string }; handshake: { verifierId: string; trustDomain: string; targetDomain: string; protocolVersion: number } }) { return { verifierId: input.handshake.verifierId, trustDomain: input.handshake.trustDomain, targetDomain: input.handshake.targetDomain, protocolVersion: input.handshake.protocolVersion, result: input.verification.reason, controlledInteroperabilityOnly: true }; }

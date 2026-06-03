@@ -58,7 +58,8 @@ const transitions: Record<OperationalInterventionRecord["outcomeStatus"], Operat
   pending: ["accepted", "ignored", "escalated"], accepted: ["resolved", "failed", "partially_resolved"], escalated: ["resolved", "failed"], ignored: [], resolved: [], failed: [], partially_resolved: [],
 };
 
-const mapRow = (row: any): OperationalInterventionRecord => ({ interventionId: row.intervention_id, companyId: row.company_id, workspaceId: row.workspace_id, projectId: row.project_id, createdAt: row.created_at, updatedAt: row.updated_at, source: row.source, interventionType: row.intervention_type, operationalDomain: row.operational_domain, severity: row.severity, interventionText: row.intervention_text, targetStakeholders: Array.isArray(row.target_stakeholders) ? row.target_stakeholders : [], relatedPatterns: Array.isArray(row.related_patterns) ? row.related_patterns : [], relatedNutrients: Array.isArray(row.related_nutrients) ? row.related_nutrients : [], runtimeDecisionId: row.runtime_decision_id, lineage: row.lineage ?? {}, outcomeStatus: row.outcome_status, outcomeSummary: row.outcome_summary, outcomeUpdatedAt: row.outcome_updated_at, freshnessScore: Number(row.freshness_score ?? 0) });
+type InterventionRow = { intervention_id: string; company_id: string; workspace_id: string; project_id: string | null; created_at: string; updated_at: string; source: OperationalInterventionRecord["source"]; intervention_type: OperationalInterventionRecord["interventionType"]; operational_domain: OperationalInterventionRecord["operationalDomain"]; severity: OperationalInterventionRecord["severity"]; intervention_text: string; target_stakeholders: string[]; related_patterns: string[]; related_nutrients: string[]; runtime_decision_id: string | null; lineage: OperationalInterventionRecord["lineage"]; outcome_status: OperationalInterventionRecord["outcomeStatus"]; outcome_summary: string | null; outcome_updated_at: string | null; freshness_score: number | null };
+const mapRow = (row: InterventionRow): OperationalInterventionRecord => ({ interventionId: row.intervention_id, companyId: row.company_id, workspaceId: row.workspace_id, projectId: row.project_id, createdAt: row.created_at, updatedAt: row.updated_at, source: row.source, interventionType: row.intervention_type, operationalDomain: row.operational_domain, severity: row.severity, interventionText: row.intervention_text, targetStakeholders: Array.isArray(row.target_stakeholders) ? row.target_stakeholders : [], relatedPatterns: Array.isArray(row.related_patterns) ? row.related_patterns : [], relatedNutrients: Array.isArray(row.related_nutrients) ? row.related_nutrients : [], runtimeDecisionId: row.runtime_decision_id, lineage: row.lineage ?? {}, outcomeStatus: row.outcome_status, outcomeSummary: row.outcome_summary, outcomeUpdatedAt: row.outcome_updated_at, freshnessScore: Number(row.freshness_score ?? 0) });
 
 export async function persistOperationalIntervention(input: Omit<OperationalInterventionRecord, "interventionId" | "createdAt" | "updatedAt" | "freshnessScore" | "outcomeStatus"> & Partial<Pick<OperationalInterventionRecord, "outcomeStatus">>): Promise<{ status: "created" | "duplicate" | "degraded"; record?: OperationalInterventionRecord; reason?: string; }> {
   const now = new Date().toISOString();
@@ -77,10 +78,10 @@ export async function persistOperationalIntervention(input: Omit<OperationalInte
     const { createSupabaseServerClient } = await import("@/lib/supabase/server");
     const supabase = await createSupabaseServerClient();
     const { data: existing } = await supabase.from("intervention_memory").select("*").eq("intervention_id", interventionId).maybeSingle();
-    if (existing) return { status: "duplicate", record: mapRow(existing) };
+    if (existing) return { status: "duplicate", record: mapRow(existing as InterventionRow) };
     const { data, error } = await supabase.from("intervention_memory").insert({ intervention_id: interventionId, company_id: normalized.companyId, workspace_id: normalized.workspaceId, project_id: normalized.projectId, created_at: now, updated_at: now, source: normalized.source, intervention_type: normalized.interventionType, operational_domain: normalized.operationalDomain, severity: normalized.severity, intervention_text: normalized.interventionText, target_stakeholders: normalized.targetStakeholders, related_patterns: normalized.relatedPatterns, related_nutrients: normalized.relatedNutrients, runtime_decision_id: normalized.runtimeDecisionId ?? null, lineage: normalized.lineage, outcome_status: normalized.outcomeStatus, outcome_summary: null, outcome_updated_at: null, freshness_score: fresh }).select("*").single();
     if (error || !data) return { status: "degraded", reason: error?.message ?? "persist_failed" };
-    return { status: "created", record: mapRow(data) };
+    return { status: "created", record: mapRow(data as InterventionRow) };
   } catch (error) {
     return { status: "degraded", reason: error instanceof Error ? error.message : "persist_failed" };
   }
@@ -99,7 +100,7 @@ export async function retrieveInterventionHistory(request: { workspaceId: string
     if (request.stakeholder?.trim()) query = query.contains("target_stakeholders", [request.stakeholder.trim().toLowerCase()]);
     const { data, error } = await query;
     if (error || !data) return [];
-    return data.map(mapRow);
+    return (data as InterventionRow[]).map(mapRow);
   } catch { return []; }
 }
 
@@ -115,7 +116,7 @@ export async function updateInterventionOutcome(input: { workspaceId: string; in
     const freshnessScore = calculateInterventionFreshness({ createdAt: current.created_at, severity: current.severity, outcomeStatus: input.nextStatus });
     const { data, error } = await supabase.from("intervention_memory").update({ outcome_status: input.nextStatus, outcome_summary: normalizeText(input.outcomeSummary ?? "", MAX_OUTCOME_SUMMARY) || null, outcome_updated_at: outcomeUpdatedAt, updated_at: outcomeUpdatedAt, freshness_score: freshnessScore }).eq("workspace_id", input.workspaceId).eq("intervention_id", input.interventionId).select("*").single();
     if (error || !data) return { status: "degraded", reason: error?.message ?? "update_failed" };
-    return { status: "updated", record: mapRow(data) };
+    return { status: "updated", record: mapRow(data as InterventionRow) };
   } catch (error) { return { status: "degraded", reason: error instanceof Error ? error.message : "update_failed" }; }
 }
 

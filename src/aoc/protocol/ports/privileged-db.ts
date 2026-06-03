@@ -16,8 +16,8 @@ export type AocPrivilegedDbContext = {
 
 // Minimal builder interface compatible with Supabase's query builder.
 // AOC only requires .from() access; callers use any for chaining.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface AocDbClient {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   from(table: string): any;
 }
 
