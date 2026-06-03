@@ -17,12 +17,12 @@ export interface DashboardVaultSnapshotStoreContract {
 }
 
 function isValidVaultContract(client: unknown): client is DashboardVaultSnapshotStoreContract {
+  if (typeof client !== 'object' || client === null) return false
+  const c = client as Record<string, unknown>
   return (
-    typeof client === 'object' &&
-    client !== null &&
-    typeof client.saveSnapshot === 'function' &&
-    typeof client.getLatestSnapshot === 'function' &&
-    typeof client.listLatestSnapshots === 'function'
+    typeof c.saveSnapshot === 'function' &&
+    typeof c.getLatestSnapshot === 'function' &&
+    typeof c.listLatestSnapshots === 'function'
   )
 }
 

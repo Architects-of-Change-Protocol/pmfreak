@@ -49,12 +49,12 @@ export function adaptDashboardViewModel(input: DashboardConsumptionInput): Dashb
     }
   }
 
-  const apiResponse = input.apiResponse
+  const apiResponse = input.apiResponse as { status?: string; data?: unknown; warnings?: unknown[] } | null | undefined
   if (!apiResponse) {
     return base
   }
 
-  const data = (apiResponse.data ?? {}) as Record<string, unknown>
+  const data = ((apiResponse.data ?? {}) as Record<string, unknown>)
   const warnings: string[] = Array.isArray(apiResponse.warnings) ? apiResponse.warnings as string[] : []
 
   if (apiResponse.status === 'error') {
@@ -89,7 +89,7 @@ export function adaptDashboardViewModel(input: DashboardConsumptionInput): Dashb
     healthPanel.status === 'critical'
 
   let status: DashboardViewModel['status']
-  switch (apiResponse.status) {
+  switch (apiResponse.status as string | undefined) {
     case 'empty':
       status = 'empty'
       break

@@ -18,9 +18,10 @@ export async function POST(request: Request) {
     actorUserId: user.id,
     actorAgentId: request.headers.get("x-pmf-agent-id"),
   });
-  if (!outcome.ok) {
-    await logSecurityEvent("execution_grant_invalid", { workspaceId: body.workspaceId ?? null, projectId: body.projectId ?? null, actorUserId: user.id, requested_permission: body.requestedPermission ?? null, metadata: { reason: outcome.reason, action: body.action } });
-    return Response.json({ ok: false, reason: outcome.reason }, { status: 403 });
+  const typedOutcome = outcome as { ok: boolean; reason?: string; grant?: { id: string } };
+  if (!typedOutcome.ok) {
+    await logSecurityEvent("execution_grant_invalid", { workspaceId: body.workspaceId ?? null, projectId: body.projectId ?? null, actorUserId: user.id, requested_permission: body.requestedPermission ?? null, metadata: { reason: typedOutcome.reason, action: body.action } });
+    return Response.json({ ok: false, reason: typedOutcome.reason }, { status: 403 });
   }
-  return Response.json({ ok: true, authorization: "granted", grantId: outcome.grant.id });
+  return Response.json({ ok: true, authorization: "granted", grantId: typedOutcome.grant?.id });
 }

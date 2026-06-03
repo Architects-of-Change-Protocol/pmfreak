@@ -18,8 +18,8 @@ interface SupabaseQueryBuilder {
 export interface SupabaseClient {
   from(table: string): {
     select(columns: string): SupabaseQueryBuilder
-    upsert(record: Record<string, unknown>, options?: Record<string, unknown>): Promise<{ error: unknown }>
-    insert(record: Record<string, unknown>, options?: Record<string, unknown>): Promise<{ error: unknown }>
+    upsert(record: unknown, options?: Record<string, unknown>): Promise<{ error: unknown }>
+    insert(record: unknown, options?: Record<string, unknown>): Promise<{ error: unknown }>
   }
   rpc?: (...args: unknown[]) => unknown
 }
@@ -63,7 +63,7 @@ export function createSupabasePersistentLifecycleStore(input: {
       let query = client.from(lifecycleTable).select('*')
       query = applyScope(query, config.tenantId, config.workspaceId).order('updated_at', { ascending: true }).order('lifecycle_id', { ascending: true })
       const { data } = await query
-      return (data ?? []).map((x: PersistentLifecycleRecord) => mapPersistentRecordToLifecycle(x))
+      return ((data ?? []) as PersistentLifecycleRecord[]).map((x) => mapPersistentRecordToLifecycle(x))
     },
     async listEvents(lifecycleId) {
       let query = client.from(EVENTS_TABLE).select('*')
@@ -71,7 +71,7 @@ export function createSupabasePersistentLifecycleStore(input: {
       if (lifecycleId) query = query.eq('lifecycle_id', lifecycleId)
       query = query.order('occurred_at', { ascending: true }).order('event_id', { ascending: true })
       const { data } = await query
-      return (data ?? []).map((x: PersistentLifecycleEventRecord) => mapPersistentRecordToEvent(x))
+      return ((data ?? []) as PersistentLifecycleEventRecord[]).map((x) => mapPersistentRecordToEvent(x))
     },
     async getLifecycleById(id: string) {
       let query = client.from(lifecycleTable).select('*')

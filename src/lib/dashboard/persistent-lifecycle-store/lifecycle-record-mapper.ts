@@ -13,8 +13,8 @@ export interface PersistentLifecycleRecord {
   retry_count: number
   created_at: string
   updated_at: string
-  payload_json: Record<string, unknown>
-  approval_request_json: Record<string, unknown> | null
+  payload_json: unknown
+  approval_request_json: unknown
   approval_decisions_json: DashboardApprovalDecision[]
 }
 
@@ -49,8 +49,8 @@ export function mapPersistentRecordToLifecycle(record: PersistentLifecycleRecord
     actionId: record.action_id,
     adapter: record.adapter,
     status: record.status as DashboardTaskLifecycleRecord['status'],
-    envelope: record.payload_json as DashboardTaskLifecycleRecord['envelope'],
-    approvalRequest: (record.approval_request_json ?? undefined) as DashboardTaskLifecycleRecord['approvalRequest'],
+    envelope: record.payload_json as unknown as DashboardTaskLifecycleRecord['envelope'],
+    approvalRequest: (record.approval_request_json ?? undefined) as unknown as DashboardTaskLifecycleRecord['approvalRequest'],
     approvalDecisions: (record.approval_decisions_json ?? []) as DashboardTaskLifecycleRecord['approvalDecisions'],
     externalTaskId: record.external_task_id ?? undefined,
     retryCount: record.retry_count ?? 0,

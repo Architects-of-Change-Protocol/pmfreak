@@ -11,7 +11,8 @@ export function createPersistentDashboardSnapshotStore(config: PersistentSnapsho
 
     case 'supabase':
       return createSupabaseDashboardSnapshotStore({
-        supabaseClient: config.supabaseClient,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabaseClient: config.supabaseClient as any,
         tableName: config.tableName,
       })
 
@@ -51,10 +52,11 @@ export function getPersistentSnapshotStoreHealth(config: PersistentSnapshotStore
         reason: 'Vault client is not configured.',
       }
     }
+    const vaultClient = config.vaultClient as Record<string, unknown>
     const hasContract =
-      typeof config.vaultClient.saveSnapshot === 'function' &&
-      typeof config.vaultClient.getLatestSnapshot === 'function' &&
-      typeof config.vaultClient.listLatestSnapshots === 'function'
+      typeof vaultClient.saveSnapshot === 'function' &&
+      typeof vaultClient.getLatestSnapshot === 'function' &&
+      typeof vaultClient.listLatestSnapshots === 'function'
     if (!hasContract) {
       return {
         provider: 'vault',

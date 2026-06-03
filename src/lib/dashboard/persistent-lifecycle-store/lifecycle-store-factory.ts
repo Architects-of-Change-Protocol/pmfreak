@@ -8,7 +8,7 @@ export function createPersistentLifecycleStore(input: {
   vaultProvider?: DashboardVaultLifecycleStoreContract
 }) {
   if (input.config.provider === 'supabase') {
-    return createSupabasePersistentLifecycleStore({ client: input.supabaseClient, config: input.config })
+    return createSupabasePersistentLifecycleStore({ client: input.supabaseClient as SupabaseClient, config: input.config })
   }
   return createVaultPersistentLifecycleStore(input.vaultProvider)
 }

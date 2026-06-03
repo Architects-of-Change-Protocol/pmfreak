@@ -25,8 +25,8 @@ export interface DashboardViewModel {
   alertsCount: number
   hasCriticalAttention: boolean
   sections: {
-    healthPanel: Record<string, unknown>
-    executiveSummaryCard: Record<string, unknown>
+    healthPanel: Record<string, unknown> | null
+    executiveSummaryCard: Record<string, unknown> | null
     topRisksTable: Record<string, unknown>[]
     decisionsWidget: Record<string, unknown>[]
     interventionsQueue: Record<string, unknown>[]
@@ -37,7 +37,7 @@ export interface DashboardViewModel {
 }
 
 export interface DashboardConsumptionInput {
-  apiResponse?: Record<string, unknown>
+  apiResponse?: unknown
   fetchError?: DashboardConsumptionError
   loading?: boolean
 }

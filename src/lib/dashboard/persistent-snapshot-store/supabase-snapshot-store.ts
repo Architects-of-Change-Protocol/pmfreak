@@ -6,7 +6,7 @@ import { DEFAULT_DASHBOARD_SNAPSHOT_TABLE } from './types'
 /** Minimal structural interface for the Supabase snapshot store client. */
 interface SnapshotSupabaseClient {
   from(table: string): {
-    upsert(record: Record<string, unknown>, options?: Record<string, unknown>): Promise<{ error: unknown }>
+    upsert(record: unknown, options?: Record<string, unknown>): Promise<{ error: unknown }>
     select(columns: string): {
       eq(column: string, value: string): SnapshotQueryBuilder
       is(column: string, value: null): SnapshotQueryBuilder
@@ -73,8 +73,9 @@ export function createSupabaseDashboardSnapshotStore(input: {
         throw new Error('Failed to read dashboard source snapshot.')
       }
 
-      if (!data || data.length === 0) return null
-      return mapRecordToSnapshot(data[0] as DashboardSourceSnapshotRecord)
+      const rows = data as DashboardSourceSnapshotRecord[] | null
+      if (!rows || rows.length === 0) return null
+      return mapRecordToSnapshot(rows[0])
     },
 
     async listLatestSnapshots(request: DashboardSourceHydrationRequest): Promise<DashboardSourceSnapshot[]> {
@@ -103,10 +104,11 @@ export function createSupabaseDashboardSnapshotStore(input: {
         throw new Error('Failed to list dashboard source snapshots.')
       }
 
-      if (!data || data.length === 0) return []
+      const allRows = data as DashboardSourceSnapshotRecord[] | null
+      if (!allRows || allRows.length === 0) return []
 
       const latestByKind = new Map<string, DashboardSourceSnapshotRecord>()
-      for (const record of data as DashboardSourceSnapshotRecord[]) {
+      for (const record of allRows) {
         if (!latestByKind.has(record.source_kind)) {
           latestByKind.set(record.source_kind, record)
         }

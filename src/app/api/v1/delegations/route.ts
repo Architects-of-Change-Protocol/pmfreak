@@ -19,6 +19,6 @@ export async function POST(request: Request) {
   const user = await getAuthUser();
   if (!user) return denyResponse({ status: 401, routeId: "/api/v1/delegations", message: "Unauthorized", reason: "unauthorized" });
   const body = await request.json();
-  const issued = await issueDelegatedCapability({ ...body, delegatorUserId: user.id });
+  const issued = await issueDelegatedCapability({ ...body, delegatorUserId: user.id }) as { delegation: unknown; delegationToken: string };
   return Response.json({ ok: true, delegation: issued.delegation, delegationToken: issued.delegationToken });
 }

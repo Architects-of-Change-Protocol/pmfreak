@@ -18,17 +18,18 @@ export function validateApprovalMutationRequest(input: unknown): DashboardApprov
 
   if (typeof mutation.requestId !== 'string' || mutation.requestId.trim().length === 0) errors.push('requestId is required.')
   if (typeof mutation.envelopeId !== 'string' || mutation.envelopeId.trim().length === 0) errors.push('envelopeId is required.')
-  if (!MUTATION_DECISIONS.includes(mutation.decision)) errors.push('decision is invalid.')
+  if (!MUTATION_DECISIONS.includes(mutation.decision as DashboardApprovalMutationDecision)) errors.push('decision is invalid.')
 
   if (!mutation.actor || typeof mutation.actor !== 'object') {
     errors.push('actor is required.')
   } else {
-    if (typeof mutation.actor.id !== 'string' || mutation.actor.id.trim().length === 0) errors.push('actor.id is required.')
-    if (!Array.isArray(mutation.actor.roles) || mutation.actor.roles.length === 0) errors.push('actor.roles are required.')
+    const actor = mutation.actor as Record<string, unknown>
+    if (typeof actor.id !== 'string' || actor.id.trim().length === 0) errors.push('actor.id is required.')
+    if (!Array.isArray(actor.roles) || actor.roles.length === 0) errors.push('actor.roles are required.')
   }
 
   if (mutation.decidedAt !== undefined) {
-    const date = new Date(mutation.decidedAt)
+    const date = new Date(mutation.decidedAt as string)
     if (typeof mutation.decidedAt !== 'string' || Number.isNaN(date.getTime())) errors.push('decidedAt must be a valid ISO date.')
   }
 

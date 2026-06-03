@@ -24,6 +24,6 @@ export async function loadPortfolioDashboardViewModel(
             message: fetchError instanceof Error ? fetchError.message : 'Unknown fetch error',
             recoverable: true,
           }
-    return runDashboardConsumptionRuntime({ fetchError: normalizedError })
+    return runDashboardConsumptionRuntime({ fetchError: normalizedError as { code: string; message: string; recoverable: boolean } })
   }
 }

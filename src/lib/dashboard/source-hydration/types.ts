@@ -49,10 +49,10 @@ export interface DashboardSourceCompleteness {
 
 export interface DashboardHydrationResult {
   sourceData: {
-    executiveDashboardReport?: Record<string, unknown>
-    interventionReport?: Record<string, unknown>
-    decisionSimulationReports?: Record<string, unknown>[]
-    conflictReport?: Record<string, unknown>
+    executiveDashboardReport?: unknown
+    interventionReport?: unknown
+    decisionSimulationReports?: unknown
+    conflictReport?: unknown
   }
   snapshots: DashboardSourceSnapshot[]
   freshness: DashboardSourceFreshness[]

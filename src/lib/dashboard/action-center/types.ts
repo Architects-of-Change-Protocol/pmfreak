@@ -61,10 +61,10 @@ export interface DashboardAction {
 }
 
 export interface DashboardActionCenterInput {
-  dashboardViewModel?: Record<string, unknown>
-  cacheRefreshResult?: Record<string, unknown>
-  hydrationResult?: Record<string, unknown>
-  pmoInterventionReport?: Record<string, unknown>
+  dashboardViewModel?: unknown
+  cacheRefreshResult?: unknown
+  hydrationResult?: unknown
+  pmoInterventionReport?: unknown
 }
 
 export interface DashboardActionCenterReport {
