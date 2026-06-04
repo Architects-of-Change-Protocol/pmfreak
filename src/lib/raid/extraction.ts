@@ -137,7 +137,7 @@ export function detectRaidDueDate(text: string, detectedAt: string): string | nu
   if (spanish?.[1] && spanish[2]) {
     const month = SPANISH_MONTHS[spanish[2].toLowerCase()];
     const day = Number(spanish[1]);
-    let year = referenceDate.getUTCFullYear();
+    const year = referenceDate.getUTCFullYear();
     let due = buildDate(year, month, day);
     if (due && due < dateOnly(referenceDate)) due = buildDate(year + 1, month, day);
     return due;

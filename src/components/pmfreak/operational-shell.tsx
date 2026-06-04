@@ -70,7 +70,7 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
     if (urlProjectId) {
       if (!validIds.has(urlProjectId)) {
         globalThis.localStorage?.removeItem("pmfreak.currentProjectId");
-        setProjectId("");
+        queueMicrotask(() => setProjectId(""));
       }
       return;
     }
@@ -80,7 +80,7 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
       router.replace(`${window.location.pathname}?${urlParams.toString()}`);
     } else if (projectId && !validIds.has(projectId)) {
       globalThis.localStorage?.removeItem("pmfreak.currentProjectId");
-      setProjectId("");
+      queueMicrotask(() => setProjectId(""));
     }
   }, [projectsLoading]);
 

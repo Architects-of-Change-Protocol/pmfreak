@@ -289,7 +289,7 @@ export async function POST(request: Request) {
     includeResolved: false,
   });
   const boundedContinuityContext = buildRuntimeContinuityContext(continuity.continuitySignals, 8);
-  let learnedExecutionPatterns = await detectLearnedExecutionPatterns({
+  const learnedExecutionPatterns = await detectLearnedExecutionPatterns({
     companyId: user.companyId,
     workspaceId: resolvedWorkspaceId ?? "",
     projectId: selectedProject?.id ?? payload.projectId?.trim() ?? null,
