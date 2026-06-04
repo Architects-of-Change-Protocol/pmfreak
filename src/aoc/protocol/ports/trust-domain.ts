@@ -40,7 +40,7 @@ export interface TrustDomainPort {
   // Returns a crypto.KeyObject (Node.js); typed as unknown here to avoid a node:crypto
   // dependency in the AOC protocol layer. Callers that perform Ed25519 verification
   // (e.g. capability-claims.ts) cast the return value to crypto.KeyObject at use-site.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   resolvePublicVerificationKey(key: TrustKeyRecord): unknown;
   verifyIssuerTrust(input: {
     trustDomain: string;
