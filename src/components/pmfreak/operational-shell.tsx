@@ -62,6 +62,27 @@ type ExecutionTask = {
   source_payload: Record<string, unknown>;
 };
 
+type ExecutionTaskDependency = {
+  id: string;
+  predecessor_task_id: string;
+  successor_task_id: string;
+  dependency_type: string;
+  status: string;
+  reason: string | null;
+  confidence_score: number | null;
+};
+
+type ExecutionNetworkSummary = {
+  totalTasks: number;
+  totalDependencies: number;
+  readyTasks: number;
+  blockedTasks: number;
+  completedTasks: number;
+  proposedDependencies: number;
+  activeDependencies: number;
+  cycleRisk: boolean;
+};
+
 type OperationalShellProps = {
   children: React.ReactNode;
   user: { fullName: string; role: string; companyName: string };
@@ -86,6 +107,15 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
   const [executionTasksFilter, setExecutionTasksFilter] = useState<string>("all");
   const [taskActionError, setTaskActionError] = useState<string | null>(null);
   const [taskActingId, setTaskActingId] = useState<string | null>(null);
+  const [dependencies, setDependencies] = useState<ExecutionTaskDependency[]>([]);
+  const [networkSummary, setNetworkSummary] = useState<ExecutionNetworkSummary | null>(null);
+  const [depActionError, setDepActionError] = useState<string | null>(null);
+  const [depActingId, setDepActingId] = useState<string | null>(null);
+  const [showDepForm, setShowDepForm] = useState(false);
+  const [depFormPred, setDepFormPred] = useState("");
+  const [depFormSucc, setDepFormSucc] = useState("");
+  const [depFormType, setDepFormType] = useState("finish_to_start");
+  const [depFormReason, setDepFormReason] = useState("");
   const initializedRef = useRef(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string>(() => {
@@ -195,6 +225,72 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
     }
   };
 
+  const refreshExecutionNetwork = async () => {
+    if (!projectId) { setDependencies([]); setNetworkSummary(null); return; }
+    try {
+      const res = await fetch(`/api/execution-task-graph?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+      const data = (await res.json()) as { dependencies?: ExecutionTaskDependency[]; graphSummary?: ExecutionNetworkSummary };
+      setDependencies(res.ok ? data.dependencies ?? [] : []);
+      setNetworkSummary(res.ok ? data.graphSummary ?? null : null);
+    } catch {
+      setDependencies([]);
+      setNetworkSummary(null);
+    }
+  };
+
+  const handleDepAction = async (dependencyId: string, status: "active" | "resolved" | "invalidated") => {
+    setDepActingId(dependencyId);
+    setDepActionError(null);
+    try {
+      const res = await fetch("/api/execution-task-dependencies/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dependencyId, status }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setDepActionError(data.error ?? "Action failed.");
+      } else {
+        await refreshExecutionNetwork();
+      }
+    } catch {
+      setDepActionError("Network error.");
+    } finally {
+      setDepActingId(null);
+    }
+  };
+
+  const handleCreateDependency = async () => {
+    if (!depFormPred || !depFormSucc) { setDepActionError("Predecessor and successor are required."); return; }
+    setDepActionError(null);
+    try {
+      const res = await fetch("/api/execution-task-dependencies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          predecessorTaskId: depFormPred,
+          successorTaskId: depFormSucc,
+          dependencyType: depFormType,
+          reason: depFormReason || undefined,
+          status: "active",
+        }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setDepActionError(data.error ?? "Could not create dependency.");
+      } else {
+        setShowDepForm(false);
+        setDepFormPred("");
+        setDepFormSucc("");
+        setDepFormReason("");
+        setDepFormType("finish_to_start");
+        await refreshExecutionNetwork();
+      }
+    } catch {
+      setDepActionError("Network error.");
+    }
+  };
+
   const handleTaskAction = async (
     taskId: string,
     action: "start" | "block" | "complete" | "cancel",
@@ -279,6 +375,25 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
       }
     }
     void loadTasks();
+    return () => { active = false; };
+  }, [projectId]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadNetwork() {
+      if (!projectId) { setDependencies([]); setNetworkSummary(null); return; }
+      try {
+        const res = await fetch(`/api/execution-task-graph?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+        const data = (await res.json()) as { dependencies?: ExecutionTaskDependency[]; graphSummary?: ExecutionNetworkSummary };
+        if (active) {
+          setDependencies(res.ok ? data.dependencies ?? [] : []);
+          setNetworkSummary(res.ok ? data.graphSummary ?? null : null);
+        }
+      } catch {
+        if (active) { setDependencies([]); setNetworkSummary(null); }
+      }
+    }
+    void loadNetwork();
     return () => { active = false; };
   }, [projectId]);
 
@@ -729,6 +844,158 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
               </div>
             )}
 
+            {/* Execution Network Panel */}
+            {(networkSummary !== null || dependencies.length > 0) && (
+              <section className="rounded-2xl border border-violet-300/15 bg-violet-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(139,92,246,0.5)]">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-violet-200/80">Execution Network</p>
+                <p className="mt-1 text-[11px] leading-5 text-slate-400">Task dependencies and execution flow.</p>
+
+                {networkSummary && (
+                  <div className="mt-3 grid grid-cols-2 gap-1.5 text-[11px] text-slate-300">
+                    <span>Total Tasks: {networkSummary.totalTasks}</span>
+                    <span>Ready: <span className="text-green-400/80">{networkSummary.readyTasks}</span></span>
+                    <span>Blocked: <span className="text-orange-400/80">{networkSummary.blockedTasks}</span></span>
+                    <span>Completed: <span className="text-slate-400">{networkSummary.completedTasks}</span></span>
+                    <span>Active Deps: <span className="text-violet-300">{networkSummary.activeDependencies}</span></span>
+                    <span>Proposed: <span className="text-amber-300/80">{networkSummary.proposedDependencies}</span></span>
+                  </div>
+                )}
+
+                {depActionError && (
+                  <p className="mt-1.5 rounded-lg border border-rose-300/20 bg-rose-300/[0.06] px-2 py-1.5 text-[10px] text-rose-300">{depActionError}</p>
+                )}
+
+                {/* Dependency list */}
+                {dependencies.length > 0 && (
+                  <div className="mt-3 space-y-1.5">
+                    <p className="text-[9px] uppercase tracking-[0.2em] text-violet-200/60">Dependencies</p>
+                    {dependencies.slice(0, 8).map((dep) => {
+                      const pred = executionTasks.find((t) => t.id === dep.predecessor_task_id);
+                      const succ = executionTasks.find((t) => t.id === dep.successor_task_id);
+                      const isActing = depActingId === dep.id;
+                      return (
+                        <div key={dep.id} className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-2.5 py-2">
+                          <div className="flex items-center gap-1 text-[10px]">
+                            <span className="truncate max-w-[5rem] text-slate-300" title={pred?.title}>{pred?.title ?? dep.predecessor_task_id.slice(0, 8)}</span>
+                            <span className="text-violet-400/70">→</span>
+                            <span className="truncate max-w-[5rem] text-slate-300" title={succ?.title}>{succ?.title ?? dep.successor_task_id.slice(0, 8)}</span>
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] text-slate-500">
+                            <span className="capitalize">{dep.dependency_type.replace(/_/g, " ")}</span>
+                            <span className={`capitalize font-medium ${
+                              dep.status === "proposed" ? "text-amber-400/70" :
+                              dep.status === "active" ? "text-green-400/70" :
+                              dep.status === "resolved" ? "text-sky-400/70" :
+                              "text-slate-600"
+                            }`}>{dep.status}</span>
+                            {dep.confidence_score !== null && (
+                              <span>{Math.round(Number(dep.confidence_score))}%</span>
+                            )}
+                          </div>
+                          {dep.reason && (
+                            <p className="mt-0.5 text-[9px] text-slate-600 line-clamp-1">{dep.reason}</p>
+                          )}
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {dep.status === "proposed" && (
+                              <>
+                                <button
+                                  disabled={isActing}
+                                  onClick={() => void handleDepAction(dep.id, "active")}
+                                  className="rounded border border-green-300/20 bg-green-300/[0.07] px-2 py-0.5 text-[9px] text-green-300 hover:bg-green-300/[0.15] disabled:opacity-40"
+                                >Activate</button>
+                                <button
+                                  disabled={isActing}
+                                  onClick={() => void handleDepAction(dep.id, "invalidated")}
+                                  className="rounded border border-rose-300/20 bg-rose-300/[0.07] px-2 py-0.5 text-[9px] text-rose-300 hover:bg-rose-300/[0.15] disabled:opacity-40"
+                                >Invalidate</button>
+                              </>
+                            )}
+                            {dep.status === "active" && (
+                              <>
+                                <button
+                                  disabled={isActing}
+                                  onClick={() => void handleDepAction(dep.id, "resolved")}
+                                  className="rounded border border-sky-300/20 bg-sky-300/[0.07] px-2 py-0.5 text-[9px] text-sky-300 hover:bg-sky-300/[0.15] disabled:opacity-40"
+                                >Resolve</button>
+                                <button
+                                  disabled={isActing}
+                                  onClick={() => void handleDepAction(dep.id, "invalidated")}
+                                  className="rounded border border-rose-300/20 bg-rose-300/[0.07] px-2 py-0.5 text-[9px] text-rose-300 hover:bg-rose-300/[0.15] disabled:opacity-40"
+                                >Invalidate</button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {dependencies.length > 8 && (
+                      <p className="px-1 text-[10px] text-slate-600">+{dependencies.length - 8} more</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Manual dependency creation form */}
+                {!showDepForm ? (
+                  <button
+                    onClick={() => setShowDepForm(true)}
+                    className="mt-2 w-full rounded-lg border border-violet-300/15 bg-violet-300/[0.05] px-2 py-1.5 text-[10px] text-violet-300/80 hover:bg-violet-300/[0.10] text-center"
+                  >
+                    + Add Dependency
+                  </button>
+                ) : (
+                  <div className="mt-2 space-y-1.5 rounded-lg border border-violet-300/15 bg-black/20 p-2">
+                    <p className="text-[9px] uppercase tracking-[0.2em] text-violet-200/60">New Dependency</p>
+                    <select
+                      value={depFormPred}
+                      onChange={(e) => setDepFormPred(e.target.value)}
+                      className="w-full rounded border border-white/[0.08] bg-black/40 px-1.5 py-1 text-[10px] text-slate-300"
+                    >
+                      <option value="">Predecessor task…</option>
+                      {executionTasks.map((t) => (
+                        <option key={t.id} value={t.id}>{t.title}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={depFormSucc}
+                      onChange={(e) => setDepFormSucc(e.target.value)}
+                      className="w-full rounded border border-white/[0.08] bg-black/40 px-1.5 py-1 text-[10px] text-slate-300"
+                    >
+                      <option value="">Successor task…</option>
+                      {executionTasks.map((t) => (
+                        <option key={t.id} value={t.id}>{t.title}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={depFormType}
+                      onChange={(e) => setDepFormType(e.target.value)}
+                      className="w-full rounded border border-white/[0.08] bg-black/40 px-1.5 py-1 text-[10px] text-slate-300"
+                    >
+                      {["finish_to_start","start_to_start","finish_to_finish","start_to_finish","blocks","gated_by","approval_required","external_dependency"].map((t) => (
+                        <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={depFormReason}
+                      onChange={(e) => setDepFormReason(e.target.value)}
+                      placeholder="Reason (optional)"
+                      className="w-full rounded border border-white/[0.08] bg-black/40 px-1.5 py-1 text-[10px] text-slate-300 placeholder-slate-600"
+                    />
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => void handleCreateDependency()}
+                        className="rounded border border-violet-300/20 bg-violet-300/[0.08] px-2 py-0.5 text-[10px] text-violet-300 hover:bg-violet-300/[0.15]"
+                      >Create</button>
+                      <button
+                        onClick={() => { setShowDepForm(false); setDepActionError(null); }}
+                        className="rounded border border-white/[0.08] px-2 py-0.5 text-[10px] text-slate-500 hover:text-slate-300"
+                      >Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
             {/* Execution Tasks Panel */}
             {executionTasks.length > 0 && (() => {
               const TASK_FILTERS = ["all", "my_tasks", "open", "blocked", "completed"] as const;
@@ -784,6 +1051,13 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                       const canCancel = task.status !== "completed" && task.status !== "cancelled";
                       const isTerminal = task.status === "completed" || task.status === "cancelled";
 
+                      const activeDeps = dependencies.filter((d) => d.status === "active" || d.status === "proposed");
+                      const blockingCount = activeDeps.filter((d) => d.predecessor_task_id === task.id).length;
+                      const blockedByCount = activeDeps.filter((d) => d.successor_task_id === task.id).length;
+                      const proposedCount = dependencies.filter((d) => d.status === "proposed" && (d.predecessor_task_id === task.id || d.successor_task_id === task.id)).length;
+                      const isDepReady = task.status === "not_started" && activeDeps.filter((d) => d.successor_task_id === task.id).length === 0;
+                      const isDepWaiting = task.status === "not_started" && activeDeps.filter((d) => d.successor_task_id === task.id).length > 0;
+
                       return (
                         <div key={task.id} className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-2.5 py-2">
                           <p className="text-[11px] leading-4 text-slate-200">{task.title}</p>
@@ -818,6 +1092,21 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                             )}
                             {task.status === "completed" && (
                               <span className="rounded-sm border border-green-400/30 bg-green-400/[0.08] px-1.5 py-0.5 text-[9px] text-green-300">Completed</span>
+                            )}
+                            {blockingCount > 0 && (
+                              <span className="rounded-sm border border-violet-400/30 bg-violet-400/[0.08] px-1.5 py-0.5 text-[9px] text-violet-300">Blocking {blockingCount}</span>
+                            )}
+                            {blockedByCount > 0 && (
+                              <span className="rounded-sm border border-orange-300/30 bg-orange-300/[0.08] px-1.5 py-0.5 text-[9px] text-orange-200">Blocked by {blockedByCount}</span>
+                            )}
+                            {isDepReady && task.status === "not_started" && blockingCount === 0 && blockedByCount === 0 && (
+                              <span className="rounded-sm border border-green-400/30 bg-green-400/[0.08] px-1.5 py-0.5 text-[9px] text-green-300">Ready</span>
+                            )}
+                            {isDepWaiting && (
+                              <span className="rounded-sm border border-slate-400/20 bg-slate-400/[0.06] px-1.5 py-0.5 text-[9px] text-slate-400">Waiting</span>
+                            )}
+                            {proposedCount > 0 && (
+                              <span className="rounded-sm border border-amber-400/25 bg-amber-400/[0.06] px-1.5 py-0.5 text-[9px] text-amber-400/80">~{proposedCount} proposed</span>
                             )}
                           </div>
 

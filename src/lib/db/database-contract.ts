@@ -641,7 +641,65 @@ export const EXECUTION_TASK_EVENT_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof ExecutionTaskEventRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// execution_task_dependencies
+// Source: 20260605080000_execution_task_dependencies.sql
+// Models dependencies between execution tasks: sequencing, blockers, gates.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ExecutionTaskDependencyType =
+  | "finish_to_start"
+  | "start_to_start"
+  | "finish_to_finish"
+  | "start_to_finish"
+  | "blocks"
+  | "gated_by"
+  | "approval_required"
+  | "external_dependency";
+
+export type ExecutionTaskDependencyStatus =
+  | "proposed"
+  | "active"
+  | "resolved"
+  | "invalidated";
+
+export type ExecutionTaskDependencyRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  predecessor_task_id: string;
+  successor_task_id: string;
+  dependency_type: ExecutionTaskDependencyType;
+  status: ExecutionTaskDependencyStatus;
+  lag_days: number;
+  reason: string | null;
+  source_type: string;
+  source_payload: Record<string, unknown>;
+  confidence_score: number | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const EXECUTION_TASK_DEPENDENCY_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "predecessor_task_id",
+  "successor_task_id",
+  "dependency_type",
+  "status",
+  "lag_days",
+  "reason",
+  "source_type",
+  "source_payload",
+  "confidence_score",
+  "created_by",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof ExecutionTaskDependencyRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-05-execution-tasks-v1" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-05-execution-tasks-and-dependencies-v1" as const;
