@@ -24,9 +24,12 @@ export function computeScheduleHealth(input: {
   ).length;
   const unscheduledTasks = totalTasks - scheduledTasks;
 
-  const overdueTasks = activeTasks.filter(t =>
-    t.planned_finish_date && new Date(t.planned_finish_date) < now
-  ).length;
+  const overdueTaskIds = new Set(
+    activeTasks
+      .filter(t => t.planned_finish_date && new Date(t.planned_finish_date) < now)
+      .map(t => t.id)
+  );
+  const overdueTasks = overdueTaskIds.size;
 
   const dueSoonCutoff = new Date(now.getTime() + DUE_SOON_DAYS * 86400000);
   const dueSoonTasks = activeTasks.filter(t =>
@@ -35,25 +38,35 @@ export function computeScheduleHealth(input: {
     new Date(t.planned_finish_date) <= dueSoonCutoff
   ).length;
 
-  const delayedTasks = activeTasks.filter(t =>
-    t.schedule_status === "delayed" ||
-    (t.forecast_finish_date && t.planned_finish_date &&
-      new Date(t.forecast_finish_date) > new Date(t.planned_finish_date))
-  ).length;
+  const delayedTaskIds = new Set(
+    activeTasks
+      .filter(t =>
+        t.schedule_status === "delayed" ||
+        (t.forecast_finish_date && t.planned_finish_date &&
+          new Date(t.forecast_finish_date) > new Date(t.planned_finish_date))
+      )
+      .map(t => t.id)
+  );
+  const delayedTasks = delayedTaskIds.size;
 
-  // At-risk: schedule_status=at_risk OR (has blocking dep and planned_finish within 7 days)
+  // Only active dependencies block tasks; proposed dependencies are suggestions only.
   const blockedTaskIds = new Set(
     input.dependencies
-      .filter(d => (d.status === "active" || d.status === "proposed"))
+      .filter(d => d.status === "active")
       .map(d => d.successor_task_id)
   );
 
-  const atRiskTasks = activeTasks.filter(t =>
-    t.schedule_status === "at_risk" ||
-    (blockedTaskIds.has(t.id) &&
-      t.planned_finish_date &&
-      new Date(t.planned_finish_date) <= dueSoonCutoff)
-  ).length;
+  const atRiskTaskIds = new Set(
+    activeTasks
+      .filter(t =>
+        t.schedule_status === "at_risk" ||
+        (blockedTaskIds.has(t.id) &&
+          t.planned_finish_date &&
+          new Date(t.planned_finish_date) <= dueSoonCutoff)
+      )
+      .map(t => t.id)
+  );
+  const atRiskTasks = atRiskTaskIds.size;
 
   // Milestone health
   const milestoneCount = input.milestones.length;
@@ -124,14 +137,14 @@ export function computeScheduleHealth(input: {
     });
   }
 
-  // Schedule confidence: weighted composite
+  // Unique problem task IDs across all problem categories (union, no double counting)
+  const uniqueProblemTaskIds = new Set([...delayedTaskIds, ...atRiskTaskIds, ...overdueTaskIds]);
+
   const scheduleConfidence = computeConfidence({
     totalTasks,
     scheduledTasks,
     milestones: input.milestones,
-    delayedTasks,
-    blockedMilestones,
-    atRiskTasks,
+    uniqueProblemTaskCount: uniqueProblemTaskIds.size,
   });
 
   return {
@@ -155,34 +168,28 @@ function computeConfidence(params: {
   totalTasks: number;
   scheduledTasks: number;
   milestones: ProjectMilestoneRow[];
-  delayedTasks: number;
-  blockedMilestones: number;
-  atRiskTasks: number;
+  uniqueProblemTaskCount: number;
 }): number {
   if (params.totalTasks === 0 && params.milestones.length === 0) return 0;
 
-  let score = 100;
+  // Task schedule completeness: 45 points
+  // Full weight if no tasks exist (nothing to schedule).
+  const taskCompletenessScore = params.totalTasks > 0
+    ? 45 * (params.scheduledTasks / params.totalTasks)
+    : 45;
 
-  // Penalize for unscheduled tasks
-  const taskScheduleRate = params.totalTasks > 0
-    ? params.scheduledTasks / params.totalTasks
-    : 1;
-  score *= taskScheduleRate;
-
-  // Penalize for milestones without target dates
+  // Milestone date completeness: 25 points
+  // Full weight if no milestones exist.
   const milestonesWithDates = params.milestones.filter(m => m.target_date !== null).length;
-  const milestoneRate = params.milestones.length > 0
-    ? milestonesWithDates / params.milestones.length
-    : 1;
-  score *= (0.7 + 0.3 * milestoneRate);
+  const milestoneCompletenessScore = params.milestones.length > 0
+    ? 25 * (milestonesWithDates / params.milestones.length)
+    : 25;
 
-  // Penalize for delayed/at-risk work
-  const problemTasks = params.delayedTasks + params.atRiskTasks + params.blockedMilestones;
-  const totalProblems = params.totalTasks + params.milestones.length;
-  if (totalProblems > 0) {
-    const problemRate = problemTasks / totalProblems;
-    score *= Math.max(0, 1 - problemRate);
-  }
+  // Execution health: 30 points
+  // Penalizes unique problematic tasks (delayed, at-risk, overdue) once each.
+  const uniqueProblemRate = params.uniqueProblemTaskCount / Math.max(params.totalTasks, 1);
+  const executionHealthScore = 30 * (1 - uniqueProblemRate);
 
+  const score = taskCompletenessScore + milestoneCompletenessScore + executionHealthScore;
   return Math.round(Math.max(0, Math.min(100, score)));
 }
