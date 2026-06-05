@@ -203,6 +203,7 @@ export type ProjectDiscoveryRow = {
   assumptions_json: Record<string, unknown>[];
   unknowns_json: Record<string, unknown>[];
   confidence_score: number;
+  discovery_payload_hash: string | null;
   evidence_count: number;
   generated_at: string;
   created_at: string;
@@ -222,6 +223,7 @@ export const PROJECT_DISCOVERY_SELECTABLE_COLUMNS = [
   "assumptions_json",
   "unknowns_json",
   "confidence_score",
+  "discovery_payload_hash",
   "evidence_count",
   "generated_at",
   "created_at",

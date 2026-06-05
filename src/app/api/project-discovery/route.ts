@@ -39,7 +39,7 @@ export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("project_discovery")
-    .select("id,project_id,workspace_id,version,stakeholders_json,dependencies_json,risks_json,milestones_json,deliverables_json,assumptions_json,unknowns_json,confidence_score,evidence_count,generated_at,created_at,updated_at")
+    .select("id,project_id,workspace_id,version,stakeholders_json,dependencies_json,risks_json,milestones_json,deliverables_json,assumptions_json,unknowns_json,confidence_score,evidence_count,discovery_payload_hash,generated_at,created_at,updated_at")
     .eq("project_id", projectId)
     .order("version", { ascending: false })
     .limit(1)
