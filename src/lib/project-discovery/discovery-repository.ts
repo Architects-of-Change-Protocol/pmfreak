@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { createPrivilegedSupabaseClient } from "@/lib/security/privileged-access";
 import { generateProjectDiscovery, type DiscoveryEvidenceContent, type ProjectDiscoveryModel } from "@/lib/project-discovery/discovery-agent";
 
@@ -14,6 +16,7 @@ type DiscoveryRow = {
   assumptions_json: ProjectDiscoveryModel["assumptions"];
   unknowns_json: ProjectDiscoveryModel["unknowns"];
   confidence_score: number;
+  discovery_payload_hash: string | null;
   evidence_count: number;
   generated_at: string;
   created_at: string;
@@ -22,6 +25,64 @@ type DiscoveryRow = {
 
 const countFindings = (discovery: ProjectDiscoveryModel) =>
   discovery.stakeholders.length + discovery.dependencies.length + discovery.risks.length + discovery.milestones.length + discovery.deliverables.length + discovery.assumptions.length + discovery.unknowns.length;
+
+type DiscoveryPayload = Pick<
+  ProjectDiscoveryModel,
+  | "stakeholders"
+  | "dependencies"
+  | "risks"
+  | "milestones"
+  | "deliverables"
+  | "assumptions"
+  | "unknowns"
+  | "confidence_score"
+  | "evidence_count"
+>;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const sortObjectKeysDeep = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((item) => sortObjectKeysDeep(item));
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  return Object.keys(value)
+    .sort()
+    .reduce<Record<string, unknown>>((sorted, key) => {
+      const sortedValue = sortObjectKeysDeep(value[key]);
+
+      if (sortedValue !== undefined) {
+        sorted[key] = sortedValue;
+      }
+
+      return sorted;
+    }, {});
+};
+
+export const deterministicDiscoveryPayloadStringify = (payload: DiscoveryPayload) =>
+  JSON.stringify(sortObjectKeysDeep(payload)) ?? "null";
+
+export const buildDiscoveryPayload = (discovery: ProjectDiscoveryModel): DiscoveryPayload => ({
+  assumptions: discovery.assumptions,
+  confidence_score: discovery.confidence_score,
+  deliverables: discovery.deliverables,
+  dependencies: discovery.dependencies,
+  evidence_count: discovery.evidence_count,
+  milestones: discovery.milestones,
+  risks: discovery.risks,
+  stakeholders: discovery.stakeholders,
+  unknowns: discovery.unknowns,
+});
+
+export const hashDiscoveryPayload = (discovery: ProjectDiscoveryModel) =>
+  createHash("sha256")
+    .update(deterministicDiscoveryPayloadStringify(buildDiscoveryPayload(discovery)))
+    .digest("hex");
 
 export async function regenerateProjectDiscovery(input: { projectId: string; requestId?: string }) {
   const startedAt = Date.now();
@@ -51,17 +112,25 @@ export async function regenerateProjectDiscovery(input: { projectId: string; req
 
     const workspaceId = typedEvidence[0].workspace_id;
     const discovery = generateProjectDiscovery(typedEvidence);
+    const discoveryPayloadHash = hashDiscoveryPayload(discovery);
 
     const { data: latestRows, error: versionError } = await supabase
       .from("project_discovery")
-      .select("version")
+      .select("id,project_id,workspace_id,version,stakeholders_json,dependencies_json,risks_json,milestones_json,deliverables_json,assumptions_json,unknowns_json,confidence_score,evidence_count,discovery_payload_hash,generated_at,created_at,updated_at")
       .eq("project_id", input.projectId)
       .eq("workspace_id", workspaceId)
       .order("version", { ascending: false })
       .limit(1);
 
     if (versionError) throw new Error(`Unable to resolve discovery version: ${versionError.message}`);
-    const latestVersion = Number(((latestRows ?? [])[0] as { version?: number } | undefined)?.version ?? 0);
+    const latestDiscovery = (latestRows ?? [])[0] as DiscoveryRow | undefined;
+
+    if (latestDiscovery?.discovery_payload_hash === discoveryPayloadHash) {
+      console.info("[project_discovery] Discovery Completed", { requestId: input.requestId, projectId: input.projectId, evidenceCount: discovery.evidence_count, findingsCount: countFindings(discovery), confidenceScore: discovery.confidence_score, version: latestDiscovery.version, skipped: true, reason: "unchanged_payload", durationMs: Date.now() - startedAt });
+      return latestDiscovery;
+    }
+
+    const latestVersion = Number(latestDiscovery?.version ?? 0);
     const nextVersion = latestVersion + 1;
     const generatedAt = new Date().toISOString();
 
@@ -79,10 +148,11 @@ export async function regenerateProjectDiscovery(input: { projectId: string; req
         assumptions_json: discovery.assumptions,
         unknowns_json: discovery.unknowns,
         confidence_score: discovery.confidence_score,
+        discovery_payload_hash: discoveryPayloadHash,
         evidence_count: discovery.evidence_count,
         generated_at: generatedAt,
       })
-      .select("id,project_id,workspace_id,version,stakeholders_json,dependencies_json,risks_json,milestones_json,deliverables_json,assumptions_json,unknowns_json,confidence_score,evidence_count,generated_at,created_at,updated_at")
+      .select("id,project_id,workspace_id,version,stakeholders_json,dependencies_json,risks_json,milestones_json,deliverables_json,assumptions_json,unknowns_json,confidence_score,evidence_count,discovery_payload_hash,generated_at,created_at,updated_at")
       .single();
 
     if (insertError) throw new Error(`Unable to persist discovery: ${insertError.message}`);
