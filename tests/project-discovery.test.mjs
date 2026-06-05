@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 const migration = fs.readFileSync('supabase/migrations/20260605020000_project_discovery.sql', 'utf8');
 const payloadHashMigration = fs.readFileSync('supabase/migrations/20260605030000_project_discovery_payload_hash.sql', 'utf8');
@@ -102,4 +103,135 @@ test('project discovery payload hash is deterministic despite object key orderin
   assert.match(repository, /deterministicDiscoveryPayloadStringify/);
   assert.match(repository, /createHash\("sha256"\)/);
   assert.doesNotMatch(repository, /JSON\.stringify\(buildDiscoveryPayload\(discovery\)\)/);
+});
+
+const materializer = fs.readFileSync('src/lib/project-discovery/raid-materialization.ts', 'utf8');
+
+const materializationProbe = `
+import { materializeProjectDiscoveryRaidItems } from './src/lib/project-discovery/raid-materialization.ts';
+
+(async () => {
+const source = { evidence_id: '11111111-1111-4111-8111-111111111111', source_file_name: 'discovery.md', confidence: 82 };
+const baseDiscovery = {
+  stakeholders: [],
+  dependencies: [{ dependency: 'Client VPN access must be approved before integration testing.', type: 'technical', confidence: 81, evidence_source: source }],
+  risks: [{ risk: 'Vendor delivery delay may push the launch milestone.', category: 'schedule', confidence: 84, evidence_source: source }],
+  milestones: [],
+  deliverables: [],
+  assumptions: [{ assumption: 'Assuming the security team is available for review.', confidence: 72, evidence_source: source }],
+  unknowns: [{ unknown: 'Data migration owner is not confirmed.', severity: 'high', confidence: 79, evidence_source: source }],
+  confidence_score: 79,
+  evidence_count: 1,
+};
+const emptyDiscovery = { ...baseDiscovery, dependencies: [], risks: [], assumptions: [], unknowns: [], confidence_score: 0 };
+
+function createSupabase(existingRows = []) {
+  const state = { vaultDocuments: [], raidItems: existingRows.map((row) => ({ ...row })), updates: [] };
+  const matchRaid = (filters) => state.raidItems.find((row) => filters.every(([key, value]) => row[key] === value));
+  const table = (name) => ({
+    insert(payload) {
+      if (name === 'vault_documents') {
+        const row = { id: '22222222-2222-4222-8222-' + String(state.vaultDocuments.length + 1).padStart(12, '0'), ...payload };
+        state.vaultDocuments.push(row);
+        return { select: () => ({ single: async () => ({ data: { id: row.id }, error: null }) }) };
+      }
+      if (name === 'raid_items') {
+        state.raidItems.push({ ...payload });
+        return Promise.resolve({ error: null });
+      }
+      throw new Error('unexpected insert ' + name);
+    },
+    select() {
+      const filters = [];
+      return {
+        eq(key, value) { filters.push([key, value]); return this; },
+        limit() { return this; },
+        async maybeSingle() { return { data: matchRaid(filters) ?? null, error: null }; },
+      };
+    },
+    update(payload) {
+      return {
+        async eq(key, value) {
+          const row = state.raidItems.find((item) => item[key] === value);
+          if (row) Object.assign(row, payload);
+          state.updates.push({ key, value, payload });
+          return { error: null };
+        },
+      };
+    },
+  });
+  return { state, client: { from: table } };
+}
+
+const first = createSupabase();
+const firstResult = await materializeProjectDiscoveryRaidItems({ discovery: baseDiscovery, discoveryId: 'disc-1', discoveryVersion: 1, workspaceId: 'workspace-1', projectId: 'project-1', supabase: first.client });
+
+const duplicate = createSupabase(first.state.raidItems);
+const duplicateResult = await materializeProjectDiscoveryRaidItems({ discovery: baseDiscovery, discoveryId: 'disc-2', discoveryVersion: 2, workspaceId: 'workspace-1', projectId: 'project-1', supabase: duplicate.client });
+
+const manualRows = first.state.raidItems.map((row, index) => index === 0 ? { ...row, title: 'Manual title', description: 'Manual description', status: 'monitoring', owner: 'Ana', due_date: '2026-07-10', auto_generated: false, confidence_score: 20, last_detected_at: '2026-06-01T00:00:00.000Z' } : { ...row });
+const manual = createSupabase(manualRows);
+const manualResult = await materializeProjectDiscoveryRaidItems({ discovery: baseDiscovery, discoveryId: 'disc-3', discoveryVersion: 3, workspaceId: 'workspace-1', projectId: 'project-1', supabase: manual.client });
+const manualRow = manual.state.raidItems.find((row) => row.auto_generated === false);
+
+const empty = createSupabase();
+const emptyResult = await materializeProjectDiscoveryRaidItems({ discovery: emptyDiscovery, discoveryId: 'disc-empty', discoveryVersion: 1, workspaceId: 'workspace-1', projectId: 'project-1', supabase: empty.client });
+
+console.log(JSON.stringify({ firstResult, firstCategories: first.state.raidItems.map((row) => row.category).sort(), duplicateResult, duplicateCount: duplicate.state.raidItems.length, duplicateUpdates: duplicate.state.updates, manualResult, manualRow, emptyResult, emptyRaidCount: empty.state.raidItems.length, emptyVaultDocuments: empty.state.vaultDocuments.length }));
+})();
+`;
+
+const materializationRuntime = JSON.parse(execFileSync('npx', ['tsx', '--eval', materializationProbe], { encoding: 'utf8' }).trim().split('\n').at(-1));
+
+test('Project Discovery RAID materializer maps findings and emits lifecycle logs', () => {
+  assert.match(materializer, /raid\.materialization\.started/);
+  assert.match(materializer, /raid\.materialization\.completed/);
+  assert.match(materializer, /raid\.materialization\.failed/);
+  assert.match(materializer, /discovery\.risks\.map\(riskFinding\)/);
+  assert.match(materializer, /discovery\.dependencies\.map\(dependencyFinding\)/);
+  assert.match(materializer, /discovery\.assumptions\.map\(assumptionFinding\)/);
+  assert.match(materializer, /discovery\.unknowns\.map\(unknownFinding\)/);
+  assert.match(materializer, /discoveryRaidFingerprint/);
+  assert.match(materializer, /createHash\("sha256"\)/);
+});
+
+test('new Project Discovery risks become RAID items', () => {
+  assert.equal(materializationRuntime.firstResult.created, 4);
+  assert.deepEqual(materializationRuntime.firstCategories, ['assumption', 'dependency', 'issue', 'risk']);
+});
+
+test('duplicate Project Discovery findings do not duplicate RAID items', () => {
+  assert.equal(materializationRuntime.duplicateResult.created, 0);
+  assert.equal(materializationRuntime.duplicateResult.updated, 4);
+  assert.equal(materializationRuntime.duplicateCount, 4);
+});
+
+test('Project Discovery re-detection updates last_detected_at', () => {
+  assert.equal(materializationRuntime.duplicateUpdates.length, 4);
+  assert.ok(materializationRuntime.duplicateUpdates.every((update) => typeof update.payload.last_detected_at === 'string'));
+  assert.ok(materializationRuntime.duplicateUpdates.every((update) => Object.keys(update.payload).includes('confidence_score')));
+});
+
+test('Project Discovery RAID materialization preserves manual edits', () => {
+  assert.equal(materializationRuntime.manualResult.updated, 4);
+  assert.equal(materializationRuntime.manualRow.title, 'Manual title');
+  assert.equal(materializationRuntime.manualRow.description, 'Manual description');
+  assert.equal(materializationRuntime.manualRow.status, 'monitoring');
+  assert.equal(materializationRuntime.manualRow.owner, 'Ana');
+  assert.equal(materializationRuntime.manualRow.due_date, '2026-07-10');
+  assert.equal(materializationRuntime.manualRow.auto_generated, false);
+  assert.notEqual(materializationRuntime.manualRow.last_detected_at, '2026-06-01T00:00:00.000Z');
+});
+
+test('Project Discovery with no RAID findings creates no RAID items', () => {
+  assert.equal(materializationRuntime.emptyResult.created, 0);
+  assert.equal(materializationRuntime.emptyResult.updated, 0);
+  assert.equal(materializationRuntime.emptyRaidCount, 0);
+  assert.equal(materializationRuntime.emptyVaultDocuments, 0);
+});
+
+test('Project Discovery regeneration calls RAID materialization after successful generation', () => {
+  assert.match(repository, /materializeProjectDiscoveryRaidItems/);
+  assert.match(repository, /discoveryId: insertedDiscovery\.id/);
+  assert.match(repository, /discoveryId: latestDiscovery\.id/);
 });

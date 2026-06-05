@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { createPrivilegedSupabaseClient } from "@/lib/security/privileged-access";
 import { generateProjectDiscovery, type DiscoveryEvidenceContent, type ProjectDiscoveryModel } from "@/lib/project-discovery/discovery-agent";
+import { materializeProjectDiscoveryRaidItems } from "@/lib/project-discovery/raid-materialization";
 
 type DiscoveryRow = {
   id: string;
@@ -126,6 +127,15 @@ export async function regenerateProjectDiscovery(input: { projectId: string; req
     const latestDiscovery = (latestRows ?? [])[0] as DiscoveryRow | undefined;
 
     if (latestDiscovery?.discovery_payload_hash === discoveryPayloadHash) {
+      await materializeProjectDiscoveryRaidItems({
+        discovery,
+        discoveryId: latestDiscovery.id,
+        discoveryVersion: latestDiscovery.version,
+        workspaceId,
+        projectId: input.projectId,
+        supabase,
+        requestId: input.requestId,
+      });
       console.info("[project_discovery] Discovery Completed", { requestId: input.requestId, projectId: input.projectId, evidenceCount: discovery.evidence_count, findingsCount: countFindings(discovery), confidenceScore: discovery.confidence_score, version: latestDiscovery.version, skipped: true, reason: "unchanged_payload", durationMs: Date.now() - startedAt });
       return latestDiscovery;
     }
@@ -157,8 +167,19 @@ export async function regenerateProjectDiscovery(input: { projectId: string; req
 
     if (insertError) throw new Error(`Unable to persist discovery: ${insertError.message}`);
 
+    const insertedDiscovery = inserted as DiscoveryRow;
+    await materializeProjectDiscoveryRaidItems({
+      discovery,
+      discoveryId: insertedDiscovery.id,
+      discoveryVersion: nextVersion,
+      workspaceId,
+      projectId: input.projectId,
+      supabase,
+      requestId: input.requestId,
+    });
+
     console.info("[project_discovery] Discovery Completed", { requestId: input.requestId, projectId: input.projectId, evidenceCount: discovery.evidence_count, findingsCount: countFindings(discovery), confidenceScore: discovery.confidence_score, version: nextVersion, durationMs: Date.now() - startedAt });
-    return inserted as DiscoveryRow;
+    return insertedDiscovery;
   } catch (error) {
     console.error("[project_discovery] Discovery Failed", { requestId: input.requestId, projectId: input.projectId, durationMs: Date.now() - startedAt, error: error instanceof Error ? error.message : "unknown" });
     throw error;
