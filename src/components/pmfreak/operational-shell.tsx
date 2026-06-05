@@ -24,6 +24,9 @@ type RecommendedAction = {
   impact_level: string | null;
   confidence_score: number | string;
   status: string;
+  decision_reason?: string | null;
+  decided_at?: string | null;
+  deferred_until?: string | null;
   evidence_summary?: { raidCategory?: string; raidItemId?: string } | null;
 };
 
@@ -42,6 +45,8 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
   const [discoveryLoading, setDiscoveryLoading] = useState(false);
   const [recommendedActions, setRecommendedActions] = useState<RecommendedAction[]>([]);
   const [actionsFilter, setActionsFilter] = useState<string>("all");
+  const [decisionError, setDecisionError] = useState<string | null>(null);
+  const [decidingId, setDecidingId] = useState<string | null>(null);
   const initializedRef = useRef(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string>(() => {
@@ -129,6 +134,17 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
     return () => { active = false; };
   }, [projectId]);
 
+  const refreshActions = async () => {
+    if (!projectId) { setRecommendedActions([]); return; }
+    try {
+      const res = await fetch(`/api/recommended-actions?projectId=${encodeURIComponent(projectId)}&decision_fields=true`, { cache: "no-store" });
+      const data = (await res.json()) as { recommendedActions?: RecommendedAction[] };
+      setRecommendedActions(res.ok ? data.recommendedActions ?? [] : []);
+    } catch {
+      setRecommendedActions([]);
+    }
+  };
+
   useEffect(() => {
     let active = true;
     async function loadActions() {
@@ -144,6 +160,43 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
     void loadActions();
     return () => { active = false; };
   }, [projectId]);
+
+  const handleDecision = async (
+    actionId: string,
+    decision: "accepted" | "rejected" | "deferred" | "converted_to_task",
+    extra?: { reason?: string; deferredUntil?: string }
+  ) => {
+    setDecidingId(actionId);
+    setDecisionError(null);
+    try {
+      const res = await fetch("/api/recommended-actions/decision", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionId, decision, ...extra }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setDecisionError(data.error ?? "Decision failed. Please try again.");
+      } else {
+        await refreshActions();
+      }
+    } catch {
+      setDecisionError("Network error. Please try again.");
+    } finally {
+      setDecidingId(null);
+    }
+  };
+
+  const promptReject = (actionId: string) => {
+    const reason = window.prompt("Reason for rejection (optional):") ?? undefined;
+    void handleDecision(actionId, "rejected", { reason: reason || undefined });
+  };
+
+  const promptDefer = (actionId: string) => {
+    const until = window.prompt("Defer until (YYYY-MM-DD):");
+    if (!until) return;
+    void handleDecision(actionId, "deferred", { deferredUntil: new Date(until).toISOString() });
+  };
 
   const hasProjects = projects.length > 0;
   const revealState = useMemo(() => computeCapabilityRevealState({
@@ -284,18 +337,94 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                     </div>
                   )}
 
+                  {/* Decision error */}
+                  {decisionError && (
+                    <p className="mt-1.5 rounded-lg border border-rose-300/20 bg-rose-300/[0.06] px-2 py-1.5 text-[10px] text-rose-300">{decisionError}</p>
+                  )}
+
                   {/* Action list */}
-                  <div className="mt-2 space-y-1">
-                    {filtered.slice(0, 5).map((action) => (
-                      <div key={action.id} className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-2.5 py-1.5">
-                        <p className="text-[11px] leading-4 text-slate-200">{action.title}</p>
-                        <div className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] text-slate-500">
-                          <span className="capitalize">{action.recommended_action_type.replace(/_/g, " ")}</span>
-                          {action.impact_level && <span className="capitalize">{action.impact_level}</span>}
-                          <span className="capitalize text-slate-600">{action.status}</span>
+                  <div className="mt-2 space-y-2">
+                    {filtered.slice(0, 5).map((action) => {
+                      const isDeciding = decidingId === action.id;
+                      const status = action.status;
+                      const isTerminal = status === "rejected" || status === "converted_to_task";
+                      return (
+                        <div key={action.id} className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-2.5 py-2">
+                          <p className="text-[11px] leading-4 text-slate-200">{action.title}</p>
+                          <div className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] text-slate-500">
+                            <span className="capitalize">{action.recommended_action_type.replace(/_/g, " ")}</span>
+                            {action.impact_level && <span className="capitalize">{action.impact_level}</span>}
+                            <span className={`capitalize font-medium ${
+                              status === "proposed" ? "text-amber-400/70" :
+                              status === "accepted" ? "text-green-400/80" :
+                              status === "rejected" ? "text-rose-400/70" :
+                              status === "deferred" ? "text-sky-400/70" :
+                              status === "converted_to_task" ? "text-indigo-400/70" :
+                              "text-slate-600"
+                            }`}>{status === "converted_to_task" ? "Converted" : status}</span>
+                          </div>
+
+                          {/* Decision history summary */}
+                          {(status !== "proposed") && action.decided_at && (
+                            <div className="mt-1 rounded-md border border-white/[0.04] bg-black/20 px-2 py-1 text-[9px] text-slate-500">
+                              {status === "deferred" && action.deferred_until && (
+                                <span>Deferred until {new Date(action.deferred_until).toLocaleDateString()} · </span>
+                              )}
+                              <span>Decided {new Date(action.decided_at).toLocaleDateString()}</span>
+                              {action.decision_reason && <span> · {action.decision_reason}</span>}
+                            </div>
+                          )}
+
+                          {/* Decision controls */}
+                          {!isTerminal && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {(status === "proposed" || status === "deferred") && (
+                                <button
+                                  disabled={isDeciding}
+                                  onClick={() => void handleDecision(action.id, "accepted")}
+                                  className="rounded border border-green-300/20 bg-green-300/[0.07] px-2 py-0.5 text-[10px] text-green-300 hover:bg-green-300/[0.15] disabled:opacity-40"
+                                >
+                                  Accept
+                                </button>
+                              )}
+                              {(status === "proposed" || status === "deferred") && (
+                                <button
+                                  disabled={isDeciding}
+                                  onClick={() => promptReject(action.id)}
+                                  className="rounded border border-rose-300/20 bg-rose-300/[0.07] px-2 py-0.5 text-[10px] text-rose-300 hover:bg-rose-300/[0.15] disabled:opacity-40"
+                                >
+                                  Reject
+                                </button>
+                              )}
+                              {(status === "proposed") && (
+                                <button
+                                  disabled={isDeciding}
+                                  onClick={() => promptDefer(action.id)}
+                                  className="rounded border border-sky-300/20 bg-sky-300/[0.07] px-2 py-0.5 text-[10px] text-sky-300 hover:bg-sky-300/[0.15] disabled:opacity-40"
+                                >
+                                  Defer
+                                </button>
+                              )}
+                              {(status === "proposed" || status === "deferred" || status === "accepted") && (
+                                <button
+                                  disabled={isDeciding}
+                                  onClick={() => void handleDecision(action.id, "converted_to_task")}
+                                  className="rounded border border-indigo-300/20 bg-indigo-300/[0.07] px-2 py-0.5 text-[10px] text-indigo-300 hover:bg-indigo-300/[0.15] disabled:opacity-40"
+                                >
+                                  Convert
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {status === "rejected" && (
+                            <p className="mt-1.5 text-[9px] text-rose-400/60">Rejected — no further actions</p>
+                          )}
+                          {status === "converted_to_task" && (
+                            <p className="mt-1.5 text-[9px] text-indigo-400/60">Converted to task</p>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {filtered.length > 5 && (
                       <p className="px-1 text-[10px] text-slate-600">+{filtered.length - 5} more</p>
                     )}

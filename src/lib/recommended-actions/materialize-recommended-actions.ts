@@ -88,6 +88,13 @@ export async function materializeRecommendedActions(input: {
 
         if (existing) {
           if (existing.status !== "proposed") {
+            console.info("recommended_actions.preserved_decision", {
+              actionId: existing.id,
+              status: existing.status,
+              projectId: raidItem.project_id,
+              raidItemId: raidItem.id,
+              fingerprint: action.fingerprint,
+            });
             skipped += 1;
             continue;
           }
