@@ -30,6 +30,23 @@ type RecommendedAction = {
   evidence_summary?: { raidCategory?: string; raidItemId?: string } | null;
 };
 
+type TaskDraft = {
+  id: string;
+  title: string;
+  description: string;
+  draft_status: string;
+  priority: string;
+  suggested_owner: string | null;
+  suggested_due_window: string | null;
+  suggested_due_date: string | null;
+  acceptance_criteria: string[];
+  checklist: string[];
+  confidence_score: number | null;
+  recommended_action_id: string;
+  raid_item_id: string | null;
+  source_payload: Record<string, unknown>;
+};
+
 type OperationalShellProps = {
   children: React.ReactNode;
   user: { fullName: string; role: string; companyName: string };
@@ -47,6 +64,9 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
   const [actionsFilter, setActionsFilter] = useState<string>("all");
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [decidingId, setDecidingId] = useState<string | null>(null);
+  const [taskDraftPreview, setTaskDraftPreview] = useState<TaskDraft | null>(null);
+  const [draftConvertingId, setDraftConvertingId] = useState<string | null>(null);
+  const [draftActionError, setDraftActionError] = useState<string | null>(null);
   const initializedRef = useRef(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string>(() => {
@@ -196,6 +216,48 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
     const until = window.prompt("Defer until (YYYY-MM-DD):");
     if (!until) return;
     void handleDecision(actionId, "deferred", { deferredUntil: new Date(until).toISOString() });
+  };
+
+  const handleConvert = async (actionId: string) => {
+    setDraftConvertingId(actionId);
+    setDraftActionError(null);
+    try {
+      const res = await fetch("/api/task-drafts/from-recommended-action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recommendedActionId: actionId }),
+      });
+      const data = (await res.json()) as { ok?: boolean; draft?: TaskDraft; error?: string };
+      if (!res.ok || !data.ok || !data.draft) {
+        setDraftActionError(data.error ?? "Could not create task draft. Please try again.");
+      } else {
+        setTaskDraftPreview(data.draft);
+        await refreshActions();
+      }
+    } catch {
+      setDraftActionError("Network error. Please try again.");
+    } finally {
+      setDraftConvertingId(null);
+    }
+  };
+
+  const handleDraftStatus = async (draftId: string, status: "reviewed" | "approved" | "discarded") => {
+    setDraftActionError(null);
+    try {
+      const res = await fetch("/api/task-drafts/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftId, status }),
+      });
+      const data = (await res.json()) as { ok?: boolean; draft?: TaskDraft; error?: string };
+      if (!res.ok || !data.ok) {
+        setDraftActionError(data.error ?? "Status update failed. Please try again.");
+      } else {
+        setTaskDraftPreview(data.draft ?? null);
+      }
+    } catch {
+      setDraftActionError("Network error. Please try again.");
+    }
   };
 
   const hasProjects = projects.length > 0;
@@ -407,11 +469,11 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                               )}
                               {(status === "proposed" || status === "deferred" || status === "accepted") && (
                                 <button
-                                  disabled={isDeciding}
-                                  onClick={() => void handleDecision(action.id, "converted_to_task")}
+                                  disabled={isDeciding || draftConvertingId === action.id}
+                                  onClick={() => void handleConvert(action.id)}
                                   className="rounded border border-indigo-300/20 bg-indigo-300/[0.07] px-2 py-0.5 text-[10px] text-indigo-300 hover:bg-indigo-300/[0.15] disabled:opacity-40"
                                 >
-                                  Convert
+                                  {draftConvertingId === action.id ? "Creating…" : "Convert"}
                                 </button>
                               )}
                             </div>
@@ -420,7 +482,9 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                             <p className="mt-1.5 text-[9px] text-rose-400/60">Rejected — no further actions</p>
                           )}
                           {status === "converted_to_task" && (
-                            <p className="mt-1.5 text-[9px] text-indigo-400/60">Converted to task</p>
+                            <p className="mt-1.5 text-[9px] text-indigo-400/60">
+                              Converted — task draft created
+                            </p>
                           )}
                         </div>
                       );
@@ -432,6 +496,121 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                 </section>
               );
             })()}
+
+            {/* Draft Action Error (outside actions section, persists until dismissed) */}
+            {draftActionError && (
+              <div className="rounded-xl border border-rose-300/20 bg-rose-300/[0.06] px-2.5 py-2 text-[10px] text-rose-300 flex items-start justify-between gap-2">
+                <span>{draftActionError}</span>
+                <button onClick={() => setDraftActionError(null)} className="shrink-0 text-rose-400/60 hover:text-rose-300">✕</button>
+              </div>
+            )}
+
+            {/* Task Draft Preview */}
+            {taskDraftPreview && (
+              <section className="rounded-2xl border border-violet-300/20 bg-violet-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(167,139,250,0.5)]">
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-violet-200/80">Task Draft</p>
+                  <button
+                    onClick={() => setTaskDraftPreview(null)}
+                    className="text-[10px] text-slate-600 hover:text-slate-300"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <p className="mt-1.5 text-[11px] font-medium leading-4 text-slate-100">{taskDraftPreview.title}</p>
+
+                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-400">
+                  <span>Priority: <span className={`capitalize font-medium ${
+                    taskDraftPreview.priority === "critical" ? "text-red-400" :
+                    taskDraftPreview.priority === "high" ? "text-orange-400" :
+                    taskDraftPreview.priority === "medium" ? "text-amber-400" :
+                    "text-slate-300"
+                  }`}>{taskDraftPreview.priority}</span></span>
+                  {taskDraftPreview.suggested_owner && (
+                    <span>Owner: <span className="text-slate-300">{taskDraftPreview.suggested_owner}</span></span>
+                  )}
+                  {taskDraftPreview.suggested_due_window && (
+                    <span>Due: <span className="text-slate-300">{taskDraftPreview.suggested_due_window}</span></span>
+                  )}
+                  {taskDraftPreview.confidence_score !== null && (
+                    <span>Confidence: <span className="text-violet-300">{Math.round(Number(taskDraftPreview.confidence_score))}%</span></span>
+                  )}
+                  <span className={`capitalize ${
+                    taskDraftPreview.draft_status === "approved" ? "text-green-400" :
+                    taskDraftPreview.draft_status === "discarded" ? "text-rose-400/70" :
+                    "text-violet-300/70"
+                  }`}>{taskDraftPreview.draft_status}</span>
+                </div>
+
+                {taskDraftPreview.description && (
+                  <div className="mt-2 rounded-lg border border-white/[0.05] bg-black/20 px-2 py-1.5 text-[10px] leading-4 text-slate-400 line-clamp-3">
+                    {taskDraftPreview.description}
+                  </div>
+                )}
+
+                {taskDraftPreview.acceptance_criteria.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-[9px] uppercase tracking-[0.2em] text-violet-200/60 mb-1">Acceptance Criteria</p>
+                    <ul className="space-y-0.5">
+                      {taskDraftPreview.acceptance_criteria.map((c, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-[10px] text-slate-400">
+                          <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400/50" />
+                          {c}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {taskDraftPreview.checklist.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-[9px] uppercase tracking-[0.2em] text-violet-200/60 mb-1">Checklist</p>
+                    <ul className="space-y-0.5">
+                      {taskDraftPreview.checklist.slice(0, 4).map((c, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-[10px] text-slate-400">
+                          <span className="mt-px text-violet-400/50">☐</span>
+                          {c}
+                        </li>
+                      ))}
+                      {taskDraftPreview.checklist.length > 4 && (
+                        <li className="text-[10px] text-slate-600">+{taskDraftPreview.checklist.length - 4} more steps</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Draft action controls */}
+                {(taskDraftPreview.draft_status === "draft" || taskDraftPreview.draft_status === "reviewed") && (
+                  <div className="mt-2.5 flex flex-wrap gap-1">
+                    <button
+                      onClick={() => void handleDraftStatus(taskDraftPreview.id, "approved")}
+                      className="rounded border border-green-300/20 bg-green-300/[0.07] px-2 py-0.5 text-[10px] text-green-300 hover:bg-green-300/[0.15]"
+                    >
+                      Approve Draft
+                    </button>
+                    <button
+                      onClick={() => void handleDraftStatus(taskDraftPreview.id, "discarded")}
+                      className="rounded border border-rose-300/20 bg-rose-300/[0.07] px-2 py-0.5 text-[10px] text-rose-300 hover:bg-rose-300/[0.15]"
+                    >
+                      Discard Draft
+                    </button>
+                    <button
+                      onClick={() => void handleDraftStatus(taskDraftPreview.id, "reviewed")}
+                      className="rounded border border-white/[0.10] bg-white/[0.02] px-2 py-0.5 text-[10px] text-slate-400 hover:text-slate-200"
+                    >
+                      Keep as Draft
+                    </button>
+                  </div>
+                )}
+                {taskDraftPreview.draft_status === "approved" && (
+                  <p className="mt-1.5 text-[9px] text-green-400/70">Draft approved — awaiting task conversion in H6</p>
+                )}
+                {taskDraftPreview.draft_status === "discarded" && (
+                  <p className="mt-1.5 text-[9px] text-rose-400/60">Draft discarded</p>
+                )}
+              </section>
+            )}
 
             <section className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(34,211,238,0.8)]">
               <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-cyan-200/80">Project Evidence</p>

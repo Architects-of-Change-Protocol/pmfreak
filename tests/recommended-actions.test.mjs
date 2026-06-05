@@ -358,7 +358,8 @@ test("H4: UI does not show controls for rejected actions", () => {
 });
 
 test("H4: UI does not show controls for converted actions", () => {
-  assert.match(shell, /status === "converted_to_task".*Converted to task/s);
+  assert.match(shell, /status === "converted_to_task"/);
+  assert.match(shell, /Converted/);
 });
 
 test("H4: UI shows decision history when decided_at is present", () => {

@@ -54,6 +54,8 @@ const CONTRACT = {
   raid_items: extractDeclaredColumns("RAID_ITEM_SELECTABLE_COLUMNS"),
   trial_licenses: extractDeclaredColumns("TRIAL_LICENSE_SELECTABLE_COLUMNS"),
   early_access_invites: extractDeclaredColumns("EARLY_ACCESS_INVITE_SELECTABLE_COLUMNS"),
+  recommended_actions: extractDeclaredColumns("RECOMMENDED_ACTION_SELECTABLE_COLUMNS"),
+  task_drafts: extractDeclaredColumns("TASK_DRAFT_SELECTABLE_COLUMNS"),
 };
 
 // ─── Known-drift patterns that MUST NOT appear in runtime code ───────────────
