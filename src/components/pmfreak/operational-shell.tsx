@@ -83,6 +83,43 @@ type ExecutionNetworkSummary = {
   cycleRisk: boolean;
 };
 
+type ProjectMilestone = {
+  id: string;
+  title: string;
+  milestone_type: string;
+  status: string;
+  target_date: string | null;
+  forecast_date: string | null;
+  completed_at: string | null;
+  confidence_score: number | null;
+};
+
+type ScheduledTask = {
+  id: string;
+  title: string;
+  status: string;
+  planned_finish_date: string | null;
+  forecast_finish_date: string | null;
+  schedule_status: string;
+  milestone_id: string | null;
+};
+
+type ScheduleHealth = {
+  totalTasks: number;
+  scheduledTasks: number;
+  unscheduledTasks: number;
+  delayedTasks: number;
+  atRiskTasks: number;
+  overdueTasks: number;
+  dueSoonTasks: number;
+  milestoneCount: number;
+  blockedMilestones: number;
+  atRiskMilestones: number;
+  completedMilestones: number;
+  scheduleConfidence: number;
+  signals: Array<{ severity: string; code: string; message: string }>;
+};
+
 type OperationalShellProps = {
   children: React.ReactNode;
   user: { fullName: string; role: string; companyName: string };
@@ -116,6 +153,15 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
   const [depFormSucc, setDepFormSucc] = useState("");
   const [depFormType, setDepFormType] = useState("finish_to_start");
   const [depFormReason, setDepFormReason] = useState("");
+  const [scheduleMilestones, setScheduleMilestones] = useState<ProjectMilestone[]>([]);
+  const [scheduleHealth, setScheduleHealth] = useState<ScheduleHealth | null>(null);
+  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
+  const [showMilestoneForm, setShowMilestoneForm] = useState(false);
+  const [milestoneFormTitle, setMilestoneFormTitle] = useState("");
+  const [milestoneFormType, setMilestoneFormType] = useState("delivery");
+  const [milestoneFormDate, setMilestoneFormDate] = useState("");
+  const [milestoneActing, setMilestoneActing] = useState(false);
+  const [milestoneError, setMilestoneError] = useState<string | null>(null);
   const initializedRef = useRef(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string>(() => {
@@ -396,6 +442,93 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
     void loadNetwork();
     return () => { active = false; };
   }, [projectId]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadSchedule() {
+      if (!projectId) { setScheduleMilestones([]); setScheduleHealth(null); setScheduledTasks([]); return; }
+      try {
+        const res = await fetch(`/api/schedule?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+        const data = (await res.json()) as { milestones?: ProjectMilestone[]; tasks?: ScheduledTask[]; health?: ScheduleHealth };
+        if (active && res.ok) {
+          setScheduleMilestones(data.milestones ?? []);
+          setScheduledTasks(data.tasks ?? []);
+          setScheduleHealth(data.health ?? null);
+        }
+      } catch {
+        if (active) { setScheduleMilestones([]); setScheduleHealth(null); setScheduledTasks([]); }
+      }
+    }
+    void loadSchedule();
+    return () => { active = false; };
+  }, [projectId]);
+
+  const refreshSchedule = async () => {
+    if (!projectId) return;
+    try {
+      const res = await fetch(`/api/schedule?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+      const data = (await res.json()) as { milestones?: ProjectMilestone[]; tasks?: ScheduledTask[]; health?: ScheduleHealth };
+      if (res.ok) {
+        setScheduleMilestones(data.milestones ?? []);
+        setScheduledTasks(data.tasks ?? []);
+        setScheduleHealth(data.health ?? null);
+      }
+    } catch { /* silent */ }
+  };
+
+  const handleCreateMilestone = async () => {
+    if (!projectId || !milestoneFormTitle.trim()) { setMilestoneError("Title is required."); return; }
+    setMilestoneActing(true);
+    setMilestoneError(null);
+    try {
+      const res = await fetch("/api/schedule/milestones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          title: milestoneFormTitle.trim(),
+          milestoneType: milestoneFormType,
+          targetDate: milestoneFormDate || null,
+        }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setMilestoneError(data.error ?? "Failed to create milestone.");
+      } else {
+        setShowMilestoneForm(false);
+        setMilestoneFormTitle("");
+        setMilestoneFormDate("");
+        setMilestoneFormType("delivery");
+        await refreshSchedule();
+      }
+    } catch {
+      setMilestoneError("Network error.");
+    } finally {
+      setMilestoneActing(false);
+    }
+  };
+
+  const handleMilestoneAction = async (milestoneId: string, status: "completed" | "at_risk" | "cancelled") => {
+    setMilestoneActing(true);
+    setMilestoneError(null);
+    try {
+      const res = await fetch("/api/schedule/milestones/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ milestoneId, status }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setMilestoneError(data.error ?? "Action failed.");
+      } else {
+        await refreshSchedule();
+      }
+    } catch {
+      setMilestoneError("Network error.");
+    } finally {
+      setMilestoneActing(false);
+    }
+  };
 
   const handleDecision = async (
     actionId: string,
@@ -1197,6 +1330,215 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                 </section>
               );
             })()}
+
+            {/* Schedule Foundation Panel */}
+            {(scheduleHealth !== null || scheduleMilestones.length > 0) && (
+              <section className="rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(52,211,153,0.5)]">
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-emerald-200/80">Schedule Foundation</p>
+                  <button
+                    onClick={() => setShowMilestoneForm(v => !v)}
+                    className="rounded border border-emerald-300/20 bg-emerald-300/[0.07] px-2 py-0.5 text-[9px] text-emerald-300 hover:bg-emerald-300/[0.15]"
+                  >
+                    + Milestone
+                  </button>
+                </div>
+
+                {/* Milestone create form */}
+                {showMilestoneForm && (
+                  <div className="mt-2 space-y-1.5 rounded-lg border border-emerald-300/10 bg-emerald-300/[0.04] p-2">
+                    <input
+                      type="text"
+                      placeholder="Milestone title"
+                      value={milestoneFormTitle}
+                      onChange={e => setMilestoneFormTitle(e.target.value)}
+                      className="w-full rounded border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] text-slate-200 placeholder:text-slate-600 focus:outline-none"
+                    />
+                    <select
+                      value={milestoneFormType}
+                      onChange={e => setMilestoneFormType(e.target.value)}
+                      className="w-full rounded border border-white/10 bg-slate-900 px-2 py-1 text-[10px] text-slate-300"
+                    >
+                      {["kickoff","discovery","design","approval","delivery","deployment","training","acceptance","go_live","handover","other"].map(t => (
+                        <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="date"
+                      value={milestoneFormDate}
+                      onChange={e => setMilestoneFormDate(e.target.value)}
+                      className="w-full rounded border border-white/10 bg-slate-900 px-2 py-1 text-[10px] text-slate-300"
+                    />
+                    {milestoneError && <p className="text-[9px] text-rose-400">{milestoneError}</p>}
+                    <div className="flex gap-1.5">
+                      <button
+                        disabled={milestoneActing}
+                        onClick={() => void handleCreateMilestone()}
+                        className="rounded border border-emerald-300/20 bg-emerald-300/[0.07] px-2 py-0.5 text-[10px] text-emerald-300 hover:bg-emerald-300/[0.15] disabled:opacity-40"
+                      >
+                        Create
+                      </button>
+                      <button
+                        onClick={() => { setShowMilestoneForm(false); setMilestoneError(null); }}
+                        className="rounded border border-white/10 px-2 py-0.5 text-[10px] text-slate-400 hover:text-slate-200"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Schedule Summary */}
+                {scheduleHealth && (
+                  <div className="mt-2 space-y-0.5 text-[10px] text-slate-400">
+                    <div className="flex items-center justify-between">
+                      <span>Scheduled</span>
+                      <span className="text-emerald-300/80">{scheduleHealth.scheduledTasks}/{scheduleHealth.totalTasks}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Unscheduled</span>
+                      <span className={scheduleHealth.unscheduledTasks > 0 ? "text-amber-400/80" : "text-slate-500"}>{scheduleHealth.unscheduledTasks}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Overdue</span>
+                      <span className={scheduleHealth.overdueTasks > 0 ? "text-rose-400" : "text-slate-500"}>{scheduleHealth.overdueTasks}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Due soon</span>
+                      <span className={scheduleHealth.dueSoonTasks > 0 ? "text-amber-300/80" : "text-slate-500"}>{scheduleHealth.dueSoonTasks}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Delayed</span>
+                      <span className={scheduleHealth.delayedTasks > 0 ? "text-orange-400/80" : "text-slate-500"}>{scheduleHealth.delayedTasks}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>At risk</span>
+                      <span className={scheduleHealth.atRiskTasks > 0 ? "text-orange-400/80" : "text-slate-500"}>{scheduleHealth.atRiskTasks}</span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between border-t border-white/[0.06] pt-1">
+                      <span>Confidence</span>
+                      <span className={
+                        scheduleHealth.scheduleConfidence >= 70 ? "text-emerald-300/80" :
+                        scheduleHealth.scheduleConfidence >= 40 ? "text-amber-400/80" : "text-rose-400"
+                      }>{scheduleHealth.scheduleConfidence}%</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Milestones list */}
+                {scheduleMilestones.length > 0 && (
+                  <div className="mt-3 space-y-1.5">
+                    <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500">Milestones</p>
+                    {scheduleMilestones.map(m => {
+                      const isTerminal = m.status === "completed" || m.status === "cancelled";
+                      return (
+                        <div key={m.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2">
+                          <div className="flex items-start justify-between gap-1">
+                            <p className="text-[10px] font-medium text-slate-200 leading-tight">{m.title}</p>
+                            <span className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[8px] border ${
+                              m.status === "completed" ? "border-emerald-400/25 bg-emerald-400/[0.08] text-emerald-300" :
+                              m.status === "at_risk" ? "border-orange-400/25 bg-orange-400/[0.08] text-orange-300" :
+                              m.status === "blocked" ? "border-rose-400/25 bg-rose-400/[0.08] text-rose-300" :
+                              m.status === "cancelled" ? "border-slate-400/20 bg-slate-400/[0.05] text-slate-500" :
+                              "border-slate-400/20 bg-slate-400/[0.06] text-slate-400"
+                            }`}>{m.status}</span>
+                          </div>
+                          <p className="mt-0.5 text-[9px] text-slate-500">{m.milestone_type.replace(/_/g, " ")}</p>
+                          {m.target_date && (
+                            <p className="mt-0.5 text-[9px] text-slate-500">
+                              Target: {new Date(m.target_date).toLocaleDateString()}
+                            </p>
+                          )}
+                          {m.forecast_date && (
+                            <p className="mt-0.5 text-[9px] text-slate-500">
+                              Forecast: {new Date(m.forecast_date).toLocaleDateString()}
+                            </p>
+                          )}
+                          {/* Linked task count */}
+                          {(() => {
+                            const linked = scheduledTasks.filter(t => t.milestone_id === m.id).length;
+                            return linked > 0 ? (
+                              <p className="mt-0.5 text-[9px] text-slate-600">{linked} task(s) linked</p>
+                            ) : null;
+                          })()}
+                          {!isTerminal && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              <button
+                                disabled={milestoneActing}
+                                onClick={() => void handleMilestoneAction(m.id, "completed")}
+                                className="rounded border border-emerald-300/20 bg-emerald-300/[0.07] px-1.5 py-0.5 text-[9px] text-emerald-300 hover:bg-emerald-300/[0.15] disabled:opacity-40"
+                              >
+                                Complete
+                              </button>
+                              {m.status !== "at_risk" && (
+                                <button
+                                  disabled={milestoneActing}
+                                  onClick={() => void handleMilestoneAction(m.id, "at_risk")}
+                                  className="rounded border border-orange-300/20 bg-orange-300/[0.07] px-1.5 py-0.5 text-[9px] text-orange-300 hover:bg-orange-300/[0.15] disabled:opacity-40"
+                                >
+                                  At Risk
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Task schedule badges on execution tasks */}
+                {scheduledTasks.some(t => t.planned_finish_date || t.schedule_status !== "unscheduled") && (
+                  <div className="mt-3 space-y-1">
+                    <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500">Task Schedule</p>
+                    {scheduledTasks
+                      .filter(t => t.planned_finish_date || t.schedule_status !== "unscheduled")
+                      .slice(0, 5)
+                      .map(t => {
+                        const now = new Date();
+                        const finish = t.planned_finish_date ? new Date(t.planned_finish_date) : null;
+                        const isOverdue = finish && finish < now && !["completed","cancelled"].includes(t.status);
+                        const isDueSoon = finish && finish >= now && finish <= new Date(now.getTime() + 7*86400000) && !["completed","cancelled"].includes(t.status);
+                        const linkedMilestone = t.milestone_id ? scheduleMilestones.find(m => m.id === t.milestone_id) : null;
+                        return (
+                          <div key={t.id} className="rounded border border-white/[0.05] bg-white/[0.02] p-1.5">
+                            <p className="truncate text-[9px] text-slate-300">{t.title}</p>
+                            <div className="mt-0.5 flex flex-wrap gap-1">
+                              {t.schedule_status !== "unscheduled" && (
+                                <span className={`rounded-sm px-1 py-0.5 text-[8px] border ${
+                                  t.schedule_status === "delayed" ? "border-orange-400/25 bg-orange-400/[0.08] text-orange-300" :
+                                  t.schedule_status === "at_risk" ? "border-amber-400/25 bg-amber-400/[0.08] text-amber-300" :
+                                  t.schedule_status === "scheduled" ? "border-emerald-400/25 bg-emerald-400/[0.08] text-emerald-300" :
+                                  "border-slate-400/20 bg-slate-400/[0.06] text-slate-400"
+                                }`}>{t.schedule_status}</span>
+                              )}
+                              {isOverdue && (
+                                <span className="rounded-sm border border-rose-400/25 bg-rose-400/[0.08] px-1 py-0.5 text-[8px] text-rose-300">Overdue</span>
+                              )}
+                              {isDueSoon && !isOverdue && (
+                                <span className="rounded-sm border border-amber-400/25 bg-amber-400/[0.08] px-1 py-0.5 text-[8px] text-amber-300">Due soon</span>
+                              )}
+                              {t.schedule_status === "delayed" && (
+                                <span className="rounded-sm border border-orange-400/25 bg-orange-400/[0.08] px-1 py-0.5 text-[8px] text-orange-300">Delayed</span>
+                              )}
+                              {linkedMilestone && (
+                                <span className="rounded-sm border border-emerald-400/20 bg-emerald-400/[0.05] px-1 py-0.5 text-[8px] text-emerald-400/80 truncate max-w-[80px]">{linkedMilestone.title}</span>
+                              )}
+                            </div>
+                            {t.planned_finish_date && (
+                              <p className="mt-0.5 text-[8px] text-slate-600">Finish: {new Date(t.planned_finish_date).toLocaleDateString()}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+
+                {milestoneError && !showMilestoneForm && (
+                  <p className="mt-2 text-[9px] text-rose-400">{milestoneError}</p>
+                )}
+              </section>
+            )}
 
             <section className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(34,211,238,0.8)]">
               <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-cyan-200/80">Project Evidence</p>

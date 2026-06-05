@@ -560,6 +560,14 @@ export type ExecutionTaskStatus =
 
 export type ExecutionTaskPriority = "low" | "medium" | "high" | "critical";
 
+export type TaskScheduleStatus =
+  | "unscheduled"
+  | "scheduled"
+  | "at_risk"
+  | "delayed"
+  | "completed"
+  | "cancelled";
+
 export type ExecutionTaskRow = {
   id: string;
   workspace_id: string;
@@ -584,6 +592,16 @@ export type ExecutionTaskRow = {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  // Schedule fields (added H8)
+  planned_start_date: string | null;
+  planned_finish_date: string | null;
+  baseline_start_date: string | null;
+  baseline_finish_date: string | null;
+  forecast_start_date: string | null;
+  forecast_finish_date: string | null;
+  milestone_id: string | null;
+  schedule_status: TaskScheduleStatus;
+  schedule_confidence: number | null;
 };
 
 export const EXECUTION_TASK_SELECTABLE_COLUMNS = [
@@ -610,6 +628,15 @@ export const EXECUTION_TASK_SELECTABLE_COLUMNS = [
   "created_by",
   "created_at",
   "updated_at",
+  "planned_start_date",
+  "planned_finish_date",
+  "baseline_start_date",
+  "baseline_finish_date",
+  "forecast_start_date",
+  "forecast_finish_date",
+  "milestone_id",
+  "schedule_status",
+  "schedule_confidence",
 ] as const satisfies ReadonlyArray<keyof ExecutionTaskRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -639,6 +666,72 @@ export const EXECUTION_TASK_EVENT_SELECTABLE_COLUMNS = [
   "actor_user_id",
   "created_at",
 ] as const satisfies ReadonlyArray<keyof ExecutionTaskEventRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// project_milestones
+// Source: 20260605090000_milestones_schedule_foundation.sql
+// Project milestones with planned, baseline, and forecast dates.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProjectMilestoneType =
+  | "kickoff"
+  | "discovery"
+  | "design"
+  | "approval"
+  | "delivery"
+  | "deployment"
+  | "training"
+  | "acceptance"
+  | "go_live"
+  | "handover"
+  | "other";
+
+export type ProjectMilestoneStatus =
+  | "planned"
+  | "at_risk"
+  | "blocked"
+  | "completed"
+  | "cancelled";
+
+export type ProjectMilestoneRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  milestone_type: ProjectMilestoneType;
+  status: ProjectMilestoneStatus;
+  target_date: string | null;
+  baseline_date: string | null;
+  forecast_date: string | null;
+  completed_at: string | null;
+  confidence_score: number | null;
+  source_type: string;
+  source_payload: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const PROJECT_MILESTONE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "title",
+  "description",
+  "milestone_type",
+  "status",
+  "target_date",
+  "baseline_date",
+  "forecast_date",
+  "completed_at",
+  "confidence_score",
+  "source_type",
+  "source_payload",
+  "created_by",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof ProjectMilestoneRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // execution_task_dependencies
@@ -702,4 +795,4 @@ export const EXECUTION_TASK_DEPENDENCY_SELECTABLE_COLUMNS = [
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-05-execution-tasks-and-dependencies-v1" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-05-execution-tasks-milestones-schedule-foundation-v1" as const;
