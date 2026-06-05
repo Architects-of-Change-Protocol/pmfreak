@@ -125,9 +125,9 @@ const baseDiscovery = {
 };
 const emptyDiscovery = { ...baseDiscovery, dependencies: [], risks: [], assumptions: [], unknowns: [], confidence_score: 0 };
 
-function createSupabase(existingRows = []) {
-  const state = { vaultDocuments: [], raidItems: existingRows.map((row) => ({ ...row })), updates: [] };
-  const matchRaid = (filters) => state.raidItems.find((row) => filters.every(([key, value]) => row[key] === value));
+function createSupabase(existingRows = [], existingVaultDocs = []) {
+  const state = { vaultDocuments: existingVaultDocs.map((row) => ({ ...row })), raidItems: existingRows.map((row) => ({ ...row })), updates: [] };
+  const matchRow = (rows, filters) => rows.find((row) => filters.every(([key, value]) => row[key] === value));
   const table = (name) => ({
     insert(payload) {
       if (name === 'vault_documents') {
@@ -146,7 +146,10 @@ function createSupabase(existingRows = []) {
       return {
         eq(key, value) { filters.push([key, value]); return this; },
         limit() { return this; },
-        async maybeSingle() { return { data: matchRaid(filters) ?? null, error: null }; },
+        async maybeSingle() {
+          if (name === 'vault_documents') return { data: matchRow(state.vaultDocuments, filters) ?? null, error: null };
+          return { data: matchRow(state.raidItems, filters) ?? null, error: null };
+        },
       };
     },
     update(payload) {
@@ -166,7 +169,12 @@ function createSupabase(existingRows = []) {
 const first = createSupabase();
 const firstResult = await materializeProjectDiscoveryRaidItems({ discovery: baseDiscovery, discoveryId: 'disc-1', discoveryVersion: 1, workspaceId: 'workspace-1', projectId: 'project-1', supabase: first.client });
 
-const duplicate = createSupabase(first.state.raidItems);
+// Same discovery context (same discoveryId, version, payload) — should reuse the vault document
+const sameCtx = createSupabase(first.state.raidItems, first.state.vaultDocuments);
+const sameCtxResult = await materializeProjectDiscoveryRaidItems({ discovery: baseDiscovery, discoveryId: 'disc-1', discoveryVersion: 1, workspaceId: 'workspace-1', projectId: 'project-1', supabase: sameCtx.client });
+
+// Different discovery version — new vault doc, existing RAID items updated (occurrence_count from sameCtx = 2 → 3)
+const duplicate = createSupabase(sameCtx.state.raidItems);
 const duplicateResult = await materializeProjectDiscoveryRaidItems({ discovery: baseDiscovery, discoveryId: 'disc-2', discoveryVersion: 2, workspaceId: 'workspace-1', projectId: 'project-1', supabase: duplicate.client });
 
 const manualRows = first.state.raidItems.map((row, index) => index === 0 ? { ...row, title: 'Manual title', description: 'Manual description', status: 'monitoring', owner: 'Ana', due_date: '2026-07-10', auto_generated: false, confidence_score: 20, last_detected_at: '2026-06-01T00:00:00.000Z' } : { ...row });
@@ -177,7 +185,24 @@ const manualRow = manual.state.raidItems.find((row) => row.auto_generated === fa
 const empty = createSupabase();
 const emptyResult = await materializeProjectDiscoveryRaidItems({ discovery: emptyDiscovery, discoveryId: 'disc-empty', discoveryVersion: 1, workspaceId: 'workspace-1', projectId: 'project-1', supabase: empty.client });
 
-console.log(JSON.stringify({ firstResult, firstCategories: first.state.raidItems.map((row) => row.category).sort(), duplicateResult, duplicateCount: duplicate.state.raidItems.length, duplicateUpdates: duplicate.state.updates, manualResult, manualRow, emptyResult, emptyRaidCount: empty.state.raidItems.length, emptyVaultDocuments: empty.state.vaultDocuments.length }));
+console.log(JSON.stringify({
+  firstResult,
+  firstVaultDocCount: first.state.vaultDocuments.length,
+  firstCategories: first.state.raidItems.map((row) => row.category).sort(),
+  sameCtxResult,
+  sameCtxVaultDocCount: sameCtx.state.vaultDocuments.length,
+  sameCtxOccurrenceCounts: sameCtx.state.raidItems.map((row) => row.occurrence_count),
+  duplicateResult,
+  duplicateCount: duplicate.state.raidItems.length,
+  duplicateUpdates: duplicate.state.updates,
+  duplicateOccurrenceCounts: duplicate.state.raidItems.map((row) => row.occurrence_count),
+  manualResult,
+  manualRow,
+  manualOccurrenceCount: manualRow?.occurrence_count,
+  emptyResult,
+  emptyRaidCount: empty.state.raidItems.length,
+  emptyVaultDocuments: empty.state.vaultDocuments.length,
+}));
 })();
 `;
 
@@ -200,16 +225,31 @@ test('new Project Discovery risks become RAID items', () => {
   assert.deepEqual(materializationRuntime.firstCategories, ['assumption', 'dependency', 'issue', 'risk']);
 });
 
+test('first Project Discovery materialization creates exactly one vault document', () => {
+  assert.equal(materializationRuntime.firstVaultDocCount, 1);
+});
+
+test('same-context re-materialization reuses the existing vault document', () => {
+  assert.equal(materializationRuntime.sameCtxResult.updated, 4);
+  assert.equal(materializationRuntime.sameCtxVaultDocCount, 1);
+});
+
+test('re-detection increments occurrence_count on existing RAID items', () => {
+  assert.ok(materializationRuntime.sameCtxOccurrenceCounts.every((c) => c === 2));
+});
+
 test('duplicate Project Discovery findings do not duplicate RAID items', () => {
   assert.equal(materializationRuntime.duplicateResult.created, 0);
   assert.equal(materializationRuntime.duplicateResult.updated, 4);
   assert.equal(materializationRuntime.duplicateCount, 4);
 });
 
-test('Project Discovery re-detection updates last_detected_at', () => {
+test('Project Discovery re-detection updates last_detected_at and increments occurrence_count', () => {
   assert.equal(materializationRuntime.duplicateUpdates.length, 4);
   assert.ok(materializationRuntime.duplicateUpdates.every((update) => typeof update.payload.last_detected_at === 'string'));
   assert.ok(materializationRuntime.duplicateUpdates.every((update) => Object.keys(update.payload).includes('confidence_score')));
+  assert.ok(materializationRuntime.duplicateUpdates.every((update) => typeof update.payload.occurrence_count === 'number'));
+  assert.ok(materializationRuntime.duplicateOccurrenceCounts.every((c) => c === 3));
 });
 
 test('Project Discovery RAID materialization preserves manual edits', () => {
@@ -221,6 +261,7 @@ test('Project Discovery RAID materialization preserves manual edits', () => {
   assert.equal(materializationRuntime.manualRow.due_date, '2026-07-10');
   assert.equal(materializationRuntime.manualRow.auto_generated, false);
   assert.notEqual(materializationRuntime.manualRow.last_detected_at, '2026-06-01T00:00:00.000Z');
+  assert.equal(materializationRuntime.manualOccurrenceCount, 2);
 });
 
 test('Project Discovery with no RAID findings creates no RAID items', () => {
