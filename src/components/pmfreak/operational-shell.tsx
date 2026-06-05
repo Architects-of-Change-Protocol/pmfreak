@@ -17,6 +17,15 @@ type DiscoverySummary = {
   unknowns_json?: unknown[];
   confidence_score?: number | string;
 };
+type RecommendedAction = {
+  id: string;
+  title: string;
+  recommended_action_type: string;
+  impact_level: string | null;
+  confidence_score: number | string;
+  status: string;
+  evidence_summary?: { raidCategory?: string; raidItemId?: string } | null;
+};
 
 type OperationalShellProps = {
   children: React.ReactNode;
@@ -31,6 +40,8 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [discoverySummary, setDiscoverySummary] = useState<DiscoverySummary | null>(null);
   const [discoveryLoading, setDiscoveryLoading] = useState(false);
+  const [recommendedActions, setRecommendedActions] = useState<RecommendedAction[]>([]);
+  const [actionsFilter, setActionsFilter] = useState<string>("all");
   const initializedRef = useRef(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string>(() => {
@@ -115,6 +126,22 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
       }
     }
     void loadDiscovery();
+    return () => { active = false; };
+  }, [projectId]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadActions() {
+      if (!projectId) { setRecommendedActions([]); return; }
+      try {
+        const res = await fetch(`/api/recommended-actions?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+        const data = (await res.json()) as { recommendedActions?: RecommendedAction[] };
+        if (active) setRecommendedActions(res.ok ? data.recommendedActions ?? [] : []);
+      } catch {
+        if (active) setRecommendedActions([]);
+      }
+    }
+    void loadActions();
     return () => { active = false; };
   }, [projectId]);
 
@@ -212,6 +239,70 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                 Discovery Confidence: {discoveryLoading ? "Loading" : `${discoveryConfidence}%`}
               </div>
             </section>
+
+            {/* Recommended Actions Panel */}
+            {recommendedActions.length > 0 && (() => {
+              const ACTION_FILTERS = ["all", "proposed", "accepted", "rejected", "deferred", "converted"] as const;
+              const filtered = actionsFilter === "all"
+                ? recommendedActions
+                : recommendedActions.filter((a) => a.status === actionsFilter || (actionsFilter === "converted" && a.status === "converted_to_task"));
+              const topAction = filtered[0] ?? null;
+              return (
+                <section className="rounded-2xl border border-amber-300/15 bg-amber-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(251,191,36,0.5)]">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-amber-200/80">Recommended Actions</p>
+                  <p className="mt-1 text-[11px] leading-5 text-slate-400">PM-reviewed action recommendations from RAID findings.</p>
+
+                  {/* Quick filters */}
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {ACTION_FILTERS.map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setActionsFilter(f)}
+                        className={`rounded-md border px-2 py-0.5 text-[10px] capitalize transition-colors ${
+                          actionsFilter === f
+                            ? "border-amber-300/40 bg-amber-300/[0.15] text-amber-100"
+                            : "border-white/[0.06] bg-white/[0.02] text-slate-500 hover:text-slate-300"
+                        }`}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Top action highlight */}
+                  {topAction && (
+                    <div className="mt-2 rounded-xl border border-amber-200/20 bg-black/30 p-2.5">
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-amber-300/70">Top Recommended Action</p>
+                      <p className="mt-1 text-[11px] font-medium leading-4 text-slate-100">{topAction.title}</p>
+                      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-400">
+                        <span>Impact: <span className="capitalize text-slate-200">{topAction.impact_level ?? "—"}</span></span>
+                        <span>Confidence: <span className="text-amber-200">{Math.round(Number(topAction.confidence_score))}%</span></span>
+                        {topAction.evidence_summary?.raidCategory && (
+                          <span>Source: <span className="capitalize text-slate-300">{topAction.evidence_summary.raidCategory}</span></span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action list */}
+                  <div className="mt-2 space-y-1">
+                    {filtered.slice(0, 5).map((action) => (
+                      <div key={action.id} className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-2.5 py-1.5">
+                        <p className="text-[11px] leading-4 text-slate-200">{action.title}</p>
+                        <div className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] text-slate-500">
+                          <span className="capitalize">{action.recommended_action_type.replace(/_/g, " ")}</span>
+                          {action.impact_level && <span className="capitalize">{action.impact_level}</span>}
+                          <span className="capitalize text-slate-600">{action.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {filtered.length > 5 && (
+                      <p className="px-1 text-[10px] text-slate-600">+{filtered.length - 5} more</p>
+                    )}
+                  </div>
+                </section>
+              );
+            })()}
 
             <section className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(34,211,238,0.8)]">
               <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-cyan-200/80">Project Evidence</p>

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { createPrivilegedSupabaseClient } from "@/lib/security/privileged-access";
 import { generateProjectDiscovery, type DiscoveryEvidenceContent, type ProjectDiscoveryModel } from "@/lib/project-discovery/discovery-agent";
 import { materializeProjectDiscoveryRaidItems } from "@/lib/project-discovery/raid-materialization";
+import { materializeRecommendedActions } from "@/lib/recommended-actions";
 
 type DiscoveryRow = {
   id: string;
@@ -136,6 +137,7 @@ export async function regenerateProjectDiscovery(input: { projectId: string; req
         supabase,
         requestId: input.requestId,
       });
+      await materializeRecommendedActions({ workspaceId, projectId: input.projectId, supabase, requestId: input.requestId });
       console.info("[project_discovery] Discovery Completed", { requestId: input.requestId, projectId: input.projectId, evidenceCount: discovery.evidence_count, findingsCount: countFindings(discovery), confidenceScore: discovery.confidence_score, version: latestDiscovery.version, skipped: true, reason: "unchanged_payload", durationMs: Date.now() - startedAt });
       return latestDiscovery;
     }
@@ -177,6 +179,7 @@ export async function regenerateProjectDiscovery(input: { projectId: string; req
       supabase,
       requestId: input.requestId,
     });
+    await materializeRecommendedActions({ workspaceId, projectId: input.projectId, supabase, requestId: input.requestId });
 
     console.info("[project_discovery] Discovery Completed", { requestId: input.requestId, projectId: input.projectId, evidenceCount: discovery.evidence_count, findingsCount: countFindings(discovery), confidenceScore: discovery.confidence_score, version: nextVersion, durationMs: Date.now() - startedAt });
     return insertedDiscovery;
