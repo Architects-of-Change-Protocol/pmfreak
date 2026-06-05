@@ -56,6 +56,8 @@ const CONTRACT = {
   early_access_invites: extractDeclaredColumns("EARLY_ACCESS_INVITE_SELECTABLE_COLUMNS"),
   recommended_actions: extractDeclaredColumns("RECOMMENDED_ACTION_SELECTABLE_COLUMNS"),
   task_drafts: extractDeclaredColumns("TASK_DRAFT_SELECTABLE_COLUMNS"),
+  execution_tasks: extractDeclaredColumns("EXECUTION_TASK_SELECTABLE_COLUMNS"),
+  execution_task_events: extractDeclaredColumns("EXECUTION_TASK_EVENT_SELECTABLE_COLUMNS"),
 };
 
 // ─── Known-drift patterns that MUST NOT appear in runtime code ───────────────

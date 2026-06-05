@@ -370,8 +370,8 @@ test("UI: Keep as Draft button exists", () => {
   assert.match(shell, /Keep as Draft/);
 });
 
-test("UI: Draft approval does not imply final task creation", () => {
-  assert.match(shell, /H6|awaiting task conversion/i);
+test("UI: Approved draft shows execution task conversion action", () => {
+  assert.match(shell, /Create Execution Task|handleConvertDraftToTask/i);
   assert.doesNotMatch(shell, /createTask\(|createFinalTask\(/);
 });
 

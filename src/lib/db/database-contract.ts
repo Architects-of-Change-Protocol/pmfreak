@@ -545,7 +545,103 @@ export const TASK_DRAFT_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof TaskDraftRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// execution_tasks
+// Source: 20260605070000_execution_tasks.sql
+// Canonical operational work unit. Task Draft → Execution Task.
+// Machine drafts. Human approves. System executes governance.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ExecutionTaskStatus =
+  | "not_started"
+  | "in_progress"
+  | "blocked"
+  | "completed"
+  | "cancelled";
+
+export type ExecutionTaskPriority = "low" | "medium" | "high" | "critical";
+
+export type ExecutionTaskRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  task_draft_id: string;
+  recommended_action_id: string | null;
+  raid_item_id: string | null;
+  title: string;
+  description: string;
+  status: ExecutionTaskStatus;
+  priority: ExecutionTaskPriority;
+  owner_user_id: string | null;
+  owner_name: string | null;
+  start_date: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  progress_percent: number;
+  acceptance_criteria: string[];
+  checklist: string[];
+  confidence_score: number | null;
+  source_payload: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const EXECUTION_TASK_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "task_draft_id",
+  "recommended_action_id",
+  "raid_item_id",
+  "title",
+  "description",
+  "status",
+  "priority",
+  "owner_user_id",
+  "owner_name",
+  "start_date",
+  "due_date",
+  "completed_at",
+  "progress_percent",
+  "acceptance_criteria",
+  "checklist",
+  "confidence_score",
+  "source_payload",
+  "created_by",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof ExecutionTaskRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// execution_task_events
+// Source: 20260605070000_execution_tasks.sql
+// Immutable audit trail for every lifecycle action on an execution task.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ExecutionTaskEventRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  task_id: string;
+  event_type: string;
+  event_payload: Record<string, unknown>;
+  actor_user_id: string | null;
+  created_at: string;
+};
+
+export const EXECUTION_TASK_EVENT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "task_id",
+  "event_type",
+  "event_payload",
+  "actor_user_id",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ExecutionTaskEventRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-05-task-drafts-v1" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-05-execution-tasks-v1" as const;
