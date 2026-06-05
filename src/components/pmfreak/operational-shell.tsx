@@ -7,6 +7,16 @@ import { DERIVED_LENS_METADATA } from "@/lib/workspace/derived-lens-metadata";
 import { computeCapabilityRevealState, computeNavigationRail } from "@/features/runtime/capability-reveal/capability-reveal-selectors";
 
 type UserProject = { id: string; name: string };
+type DiscoverySummary = {
+  version: number;
+  stakeholders_json?: unknown[];
+  dependencies_json?: unknown[];
+  risks_json?: unknown[];
+  milestones_json?: unknown[];
+  deliverables_json?: unknown[];
+  unknowns_json?: unknown[];
+  confidence_score?: number | string;
+};
 
 type OperationalShellProps = {
   children: React.ReactNode;
@@ -19,6 +29,8 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
   const router = useRouter();
   const [projects, setProjects] = useState<UserProject[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
+  const [discoverySummary, setDiscoverySummary] = useState<DiscoverySummary | null>(null);
+  const [discoveryLoading, setDiscoveryLoading] = useState(false);
   const initializedRef = useRef(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string>(() => {
@@ -82,7 +94,29 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
       globalThis.localStorage?.removeItem("pmfreak.currentProjectId");
       queueMicrotask(() => setProjectId(""));
     }
-  }, [projectsLoading]);
+  }, [projectId, projects, projectsError, projectsLoading, router]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadDiscovery() {
+      if (!projectId) {
+        setDiscoverySummary(null);
+        return;
+      }
+      setDiscoveryLoading(true);
+      try {
+        const res = await fetch(`/api/project-discovery?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+        const data = (await res.json()) as { discovery?: DiscoverySummary | null };
+        if (active) setDiscoverySummary(res.ok ? data.discovery ?? null : null);
+      } catch {
+        if (active) setDiscoverySummary(null);
+      } finally {
+        if (active) setDiscoveryLoading(false);
+      }
+    }
+    void loadDiscovery();
+    return () => { active = false; };
+  }, [projectId]);
 
   const hasProjects = projects.length > 0;
   const revealState = useMemo(() => computeCapabilityRevealState({
@@ -102,6 +136,15 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
   const navItems = computeNavigationRail(revealState);
   const primaryNav = navItems.filter((item) => item.idle === "text-indigo-100/90");
   const activeLens = DERIVED_LENS_METADATA.find((lens) => pathname.startsWith(lens.route) && ["overview", "delivery", "leadership", "controls"].includes(lens.lensType));
+  const discoveryCounts = {
+    stakeholders: discoverySummary?.stakeholders_json?.length ?? 0,
+    dependencies: discoverySummary?.dependencies_json?.length ?? 0,
+    risks: discoverySummary?.risks_json?.length ?? 0,
+    milestones: discoverySummary?.milestones_json?.length ?? 0,
+    deliverables: discoverySummary?.deliverables_json?.length ?? 0,
+    unknowns: discoverySummary?.unknowns_json?.length ?? 0,
+  };
+  const discoveryConfidence = Math.round(Number(discoverySummary?.confidence_score ?? 0));
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-100">
@@ -153,6 +196,22 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                 })}
               </div>
             </nav>
+
+            <section className="rounded-2xl border border-indigo-300/15 bg-indigo-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(129,140,248,0.8)]">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-indigo-200/80">Discovery Summary</p>
+              <p className="mt-1 text-[11px] leading-5 text-slate-400">Operational structure inferred from canonical evidence.</p>
+              <div className="mt-3 grid grid-cols-2 gap-1.5 text-[11px] text-slate-300">
+                <span>Stakeholders: {discoveryCounts.stakeholders}</span>
+                <span>Dependencies: {discoveryCounts.dependencies}</span>
+                <span>Risks: {discoveryCounts.risks}</span>
+                <span>Milestones: {discoveryCounts.milestones}</span>
+                <span>Deliverables: {discoveryCounts.deliverables}</span>
+                <span>Unknowns: {discoveryCounts.unknowns}</span>
+              </div>
+              <div className="mt-3 rounded-lg border border-white/[0.06] bg-white/[0.03] px-2.5 py-2 text-[11px] text-indigo-100">
+                Discovery Confidence: {discoveryLoading ? "Loading" : `${discoveryConfidence}%`}
+              </div>
+            </section>
 
             <section className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(34,211,238,0.8)]">
               <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-cyan-200/80">Project Evidence</p>

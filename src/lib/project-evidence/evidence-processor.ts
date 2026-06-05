@@ -5,6 +5,7 @@ import { PDFParse } from "pdf-parse";
 import * as XLSX from "xlsx";
 import { createPrivilegedSupabaseClient } from "@/lib/security/privileged-access";
 import { getUploadProvider } from "@/lib/storage/upload-provider";
+import { regenerateProjectDiscoveryInBackground } from "@/lib/project-discovery/discovery-repository";
 
 export type EvidenceProcessingStatus = "completed" | "failed";
 
@@ -174,6 +175,7 @@ export class EvidenceProcessor {
         processingCompletedAt: completedAt,
       });
       await this.markProcessed(source.id);
+      regenerateProjectDiscoveryInBackground({ projectId: source.project_id, requestId: input.requestId });
 
       console.info("[evidence_processor] Processing Completed", {
         requestId: input.requestId,
