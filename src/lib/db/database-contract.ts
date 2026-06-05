@@ -416,7 +416,136 @@ export type PmoTeamInviteRow = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// recommended_actions
+// Source: 20260605040000_recommended_actions.sql
+//         20260605050000_recommended_actions_decision_workflow.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type RecommendedActionStatus =
+  | "proposed"
+  | "accepted"
+  | "rejected"
+  | "deferred"
+  | "converted_to_task";
+
+export type RecommendedActionRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  raid_item_id: string;
+  title: string;
+  description: string;
+  recommended_action_type: string;
+  status: RecommendedActionStatus;
+  confidence_score: number | null;
+  impact_level: string | null;
+  rationale: Record<string, unknown> | null;
+  recommended_owner: string | null;
+  recommended_due_window: string | null;
+  evidence_summary: Record<string, unknown> | null;
+  source_signal_id: string | null;
+  fingerprint: string;
+  decision_reason: string | null;
+  decided_by: string | null;
+  decided_at: string | null;
+  deferred_until: string | null;
+  converted_task_id: string | null;
+  decision_metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const RECOMMENDED_ACTION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "raid_item_id",
+  "title",
+  "description",
+  "recommended_action_type",
+  "status",
+  "confidence_score",
+  "impact_level",
+  "rationale",
+  "recommended_owner",
+  "recommended_due_window",
+  "evidence_summary",
+  "source_signal_id",
+  "fingerprint",
+  "decision_reason",
+  "decided_by",
+  "decided_at",
+  "deferred_until",
+  "converted_task_id",
+  "decision_metadata",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof RecommendedActionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// task_drafts
+// Source: 20260605060000_task_drafts.sql
+// Traceable Task Draft created when a PM converts a Recommended Action.
+// The system drafts. The PM confirms. No automatic task execution.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type TaskDraftStatus =
+  | "draft"
+  | "reviewed"
+  | "approved"
+  | "discarded"
+  | "converted_to_task";
+
+export type TaskDraftPriority = "low" | "medium" | "high" | "critical";
+
+export type TaskDraftRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  recommended_action_id: string;
+  raid_item_id: string | null;
+  title: string;
+  description: string;
+  draft_status: TaskDraftStatus;
+  suggested_owner: string | null;
+  suggested_due_date: string | null;
+  suggested_due_window: string | null;
+  priority: TaskDraftPriority;
+  source_type: string;
+  source_payload: Record<string, unknown>;
+  acceptance_criteria: string[];
+  checklist: string[];
+  confidence_score: number | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const TASK_DRAFT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "recommended_action_id",
+  "raid_item_id",
+  "title",
+  "description",
+  "draft_status",
+  "suggested_owner",
+  "suggested_due_date",
+  "suggested_due_window",
+  "priority",
+  "source_type",
+  "source_payload",
+  "acceptance_criteria",
+  "checklist",
+  "confidence_score",
+  "created_by",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof TaskDraftRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-02-raid-v1" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-05-task-drafts-v1" as const;
