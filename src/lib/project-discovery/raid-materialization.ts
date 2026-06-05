@@ -24,6 +24,7 @@ type ExistingDiscoveryRaidRow = {
   id: string;
   confidence_score: number;
   auto_generated: boolean;
+  occurrence_count: number | null;
 };
 
 type MaterializationCandidate = Omit<RaidItem, "id"> & {
@@ -51,6 +52,15 @@ const cleanTitle = (value: string) =>
 const contentHash = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
 const discoveryRaidFingerprint = (category: RaidCategory, text: string) =>
   `project_discovery:${category}:${contentHash(canonicalRaidFingerprint(category, text))}`;
+
+const discoverySourceDocumentMarker = (input: {
+  projectId: string;
+  workspaceId: string;
+  discoveryId: string;
+  discoveryVersion: number;
+  discoveryPayloadHash: string;
+}) =>
+  `project_discovery_raid_source:${input.projectId}:${input.workspaceId}:${input.discoveryId}:v${input.discoveryVersion}:${input.discoveryPayloadHash}`;
 
 function riskFinding(item: RiskDiscoveryItem): DiscoveryRaidFinding {
   return {
@@ -168,14 +178,36 @@ function toRaidInsertRow(item: MaterializationCandidate) {
   };
 }
 
-async function createDiscoverySourceDocument(input: {
+async function findOrCreateDiscoverySourceDocument(input: {
   supabase: SupabaseClient;
   discoveryId: string;
   discoveryVersion: number;
   workspaceId: string;
   projectId: string;
   discovery: ProjectDiscoveryModel;
-}) {
+}): Promise<{ id: string; created: boolean }> {
+  const discoveryPayloadHash = contentHash(JSON.stringify(input.discovery));
+  const marker = discoverySourceDocumentMarker({
+    projectId: input.projectId,
+    workspaceId: input.workspaceId,
+    discoveryId: input.discoveryId,
+    discoveryVersion: input.discoveryVersion,
+    discoveryPayloadHash,
+  });
+
+  const { data: existing, error: selectError } = await input.supabase
+    .from("vault_documents")
+    .select("id")
+    .eq("workspace_id", input.workspaceId)
+    .eq("project_id", input.projectId)
+    .eq("source_type", "project_update")
+    .eq("classification", "operational")
+    .eq("normalized_content", marker)
+    .maybeSingle<{ id: string }>();
+
+  if (selectError) throw new Error(`Unable to query Project Discovery RAID source document: ${selectError.message}`);
+  if (existing) return { id: existing.id, created: false };
+
   const { data, error } = await input.supabase
     .from("vault_documents")
     .insert({
@@ -185,14 +217,14 @@ async function createDiscoverySourceDocument(input: {
       source_type: "project_update",
       classification: "operational",
       raw_content: JSON.stringify({ discovery_id: input.discoveryId, ...input.discovery }),
-      normalized_content: `Project Discovery ${input.discoveryId} RAID materialization source ${contentHash(JSON.stringify(input.discovery))}`,
+      normalized_content: marker,
       ingestion_status: "completed",
     })
     .select("id")
     .single<{ id: string }>();
 
   if (error) throw new Error(`Unable to create Project Discovery RAID source document: ${error.message}`);
-  return data.id;
+  return { id: data.id, created: true };
 }
 
 export async function materializeProjectDiscoveryRaidItems(input: {
@@ -219,17 +251,32 @@ export async function materializeProjectDiscoveryRaidItems(input: {
   try {
     if (findings.length === 0) {
       const emptyResult = { created: 0, updated: 0, skipped: 0 };
-      console.info("raid.materialization.completed", { requestId: input.requestId, projectId: input.projectId, discoveryId: input.discoveryId, ...emptyResult, durationMs: Date.now() - startedAt });
+      console.info("raid.materialization.completed", {
+        requestId: input.requestId,
+        projectId: input.projectId,
+        discoveryId: input.discoveryId,
+        sourceDocumentCreated: false,
+        sourceDocumentReused: false,
+        ...emptyResult,
+        durationMs: Date.now() - startedAt,
+      });
       return emptyResult;
     }
 
-    const sourceDocumentId = await createDiscoverySourceDocument(input);
+    const sourceDocumentResult = await findOrCreateDiscoverySourceDocument(input);
+    console.info(
+      sourceDocumentResult.created
+        ? "raid.materialization.source_document.created"
+        : "raid.materialization.source_document.reused",
+      { projectId: input.projectId, discoveryId: input.discoveryId, sourceDocumentId: sourceDocumentResult.id },
+    );
+
     const detectedAt = new Date().toISOString();
     const candidates = buildCandidates({
       discovery: input.discovery,
       workspaceId: input.workspaceId,
       projectId: input.projectId,
-      sourceDocumentId,
+      sourceDocumentId: sourceDocumentResult.id,
       detectedAt,
     });
 
@@ -239,7 +286,7 @@ export async function materializeProjectDiscoveryRaidItems(input: {
     for (const item of candidates) {
       const { data: existing, error: selectError } = await input.supabase
         .from("raid_items")
-        .select("id, confidence_score, auto_generated")
+        .select("id, confidence_score, auto_generated, occurrence_count")
         .eq("workspace_id", item.workspaceId)
         .eq("project_id", item.projectId)
         .eq("category", item.category)
@@ -251,11 +298,16 @@ export async function materializeProjectDiscoveryRaidItems(input: {
 
       if (existing) {
         const confidenceScore = clampConfidence(Math.max(Number(existing.confidence_score ?? 0), item.confidenceScore));
+        const existingOccurrenceCount =
+          typeof existing.occurrence_count === "number" && existing.occurrence_count >= 1
+            ? existing.occurrence_count
+            : 1;
         const { error: updateError } = await input.supabase
           .from("raid_items")
           .update({
-            last_detected_at: item.detectedAt,
+            last_detected_at: item.lastDetectedAt,
             confidence_score: confidenceScore,
+            occurrence_count: existingOccurrenceCount + 1,
           })
           .eq("id", existing.id);
         if (updateError) throw new Error(`Unable to update existing discovery RAID item: ${updateError.message}`);
@@ -269,7 +321,15 @@ export async function materializeProjectDiscoveryRaidItems(input: {
     }
 
     const result = { created, updated, skipped: findings.length - candidates.length };
-    console.info("raid.materialization.completed", { requestId: input.requestId, projectId: input.projectId, discoveryId: input.discoveryId, ...result, durationMs: Date.now() - startedAt });
+    console.info("raid.materialization.completed", {
+      requestId: input.requestId,
+      projectId: input.projectId,
+      discoveryId: input.discoveryId,
+      sourceDocumentCreated: sourceDocumentResult.created,
+      sourceDocumentReused: !sourceDocumentResult.created,
+      ...result,
+      durationMs: Date.now() - startedAt,
+    });
     return result;
   } catch (error) {
     console.error("raid.materialization.failed", {
