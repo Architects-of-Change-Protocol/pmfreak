@@ -4,10 +4,13 @@ import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 
 const migration = fs.readFileSync("supabase/migrations/20260605040000_recommended_actions.sql", "utf8");
+const decisionMigration = fs.readFileSync("supabase/migrations/20260605050000_recommended_actions_decision_workflow.sql", "utf8");
 const engine = fs.readFileSync("src/lib/recommended-actions/generate-recommended-actions.ts", "utf8");
 const materializer = fs.readFileSync("src/lib/recommended-actions/materialize-recommended-actions.ts", "utf8");
 const indexFile = fs.readFileSync("src/lib/recommended-actions/index.ts", "utf8");
 const route = fs.readFileSync("src/app/api/recommended-actions/route.ts", "utf8");
+const decisionRoute = fs.readFileSync("src/app/api/recommended-actions/decision/route.ts", "utf8");
+const decisionWorkflow = fs.readFileSync("src/lib/recommended-actions/decision-workflow.ts", "utf8");
 const shell = fs.readFileSync("src/components/pmfreak/operational-shell.tsx", "utf8");
 const repository = fs.readFileSync("src/lib/project-discovery/discovery-repository.ts", "utf8");
 
@@ -239,4 +242,135 @@ console.log("All recommended-actions runtime probes passed.");
 
 test("runtime: risk generates actions with correct types and traceability", () => {
   execFileSync("npx", ["tsx", "--eval", runtimeProbe], { encoding: "utf8", stdio: "pipe" });
+});
+
+// ── H4: PM Decision Workflow ──────────────────────────────────────────────
+
+test("H4: decision migration adds decision columns to recommended_actions", () => {
+  for (const col of ["decision_reason", "decided_by", "decided_at", "deferred_until", "converted_task_id", "decision_metadata"]) {
+    assert.match(decisionMigration, new RegExp(`\\b${col}\\b`), `column ${col} missing from decision migration`);
+  }
+});
+
+test("H4: decision migration creates recommended_action_decisions table", () => {
+  assert.match(decisionMigration, /create table if not exists public\.recommended_action_decisions/);
+  for (const col of ["id", "workspace_id", "project_id", "recommended_action_id", "previous_status", "new_status", "decision_reason", "decided_by", "decided_at"]) {
+    assert.match(decisionMigration, new RegExp(`\\b${col}\\b`), `audit column ${col} missing`);
+  }
+});
+
+test("H4: decision migration creates required indexes", () => {
+  assert.match(decisionMigration, /recommended_actions_project_status_idx/);
+  assert.match(decisionMigration, /recommended_actions_decided_by_idx/);
+  assert.match(decisionMigration, /recommended_action_decisions_action_idx/);
+  assert.match(decisionMigration, /recommended_action_decisions_project_idx/);
+});
+
+test("H4: decision migration enables RLS on audit table", () => {
+  assert.match(decisionMigration, /enable row level security/);
+  assert.match(decisionMigration, /is_workspace_member\(workspace_id\)/);
+});
+
+test("H4: decision migration has updated_at trigger", () => {
+  assert.match(decisionMigration, /set_updated_at/);
+  assert.match(decisionMigration, /before update on public\.recommended_actions/);
+});
+
+test("H4: decision workflow validates allowed transitions", () => {
+  assert.match(decisionWorkflow, /VALID_TRANSITIONS/);
+  assert.match(decisionWorkflow, /proposed.*accepted.*rejected.*deferred.*converted_to_task/s);
+  assert.match(decisionWorkflow, /invalid_transition/);
+});
+
+test("H4: decision workflow updates all decision fields", () => {
+  assert.match(decisionWorkflow, /decision_reason/);
+  assert.match(decisionWorkflow, /decided_by/);
+  assert.match(decisionWorkflow, /decided_at/);
+  assert.match(decisionWorkflow, /deferred_until/);
+  assert.match(decisionWorkflow, /converted_task_id/);
+  assert.match(decisionWorkflow, /decision_metadata/);
+});
+
+test("H4: decision workflow inserts into recommended_action_decisions audit table", () => {
+  assert.match(decisionWorkflow, /recommended_action_decisions/);
+  assert.match(decisionWorkflow, /previous_status/);
+  assert.match(decisionWorkflow, /new_status/);
+});
+
+test("H4: decision workflow returns typed result contract", () => {
+  assert.match(decisionWorkflow, /RecommendedActionDecisionResult/);
+  assert.match(decisionWorkflow, /ok: true/);
+  assert.match(decisionWorkflow, /ok: false/);
+  assert.match(decisionWorkflow, /failureClass/);
+});
+
+test("H4: decision workflow covers all failure classes", () => {
+  for (const fc of ["unauthenticated", "not_found", "unauthorized", "invalid_transition", "validation_failed", "persistence_failed"]) {
+    assert.match(decisionWorkflow, new RegExp(fc), `failureClass ${fc} missing from decision workflow`);
+  }
+});
+
+test("H4: decision workflow logs preserved decision event", () => {
+  assert.match(materializer, /recommended_actions\.preserved_decision/);
+  assert.match(materializer, /actionId/);
+  assert.match(materializer, /fingerprint/);
+});
+
+test("H4: decision API endpoint exists and validates actionId and decision", () => {
+  assert.match(decisionRoute, /actionId/);
+  assert.match(decisionRoute, /decision/);
+  assert.match(decisionRoute, /accepted.*rejected.*deferred.*converted_to_task/s);
+});
+
+test("H4: decision API maps failure classes to correct HTTP statuses", () => {
+  assert.match(decisionRoute, /unauthenticated.*401/s);
+  assert.match(decisionRoute, /not_found.*404/s);
+  assert.match(decisionRoute, /unauthorized.*403/s);
+});
+
+test("H4: decision API does not expose raw Supabase errors", () => {
+  assert.doesNotMatch(decisionRoute, /supabase\.error/);
+  assert.doesNotMatch(decisionRoute, /error\.message/);
+});
+
+test("H4: index exports decision workflow types", () => {
+  assert.match(indexFile, /DecisionInput/);
+  assert.match(indexFile, /RecommendedActionDecisionResult/);
+  assert.match(indexFile, /decision-workflow/);
+});
+
+test("H4: GET route selects decision fields", () => {
+  assert.match(route, /decision_reason/);
+  assert.match(route, /decided_at/);
+  assert.match(route, /deferred_until/);
+});
+
+test("H4: UI includes decision controls for proposed actions", () => {
+  assert.match(shell, /Accept/);
+  assert.match(shell, /Reject/);
+  assert.match(shell, /Defer/);
+  assert.match(shell, /Convert/);
+  assert.match(shell, /handleDecision/);
+});
+
+test("H4: UI does not show controls for rejected actions", () => {
+  assert.match(shell, /status === "rejected".*no further actions/s);
+});
+
+test("H4: UI does not show controls for converted actions", () => {
+  assert.match(shell, /status === "converted_to_task".*Converted to task/s);
+});
+
+test("H4: UI shows decision history when decided_at is present", () => {
+  assert.match(shell, /decided_at/);
+  assert.match(shell, /decision_reason/);
+  assert.match(shell, /deferred_until/);
+});
+
+test("H4: UI shows non-blocking error on decision failure", () => {
+  assert.match(shell, /decisionError/);
+});
+
+test("H4: UI refreshes action list after decision", () => {
+  assert.match(shell, /refreshActions/);
 });
