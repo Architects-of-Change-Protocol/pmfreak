@@ -47,6 +47,21 @@ type TaskDraft = {
   source_payload: Record<string, unknown>;
 };
 
+type ExecutionTask = {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  owner_name: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  progress_percent: number;
+  raid_item_id: string | null;
+  recommended_action_id: string | null;
+  task_draft_id: string;
+  source_payload: Record<string, unknown>;
+};
+
 type OperationalShellProps = {
   children: React.ReactNode;
   user: { fullName: string; role: string; companyName: string };
@@ -67,6 +82,10 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
   const [taskDraftPreview, setTaskDraftPreview] = useState<TaskDraft | null>(null);
   const [draftConvertingId, setDraftConvertingId] = useState<string | null>(null);
   const [draftActionError, setDraftActionError] = useState<string | null>(null);
+  const [executionTasks, setExecutionTasks] = useState<ExecutionTask[]>([]);
+  const [executionTasksFilter, setExecutionTasksFilter] = useState<string>("all");
+  const [taskActionError, setTaskActionError] = useState<string | null>(null);
+  const [taskActingId, setTaskActingId] = useState<string | null>(null);
   const initializedRef = useRef(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string>(() => {
@@ -165,6 +184,72 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
     }
   };
 
+  const refreshExecutionTasks = async () => {
+    if (!projectId) { setExecutionTasks([]); return; }
+    try {
+      const res = await fetch(`/api/execution-tasks?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+      const data = (await res.json()) as { tasks?: ExecutionTask[] };
+      setExecutionTasks(res.ok ? data.tasks ?? [] : []);
+    } catch {
+      setExecutionTasks([]);
+    }
+  };
+
+  const handleTaskAction = async (
+    taskId: string,
+    action: "start" | "block" | "complete" | "cancel",
+    extra?: { ownerName?: string; dueDate?: string; progressPercent?: number }
+  ) => {
+    setTaskActingId(taskId);
+    setTaskActionError(null);
+    const statusMap: Record<string, string> = {
+      start: "in_progress",
+      block: "blocked",
+      complete: "completed",
+      cancel: "cancelled",
+    };
+    try {
+      const res = await fetch("/api/execution-tasks/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId, status: statusMap[action], ...extra }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setTaskActionError(data.error ?? "Action failed. Please try again.");
+      } else {
+        await refreshExecutionTasks();
+      }
+    } catch {
+      setTaskActionError("Network error. Please try again.");
+    } finally {
+      setTaskActingId(null);
+    }
+  };
+
+  const handleConvertDraftToTask = async (draftId: string) => {
+    setTaskActingId(draftId);
+    setTaskActionError(null);
+    try {
+      const res = await fetch("/api/execution-tasks/convert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskDraftId: draftId }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setTaskActionError(data.error ?? "Could not convert draft. Please try again.");
+      } else {
+        await refreshExecutionTasks();
+        setTaskDraftPreview(null);
+      }
+    } catch {
+      setTaskActionError("Network error. Please try again.");
+    } finally {
+      setTaskActingId(null);
+    }
+  };
+
   useEffect(() => {
     let active = true;
     async function loadActions() {
@@ -178,6 +263,22 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
       }
     }
     void loadActions();
+    return () => { active = false; };
+  }, [projectId]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadTasks() {
+      if (!projectId) { setExecutionTasks([]); return; }
+      try {
+        const res = await fetch(`/api/execution-tasks?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+        const data = (await res.json()) as { tasks?: ExecutionTask[] };
+        if (active) setExecutionTasks(res.ok ? data.tasks ?? [] : []);
+      } catch {
+        if (active) setExecutionTasks([]);
+      }
+    }
+    void loadTasks();
     return () => { active = false; };
   }, [projectId]);
 
@@ -604,13 +705,209 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                   </div>
                 )}
                 {taskDraftPreview.draft_status === "approved" && (
-                  <p className="mt-1.5 text-[9px] text-green-400/70">Draft approved — awaiting task conversion in H6</p>
+                  <div className="mt-2.5 flex flex-wrap gap-1">
+                    <button
+                      disabled={taskActingId === taskDraftPreview.id}
+                      onClick={() => void handleConvertDraftToTask(taskDraftPreview.id)}
+                      className="rounded border border-teal-300/20 bg-teal-300/[0.07] px-2 py-0.5 text-[10px] text-teal-300 hover:bg-teal-300/[0.15] disabled:opacity-40"
+                    >
+                      {taskActingId === taskDraftPreview.id ? "Converting…" : "Create Execution Task"}
+                    </button>
+                  </div>
                 )}
                 {taskDraftPreview.draft_status === "discarded" && (
                   <p className="mt-1.5 text-[9px] text-rose-400/60">Draft discarded</p>
                 )}
               </section>
             )}
+
+            {/* Task Action Error */}
+            {taskActionError && (
+              <div className="rounded-xl border border-rose-300/20 bg-rose-300/[0.06] px-2.5 py-2 text-[10px] text-rose-300 flex items-start justify-between gap-2">
+                <span>{taskActionError}</span>
+                <button onClick={() => setTaskActionError(null)} className="shrink-0 text-rose-400/60 hover:text-rose-300">✕</button>
+              </div>
+            )}
+
+            {/* Execution Tasks Panel */}
+            {executionTasks.length > 0 && (() => {
+              const TASK_FILTERS = ["all", "my_tasks", "open", "blocked", "completed"] as const;
+              const now = new Date();
+              const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+              const filtered = executionTasks.filter((t) => {
+                if (executionTasksFilter === "my_tasks") return false; // requires user context
+                if (executionTasksFilter === "open") return t.status === "not_started" || t.status === "in_progress";
+                if (executionTasksFilter === "blocked") return t.status === "blocked";
+                if (executionTasksFilter === "completed") return t.status === "completed";
+                return true;
+              });
+
+              const isOverdue = (t: ExecutionTask) =>
+                t.due_date && t.status !== "completed" && t.status !== "cancelled" && new Date(t.due_date) < now;
+              const isDueSoon = (t: ExecutionTask) =>
+                t.due_date && t.status !== "completed" && t.status !== "cancelled" &&
+                new Date(t.due_date) >= now && new Date(t.due_date) <= sevenDays;
+
+              return (
+                <section className="rounded-2xl border border-teal-300/15 bg-teal-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(20,184,166,0.5)]">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-teal-200/80">Execution Tasks</p>
+                  <p className="mt-1 text-[11px] leading-5 text-slate-400">Approved Task Drafts converted to operational work units.</p>
+
+                  {/* Quick filters */}
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {TASK_FILTERS.map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setExecutionTasksFilter(f)}
+                        className={`rounded-md border px-2 py-0.5 text-[10px] capitalize transition-colors ${
+                          executionTasksFilter === f
+                            ? "border-teal-300/40 bg-teal-300/[0.15] text-teal-100"
+                            : "border-white/[0.06] bg-white/[0.02] text-slate-500 hover:text-slate-300"
+                        }`}
+                      >
+                        {f.replace(/_/g, " ")}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Task list */}
+                  <div className="mt-2 space-y-2">
+                    {filtered.slice(0, 6).map((task) => {
+                      const isActing = taskActingId === task.id;
+                      const overdue = isOverdue(task);
+                      const dueSoon = isDueSoon(task);
+                      const canStart = task.status === "not_started";
+                      const canBlock = task.status === "in_progress";
+                      const canUnblock = task.status === "blocked";
+                      const canComplete = task.status === "in_progress" || task.status === "blocked";
+                      const canCancel = task.status !== "completed" && task.status !== "cancelled";
+                      const isTerminal = task.status === "completed" || task.status === "cancelled";
+
+                      return (
+                        <div key={task.id} className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-2.5 py-2">
+                          <p className="text-[11px] leading-4 text-slate-200">{task.title}</p>
+
+                          <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-slate-500">
+                            <span className={`capitalize font-medium ${
+                              task.status === "not_started" ? "text-slate-400" :
+                              task.status === "in_progress" ? "text-teal-400/80" :
+                              task.status === "blocked" ? "text-orange-400/80" :
+                              task.status === "completed" ? "text-green-400/80" :
+                              "text-slate-600"
+                            }`}>{task.status.replace(/_/g, " ")}</span>
+                            <span className={`capitalize ${
+                              task.priority === "critical" ? "text-red-400/80" :
+                              task.priority === "high" ? "text-orange-400/70" :
+                              task.priority === "medium" ? "text-amber-400/70" :
+                              "text-slate-500"
+                            }`}>{task.priority}</span>
+                            {task.owner_name && <span>{task.owner_name}</span>}
+                          </div>
+
+                          {/* Health badges */}
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {overdue && (
+                              <span className="rounded-sm border border-red-400/30 bg-red-400/[0.08] px-1.5 py-0.5 text-[9px] text-red-300">Overdue</span>
+                            )}
+                            {dueSoon && !overdue && (
+                              <span className="rounded-sm border border-amber-400/30 bg-amber-400/[0.08] px-1.5 py-0.5 text-[9px] text-amber-300">Due Soon</span>
+                            )}
+                            {task.status === "blocked" && (
+                              <span className="rounded-sm border border-orange-400/30 bg-orange-400/[0.08] px-1.5 py-0.5 text-[9px] text-orange-300">Blocked</span>
+                            )}
+                            {task.status === "completed" && (
+                              <span className="rounded-sm border border-green-400/30 bg-green-400/[0.08] px-1.5 py-0.5 text-[9px] text-green-300">Completed</span>
+                            )}
+                          </div>
+
+                          {/* Progress */}
+                          {!isTerminal && (
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <div className="h-1 flex-1 rounded-full bg-white/[0.06]">
+                                <div
+                                  className="h-full rounded-full bg-teal-400/60 transition-all"
+                                  style={{ width: `${task.progress_percent}%` }}
+                                />
+                              </div>
+                              <span className="text-[9px] text-slate-500">{task.progress_percent}%</span>
+                            </div>
+                          )}
+
+                          {/* Due date */}
+                          {task.due_date && (
+                            <p className="mt-0.5 text-[9px] text-slate-500">
+                              Due: {new Date(task.due_date).toLocaleDateString()}
+                            </p>
+                          )}
+
+                          {/* Traceability */}
+                          <div className="mt-1 text-[9px] text-slate-600">
+                            {task.raid_item_id && <span>RAID · </span>}
+                            {task.recommended_action_id && <span>Action · </span>}
+                            <span>Draft</span>
+                          </div>
+
+                          {/* Action controls */}
+                          {!isTerminal && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {canStart && (
+                                <button
+                                  disabled={isActing}
+                                  onClick={() => void handleTaskAction(task.id, "start")}
+                                  className="rounded border border-teal-300/20 bg-teal-300/[0.07] px-2 py-0.5 text-[10px] text-teal-300 hover:bg-teal-300/[0.15] disabled:opacity-40"
+                                >
+                                  Start
+                                </button>
+                              )}
+                              {canBlock && (
+                                <button
+                                  disabled={isActing}
+                                  onClick={() => void handleTaskAction(task.id, "block")}
+                                  className="rounded border border-orange-300/20 bg-orange-300/[0.07] px-2 py-0.5 text-[10px] text-orange-300 hover:bg-orange-300/[0.15] disabled:opacity-40"
+                                >
+                                  Block
+                                </button>
+                              )}
+                              {canUnblock && (
+                                <button
+                                  disabled={isActing}
+                                  onClick={() => void handleTaskAction(task.id, "start")}
+                                  className="rounded border border-teal-300/20 bg-teal-300/[0.07] px-2 py-0.5 text-[10px] text-teal-300 hover:bg-teal-300/[0.15] disabled:opacity-40"
+                                >
+                                  Unblock
+                                </button>
+                              )}
+                              {canComplete && (
+                                <button
+                                  disabled={isActing}
+                                  onClick={() => void handleTaskAction(task.id, "complete")}
+                                  className="rounded border border-green-300/20 bg-green-300/[0.07] px-2 py-0.5 text-[10px] text-green-300 hover:bg-green-300/[0.15] disabled:opacity-40"
+                                >
+                                  Complete
+                                </button>
+                              )}
+                              {canCancel && (
+                                <button
+                                  disabled={isActing}
+                                  onClick={() => void handleTaskAction(task.id, "cancel")}
+                                  className="rounded border border-rose-300/20 bg-rose-300/[0.07] px-2 py-0.5 text-[10px] text-rose-300 hover:bg-rose-300/[0.15] disabled:opacity-40"
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {filtered.length > 6 && (
+                      <p className="px-1 text-[10px] text-slate-600">+{filtered.length - 6} more</p>
+                    )}
+                  </div>
+                </section>
+              );
+            })()}
 
             <section className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(34,211,238,0.8)]">
               <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-cyan-200/80">Project Evidence</p>
