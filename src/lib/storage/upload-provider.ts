@@ -13,6 +13,8 @@ export interface StorageProvider {
   }): Promise<{ storageRef: string }>;
 
   delete(storageRef: string): Promise<void>;
+
+  download(storageRef: string): Promise<Buffer>;
 }
 
 const BUCKET = process.env.SUPABASE_STORAGE_BUCKET ?? "pmfreak-documents";
@@ -79,6 +81,25 @@ class SupabaseStorageProvider implements StorageProvider {
       throw new Error(`Storage delete failed for path "${storageRef}": ${error.message}`);
     }
   }
+
+  async download(storageRef: string): Promise<Buffer> {
+    // PRIVILEGED_ACCESS: storage operations require service role (no user RLS on storage)
+    // AUDIT_REF: service-role-risk-register.md
+    const supabase = createPrivilegedSupabaseClient({
+      routeId: "EvidenceProcessor.processEvidence",
+      operation: "storage.download",
+      reason: "Server-side canonical evidence extraction from authorized project upload",
+      actorUserId: null,
+      systemActor: "background_job",
+    });
+
+    const { data, error } = await supabase.storage.from(BUCKET).download(storageRef);
+    if (error || !data) {
+      throw new Error(`Storage download failed for path "${storageRef}": ${error?.message ?? "not found"}`);
+    }
+
+    return Buffer.from(await data.arrayBuffer());
+  }
 }
 
 const memoryStore = new Map<string, Buffer>();
@@ -98,6 +119,12 @@ class MemoryStorageProvider implements StorageProvider {
 
   async delete(storageRef: string): Promise<void> {
     memoryStore.delete(storageRef);
+  }
+
+  async download(storageRef: string): Promise<Buffer> {
+    const buffer = memoryStore.get(storageRef);
+    if (!buffer) throw new Error(`Memory storage object not found: ${storageRef}`);
+    return buffer;
   }
 }
 

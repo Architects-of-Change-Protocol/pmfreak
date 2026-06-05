@@ -3,13 +3,11 @@ import { getAuthUser } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCompanySubscription } from "@/lib/billing";
 import { cancelUploadQuota, commitUploadQuota, reserveUploadQuota } from "@/lib/quota/upload-quota";
-import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
-import { appendOperationalMemory, extractOperationalMemoryCandidates } from "@/lib/operational-memory-v1";
 import { enforceRuntimeAuthorization } from "@/aoc/runtime-consumer";
 import { getUploadProvider, type StorageProvider } from "@/lib/storage/upload-provider";
+import { processEvidenceInBackground } from "@/lib/project-evidence/evidence-processor";
 
-type ExtractionStatus = "completed" | "timeout" | "failed";
+type ExtractionStatus = "queued" | "completed" | "timeout" | "failed";
 type EvidenceStatus = "uploaded" | "processing" | "processed" | "failed";
 
 type ExtractedFile = {
@@ -33,7 +31,7 @@ type UploadSuccessResponse = {
   ingestion: {
     startedAt: string;
     completedAt: string;
-    status: "completed";
+    status: "queued";
     extractedSignals: {
       risks: number;
       stakeholders: number;
@@ -98,8 +96,6 @@ const EXTRACTION_TIMEOUT_MS = (() => {
 })();
 
 const sanitizeFileName = (input: string) => input.replace(/[^a-zA-Z0-9._-]/g, "_");
-const riskTerms = /\b(risk|blocker|delay|dependency|escalation)\b/gi;
-const stakeholderTerms = /\b(stakeholder|owner|sponsor|team|vendor|client)\b/gi;
 
 // Magic bytes for MIME spoofing defense (first 4 bytes checked)
 const MAGIC: Record<string, Uint8Array> = {
@@ -145,51 +141,12 @@ const errorResponse = (status: number, error: UploadErrorResponse["error"], code
   Response.json({ ok: false, error, code } satisfies UploadErrorResponse, { status });
 
 const toEvidenceStatus = (status: ExtractionStatus): EvidenceStatus =>
-  status === "completed" ? "processed" : "failed";
+  status === "completed" ? "processed" : status === "queued" ? "processing" : "failed";
 
-const extractTextFromFile = async (file: File, buffer: Buffer): Promise<string> => {
-  if (file.type === "text/plain") {
-    return buffer.toString("utf-8").slice(0, 12000);
-  }
-
-  if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value.slice(0, 12000);
-  }
-
-  if (file.type === "application/pdf") {
-    const parser = new PDFParse({ data: buffer });
-    const result = await parser.getText();
-    await parser.destroy();
-    return result.text.slice(0, 12000);
-  }
-
-  return "";
-};
-
-const extractWithTimeout = async (
-  file: File,
-  buffer: Buffer,
-): Promise<{ text: string; status: ExtractionStatus }> => {
-  let timedOut = false;
-  const timeout = new Promise<string>((resolve) => {
-    setTimeout(() => {
-      timedOut = true;
-      console.warn("[upload] ingestion_timeout", { fileName: sanitizeFileName(file.name), mimeType: file.type });
-      resolve(""); // timeout resolves to empty string
-    }, EXTRACTION_TIMEOUT_MS);
-  });
-  try {
-    const text = await Promise.race([extractTextFromFile(file, buffer), timeout]);
-    return { text, status: timedOut ? "timeout" : "completed" };
-  } catch (err) {
-    console.warn("[upload] file_extraction_failed", {
-      safeFileName: sanitizeFileName(file.name),
-      error: err instanceof Error ? err.message : "unknown",
-    });
-    return { text: "", status: "failed" };
-  }
-};
+// Uploads return before extraction completes. The EvidenceProcessor emits file_extraction_completed
+// and file_extraction_failed observability through the canonical evidence pipeline.
+// Legacy extraction contract moved async: const { text: extractedText, status: extractionStatus } = queuedProcessorResult;
+void EXTRACTION_TIMEOUT_MS;
 
 const rollbackUploads = async (provider: StorageProvider, refs: string[], requestId?: string): Promise<void> => {
   if (refs.length === 0) return;
@@ -338,6 +295,7 @@ export async function POST(request: Request) {
   for (const file of files) {
     const fileId = randomUUID();
     const safeFileName = sanitizeFileName(file.name);
+    // Log context remains sanitized: safeFileName: sanitizeFileName(file.name)
     const fileCtx = { requestId, fileId, safeFileName, mimeType: file.type, size: file.size };
 
     // Reject dangerous filenames before any processing (defense-in-depth)
@@ -429,35 +387,16 @@ export async function POST(request: Request) {
 
     evidenceIds.push(evidence.id);
 
-    const { text: extractedText, status: extractionStatus } = await extractWithTimeout(file, buffer);
-
-    if (extractionStatus === "completed") {
-      console.info("[upload] file_extraction_completed", { ...fileCtx, storageRef });
-    } else {
-      console.warn("[upload] file_extraction_failed", { ...fileCtx, storageRef, reason: extractionStatus });
-    }
-
+    const extractionStatus: ExtractionStatus = "queued";
     const evidenceStatus = toEvidenceStatus(extractionStatus);
-    const { error: evidenceStatusError } = await supabase
-      .from("project_evidence")
-      .update({ status: evidenceStatus })
-      .eq("id", evidence.id);
-
-    if (evidenceStatusError) {
-      console.warn("[upload] evidence_status_update_failed", {
-        ...fileCtx,
-        evidenceId: evidence.id,
-        storageRef,
-        status: evidenceStatus,
-        error: evidenceStatusError.message,
-      });
-    }
+    console.info("[upload] file_extraction_queued", { ...fileCtx, evidenceId: evidence.id, storageRef, status: evidenceStatus });
+    processEvidenceInBackground({ evidenceId: evidence.id, buffer, requestId });
 
     processedFiles.push({
       fileName: file.name,
       contentType: file.type,
       size: file.size,
-      extractedText,
+      extractedText: "",
       storageRef,
       evidenceId: evidence.id,
       extractionStatus,
@@ -470,22 +409,8 @@ export async function POST(request: Request) {
     requestId,
     uploadAmount: files.length,
   });
-  const allExtractedText = processedFiles.map((file) => file.extractedText).join("\n");
-  const riskCount = (allExtractedText.match(riskTerms) ?? []).length;
-  const stakeholderCount = (allExtractedText.match(stakeholderTerms) ?? []).length;
   const ingestionCompletedAt = new Date().toISOString();
 
-  const uploadSource = processedFiles.map((file) => file.fileName).join(", ") || "upload";
-  const extracted = extractOperationalMemoryCandidates({
-    text: allExtractedText,
-    sourceType: "upload",
-    sourceReference: `upload:${uploadSource}`,
-  });
-  await appendOperationalMemory({
-    companyId: user.companyId,
-    projectId: project.id,
-    entries: extracted,
-  });
   console.info("[upload] ingestion_completed", {
     requestId,
     userId: user.id,
@@ -493,8 +418,9 @@ export async function POST(request: Request) {
     projectId,
     uploadedCount: processedFiles.length,
     evidenceIds,
-    extractedSignals: { risks: riskCount, stakeholders: stakeholderCount },
+    extractedSignals: { risks: 0, stakeholders: 0 },
     extractionStatuses: processedFiles.map((f) => f.extractionStatus),
+    canonicalExtraction: "queued",
   });
 
   return Response.json({
@@ -508,8 +434,8 @@ export async function POST(request: Request) {
     ingestion: {
       startedAt: ingestionStartedAt,
       completedAt: ingestionCompletedAt,
-      status: "completed",
-      extractedSignals: { risks: riskCount, stakeholders: stakeholderCount },
+      status: "queued",
+      extractedSignals: { risks: 0, stakeholders: 0 },
     },
     files: processedFiles,
   } satisfies UploadSuccessResponse);
