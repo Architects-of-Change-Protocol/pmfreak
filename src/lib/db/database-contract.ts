@@ -183,6 +183,51 @@ export const OPERATIONAL_GOVERNANCE_BRIEF_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof OperationalGovernanceBriefRow>;
 
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// project_discovery
+// Source: 20260605020000_project_discovery.sql
+// Versioned operational discovery generated from canonical project evidence.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProjectDiscoveryRow = {
+  id: string;
+  project_id: string;
+  workspace_id: string;
+  version: number;
+  stakeholders_json: Record<string, unknown>[];
+  dependencies_json: Record<string, unknown>[];
+  risks_json: Record<string, unknown>[];
+  milestones_json: Record<string, unknown>[];
+  deliverables_json: Record<string, unknown>[];
+  assumptions_json: Record<string, unknown>[];
+  unknowns_json: Record<string, unknown>[];
+  confidence_score: number;
+  evidence_count: number;
+  generated_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export const PROJECT_DISCOVERY_SELECTABLE_COLUMNS = [
+  "id",
+  "project_id",
+  "workspace_id",
+  "version",
+  "stakeholders_json",
+  "dependencies_json",
+  "risks_json",
+  "milestones_json",
+  "deliverables_json",
+  "assumptions_json",
+  "unknowns_json",
+  "confidence_score",
+  "evidence_count",
+  "generated_at",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof ProjectDiscoveryRow>;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // raid_items
 // Source: 20260602020000_raid_auto_extraction.sql
