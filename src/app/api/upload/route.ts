@@ -10,6 +10,7 @@ import { enforceRuntimeAuthorization } from "@/aoc/runtime-consumer";
 import { getUploadProvider, type StorageProvider } from "@/lib/storage/upload-provider";
 
 type ExtractionStatus = "completed" | "timeout" | "failed";
+type EvidenceStatus = "uploaded" | "processing" | "processed" | "failed";
 
 type ExtractedFile = {
   fileName: string;
@@ -17,6 +18,7 @@ type ExtractedFile = {
   size: number;
   extractedText: string;
   storageRef: string;
+  evidenceId: string;
   extractionStatus: ExtractionStatus;
 };
 
@@ -26,6 +28,7 @@ type UploadSuccessResponse = {
   projectId: string;
   projectName: string;
   uploadedCount: number;
+  evidenceIds: string[];
   uploadedFileNames: string[];
   ingestion: {
     startedAt: string;
@@ -62,6 +65,8 @@ type UploadErrorResponse = {
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   "text/plain",
 ]);
 
@@ -69,6 +74,8 @@ const ALLOWED_MIME_TYPES = new Set([
 const EXTENSION_TO_MIME: Record<string, string> = {
   ".pdf": "application/pdf",
   ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   ".txt": "text/plain",
 };
 
@@ -98,6 +105,8 @@ const stakeholderTerms = /\b(stakeholder|owner|sponsor|team|vendor|client)\b/gi;
 const MAGIC: Record<string, Uint8Array> = {
   "application/pdf": new Uint8Array([0x25, 0x50, 0x44, 0x46]), // %PDF
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": new Uint8Array([0x50, 0x4b, 0x03, 0x04]), // PK\x03\x04
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": new Uint8Array([0x50, 0x4b, 0x03, 0x04]), // PK\x03\x04
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": new Uint8Array([0x50, 0x4b, 0x03, 0x04]), // PK\x03\x04
 };
 
 const verifyMagicBytes = (declared: string, header: Uint8Array): boolean => {
@@ -134,6 +143,9 @@ const validateExtensionMime = (fileName: string, mimeType: string): boolean => {
 
 const errorResponse = (status: number, error: UploadErrorResponse["error"], code: UploadErrorResponse["code"]) =>
   Response.json({ ok: false, error, code } satisfies UploadErrorResponse, { status });
+
+const toEvidenceStatus = (status: ExtractionStatus): EvidenceStatus =>
+  status === "completed" ? "processed" : "failed";
 
 const extractTextFromFile = async (file: File, buffer: Buffer): Promise<string> => {
   if (file.type === "text/plain") {
@@ -223,7 +235,7 @@ export async function POST(request: Request) {
 
   // Look up project BEFORE governance check (TOCTOU fix: governance runs on a confirmed project)
   const supabase = await createSupabaseServerClient();
-  const { data: project } = await supabase.from("projects").select("id, name").eq("id", projectId).maybeSingle();
+  const { data: project } = await supabase.from("projects").select("id, name, workspace_id").eq("id", projectId).maybeSingle();
   if (!project) {
     console.warn("[upload] upload_failed", { requestId, reason: "invalid_project", projectId });
     return errorResponse(403, "Invalid project context.", "INVALID_PROJECT");
@@ -295,12 +307,16 @@ export async function POST(request: Request) {
   const provider = getUploadProvider();
   const processedFiles: ExtractedFile[] = [];
   const uploadedRefs: string[] = [];
+  const evidenceIds: string[] = [];
   const ingestionStartedAt = new Date().toISOString();
 
-  // Rolls back all storage uploads and cancels the quota reservation atomically.
+  // Rolls back persisted evidence metadata, storage uploads, and the quota reservation atomically.
   // Quota cancel is best-effort and never throws; storage rollback is attempted for all refs.
   const rollbackAndCancel = async (refs: string[]) => {
     await Promise.all([
+      evidenceIds.length > 0
+        ? supabase.from("project_evidence").delete().in("id", evidenceIds)
+        : Promise.resolve(),
       rollbackUploads(provider, refs, requestId),
       cancelUploadQuota({
         reservationId: quotaReservation.reservationId,
@@ -386,6 +402,33 @@ export async function POST(request: Request) {
       return errorResponse(500, `Storage failed for ${safeFileName}.`, "INGESTION_FAILED");
     }
 
+    const { data: evidence, error: evidenceError } = await supabase
+      .from("project_evidence")
+      .insert({
+        workspace_id: project.workspace_id,
+        project_id: project.id,
+        file_name: file.name,
+        file_type: file.name.split(".").pop()?.toUpperCase() || file.type,
+        storage_path: storageRef,
+        uploaded_by: user.id,
+        status: "processing",
+      })
+      .select("id")
+      .single();
+
+    if (evidenceError || !evidence) {
+      await rollbackAndCancel(uploadedRefs);
+      console.error("[upload] evidence_persistence_failed", {
+        ...fileCtx,
+        storageRef,
+        error: evidenceError?.message ?? "unknown",
+      });
+      console.warn("[upload] upload_failed", { requestId, reason: "evidence_persistence_failed" });
+      return errorResponse(500, `Evidence persistence failed for ${safeFileName}.`, "INGESTION_FAILED");
+    }
+
+    evidenceIds.push(evidence.id);
+
     const { text: extractedText, status: extractionStatus } = await extractWithTimeout(file, buffer);
 
     if (extractionStatus === "completed") {
@@ -394,12 +437,29 @@ export async function POST(request: Request) {
       console.warn("[upload] file_extraction_failed", { ...fileCtx, storageRef, reason: extractionStatus });
     }
 
+    const evidenceStatus = toEvidenceStatus(extractionStatus);
+    const { error: evidenceStatusError } = await supabase
+      .from("project_evidence")
+      .update({ status: evidenceStatus })
+      .eq("id", evidence.id);
+
+    if (evidenceStatusError) {
+      console.warn("[upload] evidence_status_update_failed", {
+        ...fileCtx,
+        evidenceId: evidence.id,
+        storageRef,
+        status: evidenceStatus,
+        error: evidenceStatusError.message,
+      });
+    }
+
     processedFiles.push({
       fileName: file.name,
       contentType: file.type,
       size: file.size,
       extractedText,
       storageRef,
+      evidenceId: evidence.id,
       extractionStatus,
     });
   }
@@ -432,6 +492,7 @@ export async function POST(request: Request) {
     companyId: user.companyId,
     projectId,
     uploadedCount: processedFiles.length,
+    evidenceIds,
     extractedSignals: { risks: riskCount, stakeholders: stakeholderCount },
     extractionStatuses: processedFiles.map((f) => f.extractionStatus),
   });
@@ -442,6 +503,7 @@ export async function POST(request: Request) {
     projectId: project.id,
     projectName: project.name.trim(),
     uploadedCount: processedFiles.length,
+    evidenceIds,
     uploadedFileNames: processedFiles.map((file) => file.fileName),
     ingestion: {
       startedAt: ingestionStartedAt,

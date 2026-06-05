@@ -153,6 +153,31 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                 })}
               </div>
             </nav>
+
+            <section className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(34,211,238,0.8)]">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-cyan-200/80">Project Evidence</p>
+              <p className="mt-1 text-[11px] leading-5 text-slate-400">Evidence vault for real project artifacts.</p>
+              <div className="mt-3 space-y-1.5">
+                <Link
+                  href={navHref("/evidence")}
+                  className="block rounded-lg border border-white/[0.06] bg-white/[0.03] px-2.5 py-2 text-[11px] text-cyan-100 transition hover:border-cyan-200/30 hover:bg-cyan-300/[0.08]"
+                >
+                  Upload Documents
+                </Link>
+                <Link
+                  href={navHref("/evidence")}
+                  className="block rounded-lg border border-white/[0.06] bg-white/[0.03] px-2.5 py-2 text-[11px] text-slate-200 transition hover:border-white/20 hover:bg-white/[0.06]"
+                >
+                  View Evidence
+                </Link>
+                <Link
+                  href={navHref("/evidence")}
+                  className="block rounded-lg border border-rose-300/15 bg-rose-300/[0.03] px-2.5 py-2 text-[11px] text-rose-100 transition hover:border-rose-200/30 hover:bg-rose-300/[0.08]"
+                >
+                  Delete Evidence
+                </Link>
+              </div>
+            </section>
           </div>
 
           {/* User block — pinned bottom */}

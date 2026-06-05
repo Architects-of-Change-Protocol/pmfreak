@@ -112,6 +112,8 @@ type RequirementMatrixRow = {
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   "text/plain",
 ]);
 
@@ -863,7 +865,7 @@ export default function UploadPage() {
           </div>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Document Intake & Scope Analyzer</h1>
           <p className="text-sm text-slate-300 md:text-base">
-            Upload PDF, DOCX, or TXT files, preview extraction output, then run AI-powered scope analysis.
+            Upload PDF, DOCX, XLSX, PPTX, or TXT files, preview extraction output, then run AI-powered scope analysis.
           </p>
           {billingState ? (
             <p className="text-xs text-slate-400">
@@ -908,12 +910,12 @@ export default function UploadPage() {
               <input
                 type="file"
                 multiple
-                accept=".pdf,.docx,.txt"
+                accept=".pdf,.docx,.xlsx,.pptx,.txt"
                 onChange={(event) => validateFiles(Array.from(event.target.files ?? []))}
                 className="sr-only"
               />
             </label>
-            <p className="mt-4 text-xs text-slate-400">Accepted: PDF, DOCX, TXT • Max 10 MB per file</p>
+            <p className="mt-4 text-xs text-slate-400">Accepted: PDF, DOCX, XLSX, PPTX, TXT • Max 10 MB per file</p>
           </div>
 
           {validationErrors.length > 0 ? (
