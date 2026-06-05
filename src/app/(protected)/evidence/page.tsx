@@ -13,9 +13,19 @@ type EvidenceItem = {
   storage_path: string;
   uploaded_at: string;
   status: EvidenceStatus;
+  extraction?: EvidenceContentItem;
+};
+
+type EvidenceContentItem = {
+  id: string;
+  evidence_id: string;
+  content_hash: string;
+  word_count: number;
+  processing_duration_ms: number;
 };
 
 type EvidenceListResponse = { evidence?: EvidenceItem[]; error?: string };
+type EvidenceContentResponse = { content?: EvidenceContentItem[]; error?: string };
 type UploadResponse = { ok: true; uploadedCount: number; projectName: string } | { ok: false; error: string };
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -44,6 +54,13 @@ const formatUploadDate = (value: string) =>
     minute: "2-digit",
   }).format(new Date(value));
 
+const formatDuration = (milliseconds: number) => {
+  if (!Number.isFinite(milliseconds)) return "—";
+  return `${(milliseconds / 1000).toFixed(1)} seconds`;
+};
+
+const formatHash = (hash?: string) => hash ? `${hash.slice(0, 8)}...` : "—";
+
 export default function ProjectEvidencePage() {
   const searchParams = useSearchParams();
   const projectId = searchParams.get("projectId")?.trim() ?? "";
@@ -66,12 +83,20 @@ export default function ProjectEvidencePage() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/project-evidence?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
-      const payload = (await response.json()) as EvidenceListResponse;
-      if (!response.ok) {
+      const [evidenceResponse, contentResponse] = await Promise.all([
+        fetch(`/api/project-evidence?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" }),
+        fetch(`/api/project-evidence-content?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" }),
+      ]);
+      const payload = (await evidenceResponse.json()) as EvidenceListResponse;
+      const contentPayload = (await contentResponse.json()) as EvidenceContentResponse;
+      if (!evidenceResponse.ok) {
         throw new Error(payload.error ?? "Unable to load project evidence.");
       }
-      setEvidence(payload.evidence ?? []);
+      if (!contentResponse.ok) {
+        throw new Error(contentPayload.error ?? "Unable to load project evidence content.");
+      }
+      const contentByEvidenceId = new Map((contentPayload.content ?? []).map((item) => [item.evidence_id, item]));
+      setEvidence((payload.evidence ?? []).map((item) => ({ ...item, extraction: contentByEvidenceId.get(item.id) })));
     } catch (loadError) {
       setEvidence([]);
       setError(loadError instanceof Error ? loadError.message : "Unable to load project evidence.");
@@ -233,14 +258,15 @@ export default function ProjectEvidencePage() {
                   <th className="px-4 py-3 font-medium">Type</th>
                   <th className="px-4 py-3 font-medium">Upload Date</th>
                   <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Extraction</th>
                   <th className="px-4 py-3 font-medium">Delete Evidence</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10 text-slate-300">
                 {isLoading ? (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">Loading evidence...</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">Loading evidence...</td></tr>
                 ) : evidence.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No project evidence uploaded yet.</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No project evidence uploaded yet.</td></tr>
                 ) : (
                   evidence.map((item) => (
                     <tr key={item.id} className="bg-slate-950/20">
@@ -249,6 +275,17 @@ export default function ProjectEvidencePage() {
                       <td className="px-4 py-3">{formatUploadDate(item.uploaded_at)}</td>
                       <td className="px-4 py-3">
                         <span className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${statusTone[item.status]}`}>{item.status}</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-400">
+                        {item.extraction ? (
+                          <div className="space-y-1">
+                            <p><span className="text-slate-500">Extracted:</span> {item.extraction.word_count.toLocaleString()} words</p>
+                            <p><span className="text-slate-500">Hash:</span> <code>{formatHash(item.extraction.content_hash)}</code></p>
+                            <p><span className="text-slate-500">Processing Time:</span> {formatDuration(item.extraction.processing_duration_ms)}</p>
+                          </div>
+                        ) : (
+                          <span className="text-slate-500">Awaiting extraction</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <button type="button" onClick={() => void handleDelete(item)} disabled={deletingId === item.id} className="rounded-full border border-rose-300/30 px-3 py-1.5 text-xs text-rose-100 transition hover:bg-rose-300/10 disabled:opacity-50">
