@@ -6,6 +6,16 @@ const BLOCKED_TASK_THRESHOLD = 3;
 const SCHEDULE_VARIANCE_THRESHOLD = 14;
 const CRITICAL_PATH_THRESHOLD = 5;
 
+export function computeExecutiveAttentionReasonCodes(project: PortfolioProjectHealth): string[] {
+  const codes: string[] = [];
+  if (project.healthScore < HEALTH_THRESHOLD) codes.push("low_health");
+  if (project.riskScore > RISK_THRESHOLD) codes.push("high_risk");
+  if (project.blockedTaskCount > BLOCKED_TASK_THRESHOLD) codes.push("blocked_tasks");
+  if (project.scheduleVarianceDays > SCHEDULE_VARIANCE_THRESHOLD) codes.push("schedule_variance");
+  if (project.criticalPathLength > CRITICAL_PATH_THRESHOLD) codes.push("critical_path_density");
+  return codes;
+}
+
 export function computeRequiresExecutiveAttention(project: PortfolioProjectHealth): boolean {
   return (
     project.healthScore < HEALTH_THRESHOLD ||

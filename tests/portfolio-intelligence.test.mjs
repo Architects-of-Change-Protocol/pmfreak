@@ -354,3 +354,176 @@ test("determinism: summary computation: Date.now used only for overdue compariso
 test("determinism: bottlenecks computation has no Math.random() calls", () => {
   assert.doesNotMatch(bottlenecksTs, /Math\.random\(\)/);
 });
+
+// ── H10.1: Deterministic Runtime Hardening ────────────────────────────────────
+
+// A. Context helper
+
+test("H10.1-A: types declares PortfolioEvaluationContext", () => {
+  assert.match(typesTs, /PortfolioEvaluationContext/);
+});
+
+test("H10.1-A: PortfolioEvaluationContext has evaluatedAt field", () => {
+  assert.match(typesTs, /evaluatedAt/);
+});
+
+test("H10.1-A: PortfolioEvaluationContext has nowMs field", () => {
+  assert.match(typesTs, /nowMs/);
+});
+
+test("H10.1-A: createPortfolioEvaluationContext function exists in types", () => {
+  assert.match(typesTs, /createPortfolioEvaluationContext/);
+});
+
+test("H10.1-A: createPortfolioEvaluationContext computes nowMs from evaluatedAt", () => {
+  assert.match(typesTs, /Date\.parse\(evaluatedAt\)/);
+});
+
+test("H10.1-A: isValidISOTimestamp helper exists", () => {
+  assert.match(typesTs, /isValidISOTimestamp/);
+});
+
+// B. Summary determinism
+
+test("H10.1-B: summary accepts context parameter", () => {
+  assert.match(summaryTs, /context/);
+});
+
+test("H10.1-B: summary uses context.evaluatedAt for lastUpdatedAt", () => {
+  assert.match(summaryTs, /ctx\.evaluatedAt/);
+  assert.match(summaryTs, /lastUpdatedAt.*ctx\.evaluatedAt|ctx\.evaluatedAt.*lastUpdatedAt/);
+});
+
+test("H10.1-B: summary does not call Date.now() directly", () => {
+  assert.doesNotMatch(summaryTs, /Date\.now\(\)/);
+});
+
+test("H10.1-B: summary does not call new Date() without argument", () => {
+  assert.doesNotMatch(summaryTs, /new Date\(\)/);
+});
+
+test("H10.1-B: summary passes context.nowMs to health engine", () => {
+  assert.match(summaryTs, /nowMs/);
+  assert.match(summaryTs, /ctx\.nowMs/);
+});
+
+// C. Different context changes time-sensitive results
+
+test("H10.1-C: summary uses nowMs for overdue comparison", () => {
+  assert.match(summaryTs, /nowMs/);
+  assert.match(summaryTs, /due_date/);
+  assert.match(summaryTs, /< nowMs/);
+});
+
+// D. No hidden runtime clock in pure engines
+
+test("H10.1-D: portfolio-summary.ts does not call Date.now()", () => {
+  assert.doesNotMatch(summaryTs, /Date\.now\(\)/);
+});
+
+test("H10.1-D: portfolio-summary.ts does not call new Date() without argument", () => {
+  assert.doesNotMatch(summaryTs, /new Date\(\)/);
+});
+
+test("H10.1-D: portfolio-health.ts does not call Date.now()", () => {
+  assert.doesNotMatch(healthTs, /Date\.now\(\)/);
+});
+
+test("H10.1-D: portfolio-risk.ts does not call Date.now()", () => {
+  assert.doesNotMatch(riskTs, /Date\.now\(\)/);
+});
+
+test("H10.1-D: repository.ts uses Date.now() only for durationMs", () => {
+  assert.match(repositoryTs, /Date\.now\(\)/);
+  assert.match(repositoryTs, /durationMs/);
+});
+
+// E. API
+
+test("H10.1-E: GET /api/portfolio route accepts evaluatedAt query param", () => {
+  assert.match(portfolioRoute, /evaluatedAt/);
+});
+
+test("H10.1-E: GET /api/portfolio returns 400 for invalid evaluatedAt", () => {
+  assert.match(portfolioRoute, /400/);
+  assert.match(portfolioRoute, /validation_failed/);
+});
+
+test("H10.1-E: GET /api/portfolio response includes evaluatedAt field", () => {
+  assert.match(portfolioRoute, /evaluatedAt.*summary\.lastUpdatedAt|evaluatedAt.*result\.data/);
+});
+
+test("H10.1-E: POST /api/portfolio/refresh accepts evaluatedAt in body", () => {
+  assert.match(refreshRoute, /evaluatedAt/);
+});
+
+test("H10.1-E: POST /api/portfolio/refresh returns 400 for invalid evaluatedAt", () => {
+  assert.match(refreshRoute, /400/);
+  assert.match(refreshRoute, /validation_failed/);
+});
+
+test("H10.1-E: POST /api/portfolio/refresh response includes evaluatedAt field", () => {
+  assert.match(refreshRoute, /evaluatedAt.*summary\.lastUpdatedAt|evaluatedAt.*result\.data/);
+});
+
+// F. Repository
+
+test("H10.1-F: repository accepts evaluatedAt option", () => {
+  assert.match(repositoryTs, /evaluatedAt/);
+});
+
+test("H10.1-F: repository logs evaluatedAt in portfolio.started", () => {
+  assert.match(repositoryTs, /portfolio\.started.*evaluatedAt|evaluatedAt.*portfolio\.started/s);
+});
+
+test("H10.1-F: repository logs evaluatedAt in portfolio.completed", () => {
+  assert.match(repositoryTs, /portfolio\.completed.*evaluatedAt|evaluatedAt.*portfolio\.completed/s);
+});
+
+test("H10.1-F: repository passes context to computePortfolioIntelligence", () => {
+  assert.match(repositoryTs, /computePortfolioIntelligence\(bundles, context\)/);
+});
+
+test("H10.1-F: repository creates context via createPortfolioEvaluationContext", () => {
+  assert.match(repositoryTs, /createPortfolioEvaluationContext/);
+});
+
+// G. UI
+
+test("H10.1-G: Portfolio Overview Panel shows snapshot evaluated at", () => {
+  assert.match(overviewPanel, /Snapshot evaluated at/);
+});
+
+test("H10.1-G: Portfolio Overview Panel displays lastUpdatedAt", () => {
+  assert.match(overviewPanel, /lastUpdatedAt/);
+});
+
+// Prioritization: reason codes
+
+test("H10.1: PortfolioProjectHealth has executiveAttentionReasonCodes", () => {
+  assert.match(typesTs, /executiveAttentionReasonCodes/);
+});
+
+test("H10.1: prioritization exports computeExecutiveAttentionReasonCodes", () => {
+  assert.match(prioritizationTs, /export function computeExecutiveAttentionReasonCodes/);
+});
+
+test("H10.1: reason codes include low_health", () => {
+  assert.match(prioritizationTs, /low_health/);
+});
+
+test("H10.1: reason codes include high_risk", () => {
+  assert.match(prioritizationTs, /high_risk/);
+});
+
+test("H10.1: reason codes include blocked_tasks", () => {
+  assert.match(prioritizationTs, /blocked_tasks/);
+});
+
+test("H10.1: reason codes include schedule_variance", () => {
+  assert.match(prioritizationTs, /schedule_variance/);
+});
+
+test("H10.1: reason codes include critical_path_density", () => {
+  assert.match(prioritizationTs, /critical_path_density/);
+});

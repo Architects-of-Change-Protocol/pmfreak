@@ -1,10 +1,11 @@
 import type { ExecutionTaskRow, ProjectMilestoneRow, RaidItemRow, ExecutionTaskDependencyRow, ProjectRow } from "@/lib/db/database-contract";
-import type { PortfolioSummary, PortfolioProjectHealth, PortfolioIntelligence } from "./types";
+import type { PortfolioSummary, PortfolioProjectHealth, PortfolioIntelligence, PortfolioEvaluationContext } from "./types";
+import { createPortfolioEvaluationContext } from "./types";
 import { computeProjectHealthScore } from "./portfolio-health";
 import { computeProjectRiskScore, computeScheduleVarianceDays } from "./portfolio-risk";
 import { computeCrossProjectDependencies, buildCrossProjectDependencyCountMap, type TaskProjectMap } from "./portfolio-dependencies";
 import { computePortfolioBottlenecks } from "./portfolio-bottlenecks";
-import { computeRequiresExecutiveAttention, computeExecutiveAttentionQueue } from "./portfolio-prioritization";
+import { computeRequiresExecutiveAttention, computeExecutiveAttentionQueue, computeExecutiveAttentionReasonCodes } from "./portfolio-prioritization";
 
 export type ProjectDataBundle = {
   project: ProjectRow;
@@ -14,7 +15,13 @@ export type ProjectDataBundle = {
   dependencies: ExecutionTaskDependencyRow[];
 };
 
-export function computePortfolioIntelligence(bundles: ProjectDataBundle[]): PortfolioIntelligence {
+export function computePortfolioIntelligence(
+  bundles: ProjectDataBundle[],
+  context?: PortfolioEvaluationContext,
+): PortfolioIntelligence {
+  const ctx = context ?? createPortfolioEvaluationContext();
+  const nowMs = ctx.nowMs;
+
   const allTasks: ExecutionTaskRow[] = [];
   const allMilestones: ProjectMilestoneRow[] = [];
   const allDependencies: ExecutionTaskDependencyRow[] = [];
@@ -34,8 +41,6 @@ export function computePortfolioIntelligence(bundles: ProjectDataBundle[]): Port
 
   const dependencyRisks = computeCrossProjectDependencies(allDependencies, taskProjectMap);
   const crossProjectCountMap = buildCrossProjectDependencyCountMap(dependencyRisks);
-
-  const nowMs = Date.now();
 
   const projects: PortfolioProjectHealth[] = bundles.map((b) => {
     const activeTasks = b.tasks.filter((t) => t.status !== "cancelled");
@@ -84,9 +89,11 @@ export function computePortfolioIntelligence(bundles: ProjectDataBundle[]): Port
       unresolvedRaidCount,
       scheduleVarianceDays,
       requiresExecutiveAttention: false,
+      executiveAttentionReasonCodes: [],
     };
 
     projectHealth.requiresExecutiveAttention = computeRequiresExecutiveAttention(projectHealth);
+    projectHealth.executiveAttentionReasonCodes = computeExecutiveAttentionReasonCodes(projectHealth);
     return projectHealth;
   });
 
@@ -128,7 +135,7 @@ export function computePortfolioIntelligence(bundles: ProjectDataBundle[]): Port
       (s, b) => s + b.raidItems.filter((r) => r.status === "open" || r.status === "monitoring").length,
       0,
     ),
-    lastUpdatedAt: new Date().toISOString(),
+    lastUpdatedAt: ctx.evaluatedAt,
   };
 
   return { summary, projects, bottlenecks, dependencyRisks, executiveAttention };

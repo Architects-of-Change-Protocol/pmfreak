@@ -14,6 +14,7 @@ import {
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
 import { AccessDeniedError } from "@/lib/security/access-guards";
 import { computePortfolioIntelligence, type ProjectDataBundle } from "./portfolio-summary";
+import { createPortfolioEvaluationContext } from "./types";
 import type { PortfolioIntelligence } from "./types";
 
 const PROJECT_SELECT = PROJECT_SELECTABLE_COLUMNS.join(",");
@@ -24,6 +25,7 @@ const DEP_SELECT = EXECUTION_TASK_DEPENDENCY_SELECTABLE_COLUMNS.join(",");
 
 export async function getPortfolioIntelligence(
   workspaceId: string,
+  options?: { evaluatedAt?: string },
 ): Promise<
   { ok: true; data: PortfolioIntelligence } | { ok: false; error: string; failureClass: string }
 > {
@@ -38,9 +40,14 @@ export async function getPortfolioIntelligence(
     return { ok: false, error: "Authorization failed.", failureClass: "unauthenticated" };
   }
 
+  const context = createPortfolioEvaluationContext({
+    evaluatedAt: options?.evaluatedAt,
+    workspaceId,
+  });
+
   const supabase = await createSupabaseServerClient();
 
-  console.log(`[portfolio.started] workspaceId=${workspaceId}`);
+  console.log(`[portfolio.started] workspaceId=${workspaceId} evaluatedAt=${context.evaluatedAt}`);
 
   const projectsResult = await supabase
     .from("projects")
@@ -49,15 +56,15 @@ export async function getPortfolioIntelligence(
     .eq("status", "active");
 
   if (projectsResult.error) {
-    console.error(`[portfolio.failed] workspaceId=${workspaceId} error=${projectsResult.error.message}`);
+    console.error(`[portfolio.failed] workspaceId=${workspaceId} evaluatedAt=${context.evaluatedAt} error=${projectsResult.error.message}`);
     return { ok: false, error: "Failed to load projects.", failureClass: "persistence_failed" };
   }
 
   const projects = (projectsResult.data ?? []) as ProjectRow[];
 
   if (projects.length === 0) {
-    const empty = computePortfolioIntelligence([]);
-    console.log(`[portfolio.completed] workspaceId=${workspaceId} projectCount=0 durationMs=${Date.now() - startMs}`);
+    const empty = computePortfolioIntelligence([], context);
+    console.log(`[portfolio.completed] workspaceId=${workspaceId} evaluatedAt=${context.evaluatedAt} projectCount=0 durationMs=${Date.now() - startMs}`);
     return { ok: true, data: empty };
   }
 
@@ -81,7 +88,7 @@ export async function getPortfolioIntelligence(
       raidResult.error?.message ??
       depsResult.error?.message ??
       "Unknown error";
-    console.error(`[portfolio.failed] workspaceId=${workspaceId} error=${msg}`);
+    console.error(`[portfolio.failed] workspaceId=${workspaceId} evaluatedAt=${context.evaluatedAt} error=${msg}`);
     return { ok: false, error: "Failed to load portfolio data.", failureClass: "persistence_failed" };
   }
 
@@ -98,10 +105,10 @@ export async function getPortfolioIntelligence(
     dependencies: allDeps.filter((d) => d.project_id === project.id),
   }));
 
-  const data = computePortfolioIntelligence(bundles);
+  const data = computePortfolioIntelligence(bundles, context);
 
   console.log(
-    `[portfolio.completed] workspaceId=${workspaceId} projectCount=${projects.length} durationMs=${Date.now() - startMs}`,
+    `[portfolio.completed] workspaceId=${workspaceId} evaluatedAt=${context.evaluatedAt} projectCount=${projects.length} durationMs=${Date.now() - startMs}`,
   );
 
   return { ok: true, data };

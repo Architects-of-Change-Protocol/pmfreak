@@ -37,6 +37,8 @@ export type PortfolioProjectHealth = {
   scheduleVarianceDays: number;
 
   requiresExecutiveAttention: boolean;
+
+  executiveAttentionReasonCodes: string[];
 };
 
 export type DependencyRiskLevel = "low" | "medium" | "high" | "critical";
@@ -69,3 +71,30 @@ export type PortfolioIntelligence = {
   dependencyRisks: PortfolioDependencyRisk[];
   executiveAttention: PortfolioProjectHealth[];
 };
+
+export type PortfolioEvaluationContext = {
+  evaluatedAt: string;
+  nowMs: number;
+  workspaceId?: string;
+  requestedByUserId?: string;
+};
+
+export function createPortfolioEvaluationContext(input?: {
+  evaluatedAt?: string;
+  workspaceId?: string;
+  requestedByUserId?: string;
+}): PortfolioEvaluationContext {
+  const evaluatedAt = input?.evaluatedAt ?? new Date().toISOString();
+  const nowMs = Date.parse(evaluatedAt);
+  return {
+    evaluatedAt,
+    nowMs,
+    workspaceId: input?.workspaceId,
+    requestedByUserId: input?.requestedByUserId,
+  };
+}
+
+export function isValidISOTimestamp(value: string): boolean {
+  const ms = Date.parse(value);
+  return !isNaN(ms);
+}

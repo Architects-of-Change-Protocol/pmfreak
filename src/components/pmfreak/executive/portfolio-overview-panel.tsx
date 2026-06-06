@@ -42,6 +42,9 @@ export function PortfolioOverviewPanel({
       <header>
         <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-purple-400">Portfolio Intelligence</p>
         <h2 className="mt-1 text-xl font-semibold text-slate-100">Portfolio Overview</h2>
+        <p className="mt-0.5 text-[10px] text-zinc-600" data-testid="snapshot-evaluated-at">
+          Snapshot evaluated at {summary.lastUpdatedAt}
+        </p>
       </header>
 
       {/* Portfolio Health & Risk */}
