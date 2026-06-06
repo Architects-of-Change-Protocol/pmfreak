@@ -8,11 +8,11 @@
     "start": "next start",
     "lint": "npm run lint:aoc-boundaries && eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/*.test.mjs",
+    "test": "node --test tests/*.test.mjs tests/*.test.ts",
     "lint:aoc-boundaries": "node scripts/lint-aoc-boundaries.mjs",
     "check:aoc-packages": "node scripts/check-aoc-packages.mjs",
     "check:aoc-deps": "node scripts/check-aoc-dependency-direction.mjs",
-    "check:aoc-boundaries": "npm run lint:aoc-boundaries && npm run check:aoc-packages && npm run check:aoc-deps",
+    "check:aoc-boundaries": "npm run lint:aoc-boundaries && npm run check:aoc-packages && npm run check:aoc-deps && npm run check:protocol-consumers",
     "check:no-local-auth-bypass": "node scripts/check-no-local-authority-bypass.mjs",
     "build:aoc:protocol": "npm --prefix src/aoc/protocol run build",
     "build:aoc:enterprise": "npm --prefix src/aoc/enterprise run build",
@@ -70,7 +70,8 @@
     "check:dashboard-runtime-integration": "npx tsx scripts/check-dashboard-runtime-integration.mjs",
     "check:dashboard-api-runtime": "npx tsx scripts/check-dashboard-api-runtime.mjs",
     "check:dashboard-consumption-runtime": "npx tsx scripts/check-dashboard-consumption-runtime.mjs",
-    "check:persistent-snapshot-store-runtime": "npx tsx scripts/check-persistent-snapshot-store-runtime.mjs"
+    "check:persistent-snapshot-store-runtime": "npx tsx scripts/check-persistent-snapshot-store-runtime.mjs",
+    "check:protocol-consumers": "node --test tests/consumer-boundary-audit.test.ts"
   },
   "dependencies": {
     "@aoc-enterprise/runtime": "file:src/aoc/enterprise",
