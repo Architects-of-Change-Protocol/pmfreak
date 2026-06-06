@@ -382,3 +382,61 @@ test("shell does not mention Gantt or Critical Path", () => {
   assert.doesNotMatch(shell, /[Gg]antt/);
   assert.doesNotMatch(shell, /[Cc]ritical [Pp]ath/);
 });
+
+// ── Schedule Health: Hardening (H8.5) ─────────────────────────────────────────
+
+// A. Proposed dependencies must not appear in the blocker filter
+test("health engine only uses active dependencies as blockers (not proposed)", () => {
+  // The filter must use d.status === "active" exclusively — proposed is intentionally excluded.
+  assert.match(healthTs, /\.filter\(d => d\.status === "active"\)/);
+  assert.doesNotMatch(healthTs, /d\.status === "proposed"/);
+});
+
+// B. Active dependency blocker path still present
+test("health engine still uses blockedTaskIds to compute at-risk tasks", () => {
+  assert.match(healthTs, /blockedTaskIds/);
+  assert.match(healthTs, /blockedTaskIds\.has\(t\.id\)/);
+});
+
+// C. Double counting prevention — problem tasks stored in ID sets before counting
+test("health engine tracks delayed tasks as a Set of IDs (delayedTaskIds)", () => {
+  assert.match(healthTs, /delayedTaskIds/);
+  assert.match(healthTs, /new Set/);
+});
+
+test("health engine tracks at-risk tasks as a Set of IDs (atRiskTaskIds)", () => {
+  assert.match(healthTs, /atRiskTaskIds/);
+});
+
+test("health engine builds uniqueProblemTaskIds as union of problem sets", () => {
+  assert.match(healthTs, /uniqueProblemTaskIds/);
+  // Must spread multiple sets into the union
+  assert.match(healthTs, /\.\.\.(delayedTaskIds|atRiskTaskIds|overdueTaskIds)/);
+});
+
+test("health engine passes uniqueProblemTaskCount to computeConfidence", () => {
+  assert.match(healthTs, /uniqueProblemTaskCount/);
+});
+
+// D. Confidence formula is explicit and weighted
+test("confidence formula uses 45-point task completeness component", () => {
+  assert.match(healthTs, /45 \*/);
+});
+
+test("confidence formula uses 25-point milestone completeness component", () => {
+  assert.match(healthTs, /25 \*/);
+});
+
+test("confidence formula uses 30-point execution health component", () => {
+  assert.match(healthTs, /30 \*/);
+});
+
+test("confidence formula references uniqueProblemRate", () => {
+  assert.match(healthTs, /uniqueProblemRate/);
+});
+
+test("confidence result is clamped 0-100 and rounded", () => {
+  assert.match(healthTs, /Math\.round/);
+  assert.match(healthTs, /Math\.max\(0/);
+  assert.match(healthTs, /Math\.min\(100/);
+});
