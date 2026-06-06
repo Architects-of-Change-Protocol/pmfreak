@@ -40,5 +40,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     criticalMilestones: result.data.criticalMilestones,
     path: result.data.path,
     topVarianceTasks: result.data.topVarianceTasks,
+    criticalPaths: result.data.criticalPaths,
+    criticalSegments: result.data.criticalSegments,
+    branchPoints: result.data.branchPoints,
+    topology: result.data.topology,
   });
 }

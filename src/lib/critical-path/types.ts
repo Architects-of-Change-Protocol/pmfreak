@@ -61,11 +61,38 @@ export type ProjectForecast = {
   varianceDays: number;
 };
 
+export type CriticalPathSegment = {
+  id: string;
+  taskIds: string[];
+  length: number;
+  startTaskId: string;
+  endTaskId: string;
+  isCompletePath: boolean;
+};
+
+export type CriticalPathBranchPoint = {
+  taskId: string;
+  outgoingCriticalSuccessors: string[];
+  incomingCriticalPredecessors: string[];
+  branchType: "split" | "merge" | "split_merge";
+};
+
+export type CriticalPathTopology = {
+  paths: CriticalPathSegment[];
+  branchPoints: CriticalPathBranchPoint[];
+  criticalComponentCount: number;
+  hasMultipleCriticalPaths: boolean;
+  hasCriticalBranches: boolean;
+};
+
 export type CriticalPathResult = {
   projectFinish: number;
   criticalTaskIds: string[];
   criticalPath: string[];
   criticalLength: number;
+  criticalPaths: CriticalPathSegment[];
+  criticalSegments: CriticalPathSegment[];
+  topology: CriticalPathTopology;
 };
 
 export type CriticalPathSummary = {
@@ -75,6 +102,10 @@ export type CriticalPathSummary = {
   projectDurationDays: number;
   forecastVarianceDays: number;
   scheduleConfidence: number;
+  criticalPathCount: number;
+  criticalComponentCount: number;
+  hasMultipleCriticalPaths: boolean;
+  hasCriticalBranches: boolean;
 };
 
 export type GraphValidationResult = {
