@@ -602,6 +602,16 @@ export type ExecutionTaskRow = {
   milestone_id: string | null;
   schedule_status: TaskScheduleStatus;
   schedule_confidence: number | null;
+  // Critical path fields (added H9)
+  is_critical: boolean;
+  early_start: number | null;
+  early_finish: number | null;
+  late_start: number | null;
+  late_finish: number | null;
+  total_float: number | null;
+  free_float: number | null;
+  variance_days: number | null;
+  criticality_score: number | null;
 };
 
 export const EXECUTION_TASK_SELECTABLE_COLUMNS = [
@@ -637,6 +647,15 @@ export const EXECUTION_TASK_SELECTABLE_COLUMNS = [
   "milestone_id",
   "schedule_status",
   "schedule_confidence",
+  "is_critical",
+  "early_start",
+  "early_finish",
+  "late_start",
+  "late_finish",
+  "total_float",
+  "free_float",
+  "variance_days",
+  "criticality_score",
 ] as const satisfies ReadonlyArray<keyof ExecutionTaskRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -795,4 +814,4 @@ export const EXECUTION_TASK_DEPENDENCY_SELECTABLE_COLUMNS = [
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-05-execution-tasks-milestones-schedule-foundation-v1" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-05-execution-tasks-critical-path-schedule-variance-v1" as const;

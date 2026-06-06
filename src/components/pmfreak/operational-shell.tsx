@@ -162,6 +162,16 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
   const [milestoneFormDate, setMilestoneFormDate] = useState("");
   const [milestoneActing, setMilestoneActing] = useState(false);
   const [milestoneError, setMilestoneError] = useState<string | null>(null);
+  const [criticalPathData, setCriticalPathData] = useState<{
+    summary: { totalTasks: number; criticalTaskCount: number; criticalMilestoneCount: number; projectDurationDays: number; forecastVarianceDays: number; scheduleConfidence: number };
+    forecast: { plannedFinish: string | null; forecastFinish: string | null; varianceDays: number };
+    criticalTasks: Array<{ taskId: string; title: string; totalFloat: number; freeFloat: number; earlyStart: number; earlyFinish: number; lateStart: number; lateFinish: number; criticalityScore: number; varianceDays: number }>;
+    criticalMilestones: Array<{ milestoneId: string; title: string; targetDate: string | null; forecastDate: string | null; varianceDays: number; isCritical: boolean; isAtRisk: boolean; isDelayed: boolean }>;
+    path: string[];
+    topVarianceTasks: Array<{ taskId: string; title: string; plannedFinish: string | null; forecastFinish: string | null; varianceDays: number }>;
+  } | null>(null);
+  const [cpMaterializeLoading, setCpMaterializeLoading] = useState(false);
+  const [cpMaterializeError, setCpMaterializeError] = useState<string | null>(null);
   const initializedRef = useRef(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string>(() => {
@@ -463,6 +473,22 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
     return () => { active = false; };
   }, [projectId]);
 
+  useEffect(() => {
+    let active = true;
+    async function loadCriticalPath() {
+      if (!projectId) { setCriticalPathData(null); return; }
+      try {
+        const res = await fetch(`/api/critical-path?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+        const data = (await res.json()) as typeof criticalPathData & { ok?: boolean };
+        if (active && res.ok && data) setCriticalPathData(data);
+      } catch {
+        if (active) setCriticalPathData(null);
+      }
+    }
+    void loadCriticalPath();
+    return () => { active = false; };
+  }, [projectId]);
+
   const refreshSchedule = async () => {
     if (!projectId) return;
     try {
@@ -474,6 +500,38 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
         setScheduleHealth(data.health ?? null);
       }
     } catch { /* silent */ }
+  };
+
+  const refreshCriticalPath = async () => {
+    if (!projectId) { setCriticalPathData(null); return; }
+    try {
+      const res = await fetch(`/api/critical-path?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+      const data = (await res.json()) as typeof criticalPathData & { ok?: boolean };
+      if (res.ok && data) setCriticalPathData(data);
+    } catch { /* silent */ }
+  };
+
+  const handleMaterializeCriticalPath = async () => {
+    if (!projectId) return;
+    setCpMaterializeLoading(true);
+    setCpMaterializeError(null);
+    try {
+      const res = await fetch("/api/critical-path/materialize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setCpMaterializeError(data.error ?? "Computation failed.");
+      } else {
+        await refreshCriticalPath();
+      }
+    } catch {
+      setCpMaterializeError("Network error.");
+    } finally {
+      setCpMaterializeLoading(false);
+    }
   };
 
   const handleCreateMilestone = async () => {
@@ -1537,6 +1595,163 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                 {milestoneError && !showMilestoneForm && (
                   <p className="mt-2 text-[9px] text-rose-400">{milestoneError}</p>
                 )}
+              </section>
+            )}
+
+            {/* Critical Path Panel */}
+            <section className="rounded-2xl border border-violet-300/15 bg-violet-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(167,139,250,0.5)]" data-testid="critical-path-panel">
+              <div className="flex items-center justify-between">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-violet-200/80">Critical Path</p>
+                <button
+                  disabled={cpMaterializeLoading || !projectId}
+                  onClick={() => void handleMaterializeCriticalPath()}
+                  className="rounded border border-violet-300/20 bg-violet-300/[0.07] px-2 py-0.5 text-[9px] text-violet-300 hover:bg-violet-300/[0.15] disabled:opacity-40"
+                >
+                  {cpMaterializeLoading ? "Computing…" : "Compute"}
+                </button>
+              </div>
+              {cpMaterializeError && <p className="mt-1 text-[9px] text-rose-400">{cpMaterializeError}</p>}
+
+              {criticalPathData ? (
+                <>
+                  {/* Summary */}
+                  <div className="mt-2 space-y-0.5 text-[10px] text-slate-400">
+                    <div className="flex items-center justify-between">
+                      <span>Critical Tasks</span>
+                      <span className={criticalPathData.summary.criticalTaskCount > 0 ? "text-rose-400" : "text-slate-500"}>{criticalPathData.summary.criticalTaskCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Critical Milestones</span>
+                      <span className={criticalPathData.summary.criticalMilestoneCount > 0 ? "text-orange-400/80" : "text-slate-500"}>{criticalPathData.summary.criticalMilestoneCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Project Duration</span>
+                      <span className="text-violet-300/80">{criticalPathData.summary.projectDurationDays}d</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Forecast Variance</span>
+                      <span className={
+                        criticalPathData.summary.forecastVarianceDays > 0 ? "text-rose-400" :
+                        criticalPathData.summary.forecastVarianceDays < 0 ? "text-emerald-400" : "text-slate-500"
+                      }>
+                        {criticalPathData.summary.forecastVarianceDays > 0 ? "+" : ""}{criticalPathData.summary.forecastVarianceDays}d
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between border-t border-white/[0.06] pt-1">
+                      <span>Schedule Confidence</span>
+                      <span className={
+                        criticalPathData.summary.scheduleConfidence >= 70 ? "text-emerald-300/80" :
+                        criticalPathData.summary.scheduleConfidence >= 40 ? "text-amber-400/80" : "text-rose-400"
+                      }>{criticalPathData.summary.scheduleConfidence}%</span>
+                    </div>
+                  </div>
+
+                  {/* Forecast */}
+                  {(criticalPathData.forecast.plannedFinish || criticalPathData.forecast.forecastFinish) && (
+                    <div className="mt-2 rounded-lg border border-violet-300/10 bg-violet-300/[0.04] p-2 text-[10px]">
+                      {criticalPathData.forecast.plannedFinish && (
+                        <p className="text-slate-500">Planned: {new Date(criticalPathData.forecast.plannedFinish).toLocaleDateString()}</p>
+                      )}
+                      {criticalPathData.forecast.forecastFinish && (
+                        <p className="text-slate-400">Forecast: {new Date(criticalPathData.forecast.forecastFinish).toLocaleDateString()}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Critical Task Cards */}
+                  {criticalPathData.criticalTasks.length > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500">Critical Tasks</p>
+                      {criticalPathData.criticalTasks.slice(0, 5).map(task => (
+                        <div key={task.taskId} className="rounded-lg border border-rose-400/15 bg-rose-400/[0.04] p-2">
+                          <div className="flex items-start justify-between gap-1">
+                            <p className="truncate text-[10px] font-medium text-slate-200 leading-tight">{task.title}</p>
+                            <div className="flex shrink-0 gap-1">
+                              <span className="rounded-sm border border-rose-400/25 bg-rose-400/[0.08] px-1 py-0.5 text-[8px] text-rose-300">CRITICAL</span>
+                              {task.varianceDays > 0 && (
+                                <span className="rounded-sm border border-orange-400/25 bg-orange-400/[0.08] px-1 py-0.5 text-[8px] text-orange-300">DELAYED</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-0.5 text-[9px] text-slate-500">
+                            <span>ES: {task.earlyStart}d</span>
+                            <span>EF: {task.earlyFinish}d</span>
+                            <span>LS: {task.lateStart}d</span>
+                            <span>LF: {task.lateFinish}d</span>
+                            <span>Float: {task.totalFloat}d</span>
+                            {task.varianceDays !== 0 && (
+                              <span className={task.varianceDays > 0 ? "text-orange-400/80" : "text-emerald-400/80"}>
+                                Var: {task.varianceDays > 0 ? "+" : ""}{task.varianceDays}d
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="mt-2 text-[10px] text-slate-600">Run computation to see critical path analysis.</p>
+              )}
+            </section>
+
+            {/* Variance Panel */}
+            {criticalPathData && criticalPathData.topVarianceTasks.length > 0 && (
+              <section className="rounded-2xl border border-orange-300/15 bg-orange-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(251,146,60,0.4)]" data-testid="variance-panel">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-orange-200/80">Schedule Variance</p>
+                <p className="mt-1 text-[11px] leading-5 text-slate-400">Top delayed tasks by forecast vs planned finish.</p>
+                <div className="mt-2 space-y-1.5">
+                  {criticalPathData.topVarianceTasks.map(task => (
+                    <div key={task.taskId} className="rounded border border-white/[0.05] bg-white/[0.02] p-1.5">
+                      <p className="truncate text-[9px] font-medium text-slate-300">{task.title}</p>
+                      <div className="mt-0.5 flex items-center justify-between text-[9px]">
+                        <div className="space-y-0.5 text-slate-600">
+                          {task.plannedFinish && <p>Plan: {new Date(task.plannedFinish).toLocaleDateString()}</p>}
+                          {task.forecastFinish && <p>Fcst: {new Date(task.forecastFinish).toLocaleDateString()}</p>}
+                        </div>
+                        <span className={`rounded-sm border px-1.5 py-0.5 text-[8px] ${
+                          task.varianceDays > 0
+                            ? "border-rose-400/25 bg-rose-400/[0.08] text-rose-300"
+                            : "border-emerald-400/25 bg-emerald-400/[0.08] text-emerald-300"
+                        }`}>
+                          {task.varianceDays > 0 ? "+" : ""}{task.varianceDays}d
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Critical Milestones Panel */}
+            {criticalPathData && criticalPathData.criticalMilestones.some(m => m.isCritical || m.isAtRisk || m.isDelayed) && (
+              <section className="rounded-2xl border border-rose-300/15 bg-rose-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(251,113,133,0.4)]" data-testid="critical-milestones-panel">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-rose-200/80">Critical Milestones</p>
+                <div className="mt-2 space-y-1.5">
+                  {criticalPathData.criticalMilestones
+                    .filter(m => m.isCritical || m.isAtRisk || m.isDelayed)
+                    .map(m => (
+                      <div key={m.milestoneId} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2">
+                        <div className="flex items-start justify-between gap-1">
+                          <p className="text-[10px] font-medium text-slate-200 leading-tight">{m.title}</p>
+                          <div className="flex shrink-0 flex-wrap gap-1">
+                            {m.isCritical && <span className="rounded-sm border border-rose-400/25 bg-rose-400/[0.08] px-1 py-0.5 text-[8px] text-rose-300">Critical</span>}
+                            {m.isDelayed && <span className="rounded-sm border border-orange-400/25 bg-orange-400/[0.08] px-1 py-0.5 text-[8px] text-orange-300">Delayed</span>}
+                            {m.isAtRisk && !m.isDelayed && <span className="rounded-sm border border-amber-400/25 bg-amber-400/[0.08] px-1 py-0.5 text-[8px] text-amber-300">At Risk</span>}
+                          </div>
+                        </div>
+                        <div className="mt-0.5 space-y-0.5 text-[9px] text-slate-500">
+                          {m.targetDate && <p>Target: {new Date(m.targetDate).toLocaleDateString()}</p>}
+                          {m.forecastDate && <p>Forecast: {new Date(m.forecastDate).toLocaleDateString()}</p>}
+                          {m.varianceDays !== 0 && (
+                            <p className={m.varianceDays > 0 ? "text-orange-400/80" : "text-emerald-400/80"}>
+                              Variance: {m.varianceDays > 0 ? "+" : ""}{m.varianceDays}d
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
               </section>
             )}
 

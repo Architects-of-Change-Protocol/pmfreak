@@ -378,9 +378,8 @@ test("shell loads schedule from /api/schedule", () => {
   assert.match(shell, /\/api\/schedule/);
 });
 
-test("shell does not mention Gantt or Critical Path", () => {
+test("shell does not mention Gantt (H9 adds Critical Path panel)", () => {
   assert.doesNotMatch(shell, /[Gg]antt/);
-  assert.doesNotMatch(shell, /[Cc]ritical [Pp]ath/);
 });
 
 // ── Schedule Health: Hardening (H8.5) ─────────────────────────────────────────
