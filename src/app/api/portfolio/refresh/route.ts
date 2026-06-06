@@ -3,7 +3,7 @@ import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
 import { AccessDeniedError } from "@/lib/security/access-guards";
 import { getPortfolioIntelligence } from "@/lib/portfolio/repository";
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   let user;
   try {
     const ctx = await requireAuthenticatedUser();
@@ -15,8 +15,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: "Authorization failed." }, { status: 401 });
   }
 
-  const { searchParams } = new URL(request.url);
-  const workspaceId = searchParams.get("workspaceId") ?? user.companyId;
+  let workspaceId = user.companyId;
+  try {
+    const body = await request.json().catch(() => ({}));
+    if (typeof body.workspaceId === "string" && body.workspaceId.trim()) {
+      workspaceId = body.workspaceId.trim();
+    }
+  } catch {
+    // use default
+  }
 
   const result = await getPortfolioIntelligence(workspaceId);
 

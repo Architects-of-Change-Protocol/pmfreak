@@ -175,6 +175,66 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
   } | null>(null);
   const [cpMaterializeLoading, setCpMaterializeLoading] = useState(false);
   const [cpMaterializeError, setCpMaterializeError] = useState<string | null>(null);
+
+  type PortfolioData = {
+    summary: {
+      projectCount: number;
+      activeProjectCount: number;
+      blockedProjectCount: number;
+      delayedProjectCount: number;
+      criticalProjectCount: number;
+      portfolioHealthScore: number;
+      portfolioRiskScore: number;
+      criticalPathProjectCount: number;
+      overdueTaskCount: number;
+      blockedTaskCount: number;
+      unresolvedRaidCount: number;
+      lastUpdatedAt: string;
+    };
+    projects: Array<{
+      projectId: string;
+      projectName: string;
+      healthScore: number;
+      riskScore: number;
+      blockedTaskCount: number;
+      overdueTaskCount: number;
+      criticalTaskCount: number;
+      criticalPathLength: number;
+      unresolvedRaidCount: number;
+      scheduleVarianceDays: number;
+      requiresExecutiveAttention: boolean;
+    }>;
+    bottlenecks: Array<{
+      entityType: string;
+      entityId: string;
+      entityLabel: string;
+      blockingCount: number;
+      impactScore: number;
+    }>;
+    dependencyRisks: Array<{
+      sourceProjectId: string;
+      targetProjectId: string;
+      dependencyCount: number;
+      riskLevel: string;
+    }>;
+    executiveAttention: Array<{
+      projectId: string;
+      projectName: string;
+      healthScore: number;
+      riskScore: number;
+      blockedTaskCount: number;
+      overdueTaskCount: number;
+      criticalTaskCount: number;
+      criticalPathLength: number;
+      unresolvedRaidCount: number;
+      scheduleVarianceDays: number;
+      requiresExecutiveAttention: boolean;
+    }>;
+  };
+  const [portfolioData, setPortfolioData] = useState<PortfolioData | null>(null);
+  const [portfolioLoading, setPortfolioLoading] = useState(false);
+  const [portfolioRefreshing, setPortfolioRefreshing] = useState(false);
+
   const initializedRef = useRef(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string>(() => {
@@ -491,6 +551,38 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
     void loadCriticalPath();
     return () => { active = false; };
   }, [projectId]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadPortfolio() {
+      setPortfolioLoading(true);
+      try {
+        const res = await fetch("/api/portfolio", { cache: "no-store" });
+        const data = (await res.json()) as PortfolioData & { ok?: boolean };
+        if (active && res.ok && data.ok) setPortfolioData(data);
+      } catch {
+        if (active) setPortfolioData(null);
+      } finally {
+        if (active) setPortfolioLoading(false);
+      }
+    }
+    void loadPortfolio();
+    return () => { active = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const refreshPortfolio = async () => {
+    setPortfolioRefreshing(true);
+    try {
+      const res = await fetch("/api/portfolio/refresh", { method: "POST", cache: "no-store" });
+      const data = (await res.json()) as PortfolioData & { ok?: boolean };
+      if (res.ok && data.ok) setPortfolioData(data);
+    } catch {
+      // silently ignore
+    } finally {
+      setPortfolioRefreshing(false);
+    }
+  };
 
   const refreshSchedule = async () => {
     if (!projectId) return;
@@ -1858,6 +1950,126 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                 </div>
               </section>
             )}
+
+            {/* Portfolio Intelligence Panel */}
+            <section className="rounded-2xl border border-purple-300/15 bg-purple-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(168,85,247,0.4)]" data-testid="portfolio-intelligence-section">
+              <div className="flex items-center justify-between">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-purple-200/80">Portfolio Intelligence</p>
+                <button
+                  onClick={() => void refreshPortfolio()}
+                  disabled={portfolioRefreshing}
+                  className="rounded border border-white/[0.08] px-1.5 py-0.5 text-[8px] text-zinc-500 transition hover:border-white/20 hover:text-slate-300 disabled:opacity-40"
+                >
+                  {portfolioRefreshing ? "…" : "Refresh"}
+                </button>
+              </div>
+              {portfolioLoading ? (
+                <p className="mt-2 text-[10px] text-zinc-600">Loading portfolio…</p>
+              ) : portfolioData ? (
+                <div className="mt-2 space-y-2">
+                  {/* Portfolio Health */}
+                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2">
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-purple-300/70">Portfolio Health</p>
+                    <div className="mt-1.5 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-zinc-500">Health</span>
+                        <span className={`font-semibold ${portfolioData.summary.portfolioHealthScore >= 70 ? "text-emerald-400" : portfolioData.summary.portfolioHealthScore >= 40 ? "text-amber-400" : "text-rose-400"}`}>
+                          {portfolioData.summary.portfolioHealthScore}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-zinc-500">Risk</span>
+                        <span className={`font-semibold ${portfolioData.summary.portfolioRiskScore <= 30 ? "text-emerald-400" : portfolioData.summary.portfolioRiskScore <= 60 ? "text-amber-400" : "text-rose-400"}`}>
+                          {portfolioData.summary.portfolioRiskScore}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-zinc-500">Projects</span>
+                        <span className="text-slate-300">{portfolioData.summary.activeProjectCount}/{portfolioData.summary.projectCount}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-zinc-500">Critical</span>
+                        <span className={`font-semibold ${portfolioData.summary.criticalProjectCount > 0 ? "text-rose-400" : "text-emerald-400"}`}>
+                          {portfolioData.summary.criticalProjectCount}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Executive Attention Queue */}
+                  {portfolioData.executiveAttention.length > 0 && (
+                    <div data-testid="executive-attention-section">
+                      <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-rose-300/70">Executive Attention</p>
+                      <div className="space-y-1">
+                        {portfolioData.executiveAttention.slice(0, 5).map((p) => (
+                          <div key={p.projectId} className="rounded border border-rose-400/15 bg-rose-400/[0.04] px-2 py-1.5">
+                            <p className="truncate text-[9px] font-medium text-slate-200">{p.projectName}</p>
+                            <div className="mt-0.5 flex gap-2 text-[8px]">
+                              <span className={`${p.healthScore < 50 ? "text-rose-400" : "text-zinc-500"}`}>H:{p.healthScore}</span>
+                              <span className={`${p.riskScore > 70 ? "text-rose-400" : "text-zinc-500"}`}>R:{p.riskScore}</span>
+                              {p.blockedTaskCount > 0 && <span className="text-amber-400">{p.blockedTaskCount} blocked</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Portfolio Bottlenecks */}
+                  {portfolioData.bottlenecks.length > 0 && (
+                    <div data-testid="portfolio-bottleneck-section">
+                      <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-orange-300/70">Portfolio Bottlenecks</p>
+                      <div className="space-y-1">
+                        {portfolioData.bottlenecks.slice(0, 3).map((b) => (
+                          <div key={b.entityId} className="rounded border border-orange-400/15 bg-orange-400/[0.03] px-2 py-1.5">
+                            <div className="flex items-start justify-between gap-1">
+                              <p className="truncate text-[9px] text-slate-300">{b.entityLabel || b.entityId}</p>
+                              <span className="shrink-0 rounded-sm border border-orange-400/20 px-1 py-0.5 text-[7px] text-orange-300 uppercase">{b.entityType}</span>
+                            </div>
+                            <div className="mt-0.5 flex gap-2 text-[8px] text-zinc-500">
+                              <span>Blocking: {b.blockingCount}</span>
+                              <span>Impact: {b.impactScore}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dependency Risk */}
+                  {portfolioData.dependencyRisks.length > 0 && (
+                    <div data-testid="portfolio-dependency-risk-section">
+                      <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-amber-300/70">Dependency Risk</p>
+                      <div className="space-y-1">
+                        {portfolioData.dependencyRisks.slice(0, 4).map((r, i) => {
+                          const badgeStyle =
+                            r.riskLevel === "critical"
+                              ? "border-rose-400/30 bg-rose-400/[0.08] text-rose-300"
+                              : r.riskLevel === "high"
+                                ? "border-orange-400/30 bg-orange-400/[0.08] text-orange-300"
+                                : r.riskLevel === "medium"
+                                  ? "border-amber-400/30 bg-amber-400/[0.08] text-amber-300"
+                                  : "border-emerald-400/20 bg-emerald-400/[0.04] text-emerald-400";
+                          const srcProject = portfolioData.projects.find((p) => p.projectId === r.sourceProjectId)?.projectName ?? r.sourceProjectId.slice(0, 8);
+                          const tgtProject = portfolioData.projects.find((p) => p.projectId === r.targetProjectId)?.projectName ?? r.targetProjectId.slice(0, 8);
+                          return (
+                            <div key={i} className="rounded border border-white/[0.05] bg-white/[0.02] px-2 py-1.5">
+                              <div className="flex items-center justify-between gap-1">
+                                <p className="truncate text-[9px] text-slate-400">{srcProject} → {tgtProject}</p>
+                                <span className={`shrink-0 rounded-sm border px-1 py-0.5 text-[7px] uppercase font-semibold ${badgeStyle}`}>{r.riskLevel}</span>
+                              </div>
+                              <p className="mt-0.5 text-[8px] text-zinc-600">{r.dependencyCount} {r.dependencyCount === 1 ? "dependency" : "dependencies"}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-2 text-[10px] text-zinc-600">No portfolio data available.</p>
+              )}
+            </section>
 
             <section className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(34,211,238,0.8)]">
               <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-cyan-200/80">Project Evidence</p>

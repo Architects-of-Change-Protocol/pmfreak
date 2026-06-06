@@ -4,6 +4,8 @@ import { ensureUserWorkspace } from "@/lib/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveActiveProject } from "@/lib/resolve-active-project";
 import { buildExecutiveSynthesis, type ExecutiveSynthesisSnapshot } from "@/lib/executive-synthesis";
+import { getPortfolioIntelligence } from "@/lib/portfolio/repository";
+import { PortfolioOverviewPanel } from "@/components/pmfreak/executive/portfolio-overview-panel";
 import Link from "next/link";
 import { WorkspaceContextBanner } from "@/components/pmfreak/workspace/workspace-context-banner";
 
@@ -75,7 +77,10 @@ export default async function ExecutivePage({
       ? "Company-wide scope — no projects yet"
       : "Company-wide scope";
 
-  const { snapshot, error: synthError } = await safelyBuildSynthesis(user.companyId, activeProjectId);
+  const [{ snapshot, error: synthError }, portfolioResult] = await Promise.all([
+    safelyBuildSynthesis(user.companyId, activeProjectId),
+    getPortfolioIntelligence(workspace.workspaceId),
+  ]);
 
   if (!snapshot) {
     return (
@@ -131,6 +136,16 @@ export default async function ExecutivePage({
       ) : null}
 
       <ExecutiveDashboard snapshot={snapshot} />
+
+      {portfolioResult.ok && (
+        <PortfolioOverviewPanel
+          summary={portfolioResult.data.summary}
+          projects={portfolioResult.data.projects}
+          bottlenecks={portfolioResult.data.bottlenecks}
+          dependencyRisks={portfolioResult.data.dependencyRisks}
+          executiveAttention={portfolioResult.data.executiveAttention}
+        />
+      )}
     </main>
   );
 }
