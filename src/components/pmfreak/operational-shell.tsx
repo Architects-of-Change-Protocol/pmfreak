@@ -163,12 +163,15 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
   const [milestoneActing, setMilestoneActing] = useState(false);
   const [milestoneError, setMilestoneError] = useState<string | null>(null);
   const [criticalPathData, setCriticalPathData] = useState<{
-    summary: { totalTasks: number; criticalTaskCount: number; criticalMilestoneCount: number; projectDurationDays: number; forecastVarianceDays: number; scheduleConfidence: number };
+    summary: { totalTasks: number; criticalTaskCount: number; criticalMilestoneCount: number; projectDurationDays: number; forecastVarianceDays: number; scheduleConfidence: number; criticalPathCount?: number; criticalComponentCount?: number; hasMultipleCriticalPaths?: boolean; hasCriticalBranches?: boolean };
     forecast: { plannedFinish: string | null; forecastFinish: string | null; varianceDays: number };
     criticalTasks: Array<{ taskId: string; title: string; totalFloat: number; freeFloat: number; earlyStart: number; earlyFinish: number; lateStart: number; lateFinish: number; criticalityScore: number; varianceDays: number }>;
     criticalMilestones: Array<{ milestoneId: string; title: string; targetDate: string | null; forecastDate: string | null; varianceDays: number; isCritical: boolean; isAtRisk: boolean; isDelayed: boolean }>;
     path: string[];
     topVarianceTasks: Array<{ taskId: string; title: string; plannedFinish: string | null; forecastFinish: string | null; varianceDays: number }>;
+    criticalPaths?: Array<{ id: string; taskIds: string[]; length: number; startTaskId: string; endTaskId: string; isCompletePath: boolean }>;
+    criticalSegments?: Array<{ id: string; taskIds: string[]; length: number; startTaskId: string; endTaskId: string; isCompletePath: boolean }>;
+    branchPoints?: Array<{ taskId: string; outgoingCriticalSuccessors: string[]; incomingCriticalPredecessors: string[]; branchType: "split" | "merge" | "split_merge" }>;
   } | null>(null);
   const [cpMaterializeLoading, setCpMaterializeLoading] = useState(false);
   const [cpMaterializeError, setCpMaterializeError] = useState<string | null>(null);
@@ -1621,6 +1624,18 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                       <span className={criticalPathData.summary.criticalTaskCount > 0 ? "text-rose-400" : "text-slate-500"}>{criticalPathData.summary.criticalTaskCount}</span>
                     </div>
                     <div className="flex items-center justify-between">
+                      <span>Critical Paths</span>
+                      <span className={criticalPathData.summary.criticalPathCount && criticalPathData.summary.criticalPathCount > 1 ? "text-violet-400" : "text-slate-500"}>{criticalPathData.summary.criticalPathCount ?? 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Critical Components</span>
+                      <span className={criticalPathData.summary.criticalComponentCount && criticalPathData.summary.criticalComponentCount > 1 ? "text-amber-400/80" : "text-slate-500"}>{criticalPathData.summary.criticalComponentCount ?? 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Branch Points</span>
+                      <span className={criticalPathData.branchPoints && criticalPathData.branchPoints.length > 0 ? "text-orange-400/80" : "text-slate-500"}>{criticalPathData.branchPoints?.length ?? 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
                       <span>Critical Milestones</span>
                       <span className={criticalPathData.summary.criticalMilestoneCount > 0 ? "text-orange-400/80" : "text-slate-500"}>{criticalPathData.summary.criticalMilestoneCount}</span>
                     </div>
@@ -1645,6 +1660,18 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                       }>{criticalPathData.summary.scheduleConfidence}%</span>
                     </div>
                   </div>
+
+                  {/* Topology badges */}
+                  {(criticalPathData.summary.hasMultipleCriticalPaths || criticalPathData.summary.hasCriticalBranches) && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {criticalPathData.summary.hasMultipleCriticalPaths && (
+                        <span className="rounded-sm border border-violet-400/25 bg-violet-400/[0.08] px-1.5 py-0.5 text-[8px] font-medium text-violet-300">Multiple Critical Paths</span>
+                      )}
+                      {criticalPathData.summary.hasCriticalBranches && (
+                        <span className="rounded-sm border border-amber-400/25 bg-amber-400/[0.08] px-1.5 py-0.5 text-[8px] font-medium text-amber-300">Critical Branching</span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Forecast */}
                   {(criticalPathData.forecast.plannedFinish || criticalPathData.forecast.forecastFinish) && (
@@ -1687,6 +1714,83 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Critical Paths */}
+                  {criticalPathData.criticalPaths && criticalPathData.criticalPaths.length > 0 && (() => {
+                    const taskTitleMap = new Map(criticalPathData.criticalTasks.map(t => [t.taskId, t.title]));
+                    return (
+                      <div className="mt-3 space-y-1.5">
+                        <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500">Critical Paths</p>
+                        {criticalPathData.criticalPaths.map((cp, idx) => (
+                          <div key={cp.id} className="rounded-lg border border-violet-400/15 bg-violet-400/[0.04] p-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[9px] font-medium text-violet-300/80">Path {idx + 1}</span>
+                              <span className="text-[9px] text-slate-500">{cp.length} task{cp.length !== 1 ? "s" : ""}</span>
+                            </div>
+                            <p className="mt-0.5 text-[9px] text-slate-500">
+                              {taskTitleMap.get(cp.startTaskId) ?? cp.startTaskId} → {taskTitleMap.get(cp.endTaskId) ?? cp.endTaskId}
+                            </p>
+                            {cp.taskIds.length <= 6 && (
+                              <p className="mt-1 text-[8px] text-slate-600 leading-relaxed">
+                                {cp.taskIds.map(id => taskTitleMap.get(id) ?? id).join(" → ")}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Critical Segments */}
+                  {criticalPathData.criticalSegments && criticalPathData.criticalSegments.length > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500">Critical Segments</p>
+                      {criticalPathData.criticalSegments.map(seg => {
+                        const taskTitleMap = new Map(criticalPathData.criticalTasks.map(t => [t.taskId, t.title]));
+                        return (
+                          <div key={seg.id} className="rounded-lg border border-slate-500/15 bg-slate-500/[0.04] p-2">
+                            <div className="flex items-center justify-between">
+                              <span className="truncate text-[9px] text-slate-300">
+                                {taskTitleMap.get(seg.startTaskId) ?? seg.startTaskId}
+                              </span>
+                              <span className="mx-1 shrink-0 text-[9px] text-slate-600">→</span>
+                              <span className="truncate text-[9px] text-slate-300">
+                                {taskTitleMap.get(seg.endTaskId) ?? seg.endTaskId}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-[9px] text-slate-600">{seg.length} task{seg.length !== 1 ? "s" : ""}{seg.isCompletePath ? " · complete path" : ""}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Branch Points */}
+                  {criticalPathData.branchPoints && criticalPathData.branchPoints.length > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500">Branch Points</p>
+                      {criticalPathData.branchPoints.map(bp => {
+                        const taskTitleMap = new Map(criticalPathData.criticalTasks.map(t => [t.taskId, t.title]));
+                        const branchColor = bp.branchType === "split" ? "amber" : bp.branchType === "merge" ? "sky" : "violet";
+                        return (
+                          <div key={bp.taskId} className={`rounded-lg border border-${branchColor}-400/15 bg-${branchColor}-400/[0.04] p-2`}>
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="truncate text-[9px] font-medium text-slate-300">{taskTitleMap.get(bp.taskId) ?? bp.taskId}</p>
+                              <span className={`shrink-0 rounded-sm border border-${branchColor}-400/25 bg-${branchColor}-400/[0.08] px-1 py-0.5 text-[8px] text-${branchColor}-300 uppercase`}>{bp.branchType.replace("_", "/")}</span>
+                            </div>
+                            <div className="mt-0.5 flex gap-2 text-[9px] text-slate-600">
+                              {bp.incomingCriticalPredecessors.length > 1 && (
+                                <span>in: {bp.incomingCriticalPredecessors.length}</span>
+                              )}
+                              {bp.outgoingCriticalSuccessors.length > 1 && (
+                                <span>out: {bp.outgoingCriticalSuccessors.length}</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </>

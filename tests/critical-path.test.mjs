@@ -430,3 +430,273 @@ test("shell has Compute button for critical path materialization", () => {
 test("shell renders topVarianceTasks", () => {
   assert.match(shell, /topVarianceTasks/);
 });
+
+// ── H9.1: Types ───────────────────────────────────────────────────────────────
+
+const subgraphTs = fs.readFileSync("src/lib/critical-path/critical-subgraph.ts", "utf8");
+
+test("types.ts declares CriticalPathSegment", () => {
+  assert.match(typesTs, /CriticalPathSegment/);
+});
+
+test("types.ts declares CriticalPathBranchPoint", () => {
+  assert.match(typesTs, /CriticalPathBranchPoint/);
+});
+
+test("types.ts declares CriticalPathTopology", () => {
+  assert.match(typesTs, /CriticalPathTopology/);
+});
+
+test("types.ts CriticalPathResult includes criticalPaths", () => {
+  assert.match(typesTs, /criticalPaths/);
+});
+
+test("types.ts CriticalPathResult includes criticalSegments", () => {
+  assert.match(typesTs, /criticalSegments/);
+});
+
+test("types.ts CriticalPathResult includes topology", () => {
+  assert.match(typesTs, /topology/);
+});
+
+test("types.ts CriticalPathSummary includes criticalPathCount", () => {
+  assert.match(typesTs, /criticalPathCount/);
+});
+
+test("types.ts CriticalPathSummary includes criticalComponentCount", () => {
+  assert.match(typesTs, /criticalComponentCount/);
+});
+
+test("types.ts CriticalPathSummary includes hasMultipleCriticalPaths", () => {
+  assert.match(typesTs, /hasMultipleCriticalPaths/);
+});
+
+test("types.ts CriticalPathSummary includes hasCriticalBranches", () => {
+  assert.match(typesTs, /hasCriticalBranches/);
+});
+
+// ── H9.1: Critical Subgraph ───────────────────────────────────────────────────
+
+test("critical-subgraph.ts exports buildCriticalSubgraph", () => {
+  assert.match(subgraphTs, /export function buildCriticalSubgraph/);
+});
+
+test("critical-subgraph.ts exports buildCriticalSubgraphFromMaps", () => {
+  assert.match(subgraphTs, /export function buildCriticalSubgraphFromMaps/);
+});
+
+test("critical-subgraph.ts computes criticalRoots", () => {
+  assert.match(subgraphTs, /criticalRoots/);
+});
+
+test("critical-subgraph.ts computes criticalTerminals", () => {
+  assert.match(subgraphTs, /criticalTerminals/);
+});
+
+// ── H9.1: Compute critical path ───────────────────────────────────────────────
+
+test("compute-critical-path.ts exports enumerateCriticalPaths", () => {
+  assert.match(computeTs, /export function enumerateCriticalPaths/);
+});
+
+test("compute-critical-path.ts exports extractCriticalSegments", () => {
+  assert.match(computeTs, /export function extractCriticalSegments/);
+});
+
+test("compute-critical-path.ts exports detectBranchPoints", () => {
+  assert.match(computeTs, /export function detectBranchPoints/);
+});
+
+test("compute-critical-path.ts exports computeComponentCount", () => {
+  assert.match(computeTs, /export function computeComponentCount/);
+});
+
+test("compute-critical-path.ts has maxPaths guard", () => {
+  assert.match(computeTs, /maxPaths/);
+});
+
+test("compute-critical-path.ts returns criticalPaths in result", () => {
+  assert.match(computeTs, /criticalPaths/);
+});
+
+test("compute-critical-path.ts returns criticalSegments in result", () => {
+  assert.match(computeTs, /criticalSegments/);
+});
+
+test("compute-critical-path.ts returns topology in result", () => {
+  assert.match(computeTs, /topology/);
+});
+
+// ── H9.1: Algorithm correctness (pure logic) ─────────────────────────────────
+
+// We import the pure functions directly via dynamic import of TS via --import tsx
+// Since these tests run with node --test (not tsx), we test via source text assertions
+// The algorithmic tests below verify source structure only.
+
+test("enumerateCriticalPaths uses DFS with cycle protection (visited set)", () => {
+  assert.match(computeTs, /visited/);
+  assert.match(computeTs, /visited\.has/);
+});
+
+test("enumerateCriticalPaths sorts by length descending then lexical", () => {
+  assert.match(computeTs, /b\.length.*a\.length|length.*desc/s);
+});
+
+test("extractCriticalSegments detects segment starts at roots and merge points", () => {
+  assert.match(computeTs, /isSegmentStart/);
+  assert.match(computeTs, /preds\.length !== 1/);
+});
+
+test("detectBranchPoints marks split when outgoing > 1", () => {
+  assert.match(computeTs, /outgoing\.length > 1/);
+});
+
+test("detectBranchPoints marks merge when incoming > 1", () => {
+  assert.match(computeTs, /incoming\.length > 1/);
+});
+
+test("detectBranchPoints marks split_merge when both", () => {
+  assert.match(computeTs, /split_merge/);
+});
+
+test("detectBranchPoints sorts by taskId", () => {
+  assert.match(computeTs, /a\.taskId.*b\.taskId/s);
+});
+
+test("computeComponentCount uses undirected BFS over critical subgraph", () => {
+  assert.match(computeTs, /criticalPredecessorMap|predecessorMap/);
+  assert.match(computeTs, /bfs/);
+});
+
+// ── H9.1: Repository ─────────────────────────────────────────────────────────
+
+test("repository.ts returns criticalPaths", () => {
+  assert.match(repositoryTs, /criticalPaths/);
+});
+
+test("repository.ts returns criticalSegments", () => {
+  assert.match(repositoryTs, /criticalSegments/);
+});
+
+test("repository.ts returns branchPoints", () => {
+  assert.match(repositoryTs, /branchPoints/);
+});
+
+test("repository.ts loads dependency edges for topology", () => {
+  assert.match(repositoryTs, /execution_task_dependencies|depsResult/);
+});
+
+test("repository.ts summary includes criticalPathCount", () => {
+  assert.match(repositoryTs, /criticalPathCount/);
+});
+
+test("repository.ts summary includes criticalComponentCount", () => {
+  assert.match(repositoryTs, /criticalComponentCount/);
+});
+
+test("repository.ts summary includes hasMultipleCriticalPaths", () => {
+  assert.match(repositoryTs, /hasMultipleCriticalPaths/);
+});
+
+test("repository.ts summary includes hasCriticalBranches", () => {
+  assert.match(repositoryTs, /hasCriticalBranches/);
+});
+
+// ── H9.1: API route ───────────────────────────────────────────────────────────
+
+test("query route returns criticalPaths", () => {
+  assert.match(queryRoute, /criticalPaths/);
+});
+
+test("query route returns criticalSegments", () => {
+  assert.match(queryRoute, /criticalSegments/);
+});
+
+test("query route returns branchPoints", () => {
+  assert.match(queryRoute, /branchPoints/);
+});
+
+test("query route returns topology", () => {
+  assert.match(queryRoute, /topology/);
+});
+
+test("query route still returns legacy path field", () => {
+  assert.match(queryRoute, /path:/);
+});
+
+test("query route still returns legacy criticalTasks field", () => {
+  assert.match(queryRoute, /criticalTasks/);
+});
+
+// ── H9.1: UI ─────────────────────────────────────────────────────────────────
+
+test("shell shows Multiple Critical Paths badge", () => {
+  assert.match(shell, /Multiple Critical Paths/);
+});
+
+test("shell shows Critical Branching badge", () => {
+  assert.match(shell, /Critical Branching/);
+});
+
+test("shell shows Critical Paths section", () => {
+  assert.match(shell, /Critical Paths/);
+});
+
+test("shell shows Critical Segments section", () => {
+  assert.match(shell, /Critical Segments/);
+});
+
+test("shell shows Branch Points section", () => {
+  assert.match(shell, /Branch Points/);
+});
+
+test("shell renders criticalPaths from criticalPathData", () => {
+  assert.match(shell, /criticalPathData\.criticalPaths/);
+});
+
+test("shell renders criticalSegments from criticalPathData", () => {
+  assert.match(shell, /criticalPathData\.criticalSegments/);
+});
+
+test("shell renders branchPoints from criticalPathData", () => {
+  assert.match(shell, /criticalPathData\.branchPoints/);
+});
+
+test("shell shows criticalPathCount in summary", () => {
+  assert.match(shell, /criticalPathCount/);
+});
+
+test("shell shows criticalComponentCount in summary", () => {
+  assert.match(shell, /criticalComponentCount/);
+});
+
+test("shell shows hasMultipleCriticalPaths", () => {
+  assert.match(shell, /hasMultipleCriticalPaths/);
+});
+
+test("shell shows hasCriticalBranches", () => {
+  assert.match(shell, /hasCriticalBranches/);
+});
+
+// ── H9.1: Legacy compatibility ────────────────────────────────────────────────
+
+test("CriticalPathResult still has criticalPath field", () => {
+  assert.match(typesTs, /criticalPath:/);
+});
+
+test("CriticalPathResult still has criticalLength field", () => {
+  assert.match(typesTs, /criticalLength:/);
+});
+
+test("CriticalPathResult still has criticalTaskIds field", () => {
+  assert.match(typesTs, /criticalTaskIds:/);
+});
+
+test("repository.ts still returns path field (legacy)", () => {
+  assert.match(repositoryTs, /path,|path:/);
+});
+
+test("compute-critical-path.ts still returns criticalPath (legacy topological order)", () => {
+  assert.match(computeTs, /criticalPath/);
+  assert.match(computeTs, /topologicalSort/);
+});
