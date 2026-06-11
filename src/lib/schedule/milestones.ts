@@ -282,11 +282,12 @@ export async function listProjectMilestones(input: {
     .from("project_milestones")
     .select(MILESTONE_SELECT)
     .eq("project_id", input.projectId)
-    .order("target_date", { ascending: true, nullsFirst: false });
+    .order("target_date", { ascending: true, nullsFirst: false })
+    .overrideTypes<ProjectMilestoneRow[], { merge: false }>();
 
   if (error) {
     return { ok: false, error: "Failed to load milestones.", failureClass: "persistence_failed" };
   }
 
-  return { ok: true, milestones: (data ?? []) as ProjectMilestoneRow[] };
+  return { ok: true, milestones: data ?? [] };
 }

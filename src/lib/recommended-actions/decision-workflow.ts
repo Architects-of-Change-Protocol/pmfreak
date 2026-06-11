@@ -24,6 +24,7 @@ type RecommendedActionRow = {
   converted_task_id: string | null;
   decision_metadata: Record<string, unknown>;
   updated_at: string;
+  governance_event_id: string | null;
 };
 
 export type RecommendedActionDecisionResult =
@@ -53,7 +54,7 @@ export async function decideRecommendedAction(
 
   const { data: action, error: loadError } = await supabase
     .from("recommended_actions")
-    .select("id,workspace_id,project_id,status,decision_reason,decided_by,decided_at,deferred_until,converted_task_id,decision_metadata,updated_at")
+    .select("id,workspace_id,project_id,status,decision_reason,decided_by,decided_at,deferred_until,converted_task_id,decision_metadata,updated_at,governance_event_id")
     .eq("id", input.actionId)
     .maybeSingle<RecommendedActionRow>();
 
@@ -64,8 +65,12 @@ export async function decideRecommendedAction(
     return { ok: false, error: "Recommended action not found.", failureClass: "not_found" };
   }
 
+  if (action.governance_event_id) {
+    return { ok: false, error: "Governed recommendations must be decided through the evidence-backed operational decision flow.", failureClass: "governed_flow_required" };
+  }
+
   try {
-    await requireProjectAccess(action.project_id, "read");
+    await requireProjectAccess(action.project_id, "write");
   } catch (error) {
     if (error instanceof AccessDeniedError) {
       return { ok: false, error: "Access denied.", failureClass: "unauthorized" };

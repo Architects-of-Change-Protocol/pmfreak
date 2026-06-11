@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { computeCapabilityRevealState } from "@/features/runtime/capability-reveal/capability-reveal-selectors";
 import type { OperationalGovernanceBrief } from "@/lib/projects/first-insight";
+import { OperationalDecisionLoop } from "@/features/command-center/operational-decision-loop";
 
 type AnyRecord = Record<string, unknown>;
 type UserProject = { id: string; name: string };
@@ -238,6 +239,8 @@ export function CommandCenterClient({ firstRun = false, projectId, projectName, 
           <div>{projects.length > 1 ? <select value={projectId} onChange={handleProjectChange} className="rounded-lg border border-white/15 bg-slate-900/80 px-3 py-1.5 text-sm text-slate-100">{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select> : <span className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-300">{projectName}</span>}</div>
         </div>
       </header>
+
+      <OperationalDecisionLoop workspaceId={workspaceId} projectId={projectId} />
 
       <section className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)_340px]">
         <aside className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">

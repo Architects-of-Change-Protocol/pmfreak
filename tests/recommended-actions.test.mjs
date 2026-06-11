@@ -375,3 +375,11 @@ test("H4: UI shows non-blocking error on decision failure", () => {
 test("H4: UI refreshes action list after decision", () => {
   assert.match(shell, /refreshActions/);
 });
+
+test("H4 hardening: governed recommendations are excluded from legacy GET and rejected by legacy decisions", () => {
+  assert.match(route, /\.is\("governance_event_id", null\)/);
+  assert.match(decisionWorkflow, /governance_event_id/);
+  assert.match(decisionWorkflow, /Governed recommendations must be decided through the evidence-backed operational decision flow\./);
+  assert.match(decisionWorkflow, /requireProjectAccess\(action\.project_id, "write"\)/);
+  assert.match(decisionRoute, /governed_flow_required: 409/);
+});

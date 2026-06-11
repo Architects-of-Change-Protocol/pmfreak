@@ -47,22 +47,23 @@ export async function getProjectCriticalPath(projectId: string): Promise<
   const supabase = await createSupabaseServerClient();
 
   const [tasksResult, depsResult, milestonesResult] = await Promise.all([
-    supabase.from("execution_tasks").select(TASK_SELECT).eq("project_id", projectId),
+    supabase.from("execution_tasks").select(TASK_SELECT).eq("project_id", projectId).overrideTypes<ExecutionTaskRow[], { merge: false }>(),
     supabase
       .from("execution_task_dependencies")
       .select(DEP_SELECT)
       .eq("project_id", projectId)
-      .eq("status", "active"),
-    supabase.from("project_milestones").select(MILESTONE_SELECT).eq("project_id", projectId),
+      .eq("status", "active")
+      .overrideTypes<ExecutionTaskDependencyRow[], { merge: false }>(),
+    supabase.from("project_milestones").select(MILESTONE_SELECT).eq("project_id", projectId).overrideTypes<ProjectMilestoneRow[], { merge: false }>(),
   ]);
 
   if (tasksResult.error || depsResult.error || milestonesResult.error) {
     return { ok: false, error: "Failed to load critical path data." };
   }
 
-  const tasks = (tasksResult.data ?? []) as ExecutionTaskRow[];
-  const deps = (depsResult.data ?? []) as ExecutionTaskDependencyRow[];
-  const milestones = (milestonesResult.data ?? []) as ProjectMilestoneRow[];
+  const tasks = tasksResult.data ?? [];
+  const deps = depsResult.data ?? [];
+  const milestones = milestonesResult.data ?? [];
 
   const criticalTasks: CriticalTask[] = tasks
     .filter((t) => t.is_critical)

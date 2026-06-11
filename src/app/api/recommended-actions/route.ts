@@ -44,6 +44,7 @@ export async function GET(request: Request) {
     .from("recommended_actions")
     .select("id,workspace_id,project_id,raid_item_id,title,description,recommended_action_type,status,confidence_score,impact_level,rationale,recommended_owner,recommended_due_window,evidence_summary,source_signal_id,fingerprint,decision_reason,decided_by,decided_at,deferred_until,converted_task_id,decision_metadata,created_at,updated_at")
     .eq("project_id", projectId)
+    .is("governance_event_id", null)
     .order("confidence_score", { ascending: false })
     .order("created_at", { ascending: false });
 

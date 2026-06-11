@@ -110,3 +110,7 @@ For password reset to work in all environments, add these URL patterns in **Supa
 - `http://localhost:3000/**`
 
 The forgot-password flow sends users to `${NEXT_PUBLIC_SITE_URL}/auth/reset-password`, so `NEXT_PUBLIC_SITE_URL` must match your deployed origin in production.
+
+## Operational evidence-to-decision loop
+
+The first complete PMFreak cognitive-operational circuit is documented in [`docs/operational-evidence-decision-loop.md`](docs/operational-evidence-decision-loop.md). It covers the deterministic signal detector, PMFreak role-mapping authority checks, immutable evidence-linked decisions, Command Center integration, exact Project Assurance Summary v1 metrics, the idempotent demo seed, and the isolated Supabase DB/RLS verifier.
