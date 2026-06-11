@@ -46,14 +46,15 @@ export async function getPortfolioIntelligence(
     .from("projects")
     .select(PROJECT_SELECT)
     .eq("workspace_id", workspaceId)
-    .eq("status", "active");
+    .eq("status", "active")
+    .overrideTypes<ProjectRow[], { merge: false }>();
 
   if (projectsResult.error) {
     console.error(`[portfolio.failed] workspaceId=${workspaceId} error=${projectsResult.error.message}`);
     return { ok: false, error: "Failed to load projects.", failureClass: "persistence_failed" };
   }
 
-  const projects = (projectsResult.data ?? []) as ProjectRow[];
+  const projects = projectsResult.data ?? [];
 
   if (projects.length === 0) {
     const empty = computePortfolioIntelligence([]);
@@ -64,14 +65,15 @@ export async function getPortfolioIntelligence(
   const projectIds = projects.map((p) => p.id);
 
   const [tasksResult, milestonesResult, raidResult, depsResult] = await Promise.all([
-    supabase.from("execution_tasks").select(TASK_SELECT).in("project_id", projectIds),
-    supabase.from("project_milestones").select(MILESTONE_SELECT).in("project_id", projectIds),
-    supabase.from("raid_items").select(RAID_SELECT).in("project_id", projectIds),
+    supabase.from("execution_tasks").select(TASK_SELECT).in("project_id", projectIds).overrideTypes<ExecutionTaskRow[], { merge: false }>(),
+    supabase.from("project_milestones").select(MILESTONE_SELECT).in("project_id", projectIds).overrideTypes<ProjectMilestoneRow[], { merge: false }>(),
+    supabase.from("raid_items").select(RAID_SELECT).in("project_id", projectIds).overrideTypes<RaidItemRow[], { merge: false }>(),
     supabase
       .from("execution_task_dependencies")
       .select(DEP_SELECT)
       .in("project_id", projectIds)
-      .in("status", ["active", "proposed"]),
+      .in("status", ["active", "proposed"])
+      .overrideTypes<ExecutionTaskDependencyRow[], { merge: false }>(),
   ]);
 
   if (tasksResult.error || milestonesResult.error || raidResult.error || depsResult.error) {
@@ -85,10 +87,10 @@ export async function getPortfolioIntelligence(
     return { ok: false, error: "Failed to load portfolio data.", failureClass: "persistence_failed" };
   }
 
-  const allTasks = (tasksResult.data ?? []) as ExecutionTaskRow[];
-  const allMilestones = (milestonesResult.data ?? []) as ProjectMilestoneRow[];
-  const allRaid = (raidResult.data ?? []) as RaidItemRow[];
-  const allDeps = (depsResult.data ?? []) as ExecutionTaskDependencyRow[];
+  const allTasks = tasksResult.data ?? [];
+  const allMilestones = milestonesResult.data ?? [];
+  const allRaid = raidResult.data ?? [];
+  const allDeps = depsResult.data ?? [];
 
   const bundles: ProjectDataBundle[] = projects.map((project) => ({
     project,

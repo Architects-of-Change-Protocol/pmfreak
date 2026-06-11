@@ -23,25 +23,28 @@ export async function loadGraph(input: { projectId: string }): Promise<
     supabase
       .from("execution_tasks")
       .select(TASK_SELECT)
-      .eq("project_id", input.projectId),
+      .eq("project_id", input.projectId)
+      .overrideTypes<ExecutionTaskRow[], { merge: false }>(),
     supabase
       .from("execution_task_dependencies")
       .select(DEP_SELECT)
       .eq("project_id", input.projectId)
-      .eq("status", "active"),
+      .eq("status", "active")
+      .overrideTypes<ExecutionTaskDependencyRow[], { merge: false }>(),
     supabase
       .from("project_milestones")
       .select(MILESTONE_SELECT)
-      .eq("project_id", input.projectId),
+      .eq("project_id", input.projectId)
+      .overrideTypes<ProjectMilestoneRow[], { merge: false }>(),
   ]);
 
   if (tasksResult.error || depsResult.error || milestonesResult.error) {
     return { ok: false, error: "Failed to load graph data." };
   }
 
-  const tasks = (tasksResult.data ?? []) as ExecutionTaskRow[];
-  const deps = (depsResult.data ?? []) as ExecutionTaskDependencyRow[];
-  const milestones = (milestonesResult.data ?? []) as ProjectMilestoneRow[];
+  const tasks = tasksResult.data ?? [];
+  const deps = depsResult.data ?? [];
+  const milestones = milestonesResult.data ?? [];
 
   const taskSet = new Set(tasks.map((t) => t.id));
 

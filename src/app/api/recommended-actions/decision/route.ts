@@ -45,6 +45,7 @@ export async function POST(request: Request) {
       invalid_transition: 400,
       validation_failed: 400,
       persistence_failed: 500,
+      governed_flow_required: 409,
     };
     const httpStatus = statusMap[result.failureClass] ?? 500;
     return Response.json({ ok: false, error: result.error, failureClass: result.failureClass }, { status: httpStatus });

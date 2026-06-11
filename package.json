@@ -71,7 +71,9 @@
     "check:dashboard-api-runtime": "npx tsx scripts/check-dashboard-api-runtime.mjs",
     "check:dashboard-consumption-runtime": "npx tsx scripts/check-dashboard-consumption-runtime.mjs",
     "check:persistent-snapshot-store-runtime": "npx tsx scripts/check-persistent-snapshot-store-runtime.mjs",
-    "check:protocol-consumers": "node --test tests/consumer-boundary-audit.test.ts"
+    "check:protocol-consumers": "node --test tests/consumer-boundary-audit.test.ts",
+    "seed:operational-flow": "node scripts/seed-operational-flow-demo.mjs",
+    "check:operational-flow-db": "node scripts/check-operational-flow-db.mjs"
   },
   "dependencies": {
     "@aoc-enterprise/runtime": "file:src/aoc/enterprise",

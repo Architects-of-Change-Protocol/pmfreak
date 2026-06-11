@@ -419,6 +419,7 @@ export type PmoTeamInviteRow = {
 // recommended_actions
 // Source: 20260605040000_recommended_actions.sql
 //         20260605050000_recommended_actions_decision_workflow.sql
+//         20260611000000_operational_evidence_decision_loop.sql
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type RecommendedActionStatus =
@@ -426,15 +427,20 @@ export type RecommendedActionStatus =
   | "accepted"
   | "rejected"
   | "deferred"
-  | "converted_to_task";
+  | "converted_to_task"
+  | "modified"
+  | "executed";
 
 export type RecommendedActionRow = {
   id: string;
   workspace_id: string;
   project_id: string;
-  raid_item_id: string;
+  raid_item_id: string | null;
+  governance_event_id: string | null;
+  risk_issue_id: string | null;
   title: string;
   description: string;
+  recommendation: string | null;
   recommended_action_type: string;
   status: RecommendedActionStatus;
   confidence_score: number | null;
@@ -442,6 +448,8 @@ export type RecommendedActionRow = {
   rationale: Record<string, unknown> | null;
   recommended_owner: string | null;
   recommended_due_window: string | null;
+  urgency: "low" | "medium" | "high" | "immediate" | null;
+  suggested_owner_user_id: string | null;
   evidence_summary: Record<string, unknown> | null;
   source_signal_id: string | null;
   fingerprint: string;
@@ -460,8 +468,11 @@ export const RECOMMENDED_ACTION_SELECTABLE_COLUMNS = [
   "workspace_id",
   "project_id",
   "raid_item_id",
+  "governance_event_id",
+  "risk_issue_id",
   "title",
   "description",
+  "recommendation",
   "recommended_action_type",
   "status",
   "confidence_score",
@@ -469,6 +480,8 @@ export const RECOMMENDED_ACTION_SELECTABLE_COLUMNS = [
   "rationale",
   "recommended_owner",
   "recommended_due_window",
+  "urgency",
+  "suggested_owner_user_id",
   "evidence_summary",
   "source_signal_id",
   "fingerprint",

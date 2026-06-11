@@ -34,13 +34,14 @@ export async function materializeTaskDraftForRecommendedAction(input: {
 
   const { data: action, error: actionError } = await supabase
     .from("recommended_actions")
-    .select("id,workspace_id,project_id,raid_item_id,title,description,recommended_action_type,impact_level,confidence_score,recommended_owner,recommended_due_window,rationale,evidence_summary,status,converted_task_id,decided_by,decided_at,decision_reason,decision_metadata")
+    .select("id,workspace_id,project_id,raid_item_id,governance_event_id,title,description,recommended_action_type,impact_level,confidence_score,recommended_owner,recommended_due_window,rationale,evidence_summary,status,converted_task_id,decided_by,decided_at,decision_reason,decision_metadata")
     .eq("id", input.recommendedActionId)
     .maybeSingle<{
       id: string;
       workspace_id: string;
       project_id: string;
-      raid_item_id: string;
+      raid_item_id: string | null;
+      governance_event_id: string | null;
       title: string;
       description: string;
       recommended_action_type: string;
@@ -64,9 +65,12 @@ export async function materializeTaskDraftForRecommendedAction(input: {
   if (!action) {
     return { ok: false, error: "Recommended action not found.", failureClass: "not_found" };
   }
+  if (action.governance_event_id) {
+    return { ok: false, error: "Governed recommendations must be decided through the evidence-backed operational decision flow.", failureClass: "governed_flow_required" };
+  }
 
   try {
-    await requireProjectAccess(action.project_id, "read");
+    await requireProjectAccess(action.project_id, "write");
   } catch (error) {
     if (error instanceof AccessDeniedError) {
       return { ok: false, error: "Access denied.", failureClass: "unauthorized" };

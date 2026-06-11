@@ -39,24 +39,27 @@ export async function getProjectSchedule(input: {
       .from("project_milestones")
       .select(MILESTONE_SELECT)
       .eq("project_id", input.projectId)
-      .order("target_date", { ascending: true, nullsFirst: false }),
+      .order("target_date", { ascending: true, nullsFirst: false })
+      .overrideTypes<ProjectMilestoneRow[], { merge: false }>(),
     supabase
       .from("execution_tasks")
       .select(TASK_SELECT)
-      .eq("project_id", input.projectId),
+      .eq("project_id", input.projectId)
+      .overrideTypes<ExecutionTaskRow[], { merge: false }>(),
     supabase
       .from("execution_task_dependencies")
       .select(DEP_SELECT)
-      .eq("project_id", input.projectId),
+      .eq("project_id", input.projectId)
+      .overrideTypes<ExecutionTaskDependencyRow[], { merge: false }>(),
   ]);
 
   if (milestonesResult.error || tasksResult.error || depsResult.error) {
     return { ok: false, error: "Failed to load schedule data.", failureClass: "persistence_failed" };
   }
 
-  const milestones = (milestonesResult.data ?? []) as ProjectMilestoneRow[];
-  const tasks = (tasksResult.data ?? []) as ExecutionTaskRow[];
-  const dependencies = (depsResult.data ?? []) as ExecutionTaskDependencyRow[];
+  const milestones = milestonesResult.data ?? [];
+  const tasks = tasksResult.data ?? [];
+  const dependencies = depsResult.data ?? [];
 
   const health = computeScheduleHealth({ tasks, milestones, dependencies });
 

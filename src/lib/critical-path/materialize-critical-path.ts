@@ -35,7 +35,7 @@ export async function materializeCriticalPath(input: { projectId: string }): Pro
 
     const supabase = await createSupabaseServerClient();
 
-    const updates: Array<Promise<unknown>> = [];
+    const updates: Array<Promise<void>> = [];
     for (const [taskId, node] of dag.nodes) {
       const fwd = forward.get(taskId);
       const bwd = backward.get(taskId);
@@ -46,8 +46,8 @@ export async function materializeCriticalPath(input: { projectId: string }): Pro
 
       if (!fwd || !bwd || !fl || !criticality) continue;
 
-      updates.push(
-        supabase
+      updates.push((async () => {
+        const { error } = await supabase
           .from("execution_tasks")
           .update({
             is_critical: criticality.isCritical,
@@ -60,8 +60,11 @@ export async function materializeCriticalPath(input: { projectId: string }): Pro
             variance_days: varianceDays,
             criticality_score: Math.round(criticality.criticalityScore * 100) / 100,
           })
-          .eq("id", taskId),
-      );
+          .eq("id", taskId);
+        if (error) {
+          throw new Error(`Failed to materialize critical path task ${taskId}: ${error.message}`);
+        }
+      })());
     }
 
     await Promise.all(updates);
