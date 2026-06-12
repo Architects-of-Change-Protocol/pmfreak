@@ -10,14 +10,20 @@ import { detectOperationalLanguage, type SupportedLanguage } from "@/lib/workspa
 import { resolveLanguagePreference } from "@/lib/workspace/language/language-preference";
 import { normalizeOperationalConcepts } from "@/lib/workspace/language/operational-concepts";
 import {
+  computeAdaptiveClarifyingQuestion,
+  computeIgnitionCues,
   observeInteraction,
 } from "@/lib/workspace/imprint-inference";
 import {
   emptyImprintState,
+  loadImprintState,
+  persistImprintState,
   type PMImprintState,
 } from "@/lib/workspace/operational-imprint-profile";
+import { WORKSPACE_DISPLAY } from "@/lib/workspace/display-semantics";
 import { runtimePersistence, type RuntimePersistenceScope, type RuntimeSyncStatus } from "@/lib/workspace/runtime-persistence";
 import { bootstrapRuntimeState } from "@/lib/workspace/runtime-bootstrap";
+import { isRuntimeValidationEnabled } from "@/lib/workspace/beta-validation-mode";
 import { buildValidationTrace } from "@/lib/workspace/validation-trace-builder";
 import { detectContradiction } from "@/lib/workspace/validation-consistency";
 import {
@@ -123,6 +129,10 @@ type Props = {
   scope: RuntimePersistenceScope;
 };
 
+const IMPRINT_COMPANY_ID = "companyId" as const;
+const IMPRINT_WORKSPACE_ID = "workspaceId" as const;
+const IMPRINT_USER_ID = "userId" as const;
+
 export function WorkspaceConversationShell({ awakening, onAwakeningAdvance, scope }: Props) {
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
@@ -137,9 +147,11 @@ export function WorkspaceConversationShell({ awakening, onAwakeningAdvance, scop
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
-  const [imprintState, setImprintState] = useState<PMImprintState>(() => emptyImprintState());
+  const [imprintState, setImprintState] = useState<PMImprintState>(
+    () => loadImprintState(scope[IMPRINT_COMPANY_ID], scope[IMPRINT_WORKSPACE_ID], scope[IMPRINT_USER_ID]) ?? emptyImprintState(),
+  );
   const [validationState, setValidationState] = useState<ValidationState>(() => emptyValidationState());
-  const [validationEnabled, setValidationEnabled] = useState(true);
+  const [validationEnabled, setValidationEnabled] = useState(() => isRuntimeValidationEnabled());
   const [, setSyncStatus] = useState<RuntimeSyncStatus>("synced");
   const pendingTraceRef = useRef<ValidationTrace | null>(null);
   const [ambientMemory, setAmbientMemory] = useState<AmbientMemory>({ blockers: [], recentDecisions: [], stakeholderPressure: [], criticalRisks: [], concerns: [] });
@@ -241,6 +253,7 @@ export function WorkspaceConversationShell({ awakening, onAwakeningAdvance, scop
       onAwakeningAdvance(nextAwakening);
       const nextImprint = observeInteraction(message, imprintState);
       setImprintState(nextImprint);
+      persistImprintState(scope[IMPRINT_COMPANY_ID], scope[IMPRINT_WORKSPACE_ID], scope[IMPRINT_USER_ID], nextImprint);
       setSyncStatus("syncing");
       void runtimePersistence.persistImprint(scope, nextImprint).then(() => setSyncStatus("synced")).catch(() => setSyncStatus("fallback"));
       if (validationEnabled) {
@@ -343,12 +356,86 @@ export function WorkspaceConversationShell({ awakening, onAwakeningAdvance, scop
     }
   };
 
+  const ignitionCues = computeIgnitionCues(
+    computeImprintConfidence(imprintState.profile),
+    imprintState.profile,
+  );
+  const dormantInvitation = WORKSPACE_DISPLAY.labels.dormantInvitation;
+  const isDormant = awakening.stage === "dormant";
+  const clarifyingQuestion = computeAdaptiveClarifyingQuestion(imprintState.profile);
+
+  const handleReset = () => {
+    const fresh = emptyImprintState();
+    setImprintState(fresh);
+  };
+
   return (
     <main className="mx-auto min-h-[82vh] w-full">
       <section className="rounded-3xl border border-white/10 bg-slate-900/55 p-4 shadow-[0_30px_70px_-50px_rgba(15,23,42,0.95)] backdrop-blur-xl md:p-6">
         <header className="mb-4">
           <h1 className="text-2xl font-semibold">Operational Command Center</h1>
+          {isDormant && (
+            <p className="mt-1 text-sm text-zinc-500">{dormantInvitation}</p>
+          )}
         </header>
+        {/* Stage chip — reflects awakening progression */}
+        <div className="mb-3 flex flex-wrap gap-1.5 text-[10px]">
+          {(["dormant", "initializing", "orienting", "engaged", "expanded", "fully-operational"] as const).map((stage) => (
+            <span
+              key={stage}
+              className={`rounded-full border px-2 py-0.5 ${awakening.stage === stage ? "border-cyan-300/40 text-cyan-200" : "border-white/[0.06] text-zinc-600"}`}
+            >
+              {stage}
+            </span>
+          ))}
+        </div>
+        {/* Ignition cues shown in dormant state */}
+        {isDormant && ignitionCues.length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {ignitionCues.map((cue) => (
+              <button
+                key={cue}
+                type="button"
+                onClick={() => setInput(cue)}
+                className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-1.5 text-xs text-zinc-400 hover:border-cyan-300/30 hover:text-cyan-200"
+              >
+                {cue}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* Telemetry cards — dormant state labels */}
+        {isDormant && (
+          <div className="mb-4 grid grid-cols-3 gap-2">
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-2 text-center text-[10px] text-zinc-600">
+              <p className="text-zinc-700">Context</p>
+              <p>Pending</p>
+            </div>
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-2 text-center text-[10px] text-zinc-600">
+              <p className="text-zinc-700">Signal</p>
+              <p>Awaiting signal</p>
+            </div>
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-2 text-center text-[10px] text-zinc-600">
+              <p className="text-zinc-700">Status</p>
+              <p>Dormant</p>
+            </div>
+          </div>
+        )}
+        {/* Adaptive clarifying question */}
+        {!isDormant && clarifyingQuestion && (
+          <p className="mb-3 text-xs text-zinc-500">{clarifyingQuestion}</p>
+        )}
+        {/* Agent awakening panel — right sidebar */}
+        <div className="mb-4">
+          <AgentAwakeningPanel
+            state={awakening}
+            imprintProfile={imprintState.profile}
+            imprintConfidence={computeImprintConfidence(imprintState.profile)}
+            onReset={() => {
+              setImprintState(emptyImprintState());
+            }}
+          />
+        </div>
 
         <div
           onDrop={(e) => { e.preventDefault(); setDragActive(false); void handleUpload(e.dataTransfer.files); }}

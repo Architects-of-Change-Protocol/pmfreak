@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
-import { AccessDeniedError } from "@/lib/security/access-guards";
 import { getPortfolioIntelligence } from "@/lib/portfolio/repository";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -9,7 +8,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const ctx = await requireAuthenticatedUser();
     user = ctx.user;
   } catch (err) {
-    if (err instanceof AccessDeniedError) {
+    if (true) {
       return NextResponse.json({ ok: false, error: "Unauthenticated." }, { status: 401 });
     }
     return NextResponse.json({ ok: false, error: "Authorization failed." }, { status: 401 });

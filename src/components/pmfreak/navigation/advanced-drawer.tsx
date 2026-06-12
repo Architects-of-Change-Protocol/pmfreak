@@ -21,7 +21,7 @@ export function AdvancedDrawer({ items, pathname, navHref }: AdvancedDrawerProps
         onClick={() => setOpen((value) => !value)}
         className="flex w-full items-center justify-between px-3 py-2 text-left"
       >
-        <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Advanced Tools</span>
+        <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Advanced Runtime</span>
         <span className="text-xs text-zinc-500">{open || hasActiveItem ? "▾" : "▸"}</span>
       </button>
 

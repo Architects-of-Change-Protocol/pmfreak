@@ -100,13 +100,13 @@ test("wizard handleActivate gates navigation on status=success", () => {
   assert.match(wizard, /result\.status !== "success"/, "must check status before proceeding");
 
   const failureGuardIdx = wizard.indexOf('result.status !== "success"');
-  const redirectIdx = wizard.indexOf("router.push(`/projects/${result.projectId}`)");
+  const redirectIdx = wizard.indexOf("router.push(`/command-center?projectId=${result.projectId}");
   assert.ok(failureGuardIdx > 0, "failure guard must exist");
   assert.ok(redirectIdx > failureGuardIdx, "redirect must come after the failure guard");
 });
 
 test("wizard has exactly one redirect to project after persistence", () => {
-  const allPushes = [...wizard.matchAll(/router\.push\(`\/projects\/\$\{result\.projectId\}`\)/g)];
+  const allPushes = [...wizard.matchAll(/router\.push\(`\/command-center\?projectId=\$\{result\.projectId/g)];
   assert.equal(allPushes.length, 1, "redirect to project must appear exactly once");
 });
 
@@ -183,9 +183,9 @@ test("wizard sets activating=false and returns early on failure", () => {
 });
 
 test("wizard does NOT call router.push before persistence check", () => {
-  // router.push to project ID must not appear before the status check
+  // router.push to command center must not appear before the status check
   const persistCheckIdx = wizard.indexOf('result.status !== "success"');
-  const firstProjectPushIdx = wizard.indexOf("router.push(`/projects/");
+  const firstProjectPushIdx = wizard.indexOf("router.push(`/command-center?projectId=");
   assert.ok(firstProjectPushIdx > persistCheckIdx, "router.push must not appear before persistence check");
 });
 

@@ -12,6 +12,13 @@ import type {
 } from "./capability-reveal-types";
 import { REVEAL_DOMAIN_ORDER, ROLE_DOMAIN_PRIORITIES } from "./capability-reveal-contract";
 
+export const LENS_DISPLAY_LABELS: Record<string, string> = {
+  "/dashboard": "Summary",
+  "/command-center": "Execution Lens",
+  "/executive": "Executive Lens",
+  "/portfolio": "Portfolio",
+};
+
 const NAV_STYLE = {
   primary: { accent: "from-indigo-300/25 to-cyan-300/15", active: "border-indigo-100/70 bg-indigo-300/[0.16] text-white shadow-[0_0_24px_rgba(129,140,248,0.28)]", idle: "text-indigo-100/90" },
   lens: { accent: "from-cyan-300/20 to-fuchsia-300/10", active: "border-cyan-200/30 bg-cyan-300/[0.07] text-cyan-100", idle: "text-slate-300" },

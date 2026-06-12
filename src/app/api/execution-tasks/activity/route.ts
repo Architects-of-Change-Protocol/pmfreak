@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
 import { requireProjectAccess } from "@/lib/security/server-authorization";
-import { AccessDeniedError } from "@/lib/security/access-guards";
 import type { ExecutionTaskEventRow, ExecutionTaskRow } from "@/lib/db/database-contract";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {

@@ -1,4 +1,3 @@
-import { AccessDeniedError } from "@/lib/security/access-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAuthenticatedUser, requireProjectAccess } from "@/lib/security/server-authorization";
 import type { TaskDraftRow, TaskDraftStatus } from "@/lib/db/database-contract";

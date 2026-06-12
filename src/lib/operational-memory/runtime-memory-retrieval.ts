@@ -48,8 +48,8 @@ export function computePressureWeight(record: OperationalMemoryRecord, ageDays: 
   if (record.resolutionStatus === "resolved" || record.resolutionStatus === "abandoned") {
     return record.weights.unresolvedWeight * 0.1;
   }
-  const pressureIncrease = ageDays * UNRESOLVED_PRESSURE_RATE;
-  return Math.min(1.0, record.weights.unresolvedWeight + pressureIncrease);
+  const pressureFactor = 1 + ageDays * UNRESOLVED_PRESSURE_RATE;
+  return Math.min(1.0, record.weights.unresolvedWeight * pressureFactor);
 }
 
 const TYPE_BASE_SCORES: Record<string, number> = {

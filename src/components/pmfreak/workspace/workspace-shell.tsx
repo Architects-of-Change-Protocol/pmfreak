@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { WorkspaceConversationShell } from "@/components/pmfreak/workspace/workspace-conversation-shell";
-import { AWAKENING_EVENT, deriveAwakeningState, type AwakeningState } from "@/lib/workspace/awakening-state";
+import { AWAKENING_EVENT, deriveAwakeningState, persistAwakeningState, type AwakeningState } from "@/lib/workspace/awakening-state";
 import { bootstrapRuntimeState } from "@/lib/workspace/runtime-bootstrap";
 import { runtimePersistence, type RuntimePersistenceScope } from "@/lib/workspace/runtime-persistence";
+import { CONFIDENCE_CHIP_LABELS, computeImprintConfidence } from "@/lib/workspace/imprint-confidence";
+import { loadImprintState } from "@/lib/workspace/operational-imprint-profile";
+import { WORKSPACE_DISPLAY } from "@/lib/workspace/display-semantics";
 
 type PmoContext = {
   found: boolean;
@@ -43,10 +46,17 @@ export function WorkspaceShell({ companyId, workspaceId, userId, freshOnboarding
 
   const handleAwakeningAdvance = useCallback((next: AwakeningState) => {
     setAwakening(next);
+    persistAwakeningState(companyId, workspaceId, next);
     void runtimePersistence.persistAwakening(scope, next).catch(() => undefined);
     window.dispatchEvent(new CustomEvent(AWAKENING_EVENT, { detail: next }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId, workspaceId, userId]);
+
+  const isDormant = awakening.stage === "dormant";
+  const standbySubtitle = WORKSPACE_DISPLAY.labels.standbySubtitle;
+  const imprintState = loadImprintState(companyId, workspaceId, userId);
+  const imprintConfidence = computeImprintConfidence(imprintState?.profile?.observedInteractionCount ?? 0);
+  const showImprintChip = imprintConfidence !== "forming" && CONFIDENCE_CHIP_LABELS[imprintConfidence] !== undefined;
 
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const showWelcome = freshOnboarding && !welcomeDismissed && pmoContext?.found;

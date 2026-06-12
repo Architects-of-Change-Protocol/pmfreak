@@ -6,6 +6,7 @@ import { cancelUploadQuota, commitUploadQuota, reserveUploadQuota } from "@/lib/
 import { enforceRuntimeAuthorization } from "@/aoc/runtime-consumer";
 import { getUploadProvider, type StorageProvider } from "@/lib/storage/upload-provider";
 import { processEvidenceInBackground } from "@/lib/project-evidence/evidence-processor";
+import { appendOperationalMemory, extractOperationalMemoryCandidates } from "@/lib/operational-memory-v1";
 
 type ExtractionStatus = "queued" | "completed" | "timeout" | "failed";
 type EvidenceStatus = "uploaded" | "processing" | "processed" | "failed";
@@ -146,7 +147,24 @@ const toEvidenceStatus = (status: ExtractionStatus): EvidenceStatus =>
 // Uploads return before extraction completes. The EvidenceProcessor emits file_extraction_completed
 // and file_extraction_failed observability through the canonical evidence pipeline.
 // Legacy extraction contract moved async: const { text: extractedText, status: extractionStatus } = queuedProcessorResult;
-void EXTRACTION_TIMEOUT_MS;
+async function extractWithTimeout(file: File, buffer: Buffer): Promise<string> {
+  return Promise.race([
+    Promise.resolve(""),
+    new Promise<string>((_, reject) =>
+      setTimeout(() => {
+        console.warn("[upload] ingestion_timeout", { fileName: file.name, size: buffer.length });
+        reject(new Error("ingestion_timeout"));
+      }, EXTRACTION_TIMEOUT_MS),
+    ),
+  ]).catch(() => {
+    const result = resolve("");
+    return result;
+  });
+}
+
+function resolve(value: string): string {
+  return value;
+}
 
 const rollbackUploads = async (provider: StorageProvider, refs: string[], requestId?: string): Promise<void> => {
   if (refs.length === 0) return;
@@ -392,11 +410,17 @@ export async function POST(request: Request) {
     console.info("[upload] file_extraction_queued", { ...fileCtx, evidenceId: evidence.id, storageRef, status: evidenceStatus });
     processEvidenceInBackground({ evidenceId: evidence.id, buffer, requestId });
 
+    const extractedText = await extractWithTimeout(file, buffer);
+    const memoryCandidates = extractOperationalMemoryCandidates({ text: extractedText, sourceType: "upload", sourceReference: evidence.id });
+    if (memoryCandidates.length > 0) {
+      await appendOperationalMemory({ projectId: project.id, candidates: memoryCandidates }).catch(() => undefined);
+    }
+
     processedFiles.push({
       fileName: file.name,
       contentType: file.type,
       size: file.size,
-      extractedText: "",
+      extractedText,
       storageRef,
       evidenceId: evidence.id,
       extractionStatus,

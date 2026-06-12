@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
 import { requireProjectAccess } from "@/lib/security/server-authorization";
-import { AccessDeniedError } from "@/lib/security/access-guards";
 import { materializeCriticalPath } from "@/lib/critical-path/materialize-critical-path";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -25,11 +24,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   try {
     await requireProjectAccess(projectId, "read");
-  } catch (err) {
-    if (err instanceof AccessDeniedError) {
-      return NextResponse.json({ ok: false, error: "Access denied." }, { status: 403 });
-    }
-    return NextResponse.json({ ok: false, error: "Authorization failed." }, { status: 403 });
+  } catch {
+    return NextResponse.json({ ok: false, error: "Access denied." }, { status: 403 });
   }
 
   const result = await materializeCriticalPath({ projectId });

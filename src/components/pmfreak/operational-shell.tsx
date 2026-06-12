@@ -5,6 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DERIVED_LENS_METADATA } from "@/lib/workspace/derived-lens-metadata";
 import { computeCapabilityRevealState, computeNavigationRail } from "@/features/runtime/capability-reveal/capability-reveal-selectors";
+import { AWAKENING_EVENT, isLensUnlocked, loadAwakeningState, type AwakeningState } from "@/lib/workspace/awakening-state";
+import { NAVIGATION_HIERARCHY } from "@/lib/workspace/navigation-hierarchy";
+import { loadImprintState } from "@/lib/workspace/operational-imprint-profile";
+import { AdvancedDrawer } from "@/components/pmfreak/navigation/advanced-drawer";
 
 type UserProject = { id: string; name: string };
 type DiscoverySummary = {
@@ -763,6 +767,28 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
   };
 
   const hasProjects = projects.length > 0;
+
+  const [awakening, setAwakening] = useState<AwakeningState>(() => loadAwakeningState(user.companyId, user.workspaceId));
+  useEffect(() => {
+    const handler = (e: Event) => {
+      if (e instanceof CustomEvent) setAwakening(e.detail as AwakeningState);
+    };
+    window.addEventListener(AWAKENING_EVENT, handler);
+    return () => window.removeEventListener(AWAKENING_EVENT, handler);
+  }, []);
+
+  const imprintState = loadImprintState(user.companyId, user.workspaceId, user.userId);
+  const imprintFocus = imprintState?.profile?.dominantFocus;
+
+  // Lens order adapts to imprintFocus:
+  // stakeholders focus → executive lens promoted before command-center
+  // delivery focus → command-center before executive
+  const LENS_ORDER_BY_FOCUS: Record<string, string[]> = {
+    stakeholders: ["/dashboard", "/executive", "/command-center", "/portfolio"],
+    delivery: ["/dashboard", "/command-center", "/executive", "/portfolio"],
+  };
+  const lensOrder = LENS_ORDER_BY_FOCUS[imprintFocus ?? "delivery"] ?? LENS_ORDER_BY_FOCUS.delivery;
+
   const revealState = useMemo(() => computeCapabilityRevealState({
     planTier: "free",
     role: user.role,
@@ -779,6 +805,12 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
   const navHref = (href: string) => (projectId ? `${href}?projectId=${projectId}` : href);
   const navItems = computeNavigationRail(revealState);
   const primaryNav = navItems.filter((item) => item.idle === "text-indigo-100/90");
+  const advancedHrefs = new Set(NAVIGATION_HIERARCHY.filter((n) => n.tier === "advanced").map((n) => n.href));
+  const lensHrefs = new Set(NAVIGATION_HIERARCHY.filter((n) => n.tier === "lens").map((n) => n.href));
+  const utilityHrefs = new Set(NAVIGATION_HIERARCHY.filter((n) => n.tier === "utility").map((n) => n.href));
+  const lensNav = navItems.filter((item) => lensHrefs.has(item.href) && isLensUnlocked(item.href, awakening.stage)).sort((a, b) => lensOrder.indexOf(a.href) - lensOrder.indexOf(b.href));
+  const utilityNav = navItems.filter((item) => utilityHrefs.has(item.href));
+  const advancedNav = navItems.filter((item) => advancedHrefs.has(item.href));
   const activeLens = DERIVED_LENS_METADATA.find((lens) => pathname.startsWith(lens.route) && ["overview", "delivery", "leadership", "controls"].includes(lens.lensType));
   const discoveryCounts = {
     stakeholders: discoverySummary?.stakeholders_json?.length ?? 0,
@@ -817,11 +849,25 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
               </div>
             </div>
 
-            {/* Primary navigation — Start Here */}
+            {/* Primary navigation */}
             <nav aria-label="Primary navigation">
               <div className="space-y-1">
-                <p className="mb-1.5 px-1 text-[9px] uppercase tracking-[0.3em] text-zinc-600">Start Here</p>
-                {primaryNav.map((item) => {
+                <p className="mb-1.5 px-1 text-[9px] uppercase tracking-[0.3em] text-zinc-600">Workspace</p>
+                <Link
+                  href="/workspace"
+                  className={`group relative block overflow-hidden rounded-xl border px-3 py-2.5 text-sm transition-all duration-200 ${
+                    pathname === "/workspace"
+                      ? "border-indigo-100/70 bg-indigo-300/[0.16] text-white shadow-[0_0_24px_rgba(129,140,248,0.28)] border-opacity-100"
+                      : "border-white/[0.05] bg-white/[0.01] text-indigo-100/90 hover:border-white/[0.15] hover:bg-white/[0.04] hover:-translate-y-px"
+                  }`}
+                >
+                  <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 bg-gradient-to-r group-hover:opacity-100 from-indigo-300/25 to-cyan-300/15" />
+                  <span className="relative">Workspace</span>
+                </Link>
+              </div>
+              <div className="mt-3 space-y-1">
+                <p className="mb-1.5 px-1 text-[9px] uppercase tracking-[0.3em] text-zinc-600">Lenses</p>
+                {lensNav.map((item) => {
                   const isActive = pathname.startsWith(item.href);
                   return (
                     <Link
@@ -839,6 +885,27 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                   );
                 })}
               </div>
+              <div className="mt-3 space-y-1">
+                <p className="mb-1.5 px-1 text-[9px] uppercase tracking-[0.3em] text-zinc-600">Utilities</p>
+                {utilityNav.map((item) => {
+                  const isActive = pathname.startsWith(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={navHref(item.href)}
+                      className={`group relative block overflow-hidden rounded-xl border px-3 py-2.5 text-sm transition-all duration-200 ${
+                        isActive
+                          ? `${item.active} border-opacity-100`
+                          : `border-white/[0.05] bg-white/[0.01] ${item.idle} hover:border-white/[0.15] hover:bg-white/[0.04] hover:-translate-y-px`
+                      }`}
+                    >
+                      <span className={`pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 bg-gradient-to-r group-hover:opacity-100 ${item.accent}`} />
+                      <span className="relative">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+              {advancedNav.length > 0 && <AdvancedDrawer items={advancedNav} />}
             </nav>
 
             <section className="rounded-2xl border border-indigo-300/15 bg-indigo-300/[0.04] p-3 shadow-[0_18px_55px_-42px_rgba(129,140,248,0.8)]">

@@ -9,16 +9,15 @@ export type NavigationNode = {
 };
 
 export const NAVIGATION_HIERARCHY: NavigationNode[] = [
-  { label: "Create PMO", href: "/create-pmo", tier: "primary", visibleByDefault: true },
-  { label: "Create Project", href: "/projects/new", tier: "primary", visibleByDefault: true },
+  { label: "Workspace", href: "/workspace", tier: "primary", visibleByDefault: true },
 
-  { label: "Overview", href: "/dashboard", tier: "lens", visibleByDefault: true },
-  { label: "Delivery Status", href: "/command-center", tier: "lens", visibleByDefault: true },
-  { label: "Leadership View", href: "/executive", tier: "lens", visibleByDefault: true },
-  { label: "Project Controls", href: "/portfolio", tier: "lens", visibleByDefault: true },
+  { label: "Summary", href: "/dashboard", tier: "lens", visibleByDefault: true },
+  { label: "Execution", href: "/command-center", tier: "lens", visibleByDefault: true },
+  { label: "Executive", href: "/executive", tier: "lens", visibleByDefault: true },
+  { label: "Portfolio", href: "/portfolio", tier: "lens", visibleByDefault: true },
 
-  { label: "All Projects", href: "/projects", tier: "utility", visibleByDefault: true },
-  { label: "Add Project Files", href: "/input-hub", tier: "utility", visibleByDefault: true },
+  { label: "Projects", href: "/projects", tier: "utility", visibleByDefault: true },
+  { label: "Upload", href: "/upload", tier: "utility", visibleByDefault: true },
   { label: "Settings", href: "/team", tier: "utility", visibleByDefault: true },
 
   { label: "Operational Memory", href: "/operational-memory", tier: "advanced", visibleByDefault: false, requiresCapability: "memory" },

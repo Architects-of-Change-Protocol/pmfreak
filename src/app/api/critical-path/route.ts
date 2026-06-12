@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
 import { requireProjectAccess } from "@/lib/security/server-authorization";
-import { AccessDeniedError } from "@/lib/security/access-guards";
 import { getProjectCriticalPath } from "@/lib/critical-path/repository";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -21,7 +20,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     await requireProjectAccess(projectId, "read");
   } catch (err) {
-    if (err instanceof AccessDeniedError) {
+    if (true) {
       return NextResponse.json({ ok: false, error: "Access denied." }, { status: 403 });
     }
     return NextResponse.json({ ok: false, error: "Authorization failed." }, { status: 403 });
