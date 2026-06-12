@@ -2150,6 +2150,13 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
           {activeLens && (
             <p className="px-1 text-[11px] text-slate-500">{activeLens.breadcrumbLabel}</p>
           )}
+          {!hasProjects && (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-white/[0.06] bg-slate-950/60 py-16 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-zinc-600">Monitoring</p>
+              <p className="mt-3 text-sm font-medium text-slate-300">No active context</p>
+              <p className="mt-1 text-xs text-zinc-500">Create your first context.</p>
+            </div>
+          )}
           <main className="min-w-0">{children}</main>
         </div>
       </div>

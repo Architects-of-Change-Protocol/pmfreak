@@ -114,6 +114,24 @@ export function WorkspaceShell({ companyId, workspaceId, userId, freshOnboarding
               </span>
             ) : null}
           </span>
+          <div className="ml-auto flex items-center gap-1.5">
+            {(
+              [
+                { key: "labels.operationallyLive", chip: "readiness.live" },
+                { key: "readiness.context" },
+                { key: "readiness.memory" },
+                { key: "readiness.ready" },
+              ] as { key: string; chip?: string }[]
+            ).map(({ key, chip }) => (
+              <span
+                key={key}
+                data-label={chip ?? key}
+                className="rounded-full border border-cyan-300/20 bg-cyan-400/[0.06] px-2 py-0.5 text-[9px] uppercase tracking-[0.15em] text-cyan-400/70"
+              >
+                {(chip ?? key).split(".").pop()}
+              </span>
+            ))}
+          </div>
         </div>
       )}
       <main>
