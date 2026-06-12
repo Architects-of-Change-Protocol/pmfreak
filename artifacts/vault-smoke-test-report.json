@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "generatedAt": "2026-06-12T21:52:27.567Z",
+    "generatedAt": "2026-06-12T22:13:11.307Z",
     "artifactCount": 51,
-    "elapsedMs": 65,
+    "elapsedMs": 47,
     "smokeTestVersion": "1.2.0",
     "datasetDescription": "LATAM Enterprise PM — 5 projects across 51 operational artifacts"
   },
