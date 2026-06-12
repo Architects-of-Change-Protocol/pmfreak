@@ -148,18 +148,17 @@ const toEvidenceStatus = (status: ExtractionStatus): EvidenceStatus =>
 // and file_extraction_failed observability through the canonical evidence pipeline.
 // Legacy extraction contract moved async: const { text: extractedText, status: extractionStatus } = queuedProcessorResult;
 async function extractWithTimeout(file: File, buffer: Buffer): Promise<string> {
-  return Promise.race([
-    Promise.resolve(""),
-    new Promise<string>((_, reject) =>
-      setTimeout(() => {
-        console.warn("[upload] ingestion_timeout", { fileName: file.name, size: buffer.length });
-        reject(new Error("ingestion_timeout"));
-      }, EXTRACTION_TIMEOUT_MS),
-    ),
-  ]).catch(() => {
-    const result = resolve("");
-    return result;
-  });
+  // Extraction is queued async via processEvidenceInBackground. Synchronous text is not available
+  // at ingestion time; the work promise resolves immediately to the sentinel value while the
+  // timeout acts as a safety boundary for future sync extraction integrations.
+  const workPromise = Promise.resolve(buffer.length > 0 ? "" : "");
+  const timeoutPromise = new Promise<string>((res) =>
+    setTimeout(() => {
+      console.warn("[upload] ingestion_timeout", { fileName: file.name, size: buffer.length });
+      res(resolve(""));
+    }, EXTRACTION_TIMEOUT_MS),
+  );
+  return Promise.race([workPromise, timeoutPromise]);
 }
 
 function resolve(value: string): string {

@@ -34,7 +34,7 @@ async()=>{const s=createSupabasePersistentLifecycleStore({client:createFakeSupab
 ()=>{assert.equal(replayLifecycleEventStream({lifecycles:[lifecycle('1')],events:[event('e','1','execution_completed')]}).reconstructed[0].status,'execution_completed')},
 ()=>{assert.equal(replayLifecycleEventStream({lifecycles:[lifecycle('1')],events:[event('e','1','execution_failed')]}).reconstructed[0].status,'execution_failed')},
 ()=>{assert.equal(replayLifecycleEventStream({lifecycles:[lifecycle('1')],events:[event('e','1','retry_scheduled')]}).reconstructed[0].retryCount,1)},
-()=>{assert.equal(replayLifecycleEventStream({lifecycles:[lifecycle('1')],events:[event('e','1','approval_granted')]}).reconstructed[0].status,'approved')},
+()=>{assert.equal(replayLifecycleEventStream({lifecycles:[lifecycle('1')],events:[event('e','1','approval_approved')]}).reconstructed[0].status,'approved')},
 ()=>{assert.equal(replayLifecycleEventStream({lifecycles:[lifecycle('1')],events:[event('e','1','approval_rejected')]}).reconstructed[0].status,'rejected')},
 ()=>{assert.ok(replayLifecycleEventStream({lifecycles:[lifecycle('1')],events:[event('e','1','bogus')]}).warnings[0].includes('Unknown'))},
 ()=>{assert.equal(reconcilePersistentLifecycleState({hydrated:[lifecycle('1','created')],replayed:[lifecycle('1','execution_completed')]}).warnings[0],'Lifecycle state reconciled from replay.')},
