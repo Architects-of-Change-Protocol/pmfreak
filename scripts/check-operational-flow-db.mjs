@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { createClient } from "@supabase/supabase-js";
 
+// Guard runs before any network-dependent import so the script exits 2 (not 1)
+// when infrastructure is absent. See docs/operational-flow-runtime-gate.md.
 const url = process.env.OPERATIONAL_FLOW_TEST_SUPABASE_URL;
 const anonKey = process.env.OPERATIONAL_FLOW_TEST_ANON_KEY;
 const serviceRoleKey = process.env.OPERATIONAL_FLOW_TEST_SERVICE_ROLE_KEY;
@@ -14,9 +15,24 @@ if (!url || !anonKey || !serviceRoleKey || !appBaseUrl || process.env.OPERATIONA
     "OPERATIONAL_FLOW_TEST_SERVICE_ROLE_KEY, OPERATIONAL_FLOW_TEST_BASE_URL and",
     "OPERATIONAL_FLOW_TEST_ALLOW_DESTRUCTIVE=true.",
     "This check creates and deletes auth users, workspaces, projects and operational records.",
+    "See docs/operational-flow-runtime-gate.md for setup instructions.",
+    "NEVER run this check against a production Supabase project.",
   ].join("\n"));
   process.exit(2);
 }
+
+// Production safeguard: reject any URL that looks like a real Supabase project
+// (i.e. not localhost and not a known local/CI pattern). Adjust the allowlist
+// if your isolated environment uses a custom domain.
+if (!/localhost|127\.0\.0\.1|0\.0\.0\.0|\.local(:\d+)?$/.test(url) && !process.env.OPERATIONAL_FLOW_TEST_ALLOW_REMOTE === "true") {
+  const { hostname } = new URL(url);
+  if (!hostname.includes("localhost") && !hostname.includes("127.0.0.1")) {
+    console.error(`SAFETY ABORT: OPERATIONAL_FLOW_TEST_SUPABASE_URL points to a remote host (${hostname}).\nThis check creates and deletes real data. Only run it against an isolated local Supabase instance.\nIf you intentionally want to run against a remote isolated project, set OPERATIONAL_FLOW_TEST_ALLOW_REMOTE=true.`);
+    process.exit(2);
+  }
+}
+
+const { createClient } = await import("@supabase/supabase-js");
 
 const admin = createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 const clientFor = () => createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
