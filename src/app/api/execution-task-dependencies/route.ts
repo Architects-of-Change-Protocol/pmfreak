@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAuthenticatedUser, requireProjectAccess } from "@/lib/security/server-authorization";
-import { AccessDeniedError } from "@/lib/security/access-guards";
+import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { createExecutionTaskDependency } from "@/lib/execution-tasks/dependencies/create-dependency";
 import type { ExecutionTaskDependencyRow, ExecutionTaskDependencyType, ExecutionTaskDependencyStatus } from "@/lib/db/database-contract";
 

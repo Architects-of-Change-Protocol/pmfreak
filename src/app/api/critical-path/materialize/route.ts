@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
 import { requireProjectAccess } from "@/lib/security/server-authorization";
-import { AccessDeniedError } from "@/lib/security/access-guards";
+import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { materializeCriticalPath } from "@/lib/critical-path/materialize-critical-path";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {

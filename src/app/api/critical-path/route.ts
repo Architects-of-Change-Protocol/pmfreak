@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
 import { requireProjectAccess } from "@/lib/security/server-authorization";
-import { AccessDeniedError } from "@/lib/security/access-guards";
+import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { getProjectCriticalPath } from "@/lib/critical-path/repository";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {

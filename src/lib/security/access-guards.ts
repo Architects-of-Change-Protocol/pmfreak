@@ -3,14 +3,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { logSecurityEvent } from "@/lib/security/telemetry";
 import { type Permission, type WorkspaceRole } from "@/lib/security/rbac";
 import { authorizeRuntimeAction, buildEnterpriseRuntimeRequest } from "@/aoc/runtime-consumer";
+import { AccessDeniedError } from "@/aoc/enterprise/runtime/access-guards-bridge";
 import { PERMISSION_TO_GOVERNANCE_ACTION } from "@/lib/aoc/runtime/governance-actions";
 
-export class AccessDeniedError extends Error {
-  constructor(message: string, public readonly metadata: Record<string, unknown> = {}) {
-    super(message);
-    this.name = "AccessDeniedError";
-  }
-}
+export { AccessDeniedError };
 
 // Canonical mapping lives in governance-actions.ts; use it directly.
 const GOVERNANCE_ACTION_BY_PERMISSION = PERMISSION_TO_GOVERNANCE_ACTION;

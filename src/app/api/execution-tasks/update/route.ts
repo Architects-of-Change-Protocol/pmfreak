@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
 import { requireProjectAccess } from "@/lib/security/server-authorization";
-import { AccessDeniedError } from "@/lib/security/access-guards";
+import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { isValidStatusTransition } from "@/lib/execution-tasks/lifecycle";
 import type { ExecutionTaskRow, ExecutionTaskStatus } from "@/lib/db/database-contract";
 

@@ -1,4 +1,21 @@
-import type { FederatedOperationalEvent } from "@/lib/live-federation/ingestion/event-normalizer";
+export type RuntimeFederatedOperationalEvent = {
+  workspaceId: string;
+  connectorId: string;
+  sourceSystem: "jira" | "slack" | "github" | "calendar" | "notion" | "custom";
+  eventType: string;
+  timestamp: string;
+  payloadHash: string;
+  lineage: {
+    ingressId: string;
+    replayKey: string;
+    rawEventId: string;
+    normalizedAt: string;
+  };
+  severity: "low" | "medium" | "high" | "critical";
+  freshness: "fresh" | "warming" | "stale";
+  signalVector: string[];
+  payload: Record<string, unknown>;
+};
 
 export type RuntimeIngestionProjection = {
   eventMemory: string[];
@@ -7,7 +24,7 @@ export type RuntimeIngestionProjection = {
   telemetrySurfaces: string[];
 };
 
-export function projectIngressToRuntime(event: FederatedOperationalEvent): RuntimeIngestionProjection {
+export function projectIngressToRuntime(event: RuntimeFederatedOperationalEvent): RuntimeIngestionProjection {
   const id = event.lineage.ingressId;
   return {
     eventMemory: [id],
