@@ -1,10 +1,20 @@
-type FederatedOperationalEvent = {
-  eventType: string;
-  severity: "low" | "medium" | "high" | "critical";
+export type RuntimeFederatedOperationalEvent = {
+  workspaceId?: string;
+  connectorId?: string;
   sourceSystem: string;
+  eventType: string;
+  timestamp?: string;
+  payloadHash?: string;
+  lineage: {
+    ingressId: string;
+    replayKey?: string;
+    rawEventId?: string;
+    normalizedAt?: string;
+  };
+  severity: "low" | "medium" | "high" | "critical";
   freshness: "fresh" | "warming" | "stale";
   signalVector: string[];
-  lineage: { ingressId: string };
+  payload?: Record<string, unknown>;
 };
 
 export type RuntimeIngestionProjection = {
@@ -14,8 +24,11 @@ export type RuntimeIngestionProjection = {
   telemetrySurfaces: string[];
 };
 
-export function projectIngressToRuntime(event: FederatedOperationalEvent): RuntimeIngestionProjection {
+export function projectIngressToRuntime(
+  event: RuntimeFederatedOperationalEvent
+): RuntimeIngestionProjection {
   const id = event.lineage.ingressId;
+
   return {
     eventMemory: [id],
     cognitionSynthesisInputs: [event.eventType, event.severity],

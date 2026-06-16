@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireProjectAccess } from "@/lib/security/server-authorization";
+import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { materializeInferredExecutionTaskDependencies } from "@/lib/execution-tasks/dependencies/materialize-inferred-dependencies";
 import type { ProjectRow } from "@/lib/db/database-contract";

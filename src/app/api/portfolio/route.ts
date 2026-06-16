@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
+import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { getPortfolioIntelligence } from "@/lib/portfolio/repository";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
