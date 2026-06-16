@@ -824,7 +824,56 @@ export const EXECUTION_TASK_DEPENDENCY_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof ExecutionTaskDependencyRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// platform_events — Governance Event Layer
+// Migration: 20260616000000_platform_events_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PlatformEventRow = {
+  id: string;                        // uuid PK
+  workspace_id: string;              // uuid references workspaces
+  project_id: string | null;         // uuid references projects (nullable)
+  actor_id: string | null;           // uuid (nullable — system events have no actor)
+  actor_type: string;                // 'user' | 'ai_agent' | 'system' | 'integration'
+  event_type: string;                // e.g. 'RISK_CREATED', 'HUMAN_DECISION_RECORDED'
+  event_category: string;            // e.g. 'risk', 'decision', 'recommendation'
+  event_payload: Record<string, unknown>;  // structured facts — no raw content
+  source: string;                    // 'user_action' | 'ai_agent' | 'system' | ...
+  correlation_id: string | null;     // groups related events in a logical flow
+  causation_id: string | null;       // platform_events.id that caused this event
+  visibility: string;                // 'personal' | 'project' | 'workspace' | ...
+  sensitivity_level: string;         // 'public' | 'internal' | 'confidential' | 'restricted'
+  learning_eligible: boolean;        // may feed future learning pipelines when true
+  raw_reference_table: string | null;  // source table name (no content copied)
+  raw_reference_id: string | null;     // source record id (no content copied)
+  metadata: Record<string, unknown>;   // request_id, trace_id, session_id, etc.
+  occurred_at: string;               // timestamptz — when the event happened
+  created_at: string;                // timestamptz — when the row was inserted
+};
+
+export const PLATFORM_EVENT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "actor_id",
+  "actor_type",
+  "event_type",
+  "event_category",
+  "event_payload",
+  "source",
+  "correlation_id",
+  "causation_id",
+  "visibility",
+  "sensitivity_level",
+  "learning_eligible",
+  "raw_reference_table",
+  "raw_reference_id",
+  "metadata",
+  "occurred_at",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof PlatformEventRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-05-execution-tasks-critical-path-schedule-variance-v1" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-16-platform-events-execution-tasks-p0-hardening-v2" as const;
