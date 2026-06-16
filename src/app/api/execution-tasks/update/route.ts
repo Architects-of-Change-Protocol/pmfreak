@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
 import { requireProjectAccess } from "@/lib/security/server-authorization";
-import { AccessDeniedError } from "@/lib/security/access-guards";
 import { isValidStatusTransition } from "@/lib/execution-tasks/lifecycle";
 import type { ExecutionTaskRow, ExecutionTaskStatus } from "@/lib/db/database-contract";
 
@@ -46,7 +45,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     await requireProjectAccess(task.project_id, "read");
   } catch (error) {
-    if (error instanceof AccessDeniedError) {
+    if (error instanceof Error && error.message.includes("denied")) {
       return NextResponse.json({ ok: false, error: "Access denied.", failureClass: "unauthorized" }, { status: 403 });
     }
     return NextResponse.json({ ok: false, error: "Authorization check failed.", failureClass: "unauthorized" }, { status: 403 });

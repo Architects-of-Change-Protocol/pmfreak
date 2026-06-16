@@ -1,4 +1,11 @@
-import type { FederatedOperationalEvent } from "@/lib/live-federation/ingestion/event-normalizer";
+type FederatedOperationalEvent = {
+  eventType: string;
+  severity: "low" | "medium" | "high" | "critical";
+  sourceSystem: string;
+  freshness: "fresh" | "warming" | "stale";
+  signalVector: string[];
+  lineage: { ingressId: string };
+};
 
 export type RuntimeIngestionProjection = {
   eventMemory: string[];

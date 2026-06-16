@@ -4,7 +4,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DERIVED_LENS_METADATA } from "@/lib/workspace/derived-lens-metadata";
+import { AdvancedDrawer } from "@/components/pmfreak/navigation/advanced-drawer";
 import { computeCapabilityRevealState, computeNavigationRail } from "@/features/runtime/capability-reveal/capability-reveal-selectors";
+import { AWAKENING_EVENT, isLensUnlocked, loadAwakeningState, deriveAwakeningState, type AwakeningState } from "@/lib/workspace/awakening-state";
+import { loadImprintState } from "@/lib/workspace/operational-imprint-profile";
 
 type UserProject = { id: string; name: string };
 type DiscoverySummary = {
@@ -237,6 +240,17 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
 
   const initializedRef = useRef(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
+  const [awakening, setAwakening] = useState<AwakeningState>(() => loadAwakeningState("", ""));
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const next = (e as CustomEvent<AwakeningState>).detail;
+      if (next) setAwakening(next);
+    };
+    window.addEventListener(AWAKENING_EVENT, handler);
+    return () => window.removeEventListener(AWAKENING_EVENT, handler);
+  }, []);
+
   const [projectId, setProjectId] = useState<string>(() => {
     if (typeof window === "undefined") return "";
     const fromQuery = new URLSearchParams(window.location.search).get("projectId") ?? "";
@@ -777,8 +791,32 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
     canUseGovernanceDirectives: user.role === "admin" || user.role === "owner",
   }), [hasProjects, user.role]);
   const navHref = (href: string) => (projectId ? `${href}?projectId=${projectId}` : href);
-  const navItems = computeNavigationRail(revealState);
+  const navItems = computeNavigationRail(revealState).map((item) => ({
+    ...item,
+    locked: !isLensUnlocked(item.href, awakening.stage),
+  }));
   const primaryNav = navItems.filter((item) => item.idle === "text-indigo-100/90");
+  const lensNav = navItems.filter((item) => item.idle === "text-slate-300" && !item.href.startsWith("/projects") && !item.href.startsWith("/upload") && !item.href.startsWith("/team"));
+  const utilityNav = navItems.filter((item) => ["/projects", "/upload", "/team"].includes(item.href));
+  const advancedNav = navItems.filter((item) => item.idle === "text-slate-300" && !lensNav.includes(item) && !utilityNav.includes(item));
+
+  const imprintFocus = (() => {
+    try { return loadImprintState("", "", "").profile; } catch { return null; }
+  })();
+  const lensOrder = (() => {
+    if (!imprintFocus) return ["/dashboard", "/command-center", "/executive", "/portfolio"];
+    const stakeholders = (imprintFocus as { stakeholders?: number }).stakeholders ?? 0;
+    const delivery = (imprintFocus as { delivery?: number }).delivery ?? 0;
+    if (stakeholders > delivery) return ["/executive", "/command-center", "/dashboard", "/portfolio"];
+    if (delivery >= stakeholders) return ["/command-center", "/executive", "/dashboard", "/portfolio"];
+    return ["/dashboard", "/command-center", "/executive", "/portfolio"];
+  })();
+  const sortedLensNav = [...lensNav].sort((a, b) => {
+    const ai = lensOrder.indexOf(a.href);
+    const bi = lensOrder.indexOf(b.href);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+
   const activeLens = DERIVED_LENS_METADATA.find((lens) => pathname.startsWith(lens.route) && ["overview", "delivery", "leadership", "controls"].includes(lens.lensType));
   const discoveryCounts = {
     stakeholders: discoverySummary?.stakeholders_json?.length ?? 0,
@@ -838,6 +876,33 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
                     </Link>
                   );
                 })}
+              </div>
+            </nav>
+
+            {/* Grouped navigation hierarchy */}
+            <nav aria-label="Grouped navigation">
+              <div className="space-y-3">
+                <div>
+                  <p className="mb-1 text-[9px] uppercase tracking-[0.28em] text-zinc-600">Workspace</p>
+                  <Link href="/workspace" className="block rounded-lg border border-white/[0.05] px-2.5 py-1.5 text-xs text-slate-300 hover:border-white/[0.12]">Workspace</Link>
+                </div>
+                <div>
+                  <p className="mb-1 text-[9px] uppercase tracking-[0.28em] text-zinc-600">Lenses</p>
+                  <div className="space-y-1">
+                    {lensNav.map((item) => (
+                      <Link key={item.href} href={item.href} className={`block rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${pathname.startsWith(item.href) ? item.active : `border-white/[0.05] ${item.idle} hover:border-white/[0.12]`}`}>{item.label}</Link>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1 text-[9px] uppercase tracking-[0.28em] text-zinc-600">Utilities</p>
+                  <div className="space-y-1">
+                    {utilityNav.map((item) => (
+                      <Link key={item.href} href={item.href} className={`block rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${pathname.startsWith(item.href) ? item.active : `border-white/[0.05] ${item.idle} hover:border-white/[0.12]`}`}>{item.label}</Link>
+                    ))}
+                  </div>
+                </div>
+                <AdvancedDrawer items={advancedNav} pathname={pathname} navHref={navHref} />
               </div>
             </nav>
 
@@ -2149,6 +2214,13 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
           {/* Page content */}
           {activeLens && (
             <p className="px-1 text-[11px] text-slate-500">{activeLens.breadcrumbLabel}</p>
+          )}
+          {!activeLens && !projectId && (
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.01] p-6 text-center">
+              <p className="text-sm font-medium text-slate-300">Monitoring</p>
+              <p className="mt-1 text-xs text-zinc-500">No active context</p>
+              <p className="mt-0.5 text-[11px] text-zinc-600">Create your first context.</p>
+            </div>
           )}
           <main className="min-w-0">{children}</main>
         </div>

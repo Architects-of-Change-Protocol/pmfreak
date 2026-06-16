@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireProjectAccess } from "@/lib/security/server-authorization";
-import { AccessDeniedError } from "@/lib/security/access-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { materializeInferredExecutionTaskDependencies } from "@/lib/execution-tasks/dependencies/materialize-inferred-dependencies";
 import type { ProjectRow } from "@/lib/db/database-contract";
@@ -29,7 +28,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     await requireProjectAccess(projectId, "read");
   } catch (error) {
-    if (error instanceof AccessDeniedError) {
+    if (error instanceof Error && error.message.includes("denied")) {
       return NextResponse.json({ ok: false, error: "Access denied." }, { status: 403 });
     }
     return NextResponse.json({ ok: false, error: "Authorization failed." }, { status: 403 });

@@ -803,7 +803,7 @@ export function CreateProjectWizard() {
     clearDraft();
     const briefParam = result.briefStatus === "generation_failed" ? "&briefGeneration=failed" : "";
     navigationCommittedRef.current = true;
-    router.push(`/projects/${result.projectId}`);
+    router.push(`/command-center?projectId=${result.projectId}${briefParam}`);
   };
 
   const handleRetry = () => {
