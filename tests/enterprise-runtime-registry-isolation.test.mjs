@@ -1,19 +1,35 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
 
-const enterpriseFiles = execFileSync("rg", ["--files", "src/aoc/enterprise"], { encoding: "utf8" })
-  .trim()
-  .split("\n")
-  .filter(Boolean)
-  .filter((file) => /\.(ts|tsx|js|mjs)$/.test(file));
+const sourceFilePattern = /\.(ts|tsx|js|mjs)$/;
+
+function collectSourceFiles(directory) {
+  const files = [];
+
+  for (const entry of readdirSync(directory)) {
+    const filePath = path.join(directory, entry);
+    const stats = statSync(filePath);
+
+    if (stats.isDirectory()) {
+      files.push(...collectSourceFiles(filePath));
+    } else if (stats.isFile() && sourceFilePattern.test(filePath)) {
+      files.push(filePath);
+    }
+  }
+
+  return files;
+}
+
+const enterpriseFiles = collectSourceFiles(path.join("src", "aoc", "enterprise"));
+const runtimeCompositionRoot = path.join("src", "aoc", "enterprise", "runtime", "composition.ts");
 
 test("enterprise registry access is isolated to the runtime composition root", () => {
   const violations = [];
   for (const file of enterpriseFiles) {
     const source = readFileSync(file, "utf8");
-    if (source.includes("getAocAdapter(") && file !== "src/aoc/enterprise/runtime/composition.ts") {
+    if (source.includes("getAocAdapter(") && file !== runtimeCompositionRoot) {
       violations.push(file);
     }
   }
