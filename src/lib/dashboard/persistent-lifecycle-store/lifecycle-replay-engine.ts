@@ -17,7 +17,7 @@ export function replayLifecycleEventStream(input: { lifecycles: DashboardTaskLif
       if (event.eventType === 'execution_completed') next.status = 'execution_completed'
       else if (event.eventType === 'execution_failed') next.status = 'execution_failed'
       else if (event.eventType === 'retry_scheduled') next.retryCount += 1
-      else if (event.eventType === 'approval_approved') next.status = 'approved'
+      else if (event.eventType === 'approval_granted' || event.eventType === 'approval_approved') next.status = 'approved'
       else if (event.eventType === 'approval_rejected') next.status = 'rejected'
       else if (event.eventType === 'approval_requested') next.status = 'approval_pending'
       else warnings.push(`Unknown event type: ${event.eventType}`)
