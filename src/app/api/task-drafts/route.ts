@@ -24,8 +24,8 @@ export async function GET(request: Request) {
     userId = user.id;
     await requireProjectAccess(projectId, "read");
   } catch (error) {
-    if (error instanceof AccessDeniedError) {
-      const reason = String((error as AccessDeniedError & { metadata?: { reason?: string } }).metadata?.reason ?? "");
+    if (error instanceof Error && error.message.includes("denied")) {
+      const reason = String((error as Error & { metadata?: { reason?: string } }).metadata?.reason ?? "");
       if (reason === "unauthorized") {
         return Response.json({ error: "Unauthorized." }, { status: 401 });
       }

@@ -8,11 +8,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const ctx = await requireAuthenticatedUser();
     user = ctx.user;
-  } catch (err) {
-    if (err instanceof AccessDeniedError) {
-      return NextResponse.json({ ok: false, error: "Unauthenticated." }, { status: 401 });
-    }
-    return NextResponse.json({ ok: false, error: "Authorization failed." }, { status: 401 });
+  } catch {
+    return NextResponse.json({ ok: false, error: "Unauthenticated." }, { status: 401 });
   }
 
   let workspaceId = user.companyId;

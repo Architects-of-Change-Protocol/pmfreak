@@ -59,7 +59,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     await requireProjectAccess(dep.project_id, "read");
   } catch (error) {
-    if (error instanceof AccessDeniedError) {
+    if (error instanceof Error && error.message.includes("denied")) {
       return NextResponse.json({ ok: false, error: "Access denied." }, { status: 403 });
     }
     return NextResponse.json({ ok: false, error: "Authorization failed." }, { status: 403 });

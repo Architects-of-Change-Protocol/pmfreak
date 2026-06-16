@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { WorkspaceConversationShell } from "@/components/pmfreak/workspace/workspace-conversation-shell";
-import { AWAKENING_EVENT, deriveAwakeningState, type AwakeningState } from "@/lib/workspace/awakening-state";
+import { AWAKENING_EVENT, deriveAwakeningState, persistAwakeningState, type AwakeningState } from "@/lib/workspace/awakening-state";
+import { WORKSPACE_DISPLAY } from "@/lib/workspace/display-semantics";
+import { CONFIDENCE_CHIP_LABELS, computeImprintConfidence } from "@/lib/workspace/imprint-confidence";
+import { emptyImprintState } from "@/lib/workspace/operational-imprint-profile";
 import { bootstrapRuntimeState } from "@/lib/workspace/runtime-bootstrap";
 import { runtimePersistence, type RuntimePersistenceScope } from "@/lib/workspace/runtime-persistence";
 
@@ -43,6 +46,7 @@ export function WorkspaceShell({ companyId, workspaceId, userId, freshOnboarding
 
   const handleAwakeningAdvance = useCallback((next: AwakeningState) => {
     setAwakening(next);
+    persistAwakeningState(companyId, workspaceId, next);
     void runtimePersistence.persistAwakening(scope, next).catch(() => undefined);
     window.dispatchEvent(new CustomEvent(AWAKENING_EVENT, { detail: next }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -50,6 +54,9 @@ export function WorkspaceShell({ companyId, workspaceId, userId, freshOnboarding
 
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const showWelcome = freshOnboarding && !welcomeDismissed && pmoContext?.found;
+  const isDormant = awakening.stage === "dormant";
+  const imprintConfidence = computeImprintConfidence(emptyImprintState().profile);
+  const showImprintChip = imprintConfidence !== "forming";
 
   return (
     <section className="mx-auto min-h-[calc(100vh-10rem)] w-full max-w-[1220px]">
@@ -115,6 +122,20 @@ export function WorkspaceShell({ companyId, workspaceId, userId, freshOnboarding
             ) : null}
           </span>
         </div>
+      )}
+      {isDormant && (
+        <p className="mb-2 text-xs text-slate-500">{WORKSPACE_DISPLAY.labels.standbySubtitle}</p>
+      )}
+      {/* Readiness chips — compressed display */}
+      <div className="mb-3 flex flex-wrap gap-1.5 text-[10px]">
+        <span className="rounded-full border border-white/10 px-2 py-0.5 text-zinc-500">{WORKSPACE_DISPLAY.labels.operationallyLive}</span>
+        <span className="rounded-full border border-white/10 px-2 py-0.5 text-zinc-500">{WORKSPACE_DISPLAY.readiness.live}</span>
+        <span className="rounded-full border border-white/10 px-2 py-0.5 text-zinc-500">{WORKSPACE_DISPLAY.readiness.context}</span>
+        <span className="rounded-full border border-white/10 px-2 py-0.5 text-zinc-500">{WORKSPACE_DISPLAY.readiness.memory}</span>
+        <span className="rounded-full border border-white/10 px-2 py-0.5 text-zinc-500">{WORKSPACE_DISPLAY.readiness.ready}</span>
+      </div>
+      {showImprintChip && (
+        <span className="mb-2 inline-block rounded-full border border-white/10 px-2.5 py-0.5 text-[10px] text-zinc-400">{CONFIDENCE_CHIP_LABELS[imprintConfidence]}</span>
       )}
       <main>
         <WorkspaceConversationShell

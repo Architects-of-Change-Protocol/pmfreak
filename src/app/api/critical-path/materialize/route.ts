@@ -25,11 +25,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   try {
     await requireProjectAccess(projectId, "read");
-  } catch (err) {
-    if (err instanceof AccessDeniedError) {
-      return NextResponse.json({ ok: false, error: "Access denied." }, { status: 403 });
-    }
-    return NextResponse.json({ ok: false, error: "Authorization failed." }, { status: 403 });
+  } catch {
+    return NextResponse.json({ ok: false, error: "Access denied." }, { status: 403 });
   }
 
   const result = await materializeCriticalPath({ projectId });

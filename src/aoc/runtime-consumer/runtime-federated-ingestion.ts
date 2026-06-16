@@ -15,6 +15,13 @@ export type RuntimeFederatedOperationalEvent = {
   freshness: "fresh" | "warming" | "stale";
   signalVector: string[];
   payload: Record<string, unknown>;
+type FederatedOperationalEvent = {
+  eventType: string;
+  severity: "low" | "medium" | "high" | "critical";
+  sourceSystem: string;
+  freshness: "fresh" | "warming" | "stale";
+  signalVector: string[];
+  lineage: { ingressId: string };
 };
 
 export type RuntimeIngestionProjection = {
