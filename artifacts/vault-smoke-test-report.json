@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "generatedAt": "2026-06-16T05:00:21.487Z",
+    "generatedAt": "2026-06-16T16:30:26.760Z",
     "artifactCount": 51,
-    "elapsedMs": 52,
+    "elapsedMs": 58,
     "smokeTestVersion": "1.2.0",
     "datasetDescription": "LATAM Enterprise PM — 5 projects across 51 operational artifacts"
   },
@@ -506,7 +506,7 @@
       "projectId": "proj-ice-9298",
       "nutrientType": "escalation_signal",
       "submittedAt": "2026-04-14T11:00:00Z",
-      "freshness": 0.13,
+      "freshness": 0.12,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -515,7 +515,7 @@
       "projectId": "proj-ice-9298",
       "nutrientType": "escalation_signal",
       "submittedAt": "2026-04-14T11:00:00Z",
-      "freshness": 0.13,
+      "freshness": 0.12,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -524,7 +524,7 @@
       "projectId": "proj-ice-9298",
       "nutrientType": "escalation_signal",
       "submittedAt": "2026-04-14T11:00:00Z",
-      "freshness": 0.13,
+      "freshness": 0.12,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -533,7 +533,7 @@
       "projectId": "proj-ice-9298",
       "nutrientType": "escalation_signal",
       "submittedAt": "2026-04-14T11:00:00Z",
-      "freshness": 0.13,
+      "freshness": 0.12,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -605,7 +605,7 @@
       "projectId": "proj-gch-15992",
       "nutrientType": "blocker_signal",
       "submittedAt": "2026-04-14T15:00:00Z",
-      "freshness": 0.13,
+      "freshness": 0.12,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -614,7 +614,7 @@
       "projectId": "proj-gch-15992",
       "nutrientType": "blocker_signal",
       "submittedAt": "2026-04-14T15:00:00Z",
-      "freshness": 0.13,
+      "freshness": 0.12,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -641,7 +641,7 @@
       "projectId": "proj-gch-15992",
       "nutrientType": "blocker_signal",
       "submittedAt": "2026-04-26T10:00:00Z",
-      "freshness": 0.19,
+      "freshness": 0.18,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -650,7 +650,7 @@
       "projectId": "proj-gch-15992",
       "nutrientType": "escalation_signal",
       "submittedAt": "2026-04-26T10:00:00Z",
-      "freshness": 0.19,
+      "freshness": 0.18,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -695,7 +695,7 @@
       "projectId": "proj-hsa-15576",
       "nutrientType": "blocker_signal",
       "submittedAt": "2026-04-14T10:00:00Z",
-      "freshness": 0.13,
+      "freshness": 0.12,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -731,7 +731,7 @@
       "projectId": "proj-hsa-15576",
       "nutrientType": "escalation_signal",
       "submittedAt": "2026-04-26T09:30:00Z",
-      "freshness": 0.19,
+      "freshness": 0.18,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -740,7 +740,7 @@
       "projectId": "proj-hsa-15576",
       "nutrientType": "escalation_signal",
       "submittedAt": "2026-04-26T09:30:00Z",
-      "freshness": 0.19,
+      "freshness": 0.18,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -749,7 +749,7 @@
       "projectId": "proj-hsa-15576",
       "nutrientType": "escalation_signal",
       "submittedAt": "2026-04-26T09:30:00Z",
-      "freshness": 0.19,
+      "freshness": 0.18,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -839,7 +839,7 @@
       "projectId": "proj-muc-13098",
       "nutrientType": "blocker_signal",
       "submittedAt": "2026-04-29T14:00:00Z",
-      "freshness": 0.21,
+      "freshness": 0.2,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -848,7 +848,7 @@
       "projectId": "proj-muc-13098",
       "nutrientType": "blocker_signal",
       "submittedAt": "2026-04-29T14:00:00Z",
-      "freshness": 0.21,
+      "freshness": 0.2,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -857,7 +857,7 @@
       "projectId": "proj-muc-13098",
       "nutrientType": "escalation_signal",
       "submittedAt": "2026-05-02T09:00:00Z",
-      "freshness": 0.23,
+      "freshness": 0.22,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
