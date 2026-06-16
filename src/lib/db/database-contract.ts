@@ -876,4 +876,4 @@ export const PLATFORM_EVENT_SELECTABLE_COLUMNS = [
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-16-platform-events-governance-event-layer-v1" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-16-platform-events-execution-tasks-p0-hardening-v2" as const;

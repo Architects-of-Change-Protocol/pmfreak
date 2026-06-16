@@ -26,15 +26,95 @@ This is the historical memory of the workspace. It is the foundation for:
 
 ---
 
+## Foundational principles
+
+> **Raw data belongs to the customer.**  
+> **Events record what happened.**  
+> **History is never rewritten.**  
+> **Corrections are represented as new events.**
+
+These principles are enforced at every layer of the stack.
+
+---
+
 ## Why append-only?
 
-Governance events must be trustworthy. If events can be edited or deleted, they cannot serve as an audit trail.
+Governance events must be trustworthy. If events can be edited or deleted, they cannot serve as an audit trail or as the basis for organizational memory.
 
-- `UPDATE` is not permitted via RLS
-- `DELETE` is not permitted via RLS
-- The service role (used by server-side helpers) can insert freely, but server helpers enforce field validation
+### Database-level enforcement (P0-hardening migration)
 
-If a factual error is discovered, record a correction event (e.g. a new event that supersedes or amends the previous fact) rather than mutating the original.
+`platform_events` has a `BEFORE UPDATE OR DELETE` trigger that fires unconditionally:
+
+```sql
+create trigger platform_events_immutability_guard
+  before update or delete
+  on public.platform_events
+  for each row
+  execute function public.prevent_platform_event_mutation();
+```
+
+This trigger raises an exception for any UPDATE or DELETE attempt, **including from the service role**. It cannot be bypassed by elevated privileges within the database. The only way to change the historical record would require a superuser (`pg_bypass_rls`) or a schema migration — both of which are audited events outside normal application flows.
+
+### RLS enforcement
+
+- No `UPDATE` policy exists on `platform_events`.
+- No `DELETE` policy exists on `platform_events`.
+- These policies cannot be added without a migration, which is a traceable, reviewed change.
+
+### Application enforcement
+
+The `createPlatformEvent` helper only issues `INSERT` statements. There are no update or delete helpers in this codebase.
+
+### Correction pattern
+
+If a factual error is discovered in an existing event, **do not attempt to mutate it**. The trigger will reject the attempt. Instead, emit a compensating event:
+
+```ts
+await createPlatformEvent({
+  eventType: "HUMAN_DECISION_RECORDED",
+  eventCategory: "decision",
+  eventPayload: {
+    decision_id: "new-uuid",
+    supersedes_event_id: "uuid-of-original-event",   // reference the old event
+    correction_reason_category: "data_entry_error",
+    decision_type: "rejected",                        // corrected value
+    decision_latency_bucket: "same_day",
+  },
+  // ...
+});
+```
+
+---
+
+## Project/workspace ownership integrity
+
+Every event that references a `project_id` is validated to ensure that project belongs to the declared `workspace_id`. This is enforced at two layers:
+
+### RLS layer (database)
+
+The INSERT policy verifies the project/workspace relationship:
+
+```sql
+with check (
+  is_workspace_member(workspace_id)
+  and (
+    project_id is null
+    or exists (
+      select 1 from public.projects p
+      where p.id = project_id
+        and p.workspace_id = platform_events.workspace_id
+    )
+  )
+)
+```
+
+A cross-workspace event (workspace A + project B from workspace C) will be rejected by the database even if the insert is attempted via the service role.
+
+### What this prevents
+
+An attacker or buggy caller cannot create an event that links a project to a workspace it doesn't belong to. This protects the integrity of organizational memory — every event's workspace scope is authoritative.
+
+---
 
 ---
 
@@ -270,4 +350,5 @@ None of this is implemented yet. The event log is the prerequisite. Future epics
 - RLS is enabled. Workspace members can read and insert events for their workspace only.
 - No UPDATE or DELETE policies exist — events are append-only.
 - Service role (server-side helpers) can insert without RLS for system-generated events.
-- The `createPlatformEvent` helper rejects forbidden payload keys at the application layer before any database write.
+- The `createPlatformEvent` helper recursively scans `event_payload` at any nesting depth and rejects events containing forbidden keys (e.g. `token`, `api_key`, `password`, `full_email_body`) before any database write. The error includes the full dotted path to the offending key (e.g. `data.credentials.api_key`).
+- The immutability trigger (`prevent_platform_event_mutation`) blocks all UPDATE and DELETE operations at the database level, including from the service role.

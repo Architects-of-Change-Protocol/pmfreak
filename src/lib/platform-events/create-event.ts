@@ -1,3 +1,4 @@
+import { PLATFORM_EVENT_SELECTABLE_COLUMNS } from "@/lib/db/database-contract";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type {
   CreatePlatformEventInput,
@@ -11,8 +12,8 @@ import type {
 } from "./types";
 
 // ─── Forbidden payload keys ───────────────────────────────────────────────────
-// Reject any event payload containing keys that likely carry raw confidential
-// content. Raw data belongs to the customer — events capture structured facts.
+// Reject any event payload containing these keys at ANY nesting depth.
+// Raw data belongs to the customer — events capture structured facts only.
 
 const FORBIDDEN_PAYLOAD_KEYS = new Set([
   "full_email_body",
@@ -29,11 +30,32 @@ const FORBIDDEN_PAYLOAD_KEYS = new Set([
   "authorization",
 ]);
 
-function detectForbiddenKeys(payload: Record<string, unknown>): string | null {
-  for (const key of Object.keys(payload)) {
-    if (FORBIDDEN_PAYLOAD_KEYS.has(key.toLowerCase())) {
-      return key;
+// Returns "path.to.key" if a forbidden key is found anywhere in the structure,
+// null if the payload is clean. Traverses objects and arrays recursively.
+function detectForbiddenKeys(
+  value: unknown,
+  path: string = ""
+): string | null {
+  if (value === null || typeof value !== "object") return null;
+
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const found = detectForbiddenKeys(value[i], `${path}[${i}]`);
+      if (found !== null) return found;
     }
+    return null;
+  }
+
+  for (const key of Object.keys(value as Record<string, unknown>)) {
+    const fullPath = path ? `${path}.${key}` : key;
+    if (FORBIDDEN_PAYLOAD_KEYS.has(key.toLowerCase())) {
+      return fullPath;
+    }
+    const found = detectForbiddenKeys(
+      (value as Record<string, unknown>)[key],
+      fullPath
+    );
+    if (found !== null) return found;
   }
   return null;
 }
@@ -81,29 +103,9 @@ const VALID_CATEGORIES: PlatformEventCategory[] = [
   "system",
 ];
 
-// ─── Selectable columns ───────────────────────────────────────────────────────
+// ─── Column selection — single source of truth from database-contract.ts ─────
 
-const PLATFORM_EVENT_COLUMNS = [
-  "id",
-  "workspace_id",
-  "project_id",
-  "actor_id",
-  "actor_type",
-  "event_type",
-  "event_category",
-  "event_payload",
-  "source",
-  "correlation_id",
-  "causation_id",
-  "visibility",
-  "sensitivity_level",
-  "learning_eligible",
-  "raw_reference_table",
-  "raw_reference_id",
-  "metadata",
-  "occurred_at",
-  "created_at",
-].join(",");
+const PLATFORM_EVENT_COLUMNS = PLATFORM_EVENT_SELECTABLE_COLUMNS.join(",");
 
 // ─── createPlatformEvent ──────────────────────────────────────────────────────
 
@@ -130,11 +132,20 @@ export async function createPlatformEvent(
   }
 
   // Validate actor_type
-  const actorType: PlatformEventActorType = input.actorType ?? "user";
+  const actorType: PlatformEventActorType = input.actorType ?? "system";
   if (!VALID_ACTOR_TYPES.includes(actorType)) {
     return {
       ok: false,
       error: `actorType must be one of: ${VALID_ACTOR_TYPES.join(", ")}.`,
+      failureClass: "validation_failed",
+    };
+  }
+
+  // Enforce actor_id coherence: human actors must have an actor_id
+  if (actorType === "user" && !input.actorId) {
+    return {
+      ok: false,
+      error: "actorId is required when actorType is 'user'.",
       failureClass: "validation_failed",
     };
   }
@@ -169,13 +180,13 @@ export async function createPlatformEvent(
     };
   }
 
-  // Validate payload — reject forbidden keys
+  // Validate payload — recursively reject forbidden keys at any nesting depth
   const payload = input.eventPayload ?? {};
-  const forbiddenKey = detectForbiddenKeys(payload);
-  if (forbiddenKey) {
+  const forbiddenPath = detectForbiddenKeys(payload);
+  if (forbiddenPath !== null) {
     return {
       ok: false,
-      error: `event_payload must not contain "${forbiddenKey}". Raw content must not be stored in governance events.`,
+      error: `Forbidden payload key detected: ${forbiddenPath}. Raw content must not be stored in governance events. Raw data belongs to the customer.`,
       failureClass: "forbidden_payload_key",
     };
   }

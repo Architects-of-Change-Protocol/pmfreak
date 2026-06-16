@@ -1,30 +1,11 @@
+import { PLATFORM_EVENT_SELECTABLE_COLUMNS } from "@/lib/db/database-contract";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { PlatformEventFilters, PlatformEventListResult, PlatformEventRow } from "./types";
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
-const PLATFORM_EVENT_COLUMNS = [
-  "id",
-  "workspace_id",
-  "project_id",
-  "actor_id",
-  "actor_type",
-  "event_type",
-  "event_category",
-  "event_payload",
-  "source",
-  "correlation_id",
-  "causation_id",
-  "visibility",
-  "sensitivity_level",
-  "learning_eligible",
-  "raw_reference_table",
-  "raw_reference_id",
-  "metadata",
-  "occurred_at",
-  "created_at",
-].join(",");
+const PLATFORM_EVENT_COLUMNS = PLATFORM_EVENT_SELECTABLE_COLUMNS.join(",");
 
 export async function getPlatformEvents(
   filters: PlatformEventFilters
