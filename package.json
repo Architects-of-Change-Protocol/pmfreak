@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "npm run lint:aoc-boundaries && eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/*.test.mjs tests/*.test.ts",
+    "test": "tsx --test tests/*.test.mjs tests/*.test.ts",
     "lint:aoc-boundaries": "node scripts/lint-aoc-boundaries.mjs",
     "check:aoc-packages": "node scripts/check-aoc-packages.mjs",
     "check:aoc-deps": "node scripts/check-aoc-dependency-direction.mjs",
@@ -94,6 +94,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.6",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -101,7 +102,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "@changesets/cli": "^2.29.6"
+    "tsx": "^4.22.4",
+    "typescript": "^5"
   }
 }

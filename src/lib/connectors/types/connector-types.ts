@@ -4,7 +4,8 @@ export type ConnectorSystem =
   | "zendesk" | "procurement" | "erp" | "vendor_ticketing" | "pmo_spreadsheet" | "meeting_transcript" | "support";
 
 export interface ConnectorGovernanceBoundary { tenantId: string; workspaceId: string; allowedDomains: string[]; visibility: "workspace"|"executive"; }
-export interface SourceLineageRecord { sourceSystem: ConnectorSystem; sourceEventId: string; sourceReference: string; normalizedBy: string; federationRuleIds: string[]; lineageRationale: string; }
+export interface SourceProvenanceRecord { sourceSystem: ConnectorSystem; sourceEventId: string; sourceReference: string; normalizedBy: string; federationRuleIds: string[]; lineageRationale: string; }
+export type SourceLineageRecord = SourceProvenanceRecord;
 export interface ConnectorSignal { id: string; connector: ConnectorSystem; type: string; severity: "low"|"medium"|"high"|"critical"; occurredAt: string; actorHints: string[]; payload: Record<string, unknown>; governance: ConnectorGovernanceBoundary; }
 export interface FederatedOperationalSignal extends ConnectorSignal { operationalMeaning: string; confidence: number; uncertainty: string[]; temporalReferences: string[]; lineage: SourceLineageRecord[]; }
 export interface SignalNormalizationResult { signal: FederatedOperationalSignal; confidence: number; uncertainty: string[]; rationale: string; }
