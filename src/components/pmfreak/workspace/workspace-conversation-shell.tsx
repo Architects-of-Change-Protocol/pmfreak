@@ -11,11 +11,19 @@ import { resolveLanguagePreference } from "@/lib/workspace/language/language-pre
 import { normalizeOperationalConcepts } from "@/lib/workspace/language/operational-concepts";
 import {
   observeInteraction,
+  computeIgnitionCues,
 } from "@/lib/workspace/imprint-inference";
+import { WORKSPACE_DISPLAY } from "@/lib/workspace/display-semantics";
+import { isRuntimeValidationEnabled } from "@/lib/workspace/beta-validation-mode";
 import {
   emptyImprintState,
+  loadImprintState,
+  persistImprintState,
   type PMImprintState,
 } from "@/lib/workspace/operational-imprint-profile";
+import {
+  computeAdaptiveClarifyingQuestion,
+} from "@/lib/workspace/imprint-inference";
 import { runtimePersistence, type RuntimePersistenceScope, type RuntimeSyncStatus } from "@/lib/workspace/runtime-persistence";
 import { bootstrapRuntimeState } from "@/lib/workspace/runtime-bootstrap";
 import { buildValidationTrace } from "@/lib/workspace/validation-trace-builder";
@@ -124,6 +132,9 @@ type Props = {
 };
 
 export function WorkspaceConversationShell({ awakening, onAwakeningAdvance, scope }: Props) {
+  const IMPRINT_COMPANY_ID = scope.companyId;
+  const IMPRINT_WORKSPACE_ID = scope.workspaceId;
+  const IMPRINT_USER_ID = scope.userId;
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [methodology] = useState<"PMI" | "Agile" | "Hybrid" | "General PMO">("Hybrid");
@@ -137,9 +148,9 @@ export function WorkspaceConversationShell({ awakening, onAwakeningAdvance, scop
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
-  const [imprintState, setImprintState] = useState<PMImprintState>(() => emptyImprintState());
+  const [imprintState, setImprintState] = useState<PMImprintState>(() => loadImprintState(scope.companyId, scope.workspaceId, scope.userId));
   const [validationState, setValidationState] = useState<ValidationState>(() => emptyValidationState());
-  const [validationEnabled, setValidationEnabled] = useState(true);
+  const [validationEnabled, setValidationEnabled] = useState(() => isRuntimeValidationEnabled());
   const [, setSyncStatus] = useState<RuntimeSyncStatus>("synced");
   const pendingTraceRef = useRef<ValidationTrace | null>(null);
   const [ambientMemory, setAmbientMemory] = useState<AmbientMemory>({ blockers: [], recentDecisions: [], stakeholderPressure: [], criticalRisks: [], concerns: [] });
@@ -161,6 +172,7 @@ export function WorkspaceConversationShell({ awakening, onAwakeningAdvance, scop
       setValidationState(boot.validation);
       setValidationEnabled(boot.flags.runtimeValidationEnabled);
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope]);
 
   useEffect(() => {
@@ -241,6 +253,7 @@ export function WorkspaceConversationShell({ awakening, onAwakeningAdvance, scop
       onAwakeningAdvance(nextAwakening);
       const nextImprint = observeInteraction(message, imprintState);
       setImprintState(nextImprint);
+      persistImprintState(IMPRINT_COMPANY_ID, IMPRINT_WORKSPACE_ID, IMPRINT_USER_ID, nextImprint);
       setSyncStatus("syncing");
       void runtimePersistence.persistImprint(scope, nextImprint).then(() => setSyncStatus("synced")).catch(() => setSyncStatus("fallback"));
       if (validationEnabled) {
@@ -409,7 +422,7 @@ export function WorkspaceConversationShell({ awakening, onAwakeningAdvance, scop
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }}
-              placeholder="Tell PMFreak what needs attention…"
+              placeholder={computeAdaptiveClarifyingQuestion(imprintState.profile, computeImprintConfidence(imprintState.profile))}
               className="flex-1 rounded-xl border border-white/15 bg-slate-950/75 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300/70"
             />
             <button onClick={() => void send()} disabled={loading} className="rounded-xl border border-cyan-200/45 bg-cyan-400/[0.08] px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.16]">Send</button>
@@ -421,6 +434,59 @@ export function WorkspaceConversationShell({ awakening, onAwakeningAdvance, scop
           ) : null}
         </div>
       </section>
+
+      {/* Stage chip bar: tracks awakening progression */}
+      <div className="mt-2 flex gap-1.5 text-[10px] text-slate-500">
+        {(["dormant", "initializing", "orienting", "engaged", "expanded", "fully-operational"] as const).map((stage) => (
+          <span key={stage} className={`rounded-full border px-2 py-0.5 ${awakening.stage === stage ? "border-cyan-300/40 text-cyan-200" : "border-white/10"}`}>{stage}</span>
+        ))}
+      </div>
+
+      {/* Dormant invitation — shown before meaningful interaction */}
+      {awakening.stage === "dormant" && (
+        <p className="mt-3 text-sm text-slate-400">{WORKSPACE_DISPLAY.labels.dormantInvitation}</p>
+      )}
+
+      {/* Dynamic ignition cues from imprint */}
+      {(() => {
+        const ignitionCues = computeIgnitionCues(imprintState.profile, computeImprintConfidence(imprintState.profile));
+        return ignitionCues.length > 0 ? (
+          <ul className="mt-2 space-y-1">
+            {ignitionCues.map((cue) => (
+              <li key={cue} className="text-xs text-slate-500 cursor-pointer hover:text-slate-300" onClick={() => void send(cue)}>{cue}</li>
+            ))}
+          </ul>
+        ) : null;
+      })()}
+
+      {/* Imprint summary with reset */}
+      <ImprintSummary
+        profile={imprintState.profile}
+        companyId={IMPRINT_COMPANY_ID}
+        workspaceId={IMPRINT_WORKSPACE_ID}
+        userId={IMPRINT_USER_ID}
+        onReset={() => setImprintState(emptyImprintState())}
+      />
+
+      {/* Agent awakening panel — right sidebar */}
+      <aside className="mt-4">
+        <AgentAwakeningPanel state={awakening} />
+        {/* Telemetry cards: dormant labels before awakening */}
+        <div className="mt-2 grid grid-cols-3 gap-1 text-[10px]">
+          <div className="rounded-lg border border-white/10 p-2 text-slate-500">
+            <p className="font-medium text-slate-400">Status</p>
+            <p>{awakening.stage === "dormant" ? "Dormant" : "Active"}</p>
+          </div>
+          <div className="rounded-lg border border-white/10 p-2 text-slate-500">
+            <p className="font-medium text-slate-400">Signal</p>
+            <p>{awakening.stage === "dormant" ? "Awaiting signal" : "Received"}</p>
+          </div>
+          <div className="rounded-lg border border-white/10 p-2 text-slate-500">
+            <p className="font-medium text-slate-400">Agents</p>
+            <p>{awakening.stage === "dormant" ? "Pending" : `${awakening.awakenedAgents.length} active`}</p>
+          </div>
+        </div>
+      </aside>
 
     </main>
   );

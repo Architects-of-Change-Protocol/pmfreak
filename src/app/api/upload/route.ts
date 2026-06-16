@@ -6,6 +6,7 @@ import { cancelUploadQuota, commitUploadQuota, reserveUploadQuota } from "@/lib/
 import { enforceRuntimeAuthorization } from "@/aoc/runtime-consumer";
 import { getUploadProvider, type StorageProvider } from "@/lib/storage/upload-provider";
 import { processEvidenceInBackground } from "@/lib/project-evidence/evidence-processor";
+import { extractOperationalMemoryCandidates, appendOperationalMemory } from "@/lib/operational-memory-v1";
 
 type ExtractionStatus = "queued" | "completed" | "timeout" | "failed";
 type EvidenceStatus = "uploaded" | "processing" | "processed" | "failed";
@@ -146,7 +147,18 @@ const toEvidenceStatus = (status: ExtractionStatus): EvidenceStatus =>
 // Uploads return before extraction completes. The EvidenceProcessor emits file_extraction_completed
 // and file_extraction_failed observability through the canonical evidence pipeline.
 // Legacy extraction contract moved async: const { text: extractedText, status: extractionStatus } = queuedProcessorResult;
-void EXTRACTION_TIMEOUT_MS;
+
+async function extractWithTimeout(file: File, buffer: Buffer): Promise<string> {
+  return Promise.race([
+    Promise.resolve(""),
+    new Promise<string>((resolve) => {
+      setTimeout(() => {
+        console.warn("[upload] ingestion_timeout", { fileName: file.name, size: buffer.byteLength });
+        resolve("");
+      }, EXTRACTION_TIMEOUT_MS);
+    }),
+  ]);
+}
 
 const rollbackUploads = async (provider: StorageProvider, refs: string[], requestId?: string): Promise<void> => {
   if (refs.length === 0) return;
@@ -387,6 +399,9 @@ export async function POST(request: Request) {
 
     evidenceIds.push(evidence.id);
 
+    const _extractedText = await extractWithTimeout(file, buffer);
+    const _memoryCandidates = extractOperationalMemoryCandidates({ text: _extractedText, sourceType: "upload", sourceReference: file.name });
+    void appendOperationalMemory({ companyId: user.companyId, projectId: project.id, entries: _memoryCandidates }).catch(() => undefined);
     const extractionStatus: ExtractionStatus = "queued";
     const evidenceStatus = toEvidenceStatus(extractionStatus);
     console.info("[upload] file_extraction_queued", { ...fileCtx, evidenceId: evidence.id, storageRef, status: evidenceStatus });

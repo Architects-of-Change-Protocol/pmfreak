@@ -25,6 +25,7 @@ export type DashboardTaskLifecycleEventType =
   | 'approval_requested'
   | 'approval_not_required'
   | 'approval_approved'
+  | 'approval_granted'
   | 'approval_rejected'
   | 'approval_changes_requested'
   | 'approval_expired'

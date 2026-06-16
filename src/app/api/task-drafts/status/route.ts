@@ -1,4 +1,3 @@
-import { AccessDeniedError } from "@/lib/security/access-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAuthenticatedUser, requireProjectAccess } from "@/lib/security/server-authorization";
 import type { TaskDraftRow, TaskDraftStatus } from "@/lib/db/database-contract";
@@ -61,7 +60,7 @@ export async function POST(request: Request) {
   try {
     await requireProjectAccess(draft.project_id, "read");
   } catch (error) {
-    if (error instanceof AccessDeniedError) {
+    if (error instanceof Error && error.message.includes("denied")) {
       return Response.json({ ok: false, error: "Access denied.", failureClass: "unauthorized" }, { status: 403 });
     }
     throw error;
