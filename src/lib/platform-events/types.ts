@@ -1,0 +1,229 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Governance Event Layer — TypeScript types
+//
+// These types define the vocabulary for platform_events.
+// Event types use string literals (not DB enums) for flexibility.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Actor ───────────────────────────────────────────────────────────────────
+
+export type PlatformEventActorType = "user" | "ai_agent" | "system" | "integration";
+
+// ─── Source ──────────────────────────────────────────────────────────────────
+
+export type PlatformEventSource =
+  | "user_action"
+  | "ai_agent"
+  | "system"
+  | "integration"
+  | "migration"
+  | "import";
+
+// ─── Visibility ──────────────────────────────────────────────────────────────
+
+export type PlatformEventVisibility =
+  | "personal"
+  | "project"
+  | "workspace"
+  | "tenant"
+  | "global_anonymous";
+
+// ─── Sensitivity ─────────────────────────────────────────────────────────────
+
+export type PlatformEventSensitivityLevel = "public" | "internal" | "confidential" | "restricted";
+
+// ─── Event categories ────────────────────────────────────────────────────────
+
+export type PlatformEventCategory =
+  | "project"
+  | "risk"
+  | "dependency"
+  | "scope"
+  | "recommendation"
+  | "decision"
+  | "outcome"
+  | "governance"
+  | "document"
+  | "stakeholder"
+  | "financial"
+  | "system";
+
+// ─── Event types by category ─────────────────────────────────────────────────
+
+// Project
+export type ProjectEventType =
+  | "PROJECT_CREATED"
+  | "PROJECT_UPDATED"
+  | "PROJECT_STATUS_CHANGED"
+  | "PROJECT_PHASE_CHANGED"
+  | "PROJECT_ARCHIVED";
+
+// Risk
+export type RiskEventType =
+  | "RISK_CREATED"
+  | "RISK_UPDATED"
+  | "RISK_ESCALATED"
+  | "RISK_MITIGATED"
+  | "RISK_CLOSED"
+  | "RISK_REOPENED";
+
+// Dependency
+export type DependencyEventType =
+  | "DEPENDENCY_CREATED"
+  | "DEPENDENCY_UPDATED"
+  | "DEPENDENCY_BLOCKED"
+  | "DEPENDENCY_RESOLVED"
+  | "DEPENDENCY_ESCALATED";
+
+// Scope
+export type ScopeEventType =
+  | "SCOPE_CHANGE_REQUESTED"
+  | "SCOPE_CHANGE_APPROVED"
+  | "SCOPE_CHANGE_REJECTED"
+  | "SCOPE_CHANGED";
+
+// AI Recommendation
+export type RecommendationEventType =
+  | "AI_RECOMMENDATION_CREATED"
+  | "AI_RECOMMENDATION_ACCEPTED"
+  | "AI_RECOMMENDATION_REJECTED"
+  | "AI_RECOMMENDATION_MODIFIED"
+  | "AI_RECOMMENDATION_IGNORED"
+  | "AI_RECOMMENDATION_EXPIRED";
+
+// Human Decision
+export type DecisionEventType =
+  | "HUMAN_DECISION_RECORDED"
+  | "HUMAN_OVERRIDE_RECORDED"
+  | "APPROVAL_GRANTED"
+  | "APPROVAL_REJECTED"
+  | "DECISION_ESCALATED";
+
+// Outcome
+export type OutcomeEventType =
+  | "OUTCOME_RECORDED"
+  | "PROJECT_COMPLETED"
+  | "PROJECT_DELAY_RECORDED"
+  | "BUDGET_VARIANCE_RECORDED"
+  | "CUSTOMER_SATISFACTION_RECORDED";
+
+// Governance
+export type GovernanceEventType =
+  | "GOVERNANCE_CHECK_CREATED"
+  | "GOVERNANCE_EXCEPTION_RECORDED"
+  | "GOVERNANCE_POLICY_APPLIED"
+  | "CONSTITUTIONAL_REVIEW_TRIGGERED";
+
+// Document
+export type DocumentEventType =
+  | "DOCUMENT_ADDED"
+  | "DOCUMENT_UPDATED"
+  | "DOCUMENT_REVIEWED"
+  | "DOCUMENT_APPROVED";
+
+// Stakeholder
+export type StakeholderEventType =
+  | "STAKEHOLDER_ADDED"
+  | "STAKEHOLDER_UPDATED"
+  | "STAKEHOLDER_APPROVAL_DELAYED"
+  | "STAKEHOLDER_ESCALATED";
+
+// Financial
+export type FinancialEventType =
+  | "BUDGET_UPDATED"
+  | "PAYMENT_BLOCKER_RECORDED"
+  | "PURCHASE_ORDER_CREATED"
+  | "INVOICE_BLOCKER_RECORDED";
+
+// System
+export type SystemEventType =
+  | "WORKSPACE_CREATED"
+  | "TENANT_SETTINGS_UPDATED"
+  | "IMPORT_COMPLETED"
+  | "INTEGRATION_SYNC_COMPLETED";
+
+// Union of all event types
+export type PlatformEventType =
+  | ProjectEventType
+  | RiskEventType
+  | DependencyEventType
+  | ScopeEventType
+  | RecommendationEventType
+  | DecisionEventType
+  | OutcomeEventType
+  | GovernanceEventType
+  | DocumentEventType
+  | StakeholderEventType
+  | FinancialEventType
+  | SystemEventType;
+
+// ─── Row type (matches platform_events table) ─────────────────────────────────
+
+export type PlatformEventRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string | null;
+  actor_id: string | null;
+  actor_type: PlatformEventActorType;
+  event_type: string;
+  event_category: PlatformEventCategory;
+  event_payload: Record<string, unknown>;
+  source: PlatformEventSource;
+  correlation_id: string | null;
+  causation_id: string | null;
+  visibility: PlatformEventVisibility;
+  sensitivity_level: PlatformEventSensitivityLevel;
+  learning_eligible: boolean;
+  raw_reference_table: string | null;
+  raw_reference_id: string | null;
+  metadata: Record<string, unknown>;
+  occurred_at: string;
+  created_at: string;
+};
+
+// ─── Input type for createPlatformEvent ──────────────────────────────────────
+
+export type CreatePlatformEventInput = {
+  workspaceId: string;
+  projectId?: string | null;
+  actorId?: string | null;
+  actorType?: PlatformEventActorType;
+  eventType: PlatformEventType | string;
+  eventCategory: PlatformEventCategory;
+  eventPayload?: Record<string, unknown>;
+  source?: PlatformEventSource;
+  correlationId?: string | null;
+  causationId?: string | null;
+  visibility?: PlatformEventVisibility;
+  sensitivityLevel?: PlatformEventSensitivityLevel;
+  learningEligible?: boolean;
+  rawReferenceTable?: string | null;
+  rawReferenceId?: string | null;
+  metadata?: Record<string, unknown>;
+  occurredAt?: string;
+};
+
+// ─── Query filter type ───────────────────────────────────────────────────────
+
+export type PlatformEventFilters = {
+  workspaceId: string;
+  projectId?: string;
+  actorId?: string;
+  eventType?: string;
+  eventCategory?: PlatformEventCategory;
+  correlationId?: string;
+  fromDate?: string;
+  toDate?: string;
+  limit?: number;
+  offset?: number;
+};
+
+// ─── Result type ─────────────────────────────────────────────────────────────
+
+export type PlatformEventResult =
+  | { ok: true; event: PlatformEventRow }
+  | { ok: false; error: string; failureClass: string };
+
+export type PlatformEventListResult =
+  | { ok: true; events: PlatformEventRow[] }
+  | { ok: false; error: string; failureClass: string };
