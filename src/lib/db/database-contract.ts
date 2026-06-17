@@ -873,7 +873,73 @@ export const PLATFORM_EVENT_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof PlatformEventRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// decision_effectiveness — Decision Effectiveness Foundation
+// Migration: 20260617030000_decision_effectiveness_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type DecisionEffectivenessStatusRow = "candidate" | "validated" | "archived";
+export type DecisionOutcomeClassificationRow = "success" | "partial_success" | "failure" | "unknown";
+
+export type DecisionEffectivenessRow = {
+  id: string;                                         // uuid PK
+  workspace_id: string;                               // uuid references workspaces
+  decision_id: string;                                // uuid references project_decisions
+  project_id: string;                                 // uuid references projects
+  effectiveness_status: DecisionEffectivenessStatusRow;
+  outcome_classification: DecisionOutcomeClassificationRow;
+  approval_duration_seconds: number | null;           // bigint null
+  implementation_duration_seconds: number | null;     // bigint null
+  time_to_outcome_seconds: number | null;             // bigint null
+  evidence_count: number;                             // integer not null
+  outcome_count: number;                              // integer not null
+  pattern_count: number;                              // integer not null
+  created_at: string;                                 // timestamptz
+  updated_at: string;                                 // timestamptz
+  created_by: string | null;                          // uuid null references auth.users
+  metadata: Record<string, unknown>;                  // jsonb
+};
+
+export const DECISION_EFFECTIVENESS_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "decision_id",
+  "project_id",
+  "effectiveness_status",
+  "outcome_classification",
+  "approval_duration_seconds",
+  "implementation_duration_seconds",
+  "time_to_outcome_seconds",
+  "evidence_count",
+  "outcome_count",
+  "pattern_count",
+  "created_at",
+  "updated_at",
+  "created_by",
+  "metadata",
+] as const satisfies ReadonlyArray<keyof DecisionEffectivenessRow>;
+
+export type DecisionEffectivenessObservationRow = {
+  id: string;               // uuid PK
+  effectiveness_id: string; // uuid references decision_effectiveness
+  observation_type: string; // text not null
+  summary: string;          // text not null
+  source_type: string;      // text not null
+  source_id: string;        // uuid not null
+  recorded_at: string;      // timestamptz
+};
+
+export const DECISION_EFFECTIVENESS_OBSERVATION_SELECTABLE_COLUMNS = [
+  "id",
+  "effectiveness_id",
+  "observation_type",
+  "summary",
+  "source_type",
+  "source_id",
+  "recorded_at",
+] as const satisfies ReadonlyArray<keyof DecisionEffectivenessObservationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-16-platform-events-execution-tasks-p0-hardening-v2" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-17-platform-events-execution-tasks-decision-effectiveness-foundation" as const;
