@@ -1107,7 +1107,92 @@ export const PERSONAL_PM_PATTERN_OBSERVATION_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof PersonalPmPatternObservationRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// personal_pm_effectiveness — Personal PM Effectiveness Foundation
+// Migration: 20260620000000_personal_pm_effectiveness_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PersonalPmEffectivenessRow = {
+  id: string;                                    // uuid PK
+  workspace_id: string;                          // uuid references workspaces
+  pm_user_id: string;                            // uuid references auth.users
+  personal_pattern_id: string | null;            // uuid references personal_pm_patterns null
+  personal_memory_id: string | null;             // uuid references personal_pm_memory null
+  decision_id: string | null;                    // uuid references project_decisions null
+  decision_effectiveness_id: string | null;      // uuid references decision_effectiveness null
+  outcome_classification: string;                // text check ('success','partial_success','failure','unknown')
+  effectiveness_status: string;                  // text check ('candidate','validated','archived','deprecated')
+  summary: string;                               // text not null
+  created_at: string;                            // timestamptz
+  updated_at: string;                            // timestamptz
+  created_by: string | null;                     // uuid references auth.users null
+  metadata: Record<string, unknown>;             // jsonb
+};
+
+export const PERSONAL_PM_EFFECTIVENESS_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "pm_user_id",
+  "personal_pattern_id",
+  "personal_memory_id",
+  "decision_id",
+  "decision_effectiveness_id",
+  "outcome_classification",
+  "effectiveness_status",
+  "summary",
+  "created_at",
+  "updated_at",
+  "created_by",
+  "metadata",
+] as const satisfies ReadonlyArray<keyof PersonalPmEffectivenessRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// personal_pm_effectiveness_sources — Personal PM Effectiveness Foundation
+// Migration: 20260620000000_personal_pm_effectiveness_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PersonalPmEffectivenessSourceRow = {
+  id: string;                // uuid PK
+  effectiveness_id: string;  // uuid references personal_pm_effectiveness
+  source_type: string;       // text check (allowed source types)
+  source_id: string;         // uuid not null
+  relationship_type: string; // text check (allowed relationship types)
+  created_at: string;        // timestamptz
+};
+
+export const PERSONAL_PM_EFFECTIVENESS_SOURCE_SELECTABLE_COLUMNS = [
+  "id",
+  "effectiveness_id",
+  "source_type",
+  "source_id",
+  "relationship_type",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof PersonalPmEffectivenessSourceRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// personal_pm_effectiveness_observations — Personal PM Effectiveness Foundation
+// Migration: 20260620000000_personal_pm_effectiveness_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PersonalPmEffectivenessObservationRow = {
+  id: string;                        // uuid PK
+  effectiveness_id: string;          // uuid references personal_pm_effectiveness
+  observation_summary: string;       // text not null
+  recorded_at: string;               // timestamptz
+  recorded_by: string | null;        // uuid references auth.users null
+  metadata: Record<string, unknown>; // jsonb
+};
+
+export const PERSONAL_PM_EFFECTIVENESS_OBSERVATION_SELECTABLE_COLUMNS = [
+  "id",
+  "effectiveness_id",
+  "observation_summary",
+  "recorded_at",
+  "recorded_by",
+  "metadata",
+] as const satisfies ReadonlyArray<keyof PersonalPmEffectivenessObservationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness" as const;
