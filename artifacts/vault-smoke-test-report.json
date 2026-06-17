@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "generatedAt": "2026-06-17T20:16:10.469Z",
+    "generatedAt": "2026-06-17T22:43:27.315Z",
     "artifactCount": 51,
-    "elapsedMs": 58,
+    "elapsedMs": 54,
     "smokeTestVersion": "1.2.0",
     "datasetDescription": "LATAM Enterprise PM — 5 projects across 51 operational artifacts"
   },
@@ -461,7 +461,7 @@
       "projectId": "proj-ice-9298",
       "nutrientType": "blocker_signal",
       "submittedAt": "2026-04-07T14:00:00Z",
-      "freshness": 0.1,
+      "freshness": 0.09,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -857,7 +857,7 @@
       "projectId": "proj-muc-13098",
       "nutrientType": "escalation_signal",
       "submittedAt": "2026-05-02T09:00:00Z",
-      "freshness": 0.22,
+      "freshness": 0.21,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
