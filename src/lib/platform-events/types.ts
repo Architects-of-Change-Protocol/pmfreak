@@ -93,6 +93,12 @@ export type RecommendationEventType =
 
 // Human Decision
 export type DecisionEventType =
+  | "DECISION_CREATED"
+  | "DECISION_SUBMITTED"
+  | "DECISION_APPROVED"
+  | "DECISION_REJECTED"
+  | "DECISION_IMPLEMENTED"
+  | "DECISION_EXPIRED"
   | "HUMAN_DECISION_RECORDED"
   | "HUMAN_OVERRIDE_RECORDED"
   | "APPROVAL_GRANTED"
