@@ -1029,4 +1029,4 @@ export const PATTERN_EXTRACTION_RUN_SELECTABLE_COLUMNS = [
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-18-pattern-extraction-foundation" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation" as const;
