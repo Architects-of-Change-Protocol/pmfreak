@@ -1026,7 +1026,88 @@ export const PATTERN_EXTRACTION_RUN_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof PatternExtractionRunRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// personal_pm_patterns — Personal PM Pattern Formation Foundation
+// Migration: 20260619000000_personal_pm_patterns_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PersonalPmPatternRow = {
+  id: string;                        // uuid PK
+  workspace_id: string;              // uuid references workspaces
+  pm_user_id: string;                // uuid references auth.users
+  pattern_category: string;          // text check (allowed categories)
+  title: string;                     // text not null
+  summary: string;                   // text not null
+  confidence: string;                // text check ('low','medium','high','very_high')
+  status: string;                    // text check ('active','archived','frozen','deprecated')
+  created_at: string;                // timestamptz
+  updated_at: string;                // timestamptz
+  created_by: string | null;         // uuid references auth.users null
+  metadata: Record<string, unknown>; // jsonb
+};
+
+export const PERSONAL_PM_PATTERN_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "pm_user_id",
+  "pattern_category",
+  "title",
+  "summary",
+  "confidence",
+  "status",
+  "created_at",
+  "updated_at",
+  "created_by",
+  "metadata",
+] as const satisfies ReadonlyArray<keyof PersonalPmPatternRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// personal_pm_pattern_sources — Personal PM Pattern Formation Foundation
+// Migration: 20260619000000_personal_pm_patterns_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PersonalPmPatternSourceRow = {
+  id: string;                // uuid PK
+  pattern_id: string;        // uuid references personal_pm_patterns
+  source_type: string;       // text check (allowed source types)
+  source_id: string;         // uuid not null
+  relationship_type: string; // text check (allowed relationship types)
+  created_at: string;        // timestamptz
+};
+
+export const PERSONAL_PM_PATTERN_SOURCE_SELECTABLE_COLUMNS = [
+  "id",
+  "pattern_id",
+  "source_type",
+  "source_id",
+  "relationship_type",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof PersonalPmPatternSourceRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// personal_pm_pattern_observations — Personal PM Pattern Formation Foundation
+// Migration: 20260619000000_personal_pm_patterns_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PersonalPmPatternObservationRow = {
+  id: string;                        // uuid PK
+  pattern_id: string;                // uuid references personal_pm_patterns
+  observation_summary: string;       // text not null
+  recorded_at: string;               // timestamptz
+  recorded_by: string | null;        // uuid references auth.users null
+  metadata: Record<string, unknown>; // jsonb
+};
+
+export const PERSONAL_PM_PATTERN_OBSERVATION_SELECTABLE_COLUMNS = [
+  "id",
+  "pattern_id",
+  "observation_summary",
+  "recorded_at",
+  "recorded_by",
+  "metadata",
+] as const satisfies ReadonlyArray<keyof PersonalPmPatternObservationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns" as const;
