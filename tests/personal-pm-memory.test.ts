@@ -82,7 +82,7 @@ function createStore() {
         if (!SOURCE_RELATIONSHIPS.includes(s.relationshipType)) return { ok: false, error: "Invalid relationshipType.", failureClass: "validation_failed" };
       }
 
-      let counter = (createStore._counter = (createStore._counter ?? 0) + 1);
+      const counter = (createStore._counter = (createStore._counter ?? 0) + 1);
       const id = "aaaaaaaa-bbbb-4ccc-8ddd-" + counter.toString(16).padStart(12, "0");
       const memory = {
         id,
