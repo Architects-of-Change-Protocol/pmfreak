@@ -1192,7 +1192,94 @@ export const PERSONAL_PM_EFFECTIVENESS_OBSERVATION_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof PersonalPmEffectivenessObservationRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// personal_pm_pattern_candidates — Personal Pattern Extraction Foundation
+// Migration: 20260621000000_personal_pattern_extraction_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PersonalPatternCandidateStatusRow = "candidate" | "promoted" | "rejected" | "archived";
+
+export type PersonalPmPatternCandidateRow = {
+  id: string;                                // uuid PK
+  workspace_id: string;                      // uuid references workspaces
+  pm_user_id: string;                        // uuid references auth.users — RLS: pm_user_id = auth.uid()
+  candidate_category: string;                // text not null (enum-like)
+  candidate_title: string;                   // text not null
+  candidate_summary: string;                 // text not null
+  confidence: string;                        // text not null ('low','medium','high','very_high')
+  status: PersonalPatternCandidateStatusRow; // text not null default 'candidate'
+  observation_count: number;                 // integer not null
+  created_at: string;                        // timestamptz
+  updated_at: string;                        // timestamptz
+  metadata: Record<string, unknown>;         // jsonb — includes ruleId, groupKey, runId
+};
+
+export const PERSONAL_PM_PATTERN_CANDIDATE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "pm_user_id",
+  "candidate_category",
+  "candidate_title",
+  "candidate_summary",
+  "confidence",
+  "status",
+  "observation_count",
+  "created_at",
+  "updated_at",
+  "metadata",
+] as const satisfies ReadonlyArray<keyof PersonalPmPatternCandidateRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// personal_pm_pattern_candidate_sources — Personal Pattern Extraction Foundation
+// Migration: 20260621000000_personal_pattern_extraction_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PersonalPmPatternCandidateSourceRow = {
+  id: string;                // uuid PK
+  candidate_id: string;      // uuid references personal_pm_pattern_candidates
+  source_type: string;       // text not null (enum-like)
+  source_id: string;         // uuid not null
+  relationship_type: string; // text not null (enum-like)
+  created_at: string;        // timestamptz
+};
+
+export const PERSONAL_PM_PATTERN_CANDIDATE_SOURCE_SELECTABLE_COLUMNS = [
+  "id",
+  "candidate_id",
+  "source_type",
+  "source_id",
+  "relationship_type",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof PersonalPmPatternCandidateSourceRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// personal_pm_pattern_extraction_runs — Personal Pattern Extraction Foundation
+// Migration: 20260621000000_personal_pattern_extraction_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PersonalPmPatternExtractionRunRow = {
+  id: string;                        // uuid PK
+  workspace_id: string;              // uuid references workspaces
+  pm_user_id: string;                // uuid references auth.users — RLS: pm_user_id = auth.uid()
+  started_at: string;                // timestamptz
+  completed_at: string | null;       // timestamptz null
+  candidate_count: number;           // integer not null
+  rule_count: number;                // integer not null
+  metadata: Record<string, unknown>; // jsonb
+};
+
+export const PERSONAL_PM_PATTERN_EXTRACTION_RUN_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "pm_user_id",
+  "started_at",
+  "completed_at",
+  "candidate_count",
+  "rule_count",
+  "metadata",
+] as const satisfies ReadonlyArray<keyof PersonalPmPatternExtractionRunRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-2026-06-21-personal-pattern-extraction-foundation" as const;
