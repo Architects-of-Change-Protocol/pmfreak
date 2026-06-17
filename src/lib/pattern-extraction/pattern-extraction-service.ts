@@ -32,7 +32,7 @@ function validUuid(v: string | null | undefined): v is string {
 }
 function required(v: unknown): v is string { return typeof v === "string" && v.trim().length > 0; }
 function validation<T>(error: string): ExtractionResult<T> { return { ok: false, error, failureClass: "validation_failed" }; }
-function failed<T>(error: string, failureClass: ExtractionResult<never>["failureClass"] = "persistence_failed"): ExtractionResult<T> { return { ok: false, error, failureClass }; }
+function failed<T>(error: string, failureClass: "validation_failed" | "not_found" | "persistence_failed" | "event_emission_failed" | "governance_violation" = "persistence_failed"): ExtractionResult<T> { return { ok: false, error, failureClass }; }
 
 const candidateColumns = "id,workspace_id,pattern_category,candidate_title,candidate_summary,observation_count,confidence,status,rule_id,promoted_pattern_id,created_at,updated_at,metadata";
 const sourceColumns = "id,candidate_id,source_type,source_id,source_label,created_at";
