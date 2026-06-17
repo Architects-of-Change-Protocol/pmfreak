@@ -334,7 +334,7 @@ export async function buildDecisionEffectivenessLineage(effectivenessId: string)
 
   const eventsResult = await getPlatformEvents({ workspaceId: explanation.data.record.workspace_id });
   const events = eventsResult.ok
-    ? eventsResult.data.filter(
+    ? eventsResult.events.filter(
         (e) =>
           e.raw_reference_id === effectivenessId ||
           e.raw_reference_id === explanation.data.record.decision_id ||
