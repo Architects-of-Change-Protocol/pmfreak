@@ -939,7 +939,94 @@ export const DECISION_EFFECTIVENESS_OBSERVATION_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof DecisionEffectivenessObservationRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// organizational_pattern_candidates — Pattern Extraction Foundation
+// Migration: 20260618000000_pattern_extraction_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PatternCandidateStatusRow = "candidate" | "promoted" | "rejected" | "archived";
+
+export type OrganizationalPatternCandidateRow = {
+  id: string;                                // uuid PK
+  workspace_id: string;                      // uuid references workspaces
+  pattern_category: string;                  // text not null (enum-like)
+  candidate_title: string;                   // text not null
+  candidate_summary: string;                 // text not null
+  observation_count: number;                 // integer not null
+  confidence: string;                        // text not null (enum-like)
+  status: PatternCandidateStatusRow;         // text not null
+  rule_id: string;                           // text not null
+  promoted_pattern_id: string | null;        // uuid null references organizational_patterns
+  created_at: string;                        // timestamptz
+  updated_at: string;                        // timestamptz
+  metadata: Record<string, unknown>;         // jsonb
+};
+
+export const ORGANIZATIONAL_PATTERN_CANDIDATE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "pattern_category",
+  "candidate_title",
+  "candidate_summary",
+  "observation_count",
+  "confidence",
+  "status",
+  "rule_id",
+  "promoted_pattern_id",
+  "created_at",
+  "updated_at",
+  "metadata",
+] as const satisfies ReadonlyArray<keyof OrganizationalPatternCandidateRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// pattern_candidate_sources — Pattern Extraction Foundation
+// Migration: 20260618000000_pattern_extraction_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PatternCandidateSourceRow = {
+  id: string;              // uuid PK
+  candidate_id: string;    // uuid references organizational_pattern_candidates
+  source_type: string;     // text not null (enum-like)
+  source_id: string;       // uuid not null
+  source_label: string;    // text not null
+  created_at: string;      // timestamptz
+};
+
+export const PATTERN_CANDIDATE_SOURCE_SELECTABLE_COLUMNS = [
+  "id",
+  "candidate_id",
+  "source_type",
+  "source_id",
+  "source_label",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof PatternCandidateSourceRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// pattern_extraction_runs — Pattern Extraction Foundation
+// Migration: 20260618000000_pattern_extraction_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PatternExtractionRunRow = {
+  id: string;                        // uuid PK
+  workspace_id: string;              // uuid references workspaces
+  started_at: string;                // timestamptz
+  completed_at: string | null;       // timestamptz null
+  candidate_count: number;           // integer not null
+  rule_count: number;                // integer not null
+  metadata: Record<string, unknown>; // jsonb
+};
+
+export const PATTERN_EXTRACTION_RUN_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "started_at",
+  "completed_at",
+  "candidate_count",
+  "rule_count",
+  "metadata",
+] as const satisfies ReadonlyArray<keyof PatternExtractionRunRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-17-platform-events-execution-tasks-decision-effectiveness-foundation" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-18-pattern-extraction-foundation" as const;
