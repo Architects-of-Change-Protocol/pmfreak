@@ -81,6 +81,7 @@ export async function resolvePersonalEffectivenessSources(
     }
 
     fetches.push(
+      Promise.resolve(
       supabase
         .from(table)
         .select("*")
@@ -115,6 +116,7 @@ export async function resolvePersonalEffectivenessSources(
               break;
           }
         }),
+      ),
     );
   }
 
