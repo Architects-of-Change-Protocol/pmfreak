@@ -1367,4 +1367,4 @@ export const INTELLIGENCE_BRIDGE_OBSERVATION_SELECTABLE_COLUMNS = [
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-2026-06-21-personal-pattern-extraction-foundation-intelligence-bridge-constitutional-intelligence" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-2026-06-21-personal-pattern-extraction-foundation-intelligence-bridge-constitutional-intelligence-context-engine" as const;
