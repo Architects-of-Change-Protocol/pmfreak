@@ -1279,7 +1279,92 @@ export const PERSONAL_PM_PATTERN_EXTRACTION_RUN_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof PersonalPmPatternExtractionRunRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// intelligence_bridge_links — Intelligence Bridge Foundation
+// Migration: 20260622000000_intelligence_bridge_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type IntelligenceBridgeLinkRow = {
+  id: string;                        // uuid PK
+  workspace_id: string;              // uuid references workspaces
+  pm_user_id: string;                // uuid references auth.users — RLS: pm_user_id = auth.uid()
+  relationship_type: string;         // text not null (enum-constrained)
+  status: string;                    // text not null default 'active'
+  personal_source_type: string;      // text not null (enum-constrained)
+  personal_source_id: string;        // uuid not null
+  organizational_source_type: string; // text not null (enum-constrained)
+  organizational_source_id: string;  // uuid not null
+  summary: string;                   // text not null (non-empty)
+  created_at: string;                // timestamptz
+  updated_at: string;                // timestamptz
+  created_by: string | null;         // uuid references auth.users
+  metadata: Record<string, unknown>; // jsonb
+};
+
+export const INTELLIGENCE_BRIDGE_LINK_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "pm_user_id",
+  "relationship_type",
+  "status",
+  "personal_source_type",
+  "personal_source_id",
+  "organizational_source_type",
+  "organizational_source_id",
+  "summary",
+  "created_at",
+  "updated_at",
+  "created_by",
+  "metadata",
+] as const satisfies ReadonlyArray<keyof IntelligenceBridgeLinkRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// intelligence_bridge_sources — Intelligence Bridge Foundation
+// Migration: 20260622000000_intelligence_bridge_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type IntelligenceBridgeSourceRow = {
+  id: string;                // uuid PK
+  bridge_id: string;         // uuid references intelligence_bridge_links
+  source_type: string;       // text not null (enum-constrained)
+  source_id: string;         // uuid not null
+  relationship_type: string; // text not null (enum-constrained)
+  created_at: string;        // timestamptz
+};
+
+export const INTELLIGENCE_BRIDGE_SOURCE_SELECTABLE_COLUMNS = [
+  "id",
+  "bridge_id",
+  "source_type",
+  "source_id",
+  "relationship_type",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof IntelligenceBridgeSourceRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// intelligence_bridge_observations — Intelligence Bridge Foundation
+// Migration: 20260622000000_intelligence_bridge_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type IntelligenceBridgeObservationRow = {
+  id: string;                        // uuid PK
+  bridge_id: string;                 // uuid references intelligence_bridge_links
+  observation_summary: string;       // text not null (non-empty)
+  recorded_at: string;               // timestamptz
+  recorded_by: string | null;        // uuid references auth.users
+  metadata: Record<string, unknown>; // jsonb
+};
+
+export const INTELLIGENCE_BRIDGE_OBSERVATION_SELECTABLE_COLUMNS = [
+  "id",
+  "bridge_id",
+  "observation_summary",
+  "recorded_at",
+  "recorded_by",
+  "metadata",
+] as const satisfies ReadonlyArray<keyof IntelligenceBridgeObservationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-2026-06-21-personal-pattern-extraction-foundation" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-2026-06-21-personal-pattern-extraction-foundation-intelligence-bridge" as const;
