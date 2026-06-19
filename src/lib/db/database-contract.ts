@@ -1367,4 +1367,85 @@ export const INTELLIGENCE_BRIDGE_OBSERVATION_SELECTABLE_COLUMNS = [
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-2026-06-21-personal-pattern-extraction-foundation-intelligence-bridge-constitutional-intelligence-context-engine-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// project_constitutions — Project Constitution Lifecycle
+// Migration: 20260623000000_project_constitution_lifecycle.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConstitutionStatus =
+  | "draft"
+  | "proposed"
+  | "approved"
+  | "active"
+  | "suspended"
+  | "closed"
+  | "archived";
+
+export type ProjectConstitutionRow = {
+  id: string;                    // uuid PK
+  workspace_id: string;          // uuid references workspaces
+  project_id: string;            // uuid references projects
+  title: string;                 // text not null
+  description: string | null;    // text
+  current_status: ConstitutionStatus; // text not null default 'draft'
+  status_changed_at: string;     // timestamptz
+  status_changed_by: string;     // uuid references auth.users
+  lifecycle_version: number;     // integer >= 1, increments on each transition
+  created_by: string;            // uuid references auth.users
+  created_at: string;            // timestamptz
+  updated_at: string;            // timestamptz
+  metadata: Record<string, unknown>; // jsonb
+};
+
+export const PROJECT_CONSTITUTION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "title",
+  "description",
+  "current_status",
+  "status_changed_at",
+  "status_changed_by",
+  "lifecycle_version",
+  "created_by",
+  "created_at",
+  "updated_at",
+  "metadata",
+] as const satisfies ReadonlyArray<keyof ProjectConstitutionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// constitution_lifecycle_history — Project Constitution Lifecycle
+// Migration: 20260623000000_project_constitution_lifecycle.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConstitutionLifecycleHistoryRow = {
+  id: string;                           // uuid PK
+  workspace_id: string;                 // uuid references workspaces
+  constitution_id: string;              // uuid references project_constitutions
+  from_status: ConstitutionStatus;      // text not null
+  to_status: ConstitutionStatus;        // text not null
+  changed_by: string;                   // uuid references auth.users
+  changed_at: string;                   // timestamptz
+  reason: string | null;                // text
+  lifecycle_version_after: number;      // integer >= 1
+  metadata: Record<string, unknown>;    // jsonb
+};
+
+export const CONSTITUTION_LIFECYCLE_HISTORY_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "constitution_id",
+  "from_status",
+  "to_status",
+  "changed_by",
+  "changed_at",
+  "reason",
+  "lifecycle_version_after",
+  "metadata",
+] as const satisfies ReadonlyArray<keyof ConstitutionLifecycleHistoryRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Contract version — bump when any row type changes.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const DATABASE_CONTRACT_VERSION = "2026-06-23-project-constitution-lifecycle" as const;
