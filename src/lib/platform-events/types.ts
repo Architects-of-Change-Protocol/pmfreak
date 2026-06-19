@@ -217,6 +217,16 @@ export type AuthorityGovernanceEventType =
   | "AUTHORITY_ESCALATION_RESOLVED"
   | "ACCOUNTABILITY_CHAIN_BUILT";
 
+// Constitutional Vault — Sovereign Memory
+export type ConstitutionalVaultEventType =
+  | "CONSTITUTIONAL_ARTIFACT_REGISTERED"
+  | "CONSTITUTIONAL_ARTIFACT_UPDATED"
+  | "CONSTITUTIONAL_ARTIFACT_ARCHIVED"
+  | "CONSTITUTIONAL_MEMORY_CREATED"
+  | "CONSTITUTIONAL_MEMORY_UPDATED"
+  | "CONSTITUTIONAL_MEMORY_LINKED"
+  | "CONSTITUTIONAL_LINEAGE_GENERATED";
+
 // Union of all event types
 export type PlatformEventType =
   | ProjectEventType
@@ -235,7 +245,8 @@ export type PlatformEventType =
   | ConstitutionAmendmentEventType
   | ConstitutionalDecisionEventType
   | ConstitutionalRatificationEventType
-  | AuthorityGovernanceEventType;
+  | AuthorityGovernanceEventType
+  | ConstitutionalVaultEventType;
 
 // ─── Row type (matches platform_events table) ─────────────────────────────────
 
