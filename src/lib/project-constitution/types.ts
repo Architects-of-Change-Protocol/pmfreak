@@ -1,27 +1,89 @@
-import type { ConstitutionStatus } from "@/lib/db/database-contract";
+// ─────────────────────────────────────────────────────────────────────────────
+// Project Constitution — unified types
+// Foundation (Sprint 1) + Lifecycle Governance (Sprint 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
 import type { ConstitutionLifecycleEventType } from "@/lib/platform-events/types";
 
-export type { ConstitutionStatus };
+// ─── Result ───────────────────────────────────────────────────────────────────
 
 export type ConstitutionResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string; failureClass: "validation_failed" | "not_found" | "persistence_failed" | "event_emission_failed" | "governance_violation" };
 
-export type ConstitutionRecord = {
+// Alias kept for backward compat with Sprint 1 imports (service.ts used Result<T>)
+export type Result<T> = ConstitutionResult<T>;
+
+// ─── Status types ─────────────────────────────────────────────────────────────
+
+// Sprint 2 lifecycle status (7-state machine). This is the authoritative status
+// stored in current_status and governed by the state machine.
+export type ConstitutionStatus =
+  | "draft"
+  | "proposed"
+  | "approved"
+  | "active"
+  | "suspended"
+  | "closed"
+  | "archived";
+
+// Sprint 1 legacy status values (stored in the `status` column, now read-only).
+// New code should use ConstitutionStatus / current_status.
+export type ProjectConstitutionLegacyStatus = "draft" | "active" | "on_hold" | "completed" | "cancelled";
+
+// ─── Records ─────────────────────────────────────────────────────────────────
+
+// Unified constitution record — all columns from both Sprint 1 and Sprint 2.
+export type ProjectConstitutionRecord = {
+  // Identity
   id: string;
   workspace_id: string;
-  project_id: string;
-  title: string;
+  project_id: string | null;          // Sprint 2 addition; nullable for Sprint 1 rows
+
+  // Foundation fields (Sprint 1)
+  name: string;
   description: string | null;
-  current_status: ConstitutionStatus;
-  status_changed_at: string;
-  status_changed_by: string;
-  lifecycle_version: number;
+  sponsor: string | null;
+  client: string | null;
+  pm_responsible_id: string | null;
+  objectives: string[];
+  constraints: string[];
+  start_date: string | null;
+  target_end_date: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;          // Sprint 1 soft delete
   metadata: Record<string, unknown>;
+
+  // Lifecycle governance fields (Sprint 2)
+  current_status: ConstitutionStatus;
+  status_changed_at: string;
+  status_changed_by: string | null;
+  lifecycle_version: number;
+
+  // Legacy Sprint 1 status column (read-only after reconciliation)
+  status: ProjectConstitutionLegacyStatus;
 };
+
+export type ProjectConstitutionSummary = Pick<
+  ProjectConstitutionRecord,
+  | "id"
+  | "workspace_id"
+  | "project_id"
+  | "name"
+  | "current_status"
+  | "sponsor"
+  | "client"
+  | "pm_responsible_id"
+  | "start_date"
+  | "target_end_date"
+  | "lifecycle_version"
+  | "created_at"
+  | "updated_at"
+>;
+
+// ─── Lifecycle history ────────────────────────────────────────────────────────
 
 export type ConstitutionLifecycleHistoryEntry = {
   id: string;
@@ -35,6 +97,8 @@ export type ConstitutionLifecycleHistoryEntry = {
   lifecycle_version_after: number;
   metadata: Record<string, unknown>;
 };
+
+// ─── Lifecycle state machine types ────────────────────────────────────────────
 
 export type ConstitutionLifecycleEventName = ConstitutionLifecycleEventType;
 
@@ -53,56 +117,11 @@ export type ConstitutionLifecycleExplanation = {
   rules: string[];
 };
 
-export type ConstitutionListFilters = {
-  workspaceId: string;
-  projectId?: string;
-  status?: ConstitutionStatus;
-  excludeArchived?: boolean;
-};
-
-export type ConstitutionExport = {
-  constitution: ConstitutionRecord;
-  lifecycleHistory: ConstitutionLifecycleHistoryEntry[];
-  exportedAt: string;
-export type Result<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: string; failureClass: "validation_failed" | "not_found" | "persistence_failed" | "event_emission_failed" | "governance_violation" };
-
-export type ProjectConstitutionStatus = "draft" | "active" | "on_hold" | "completed" | "cancelled";
-
-export type ProjectConstitutionLifecycleEvent =
-  | "PROJECT_CREATED"
-  | "PROJECT_UPDATED"
-  | "PROJECT_STATUS_CHANGED"
-  | "PROJECT_ARCHIVED";
-
-export type ProjectConstitutionRecord = {
-  id: string;
-  workspace_id: string;
-  name: string;
-  description: string | null;
-  status: ProjectConstitutionStatus;
-  sponsor: string | null;
-  client: string | null;
-  pm_responsible_id: string | null;
-  objectives: string[];
-  constraints: string[];
-  start_date: string | null;
-  target_end_date: string | null;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-  metadata: Record<string, unknown>;
-};
-
-export type ProjectConstitutionSummary = Pick<
-  ProjectConstitutionRecord,
-  "id" | "workspace_id" | "name" | "status" | "sponsor" | "client" | "pm_responsible_id" | "start_date" | "target_end_date" | "created_at" | "updated_at"
->;
+// ─── Service input types (Sprint 1 API, kept for compat) ──────────────────────
 
 export type CreateProjectConstitutionInput = {
   workspaceId: string;
+  projectId?: string | null;
   name: string;
   description?: string | null;
   sponsor?: string | null;
@@ -136,19 +155,27 @@ export type UpdateProjectConstitutionInput = {
   causationId?: string | null;
 };
 
-export type ChangeProjectConstitutionStatusInput = {
-  constitutionId: string;
-  workspaceId: string;
-  status: ProjectConstitutionStatus;
-  changedBy: string;
-  correlationId?: string | null;
-  causationId?: string | null;
-};
-
 export type SoftDeleteProjectConstitutionInput = {
   constitutionId: string;
   workspaceId: string;
   deletedBy: string;
   correlationId?: string | null;
   causationId?: string | null;
+};
+
+// ─── List / filter types ──────────────────────────────────────────────────────
+
+export type ConstitutionListFilters = {
+  workspaceId: string;
+  projectId?: string;
+  status?: ConstitutionStatus;
+  excludeArchived?: boolean;
+};
+
+// ─── Export type ──────────────────────────────────────────────────────────────
+
+export type ConstitutionExport = {
+  constitution: ProjectConstitutionRecord;
+  lifecycleHistory: ConstitutionLifecycleHistoryEntry[];
+  exportedAt: string;
 };

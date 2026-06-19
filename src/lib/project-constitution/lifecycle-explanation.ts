@@ -1,5 +1,18 @@
-import { allowedTransitions, TERMINAL_STATES } from "./state-machine";
 import type { ConstitutionLifecycleExplanation, ConstitutionStatus } from "./types";
+
+// Inline transition map — mirrors state-machine.ts allowedTransitions exactly.
+// Duplicated here so this module remains free of runtime imports (testable without bundler).
+const _transitions: Record<ConstitutionStatus, ConstitutionStatus[]> = {
+  draft:     ["proposed", "archived"],
+  proposed:  ["draft", "approved", "archived"],
+  approved:  ["active", "draft", "archived"],
+  active:    ["suspended", "closed"],
+  suspended: ["active", "closed"],
+  closed:    ["archived"],
+  archived:  [],
+};
+
+const _terminalStates: ConstitutionStatus[] = ["archived"];
 
 export function explainConstitutionLifecycle(): ConstitutionLifecycleExplanation {
   const stateMeta: Record<ConstitutionStatus, { label: string; description: string }> = {
@@ -12,17 +25,17 @@ export function explainConstitutionLifecycle(): ConstitutionLifecycleExplanation
     archived:  { label: "Archived",  description: "Constitution archived. Read-only. Historical preservation only." },
   };
 
-  const states = (Object.keys(allowedTransitions) as ConstitutionStatus[]).map((status) => ({
+  const states = (Object.keys(_transitions) as ConstitutionStatus[]).map((status) => ({
     status,
     label: stateMeta[status].label,
     description: stateMeta[status].description,
-    terminal: TERMINAL_STATES.has(status),
-    allowedTransitions: [...allowedTransitions[status]],
+    terminal: _terminalStates.includes(status),
+    allowedTransitions: [..._transitions[status]],
   }));
 
   return {
     states,
-    terminalStates: [...TERMINAL_STATES],
+    terminalStates: [..._terminalStates],
     auditEvents: [
       "CONSTITUTION_PROPOSED",
       "CONSTITUTION_APPROVED",

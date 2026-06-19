@@ -1381,41 +1381,73 @@ export type ConstitutionStatus =
   | "closed"
   | "archived";
 
+// Reconciliation migrations:
+//   20260623000000_project_constitution_foundation.sql  (Sprint 1 — base schema)
+//   20260623000000_project_constitution_lifecycle.sql   (Sprint 2 — constitution_lifecycle_history)
+//   20260624000000_project_constitution_reconciliation.sql (unified — adds lifecycle columns)
+
+export type ProjectConstitutionLegacyStatus = "draft" | "active" | "on_hold" | "completed" | "cancelled";
+
 export type ProjectConstitutionRow = {
-  id: string;                    // uuid PK
-  workspace_id: string;          // uuid references workspaces
-  project_id: string;            // uuid references projects
-  title: string;                 // text not null
-  description: string | null;    // text
-  current_status: ConstitutionStatus; // text not null default 'draft'
-  status_changed_at: string;     // timestamptz
-  status_changed_by: string;     // uuid references auth.users
-  lifecycle_version: number;     // integer >= 1, increments on each transition
-  created_by: string;            // uuid references auth.users
-  created_at: string;            // timestamptz
-  updated_at: string;            // timestamptz
-  metadata: Record<string, unknown>; // jsonb
+  // Identity
+  id: string;                              // uuid PK
+  workspace_id: string;                    // uuid references workspaces
+  project_id: string | null;              // uuid references projects (nullable; Sprint 1 rows have no project_id)
+
+  // Foundation fields (Sprint 1)
+  name: string;                            // text not null
+  description: string | null;             // text
+  sponsor: string | null;                  // text
+  client: string | null;                   // text
+  pm_responsible_id: string | null;        // uuid references auth.users
+  objectives: string[];                    // text[]
+  constraints: string[];                   // text[]
+  start_date: string | null;              // date
+  target_end_date: string | null;         // date
+  created_by: string;                      // uuid references auth.users
+  created_at: string;                      // timestamptz
+  updated_at: string;                      // timestamptz
+  deleted_at: string | null;              // timestamptz; null = not soft-deleted
+  metadata: Record<string, unknown>;      // jsonb
+
+  // Lifecycle governance fields (Sprint 2, added by reconciliation migration)
+  current_status: ConstitutionStatus;      // text not null default 'draft'
+  status_changed_at: string;               // timestamptz
+  status_changed_by: string | null;        // uuid references auth.users (nullable for pre-migration rows)
+  lifecycle_version: number;               // integer >= 1
+
+  // Legacy Sprint 1 status (read-only after reconciliation; superseded by current_status)
+  status: ProjectConstitutionLegacyStatus; // text not null
 };
 
 export const PROJECT_CONSTITUTION_SELECTABLE_COLUMNS = [
   "id",
   "workspace_id",
   "project_id",
-  "title",
+  "name",
   "description",
+  "sponsor",
+  "client",
+  "pm_responsible_id",
+  "objectives",
+  "constraints",
+  "start_date",
+  "target_end_date",
+  "created_by",
+  "created_at",
+  "updated_at",
+  "deleted_at",
+  "metadata",
+  "status",
   "current_status",
   "status_changed_at",
   "status_changed_by",
   "lifecycle_version",
-  "created_by",
-  "created_at",
-  "updated_at",
-  "metadata",
 ] as const satisfies ReadonlyArray<keyof ProjectConstitutionRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // constitution_lifecycle_history — Project Constitution Lifecycle
-// Migration: 20260623000000_project_constitution_lifecycle.sql
+// Migration: 20260624000000_project_constitution_reconciliation.sql
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ConstitutionLifecycleHistoryRow = {
@@ -1448,4 +1480,4 @@ export const CONSTITUTION_LIFECYCLE_HISTORY_SELECTABLE_COLUMNS = [
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-23-project-constitution-lifecycle" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-24-project-constitution-reconciliation" as const;

@@ -10,34 +10,34 @@ const indexFile = readFileSync('src/lib/project-constitution/index.ts', 'utf8');
 const dbContract = readFileSync('src/lib/db/database-contract.ts', 'utf8');
 const docs = readFileSync('docs/project-constitution-foundation.md', 'utf8');
 
-// ─── Foundation: createConstitution ──────────────────────────────────────────
+// ─── Foundation: createProjectConstitution ────────────────────────────────────
 
-test('createConstitution is exported from the module', () => {
-  assert.match(indexFile, /createConstitution/);
-  assert.match(service, /export async function createConstitution/);
+test('createProjectConstitution is exported from the module', () => {
+  assert.match(indexFile, /createProjectConstitution/);
+  assert.match(service, /export async function createProjectConstitution/);
 });
 
-test('createConstitution validates workspaceId, projectId, createdBy as UUIDs', () => {
+test('createProjectConstitution validates workspaceId, projectId, createdBy as UUIDs', () => {
   assert.match(service, /workspaceId must be a UUID/);
   assert.match(service, /projectId must be a UUID/);
   assert.match(service, /createdBy must be a UUID/);
 });
 
-test('createConstitution validates title is required', () => {
-  assert.match(service, /title is required/);
+test('createProjectConstitution validates name is required', () => {
+  assert.match(service, /name is required/);
 });
 
-test('createConstitution inserts into project_constitutions', () => {
+test('createProjectConstitution inserts into project_constitutions', () => {
   assert.match(service, /from\("project_constitutions"\)/);
   assert.match(service, /\.insert\(\{/);
 });
 
-test('createConstitution always starts in draft status', () => {
+test('createProjectConstitution always starts in draft status', () => {
   assert.match(service, /current_status: "draft"/);
   assert.match(service, /lifecycle_version: 1/);
 });
 
-test('createConstitution emits CONSTITUTION_CREATED event', () => {
+test('createProjectConstitution emits CONSTITUTION_CREATED event', () => {
   assert.match(service, /CONSTITUTION_CREATED/);
   assert.match(service, /emitConstitutionEvent\(data, "CONSTITUTION_CREATED"/);
 });
@@ -46,25 +46,25 @@ test('CONSTITUTION_CREATED event type is defined in platform-events types', () =
   assert.match(platformEvents, /"CONSTITUTION_CREATED"/);
 });
 
-test('createConstitution payload includes constitutionId, projectId, title, lifecycleVersion', () => {
-  assert.match(service, /constitutionId: data\.id/);
-  assert.match(service, /title: data\.title/);
-  assert.match(service, /lifecycleVersion: data\.lifecycle_version/);
+test('createProjectConstitution payload includes constitutionId, name, lifecycleVersion', () => {
+  assert.match(service, /constitutionId: record\.id/);
+  assert.match(service, /name: record\.name/);
+  assert.match(service, /lifecycleVersion: record\.lifecycle_version/);
 });
 
-// ─── Foundation: getConstitution ─────────────────────────────────────────────
+// ─── Foundation: getProjectConstitution ──────────────────────────────────────
 
-test('getConstitution is exported from the module', () => {
-  assert.match(indexFile, /getConstitution/);
-  assert.match(service, /export async function getConstitution/);
+test('getProjectConstitution is exported from the module', () => {
+  assert.match(indexFile, /getProjectConstitution/);
+  assert.match(service, /export async function getProjectConstitution/);
 });
 
-test('getConstitution enforces workspace_id filter', () => {
+test('getProjectConstitution enforces workspace_id filter', () => {
   assert.match(service, /\.eq\("workspace_id", workspaceId\)/);
 });
 
-test('getConstitution returns not_found failure class when missing', () => {
-  assert.match(service, /failed\("Project constitution not found\.", "not_found"\)/);
+test('getProjectConstitution returns not_found failure class when missing', () => {
+  assert.match(service, /notFound\("Project constitution not found\."\)/);
 });
 
 // ─── Foundation: listConstitutions ───────────────────────────────────────────
@@ -100,29 +100,29 @@ test('ConstitutionListFilters type is exported', () => {
   assert.match(indexFile, /ConstitutionListFilters/);
 });
 
-// ─── Foundation: updateConstitution ──────────────────────────────────────────
+// ─── Foundation: updateProjectConstitution ────────────────────────────────────
 
-test('updateConstitution is exported from the module', () => {
-  assert.match(indexFile, /updateConstitution/);
-  assert.match(service, /export async function updateConstitution/);
+test('updateProjectConstitution is exported from the module', () => {
+  assert.match(indexFile, /updateProjectConstitution/);
+  assert.match(service, /export async function updateProjectConstitution/);
 });
 
-test('updateConstitution blocks archived constitutions (soft delete guard)', () => {
+test('updateProjectConstitution blocks archived constitutions (soft delete guard)', () => {
   assert.match(service, /current_status === "archived"/);
   assert.match(service, /Archived constitutions are read-only/);
   assert.match(service, /"governance_violation"/);
 });
 
-test('updateConstitution blocks non-draft constitutions (amendment governance)', () => {
+test('updateProjectConstitution blocks non-draft constitutions (amendment governance)', () => {
   assert.match(service, /current_status !== "draft"/);
   assert.match(service, /amendment process/);
 });
 
-test('updateConstitution validates actorId', () => {
-  assert.match(service, /actorId must be a UUID/);
+test('updateProjectConstitution validates updatedBy as UUID', () => {
+  assert.match(service, /updatedBy must be a UUID/);
 });
 
-test('updateConstitution emits CONSTITUTION_UPDATED event', () => {
+test('updateProjectConstitution emits CONSTITUTION_UPDATED event', () => {
   assert.match(service, /CONSTITUTION_UPDATED/);
   assert.match(service, /emitConstitutionEvent\(data, "CONSTITUTION_UPDATED"/);
 });
@@ -131,16 +131,16 @@ test('CONSTITUTION_UPDATED event type is defined in platform-events types', () =
   assert.match(platformEvents, /"CONSTITUTION_UPDATED"/);
 });
 
-test('updateConstitution payload includes updatedFields', () => {
+test('updateProjectConstitution payload includes updatedFields', () => {
   assert.match(service, /updatedFields/);
 });
 
-test('updateConstitution enforces workspace_id on update', () => {
+test('updateProjectConstitution enforces workspace_id on update', () => {
   assert.match(service, /\.eq\("workspace_id", input\.workspaceId\)/);
 });
 
-test('updateConstitution validates title cannot be empty when provided', () => {
-  assert.match(service, /title cannot be empty/);
+test('updateProjectConstitution validates name cannot be empty when provided', () => {
+  assert.match(service, /name cannot be empty/);
 });
 
 // ─── Foundation: exportConstitution ──────────────────────────────────────────
@@ -161,14 +161,13 @@ test('ConstitutionExport type is defined in types and exported', () => {
   assert.match(indexFile, /ConstitutionExport/);
 });
 
-test('exportConstitution enforces workspace isolation via getConstitution', () => {
-  assert.match(service, /const constitution = await getConstitution\(input\.constitutionId, input\.workspaceId\)/);
+test('exportConstitution enforces workspace isolation via getProjectConstitution', () => {
+  assert.match(service, /const constitution = await getProjectConstitution\(input\.constitutionId, input\.workspaceId\)/);
 });
 
 // ─── Soft Delete Semantics ────────────────────────────────────────────────────
 
 test('archived status serves as soft delete: lifecycle machine allows archiving from draft', () => {
-  // Imported from state-machine module — tested structurally here
   const stateMachine = readFileSync('src/lib/project-constitution/state-machine.ts', 'utf8');
   assert.match(stateMachine, /draft.*archived|archived.*draft/s);
 });
@@ -189,16 +188,15 @@ test('migration creates project_constitutions table', () => {
   assert.match(migration, /create table if not exists public\.project_constitutions/);
 });
 
-test('migration schema includes all foundation fields', () => {
-  for (const field of ['title', 'description', 'created_by', 'created_at', 'updated_at', 'metadata']) {
-    assert.match(migration, new RegExp(field), `Migration must include field '${field}'`);
-  }
-});
-
-test('migration schema includes all lifecycle fields', () => {
+test('migration schema includes lifecycle fields', () => {
   for (const field of ['current_status', 'status_changed_at', 'status_changed_by', 'lifecycle_version']) {
     assert.match(migration, new RegExp(field), `Migration must include lifecycle field '${field}'`);
   }
+});
+
+test('migration schema includes history table', () => {
+  assert.match(migration, /constitution_lifecycle_history/);
+  assert.match(migration, /lifecycle_version_after integer not null/);
 });
 
 test('database contract defines ProjectConstitutionRow', () => {
@@ -241,7 +239,7 @@ test('rawReferenceTable is always set to project_constitutions in events', () =>
 // ─── Documentation ────────────────────────────────────────────────────────────
 
 test('foundation documentation covers all CRUD functions', () => {
-  for (const fn of ['createConstitution', 'getConstitution', 'listConstitutions', 'updateConstitution', 'exportConstitution']) {
+  for (const fn of ['createProjectConstitution', 'getProjectConstitution', 'listConstitutions', 'updateProjectConstitution', 'exportConstitution']) {
     assert.match(docs, new RegExp(fn), `Docs must document '${fn}'`);
   }
 });

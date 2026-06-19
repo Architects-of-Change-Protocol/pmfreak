@@ -172,7 +172,7 @@ test('changeConstitutionStatus enforces workspace_id on update', () => {
 });
 
 test('getConstitutionLifecycleHistory verifies workspace ownership before querying history', () => {
-  assert.match(service, /const constitutionCheck = await getConstitution\(input\.constitutionId, input\.workspaceId\)/);
+  assert.match(service, /const constitutionCheck = await getProjectConstitution\(input\.constitutionId, input\.workspaceId\)/);
   assert.match(service, /\.eq\("workspace_id", input\.workspaceId\)/);
 });
 
