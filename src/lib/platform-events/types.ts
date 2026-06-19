@@ -177,6 +177,21 @@ export type SystemEventType =
   | "IMPORT_COMPLETED"
   | "INTEGRATION_SYNC_COMPLETED";
 
+// Constitutional Decision Governance
+export type ConstitutionalDecisionEventType =
+  | "CONSTITUTIONAL_DECISION_CREATED"
+  | "CONSTITUTIONAL_DECISION_UPDATED"
+  | "CONSTITUTIONAL_DECISION_PROPOSED"
+  | "CONSTITUTIONAL_DECISION_APPROVED"
+  | "CONSTITUTIONAL_DECISION_REJECTED"
+  | "CONSTITUTIONAL_DECISION_EXECUTED"
+  | "CONSTITUTIONAL_DECISION_CANCELLED"
+  | "CONSTITUTIONAL_DECISION_OPTION_ADDED"
+  | "CONSTITUTIONAL_DECISION_OPTION_SELECTED"
+  | "CONSTITUTIONAL_DECISION_EVIDENCE_ATTACHED"
+  | "CONSTITUTIONAL_DECISION_LINK_CREATED"
+  | "CONSTITUTIONAL_DECISION_AMENDMENT_GENERATED";
+
 // Union of all event types
 export type PlatformEventType =
   | ProjectEventType
@@ -192,7 +207,8 @@ export type PlatformEventType =
   | FinancialEventType
   | SystemEventType
   | ConstitutionLifecycleEventType
-  | ConstitutionAmendmentEventType;
+  | ConstitutionAmendmentEventType
+  | ConstitutionalDecisionEventType;
 
 // ─── Row type (matches platform_events table) ─────────────────────────────────
 

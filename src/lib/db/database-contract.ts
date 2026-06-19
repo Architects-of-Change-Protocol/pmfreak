@@ -1584,7 +1584,222 @@ export const CONSTITUTION_SNAPSHOT_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof ConstitutionSnapshotRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// constitutional_decisions — Constitutional Decision Governance
+// Migration: 20260625000000_project_constitutional_decision_governance.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConstitutionalDecisionStatus =
+  | "draft"
+  | "proposed"
+  | "approved"
+  | "rejected"
+  | "executed"
+  | "cancelled";
+
+export type ConstitutionalDecisionType =
+  | "scope"
+  | "schedule"
+  | "cost"
+  | "quality"
+  | "risk"
+  | "resource"
+  | "architecture"
+  | "governance"
+  | "constitutional"
+  | "technical"
+  | "vendor"
+  | "operational";
+
+export type ConstitutionalDecisionAuthority =
+  | "sponsor"
+  | "project_manager"
+  | "steering_committee"
+  | "governance_board"
+  | "product_owner"
+  | "client"
+  | "architect"
+  | "technical_lead";
+
+export type ConstitutionalDecisionRow = {
+  id: string;                                     // uuid PK
+  workspace_id: string;                           // uuid references workspaces
+  constitution_id: string;                        // uuid references project_constitutions
+
+  title: string;                                  // text not null
+  description: string | null;                     // text
+
+  decision_type: ConstitutionalDecisionType;      // text not null (enum-constrained)
+
+  context: string | null;                         // text
+  problem_statement: string | null;               // text
+
+  recommended_option: string | null;              // text
+  selected_option: string | null;                 // text
+
+  decision_authority: ConstitutionalDecisionAuthority; // text not null (enum-constrained)
+
+  status: ConstitutionalDecisionStatus;           // text not null default 'draft'
+
+  created_by: string;                             // uuid references auth.users
+  created_at: string;                             // timestamptz
+  updated_at: string;                             // timestamptz
+
+  approved_by: string | null;                     // uuid references auth.users
+  approved_at: string | null;                     // timestamptz
+
+  executed_by: string | null;                     // uuid references auth.users
+  executed_at: string | null;                     // timestamptz
+
+  cancelled_by: string | null;                    // uuid references auth.users
+  cancelled_at: string | null;                    // timestamptz
+
+  deleted_at: string | null;                      // timestamptz
+};
+
+export const CONSTITUTIONAL_DECISION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "constitution_id",
+  "title",
+  "description",
+  "decision_type",
+  "context",
+  "problem_statement",
+  "recommended_option",
+  "selected_option",
+  "decision_authority",
+  "status",
+  "created_by",
+  "created_at",
+  "updated_at",
+  "approved_by",
+  "approved_at",
+  "executed_by",
+  "executed_at",
+  "cancelled_by",
+  "cancelled_at",
+  "deleted_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalDecisionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// constitutional_decision_options — Decision Options
+// Migration: 20260625000000_project_constitutional_decision_governance.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConstitutionalDecisionOptionRow = {
+  id: string;                   // uuid PK
+  workspace_id: string;         // uuid references workspaces
+  decision_id: string;          // uuid references constitutional_decisions
+
+  name: string;                 // text not null
+  description: string | null;   // text
+
+  advantages: string | null;    // text
+  disadvantages: string | null; // text
+
+  estimated_cost: string | null;   // text
+  estimated_effort: string | null; // text
+
+  selected: boolean;            // boolean not null default false
+
+  created_at: string;           // timestamptz
+};
+
+export const CONSTITUTIONAL_DECISION_OPTION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "decision_id",
+  "name",
+  "description",
+  "advantages",
+  "disadvantages",
+  "estimated_cost",
+  "estimated_effort",
+  "selected",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalDecisionOptionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// constitutional_decision_evidence — Evidence Registry
+// Migration: 20260625000000_project_constitutional_decision_governance.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConstitutionalDecisionEvidenceType =
+  | "document"
+  | "email"
+  | "meeting"
+  | "risk"
+  | "issue"
+  | "change_request"
+  | "file"
+  | "link"
+  | "chat"
+  | "approval";
+
+export type ConstitutionalDecisionEvidenceRow = {
+  id: string;                                          // uuid PK
+  workspace_id: string;                                // uuid references workspaces
+  decision_id: string;                                 // uuid references constitutional_decisions
+
+  evidence_type: ConstitutionalDecisionEvidenceType;   // text not null (enum-constrained)
+
+  reference_id: string | null;                         // text — external ref
+
+  description: string;                                 // text not null
+
+  created_by: string;                                  // uuid references auth.users
+  created_at: string;                                  // timestamptz
+};
+
+export const CONSTITUTIONAL_DECISION_EVIDENCE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "decision_id",
+  "evidence_type",
+  "reference_id",
+  "description",
+  "created_by",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalDecisionEvidenceRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// constitutional_decision_links — Constitutional Linkage
+// Migration: 20260625000000_project_constitutional_decision_governance.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConstitutionalDecisionLinkType =
+  | "objective"
+  | "constraint"
+  | "amendment"
+  | "risk"
+  | "issue"
+  | "milestone"
+  | "deliverable"
+  | "constitution_version";
+
+export type ConstitutionalDecisionLinkRow = {
+  id: string;                                       // uuid PK
+  workspace_id: string;                             // uuid references workspaces
+  decision_id: string;                              // uuid references constitutional_decisions
+
+  link_type: ConstitutionalDecisionLinkType;        // text not null (enum-constrained)
+
+  linked_entity_id: string;                         // uuid not null
+
+  created_at: string;                               // timestamptz
+};
+
+export const CONSTITUTIONAL_DECISION_LINK_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "decision_id",
+  "link_type",
+  "linked_entity_id",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalDecisionLinkRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance" as const;
