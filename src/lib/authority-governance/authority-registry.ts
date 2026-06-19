@@ -32,6 +32,14 @@ export async function registerAuthority(
   if (!validUuid(input.workspaceId)) return validation("workspaceId must be a UUID.");
   if (!validUuid(input.actorId)) return validation("actorId must be a UUID.");
   if (!validUuid(input.grantedBy)) return validation("grantedBy must be a UUID.");
+
+  // Rule: scope/projectId must be consistent
+  if (input.authorityScope === "project" && !input.projectId) {
+    return validation("projectId is required for project-scoped authority.");
+  }
+  if (input.authorityScope === "workspace" && input.projectId) {
+    return validation("projectId must be omitted for workspace-scoped authority.");
+  }
   if (input.projectId && !validUuid(input.projectId)) return validation("projectId must be a UUID.");
 
   const now = new Date().toISOString();
@@ -55,7 +63,7 @@ export async function registerAuthority(
 
   if (error || !data) return failed("Unable to register authority.");
 
-  await createPlatformEvent({
+  const event = await createPlatformEvent({
     workspaceId: input.workspaceId,
     actorId: input.grantedBy,
     actorType: "user",
@@ -77,6 +85,8 @@ export async function registerAuthority(
       projectId: input.projectId ?? null,
     },
   });
+
+  if (!event.ok) return failed("Authority registered but audit event could not be recorded.", "event_emission_failed");
 
   return { ok: true, data };
 }
@@ -120,7 +130,7 @@ export async function revokeAuthority(
 
   if (error || !data) return failed("Unable to revoke authority.");
 
-  await createPlatformEvent({
+  const event = await createPlatformEvent({
     workspaceId: input.workspaceId,
     actorId: input.revokedBy,
     actorType: "user",
@@ -142,6 +152,8 @@ export async function revokeAuthority(
     },
   });
 
+  if (!event.ok) return failed("Authority revoked but audit event could not be recorded.", "event_emission_failed");
+
   return { ok: true, data };
 }
 
@@ -158,12 +170,12 @@ export async function getActiveAuthority(
   const supabase = await createSupabaseServerClient();
 
   // Try project-scoped first, then workspace-scoped
-  const scopes = input.projectId
+  const scopes: Array<{ scope: string; projectId: string | null }> = input.projectId
     ? [
         { scope: "project", projectId: input.projectId },
-        { scope: "workspace", projectId: null as string | null },
+        { scope: "workspace", projectId: null },
       ]
-    : [{ scope: "workspace", projectId: null as string | null }];
+    : [{ scope: "workspace", projectId: null }];
 
   for (const { scope, projectId } of scopes) {
     let query = supabase
@@ -185,7 +197,6 @@ export async function getActiveAuthority(
     const { data } = await query.maybeSingle<AuthorityRegistrationRecord>();
 
     if (data) {
-      // Check valid_until
       if (data.valid_until && data.valid_until < atTime) continue;
       return { ok: true, data };
     }

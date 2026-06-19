@@ -1,7 +1,7 @@
 import { createPlatformEvent } from "@/lib/platform-events";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getActiveAuthority } from "./authority-registry";
-import { getActiveDelegation } from "./delegation-engine";
+import { getActiveDelegation, getDelegationChain } from "./delegation-engine";
 import type {
   AuthorityResult,
   GovernanceViolationRecord,
@@ -76,15 +76,54 @@ export async function checkAuthorityForAction(
   if (!delegation.ok) return delegation;
 
   if (delegation.data) {
-    return {
-      ok: true,
-      data: {
-        authorized: true,
-        violationType: null,
-        reason: `Actor holds ${ctx.claimedAuthority} authority via delegation.`,
-        authorityRegistration: null,
-      },
-    };
+    // Validate the full delegation lineage: every link in the chain must still be
+    // active, and the root must trace back to an active direct registration.
+    const chainResult = await getDelegationChain({
+      workspaceId: ctx.workspaceId,
+      delegationId: delegation.data.id,
+    });
+
+    if (chainResult.ok && chainResult.data.length > 0) {
+      const root = chainResult.data[0];
+      const rootAuth = await getActiveAuthority({
+        workspaceId: ctx.workspaceId,
+        actorId: root.delegator_id,
+        authorityType: root.delegator_authority as typeof ctx.claimedAuthority,
+        projectId: ctx.projectId,
+        atTime,
+      });
+
+      // All links must be active (getDelegationChain only returns linked rows; each
+      // was stored with status but we re-check the chain nodes here)
+      const allLinksActive = chainResult.data.every(
+        (link) =>
+          link.status === "active" &&
+          (link.valid_until == null || link.valid_until > atTime),
+      );
+
+      if (rootAuth.ok && rootAuth.data && allLinksActive) {
+        return {
+          ok: true,
+          data: {
+            authorized: true,
+            violationType: null,
+            reason: `Actor holds ${ctx.claimedAuthority} authority via validated delegation chain.`,
+            authorityRegistration: null,
+          },
+        };
+      }
+
+      // Chain is broken or root registration is gone
+      return {
+        ok: true,
+        data: {
+          authorized: false,
+          violationType: "revoked_authority",
+          reason: `Delegation chain for ${ctx.claimedAuthority} is no longer valid (root or intermediate authority revoked/expired).`,
+          authorityRegistration: null,
+        },
+      };
+    }
   }
 
   // Check if actor ever had the authority but it's now revoked/expired

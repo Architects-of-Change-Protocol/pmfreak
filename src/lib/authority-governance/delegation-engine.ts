@@ -61,19 +61,30 @@ export async function createDelegation(
     return { ok: false, error: "Delegate authority cannot exceed delegator authority.", failureClass: "governance_violation" };
   }
 
-  // Rule: delegator must hold the authority they're delegating
-  const authorityCheck = await getActiveAuthority({
+  // Rule: delegator must hold the authority (direct registration OR active delegation)
+  const directAuth = await getActiveAuthority({
     workspaceId: input.workspaceId,
     actorId: input.delegatorId,
     authorityType: input.delegatorAuthority,
     projectId: input.projectId,
   });
-  if (!authorityCheck.ok) return authorityCheck;
-  if (!authorityCheck.data) {
-    return { ok: false, error: "Delegator does not hold the claimed authority.", failureClass: "governance_violation" };
+  if (!directAuth.ok) return directAuth;
+
+  if (!directAuth.data) {
+    // Check if authority is held via an existing delegation
+    const delegatedAuth = await getActiveDelegation({
+      workspaceId: input.workspaceId,
+      delegateId: input.delegatorId,
+      delegateAuthority: input.delegatorAuthority,
+      projectId: input.projectId,
+    });
+    if (!delegatedAuth.ok) return delegatedAuth;
+    if (!delegatedAuth.data) {
+      return { ok: false, error: "Delegator does not hold the claimed authority.", failureClass: "governance_violation" };
+    }
   }
 
-  // Compute delegation depth from parent
+  // Compute delegation depth from parent, validating parent integrity
   let depth = 1;
   if (input.parentDelegationId) {
     if (!validUuid(input.parentDelegationId)) return validation("parentDelegationId must be a UUID.");
@@ -81,12 +92,29 @@ export async function createDelegation(
     const supabase = await createSupabaseServerClient();
     const { data: parent } = await supabase
       .from("authority_delegations")
-      .select("delegation_depth")
+      .select(COLUMNS)
       .eq("id", input.parentDelegationId)
       .eq("workspace_id", input.workspaceId)
-      .maybeSingle<Pick<AuthorityDelegationRecord, "delegation_depth">>();
+      .maybeSingle<AuthorityDelegationRecord>();
 
     if (!parent) return failed("Parent delegation not found.", "not_found");
+    // Parent must be active and unexpired
+    if (parent.status !== "active") {
+      return { ok: false, error: "Parent delegation is not active.", failureClass: "governance_violation" };
+    }
+    const now = new Date().toISOString();
+    if (parent.valid_until && parent.valid_until < now) {
+      return { ok: false, error: "Parent delegation has expired.", failureClass: "governance_violation" };
+    }
+    // Parent's delegate must be the current delegator
+    if (parent.delegate_id !== input.delegatorId || parent.delegate_authority !== input.delegatorAuthority) {
+      return { ok: false, error: "Parent delegation delegate does not match delegator.", failureClass: "governance_violation" };
+    }
+    // Scope must match
+    if (parent.project_id !== (input.projectId ?? null)) {
+      return { ok: false, error: "Parent delegation project scope does not match.", failureClass: "governance_violation" };
+    }
+
     depth = parent.delegation_depth + 1;
   }
 
@@ -222,32 +250,38 @@ export async function getActiveDelegation(input: {
   if (!validUuid(input.delegateId)) return validation("delegateId must be a UUID.");
 
   const atTime = input.atTime ?? new Date().toISOString();
-
   const supabase = await createSupabaseServerClient();
-  let query = supabase
-    .from("authority_delegations")
-    .select(COLUMNS)
-    .eq("workspace_id", input.workspaceId)
-    .eq("delegate_id", input.delegateId)
-    .eq("delegate_authority", input.delegateAuthority)
-    .eq("status", "active")
-    .lte("valid_from", atTime);
 
-  if (input.projectId) {
-    query = query.eq("project_id", input.projectId);
-  } else {
-    query = query.is("project_id", null);
+  // When projectId is given: try project-specific first, then fall back to workspace-wide
+  const scopesToTry: Array<string | null> = input.projectId
+    ? [input.projectId, null]
+    : [null];
+
+  for (const scopeProjectId of scopesToTry) {
+    let query = supabase
+      .from("authority_delegations")
+      .select(COLUMNS)
+      .eq("workspace_id", input.workspaceId)
+      .eq("delegate_id", input.delegateId)
+      .eq("delegate_authority", input.delegateAuthority)
+      .eq("status", "active")
+      .lte("valid_from", atTime);
+
+    if (scopeProjectId) {
+      query = query.eq("project_id", scopeProjectId);
+    } else {
+      query = query.is("project_id", null);
+    }
+
+    const { data, error } = await query.maybeSingle<AuthorityDelegationRecord>();
+    if (error) return failed("Unable to retrieve delegation.");
+    if (data) {
+      if (data.valid_until && data.valid_until < atTime) continue;
+      return { ok: true, data };
+    }
   }
 
-  const { data, error } = await query.maybeSingle<AuthorityDelegationRecord>();
-
-  if (error) return failed("Unable to retrieve delegation.");
-  if (!data) return { ok: true, data: null };
-
-  // Check expiry
-  if (data.valid_until && data.valid_until < atTime) return { ok: true, data: null };
-
-  return { ok: true, data };
+  return { ok: true, data: null };
 }
 
 // ─── getDelegationChain ──────────────────────────────────────────────────────
@@ -261,19 +295,23 @@ export async function getDelegationChain(input: {
 
   const supabase = await createSupabaseServerClient();
   const chain: AuthorityDelegationRecord[] = [];
-  let currentId: string | null = input.delegationId;
 
-  while (currentId) {
-    const result = await supabase
+  // Helper with explicit return type breaks the circular inference that confuses tsc
+  const fetchNode = async (id: string): Promise<AuthorityDelegationRecord | null> => {
+    const { data } = await supabase
       .from("authority_delegations")
       .select(COLUMNS)
-      .eq("id", currentId)
+      .eq("id", id)
       .eq("workspace_id", input.workspaceId)
       .maybeSingle<AuthorityDelegationRecord>();
+    return data;
+  };
 
-    const node: AuthorityDelegationRecord | null = result.data;
+  let currentId: string | null = input.delegationId;
+  while (currentId) {
+    const node = await fetchNode(currentId);
     if (!node) break;
-    chain.unshift(node); // prepend to get root-first order
+    chain.unshift(node); // prepend so root is first
     currentId = node.parent_delegation_id;
   }
 

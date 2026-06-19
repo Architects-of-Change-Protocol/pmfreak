@@ -55,6 +55,8 @@ function createAuthorityStore() {
     if (!validUuid(input.workspaceId)) return validation("workspaceId must be a UUID.");
     if (!validUuid(input.actorId)) return validation("actorId must be a UUID.");
     if (!validUuid(input.grantedBy)) return validation("grantedBy must be a UUID.");
+    if (input.authorityScope === "project" && !input.projectId) return validation("projectId is required for project-scoped authority.");
+    if (input.authorityScope === "workspace" && input.projectId) return validation("projectId must be omitted for workspace-scoped authority.");
 
     const id = uuid();
     const now = new Date().toISOString();
@@ -136,20 +138,28 @@ function createAuthorityStore() {
     const delegateRank = AUTHORITY_RANK[input.delegateAuthority] ?? 0;
     if (delegateRank > delegatorRank) return governanceViolation("Delegate authority cannot exceed delegator authority.");
 
-    // Delegator must hold the authority
+    // Delegator must hold the authority (direct OR via delegation)
     const authCheck = getActiveAuthority({
       workspaceId: input.workspaceId,
       actorId: input.delegatorId,
       authorityType: input.delegatorAuthority,
       projectId: input.projectId,
     });
-    if (!authCheck.ok || !authCheck.data) return governanceViolation("Delegator does not hold the claimed authority.");
+    if (!authCheck.ok) return authCheck;
+    if (!authCheck.data) {
+      const via = getActiveDelegation({ workspaceId: input.workspaceId, delegateId: input.delegatorId, delegateAuthority: input.delegatorAuthority, projectId: input.projectId });
+      if (!via.ok || !via.data) return governanceViolation("Delegator does not hold the claimed authority.");
+    }
 
-    // Compute depth
+    // Compute depth, validate parent integrity
     let depth = 1;
     if (input.parentDelegationId) {
       const parent = delegations.get(input.parentDelegationId);
       if (!parent) return { ok: false, error: "Parent delegation not found.", failureClass: "not_found" };
+      if (parent.status !== "active") return governanceViolation("Parent delegation is not active.");
+      if (parent.valid_until && parent.valid_until < new Date().toISOString()) return governanceViolation("Parent delegation has expired.");
+      if (parent.delegate_id !== input.delegatorId || parent.delegate_authority !== input.delegatorAuthority) return governanceViolation("Parent delegation delegate does not match delegator.");
+      if (parent.project_id !== (input.projectId ?? null)) return governanceViolation("Parent delegation project scope does not match.");
       depth = parent.delegation_depth + 1;
     }
     if (depth > MAX_DELEGATION_DEPTH) return governanceViolation(`Delegation depth ${depth} exceeds maximum of ${MAX_DELEGATION_DEPTH}.`);
@@ -201,19 +211,38 @@ function createAuthorityStore() {
 
   function getActiveDelegation(input) {
     const atTime = input.atTime ?? new Date().toISOString();
-    for (const del of delegations.values()) {
-      if (
-        del.workspace_id === input.workspaceId &&
-        del.delegate_id === input.delegateId &&
-        del.delegate_authority === input.delegateAuthority &&
-        del.status === "active" &&
-        del.valid_from <= atTime &&
-        (del.valid_until == null || del.valid_until > atTime)
-      ) {
-        return { ok: true, data: del };
+    // Try project-scoped first, then fall back to workspace-wide (project_id = null)
+    const scopesToTry = input.projectId ? [input.projectId, null] : [null];
+    for (const scopeProjectId of scopesToTry) {
+      for (const del of delegations.values()) {
+        if (
+          del.workspace_id === input.workspaceId &&
+          del.delegate_id === input.delegateId &&
+          del.delegate_authority === input.delegateAuthority &&
+          del.status === "active" &&
+          del.valid_from <= atTime &&
+          (del.valid_until == null || del.valid_until > atTime) &&
+          del.project_id === (scopeProjectId ?? null)
+        ) {
+          return { ok: true, data: del };
+        }
       }
     }
     return { ok: true, data: null };
+  }
+
+  // ── getDelegationChain ──
+
+  function getDelegationChain(delegationId) {
+    const chain = [];
+    let currentId = delegationId;
+    while (currentId) {
+      const node = delegations.get(currentId);
+      if (!node) break;
+      chain.unshift(node);
+      currentId = node.parent_delegation_id;
+    }
+    return chain;
   }
 
   // ── checkAuthorityForAction ──
@@ -225,7 +254,19 @@ function createAuthorityStore() {
     if (direct.ok && direct.data) return { ok: true, data: { authorized: true, violationType: null, reason: "Direct authority.", authorityRegistration: direct.data } };
 
     const via = getActiveDelegation({ workspaceId: ctx.workspaceId, delegateId: ctx.actorId, delegateAuthority: ctx.claimedAuthority, projectId: ctx.projectId, atTime });
-    if (via.ok && via.data) return { ok: true, data: { authorized: true, violationType: null, reason: "Delegated authority.", authorityRegistration: null } };
+    if (via.ok && via.data) {
+      // Validate full delegation lineage
+      const chain = getDelegationChain(via.data.id);
+      const allLinksActive = chain.every(link => link.status === "active" && (link.valid_until == null || link.valid_until > atTime));
+      if (allLinksActive && chain.length > 0) {
+        const root = chain[0];
+        const rootAuth = getActiveAuthority({ workspaceId: ctx.workspaceId, actorId: root.delegator_id, authorityType: root.delegator_authority, projectId: ctx.projectId, atTime });
+        if (rootAuth.ok && rootAuth.data) {
+          return { ok: true, data: { authorized: true, violationType: null, reason: "Validated delegation chain.", authorityRegistration: null } };
+        }
+      }
+      return { ok: true, data: { authorized: false, violationType: "revoked_authority", reason: "Delegation chain is no longer valid.", authorityRegistration: null } };
+    }
 
     // Check historic
     for (const reg of registrations.values()) {
@@ -399,6 +440,22 @@ describe("Authority Registry", () => {
     assert.ok(check.ok);
     assert.equal(check.data, null);
   });
+
+  test("rejects project-scoped authority without projectId", () => {
+    const store = createAuthorityStore();
+    const result = store.registerAuthority({ workspaceId, actorId, authorityType: "project_manager", authorityScope: "project", grantedBy });
+    assert.ok(!result.ok);
+    assert.equal(result.failureClass, "validation_failed");
+    assert.match(result.error, /projectId is required/);
+  });
+
+  test("rejects workspace-scoped authority with projectId", () => {
+    const store = createAuthorityStore();
+    const result = store.registerAuthority({ workspaceId, actorId, authorityType: "sponsor", authorityScope: "workspace", grantedBy, projectId: uuid() });
+    assert.ok(!result.ok);
+    assert.equal(result.failureClass, "validation_failed");
+    assert.match(result.error, /projectId must be omitted/);
+  });
 });
 
 describe("Delegation Engine", () => {
@@ -532,6 +589,115 @@ describe("Delegation Engine", () => {
     assert.ok(check.ok);
     assert.equal(check.data, null);
   });
+
+  test("delegator can hold authority via existing delegation (second-hop)", () => {
+    const store = setupStore();
+    const tlId2 = uuid();
+    store.registerAuthority({ workspaceId, actorId: tlId2, authorityType: "technical_lead", authorityScope: "workspace", grantedBy });
+
+    // PM delegates to TL
+    const d1 = store.createDelegation({
+      workspaceId,
+      delegatorId: sponsorId,
+      delegatorAuthority: "sponsor",
+      delegateId: pmId,
+      delegateAuthority: "project_manager",
+      createdBy: sponsorId,
+    });
+    assert.ok(d1.ok, d1.error);
+
+    // PM (holding authority via direct registration) delegates TL to tlId2
+    const d2 = store.createDelegation({
+      workspaceId,
+      delegatorId: pmId,
+      delegatorAuthority: "project_manager",
+      delegateId: tlId2,
+      delegateAuthority: "technical_lead",
+      createdBy: pmId,
+      parentDelegationId: d1.data.id,
+    });
+    assert.ok(d2.ok, d2.error);
+    assert.equal(d2.data.delegation_depth, 2);
+  });
+
+  test("parent delegation must be active", () => {
+    const store = setupStore();
+    const d1 = store.createDelegation({
+      workspaceId,
+      delegatorId: sponsorId,
+      delegatorAuthority: "sponsor",
+      delegateId: pmId,
+      delegateAuthority: "project_manager",
+      createdBy: sponsorId,
+    });
+    store.revokeDelegation({ workspaceId, delegationId: d1.data.id, revokedBy: sponsorId });
+
+    const d2 = store.createDelegation({
+      workspaceId,
+      delegatorId: pmId,
+      delegatorAuthority: "project_manager",
+      delegateId: tlId,
+      delegateAuthority: "technical_lead",
+      createdBy: pmId,
+      parentDelegationId: d1.data.id,
+    });
+    assert.ok(!d2.ok);
+    assert.equal(d2.failureClass, "governance_violation");
+    assert.match(d2.error, /not active/);
+  });
+
+  test("parent delegation delegate must match delegator", () => {
+    const store = setupStore();
+    const unrelated = uuid();
+    store.registerAuthority({ workspaceId, actorId: unrelated, authorityType: "project_manager", authorityScope: "workspace", grantedBy });
+
+    const d1 = store.createDelegation({
+      workspaceId,
+      delegatorId: sponsorId,
+      delegatorAuthority: "sponsor",
+      delegateId: pmId,
+      delegateAuthority: "project_manager",
+      createdBy: sponsorId,
+    });
+    assert.ok(d1.ok);
+
+    // unrelated tries to use sponsorId's delegation as parent
+    const d2 = store.createDelegation({
+      workspaceId,
+      delegatorId: unrelated,
+      delegatorAuthority: "project_manager",
+      delegateId: tlId,
+      delegateAuthority: "technical_lead",
+      createdBy: unrelated,
+      parentDelegationId: d1.data.id,
+    });
+    assert.ok(!d2.ok);
+    assert.equal(d2.failureClass, "governance_violation");
+    assert.match(d2.error, /does not match delegator/);
+  });
+
+  test("workspace-wide delegation covers project-scoped checks", () => {
+    const store = createAuthorityStore();
+    const sponsorId2 = uuid();
+    const pmId2 = uuid();
+    const projectId2 = uuid();
+    store.registerAuthority({ workspaceId, actorId: sponsorId2, authorityType: "sponsor", authorityScope: "workspace", grantedBy });
+
+    // workspace-wide delegation (no projectId)
+    store.createDelegation({
+      workspaceId,
+      delegatorId: sponsorId2,
+      delegatorAuthority: "sponsor",
+      delegateId: pmId2,
+      delegateAuthority: "project_manager",
+      createdBy: sponsorId2,
+    });
+
+    // Should still be found when checking with projectId
+    const found = store.getActiveDelegation({ workspaceId, delegateId: pmId2, delegateAuthority: "project_manager", projectId: projectId2 });
+    assert.ok(found.ok);
+    assert.ok(found.data, "workspace-wide delegation should be found for project-scoped checks");
+  });
 });
 
 describe("Violation Detector", () => {
@@ -652,6 +818,34 @@ describe("Violation Detector", () => {
     });
     assert.ok(result.ok);
     assert.ok(result.data.authorized);
+  });
+
+  test("revoked root authority invalidates delegation chain", () => {
+    const store = createAuthorityStore();
+    const sponsorId = uuid();
+    const pmId = uuid();
+    const reg = store.registerAuthority({ workspaceId, actorId: sponsorId, authorityType: "sponsor", authorityScope: "workspace", grantedBy });
+    store.createDelegation({
+      workspaceId,
+      delegatorId: sponsorId,
+      delegatorAuthority: "sponsor",
+      delegateId: pmId,
+      delegateAuthority: "project_manager",
+      createdBy: sponsorId,
+    });
+    // Revoke root authority — PM's delegation chain is now broken
+    store.revokeAuthority({ workspaceId, registrationId: reg.data.id, revokedBy: grantedBy });
+    const result = store.checkAuthorityForAction({
+      workspaceId,
+      actorId: pmId,
+      claimedAuthority: "project_manager",
+      actionType: "approve_decision",
+      actionEntityType: "decision",
+      actionEntityId: uuid(),
+    });
+    assert.ok(result.ok);
+    assert.ok(!result.data.authorized);
+    assert.equal(result.data.violationType, "revoked_authority");
   });
 });
 
