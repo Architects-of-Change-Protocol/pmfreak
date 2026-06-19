@@ -125,6 +125,16 @@ export type GovernanceEventType =
   | "GOVERNANCE_POLICY_APPLIED"
   | "CONSTITUTIONAL_REVIEW_TRIGGERED";
 
+// Constitution Lifecycle
+export type ConstitutionLifecycleEventType =
+  | "CONSTITUTION_PROPOSED"
+  | "CONSTITUTION_APPROVED"
+  | "CONSTITUTION_ACTIVATED"
+  | "CONSTITUTION_SUSPENDED"
+  | "CONSTITUTION_CLOSED"
+  | "CONSTITUTION_ARCHIVED"
+  | "CONSTITUTION_STATUS_CHANGED";
+
 // Document
 export type DocumentEventType =
   | "DOCUMENT_ADDED"
@@ -166,7 +176,8 @@ export type PlatformEventType =
   | DocumentEventType
   | StakeholderEventType
   | FinancialEventType
-  | SystemEventType;
+  | SystemEventType
+  | ConstitutionLifecycleEventType;
 
 // ─── Row type (matches platform_events table) ─────────────────────────────────
 
