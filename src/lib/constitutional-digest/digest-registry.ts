@@ -422,7 +422,7 @@ export async function listDigests(
   const { data, error } = await query;
   if (error) return failed("Unable to list constitutional digests.");
 
-  let results = (data ?? []) as ConstitutionalDigestRow[];
+  let results = (data ?? []) as unknown as ConstitutionalDigestRow[];
 
   // Apply payload-based filters in-memory (JSON field filtering)
   if (input.industry) {
@@ -463,5 +463,5 @@ export async function listClassificationsForDigest(
     .order("created_at", { ascending: true });
 
   if (error) return failed("Unable to list digest classifications.");
-  return { ok: true, data: (data ?? []) as ConstitutionalDigestClassificationRow[] };
+  return { ok: true, data: (data ?? []) as unknown as ConstitutionalDigestClassificationRow[] };
 }
