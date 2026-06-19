@@ -48,7 +48,7 @@ function required(value: unknown): value is string {
 function validation<T>(error: string): AmendmentResult<T> {
   return { ok: false, error, failureClass: "validation_failed" };
 }
-function failed<T>(error: string, failureClass: AmendmentResult<never>["failureClass"] = "persistence_failed"): AmendmentResult<T> {
+function failed<T>(error: string, failureClass: Extract<AmendmentResult<never>, { ok: false }>["failureClass"] = "persistence_failed"): AmendmentResult<T> {
   return { ok: false, error, failureClass };
 }
 
