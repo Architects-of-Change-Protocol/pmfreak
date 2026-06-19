@@ -1799,7 +1799,125 @@ export const CONSTITUTIONAL_DECISION_LINK_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof ConstitutionalDecisionLinkRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// constitutional_signatures
+// Source: 20260626000000_constitutional_ratification_framework.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type SignatureStatus = "pending" | "signed" | "rejected" | "expired" | "withdrawn";
+export type SignatureAuthorityType =
+  | "sponsor"
+  | "project_manager"
+  | "client"
+  | "steering_committee"
+  | "governance_board"
+  | "product_owner"
+  | "architect"
+  | "technical_lead"
+  | "external_approver";
+export type RatifiableEntityType = "constitution" | "amendment" | "decision";
+
+export type ConstitutionalSignatureRow = {
+  id: string;              // uuid
+  workspace_id: string;    // uuid
+  entity_type: RatifiableEntityType;
+  entity_id: string;       // uuid
+  entity_version: number;  // integer
+  authority_type: SignatureAuthorityType;
+  authority_id: string;    // uuid references auth.users
+  status: SignatureStatus;
+  signature_hash: string | null;
+  comments: string | null;
+  requested_at: string;    // timestamptz
+  signed_at: string | null;
+  rejected_at: string | null;
+  expired_at: string | null;
+  withdrawn_at: string | null;
+  created_by: string;      // uuid
+  created_at: string;
+  updated_at: string;
+};
+
+export const CONSTITUTIONAL_SIGNATURE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "entity_type",
+  "entity_id",
+  "entity_version",
+  "authority_type",
+  "authority_id",
+  "status",
+  "signature_hash",
+  "comments",
+  "requested_at",
+  "signed_at",
+  "rejected_at",
+  "expired_at",
+  "withdrawn_at",
+  "created_by",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalSignatureRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// constitutional_signature_requests
+// Source: 20260626000000_constitutional_ratification_framework.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type SignatureRequestStatus = "pending" | "fulfilled" | "declined" | "expired";
+
+export type ConstitutionalSignatureRequestRow = {
+  id: string;
+  workspace_id: string;
+  entity_type: RatifiableEntityType;
+  entity_id: string;
+  requested_authority: SignatureAuthorityType;
+  requested_by: string;
+  status: SignatureRequestStatus;
+  deadline: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const CONSTITUTIONAL_SIGNATURE_REQUEST_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "entity_type",
+  "entity_id",
+  "requested_authority",
+  "requested_by",
+  "status",
+  "deadline",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalSignatureRequestRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// constitutional_ratification_policies
+// Source: 20260626000000_constitutional_ratification_framework.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConstitutionalRatificationPolicyRow = {
+  id: string;
+  workspace_id: string;
+  entity_type: RatifiableEntityType;
+  minimum_signatures: number;
+  required_authorities: SignatureAuthorityType[];
+  allow_unanimous_override: boolean;
+  created_at: string;
+};
+
+export const CONSTITUTIONAL_RATIFICATION_POLICY_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "entity_type",
+  "minimum_signatures",
+  "required_authorities",
+  "allow_unanimous_override",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalRatificationPolicyRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework" as const;

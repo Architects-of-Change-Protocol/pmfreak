@@ -25,6 +25,7 @@ import type {
 import { generateConstitutionDiff } from "./diff-engine";
 import { getConstitution } from "./constitution-service";
 import type { ConstitutionRecord } from "./types";
+import { validateRatification } from "@/lib/constitutional-ratification/ratification-engine";
 
 // ─── Column projections ───────────────────────────────────────────────────────
 
@@ -458,6 +459,20 @@ export async function applyAmendment(input: ApplyAmendmentInput): Promise<Amendm
   // Rule 4: Only Approved can be applied
   const transition = validateAmendmentTransition(current.data.status, "applied");
   if (!transition.ok) return amendmentTransitionValidationFailure(transition.error);
+
+  // Ratification gate: an approved amendment cannot be applied without ratification
+  const ratificationCheck = await validateRatification({
+    workspaceId: input.workspaceId,
+    entityType: "amendment",
+    entityId: input.amendmentId,
+  });
+  if (!ratificationCheck.ok) return ratificationCheck;
+  if (!ratificationCheck.data.valid) {
+    return failed(
+      `Amendment cannot be applied: ratification requirements not met. ${ratificationCheck.data.reason}`,
+      "governance_violation",
+    );
+  }
 
   // Rule 12: Prevent double-apply (already in terminal applied state)
   if (AMENDMENT_TERMINAL_STATES.has(current.data.status) && current.data.status === "applied") {

@@ -192,6 +192,17 @@ export type ConstitutionalDecisionEventType =
   | "CONSTITUTIONAL_DECISION_LINK_CREATED"
   | "CONSTITUTIONAL_DECISION_AMENDMENT_GENERATED";
 
+// Constitutional Ratification
+export type ConstitutionalRatificationEventType =
+  | "CONSTITUTIONAL_SIGNATURE_REQUESTED"
+  | "CONSTITUTIONAL_SIGNATURE_SIGNED"
+  | "CONSTITUTIONAL_SIGNATURE_REJECTED"
+  | "CONSTITUTIONAL_SIGNATURE_WITHDRAWN"
+  | "CONSTITUTIONAL_SIGNATURE_EXPIRED"
+  | "CONSTITUTIONAL_ENTITY_RATIFIED"
+  | "CONSTITUTIONAL_RATIFICATION_FAILED"
+  | "CONSTITUTIONAL_LEGITIMACY_UPDATED";
+
 // Union of all event types
 export type PlatformEventType =
   | ProjectEventType
@@ -208,7 +219,8 @@ export type PlatformEventType =
   | SystemEventType
   | ConstitutionLifecycleEventType
   | ConstitutionAmendmentEventType
-  | ConstitutionalDecisionEventType;
+  | ConstitutionalDecisionEventType
+  | ConstitutionalRatificationEventType;
 
 // ─── Row type (matches platform_events table) ─────────────────────────────────
 
