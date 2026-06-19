@@ -64,6 +64,8 @@ export type ConstitutionExport = {
   constitution: ConstitutionRecord;
   lifecycleHistory: ConstitutionLifecycleHistoryEntry[];
   exportedAt: string;
+};
+
 export type Result<T> =
   | { ok: true; data: T }
   | { ok: false; error: string; failureClass: "validation_failed" | "not_found" | "persistence_failed" | "event_emission_failed" | "governance_violation" };

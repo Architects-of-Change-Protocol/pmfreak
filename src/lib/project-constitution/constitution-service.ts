@@ -19,7 +19,7 @@ function validUuid(value: string | null | undefined): value is string {
 }
 function required(value: unknown): value is string { return typeof value === "string" && value.trim().length > 0; }
 function validation<T>(error: string): ConstitutionResult<T> { return { ok: false, error, failureClass: "validation_failed" }; }
-function failed<T>(error: string, failureClass: ConstitutionResult<never>["failureClass"] = "persistence_failed"): ConstitutionResult<T> { return { ok: false, error, failureClass }; }
+function failed<T>(error: string, failureClass: Extract<ConstitutionResult<never>, { ok: false }>["failureClass"] = "persistence_failed"): ConstitutionResult<T> { return { ok: false, error, failureClass }; }
 
 function eventTypeForTransition(to: ConstitutionStatus): ConstitutionLifecycleEventName {
   const map: Record<ConstitutionStatus, ConstitutionLifecycleEventName> = {
