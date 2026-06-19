@@ -79,7 +79,10 @@ export function resolveLineage(
       resolvedAt: now,
     });
     for (const l of artifact.lineage) {
-      entries.push(l);
+      entries.push({
+        ...l,
+        resolvedAt: l.resolvedAt ?? new Date().toISOString(),
+      });
     }
   }
 

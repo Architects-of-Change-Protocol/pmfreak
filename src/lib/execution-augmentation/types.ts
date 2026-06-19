@@ -50,11 +50,7 @@ export type AugmentationArtifact = {
   summary: string;
   reasonIncluded: string;
   evidenceCount: number;
-  lineage: Array<{
-    recordType: string;
-    recordId: string;
-    relationship: string;
-  }>;
+  lineage: AugmentationLineageEntry[];
 };
 
 // ─── Lineage Entry ─────────────────────────────────────────────────────────
