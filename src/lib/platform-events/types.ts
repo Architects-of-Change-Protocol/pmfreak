@@ -203,6 +203,20 @@ export type ConstitutionalRatificationEventType =
   | "CONSTITUTIONAL_RATIFICATION_FAILED"
   | "CONSTITUTIONAL_LEGITIMACY_UPDATED";
 
+// Authority Governance
+export type AuthorityGovernanceEventType =
+  | "AUTHORITY_REGISTERED"
+  | "AUTHORITY_REVOKED"
+  | "AUTHORITY_EXPIRED"
+  | "AUTHORITY_DELEGATED"
+  | "DELEGATION_REVOKED"
+  | "DELEGATION_EXPIRED"
+  | "GOVERNANCE_VIOLATION_DETECTED"
+  | "GOVERNANCE_VIOLATION_RESOLVED"
+  | "AUTHORITY_ESCALATION_CREATED"
+  | "AUTHORITY_ESCALATION_RESOLVED"
+  | "ACCOUNTABILITY_CHAIN_BUILT";
+
 // Union of all event types
 export type PlatformEventType =
   | ProjectEventType
@@ -220,7 +234,8 @@ export type PlatformEventType =
   | ConstitutionLifecycleEventType
   | ConstitutionAmendmentEventType
   | ConstitutionalDecisionEventType
-  | ConstitutionalRatificationEventType;
+  | ConstitutionalRatificationEventType
+  | AuthorityGovernanceEventType;
 
 // ─── Row type (matches platform_events table) ─────────────────────────────────
 
