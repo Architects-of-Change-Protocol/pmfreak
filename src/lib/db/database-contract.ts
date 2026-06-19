@@ -1917,7 +1917,224 @@ export const CONSTITUTIONAL_RATIFICATION_POLICY_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof ConstitutionalRatificationPolicyRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// authority_registrations
+// Source: 20260627000000_authority_registry_governance.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AuthorityType =
+  | "sponsor"
+  | "project_manager"
+  | "technical_lead"
+  | "steering_committee"
+  | "governance_board"
+  | "product_owner"
+  | "architect"
+  | "client"
+  | "external_approver";
+
+export type AuthorityScope = "workspace" | "project";
+
+export type AuthorityStatus = "active" | "revoked" | "expired";
+
+export type AuthorityRegistrationRow = {
+  id: string;                      // uuid PK
+  workspace_id: string;            // uuid references workspaces
+  actor_id: string;                // uuid references auth.users
+  authority_type: AuthorityType;   // text not null (enum-constrained)
+  authority_scope: AuthorityScope; // text not null default 'project'
+  project_id: string | null;       // uuid nullable
+  valid_from: string;              // timestamptz
+  valid_until: string | null;      // timestamptz nullable
+  status: AuthorityStatus;         // text not null default 'active'
+  revoked_at: string | null;       // timestamptz nullable
+  revoked_by: string | null;       // uuid nullable
+  revocation_reason: string | null;// text nullable
+  granted_by: string;              // uuid references auth.users
+  created_at: string;              // timestamptz
+  updated_at: string;              // timestamptz
+};
+
+export const AUTHORITY_REGISTRATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "actor_id",
+  "authority_type",
+  "authority_scope",
+  "project_id",
+  "valid_from",
+  "valid_until",
+  "status",
+  "revoked_at",
+  "revoked_by",
+  "revocation_reason",
+  "granted_by",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof AuthorityRegistrationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// authority_delegations
+// Source: 20260627000000_authority_registry_governance.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type DelegationStatus = "active" | "revoked" | "expired";
+
+export type AuthorityDelegationRow = {
+  id: string;                         // uuid PK
+  workspace_id: string;               // uuid references workspaces
+  delegator_id: string;               // uuid references auth.users
+  delegator_authority: AuthorityType; // text not null (enum-constrained)
+  delegate_id: string;                // uuid references auth.users
+  delegate_authority: AuthorityType;  // text not null (enum-constrained)
+  project_id: string | null;          // uuid nullable
+  valid_from: string;                 // timestamptz
+  valid_until: string | null;         // timestamptz nullable
+  status: DelegationStatus;           // text not null default 'active'
+  revoked_at: string | null;          // timestamptz nullable
+  revoked_by: string | null;          // uuid nullable
+  revocation_reason: string | null;   // text nullable
+  delegation_depth: number;           // integer default 1 (1–3)
+  parent_delegation_id: string | null;// uuid nullable self-ref
+  created_by: string;                 // uuid references auth.users
+  created_at: string;                 // timestamptz
+  updated_at: string;                 // timestamptz
+};
+
+export const AUTHORITY_DELEGATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "delegator_id",
+  "delegator_authority",
+  "delegate_id",
+  "delegate_authority",
+  "project_id",
+  "valid_from",
+  "valid_until",
+  "status",
+  "revoked_at",
+  "revoked_by",
+  "revocation_reason",
+  "delegation_depth",
+  "parent_delegation_id",
+  "created_by",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof AuthorityDelegationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// governance_violations
+// Source: 20260627000000_authority_registry_governance.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GovernanceViolationType =
+  | "unauthorized_approval"
+  | "unauthorized_amendment"
+  | "unauthorized_ratification"
+  | "expired_authority"
+  | "revoked_authority"
+  | "missing_authority_registration"
+  | "delegation_depth_exceeded";
+
+export type GovernanceViolationSeverity = "low" | "medium" | "high" | "critical";
+export type GovernanceViolationStatus = "open" | "acknowledged" | "resolved" | "escalated";
+
+export type GovernanceViolationRow = {
+  id: string;                                   // uuid PK
+  workspace_id: string;                         // uuid references workspaces
+  violation_type: GovernanceViolationType;      // text not null (enum-constrained)
+  action_type: string;                          // text not null
+  action_entity_type: string;                   // text not null
+  action_entity_id: string;                     // uuid not null
+  actor_id: string;                             // uuid references auth.users
+  actor_authority: string | null;               // text nullable
+  required_authority: string | null;            // text nullable
+  authority_id: string | null;                  // uuid nullable
+  severity: GovernanceViolationSeverity;        // text not null default 'high'
+  status: GovernanceViolationStatus;            // text not null default 'open'
+  resolved_at: string | null;                   // timestamptz nullable
+  resolved_by: string | null;                   // uuid nullable
+  resolution_notes: string | null;              // text nullable
+  detected_at: string;                          // timestamptz
+  created_at: string;                           // timestamptz
+  updated_at: string;                           // timestamptz
+};
+
+export const GOVERNANCE_VIOLATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "violation_type",
+  "action_type",
+  "action_entity_type",
+  "action_entity_id",
+  "actor_id",
+  "actor_authority",
+  "required_authority",
+  "authority_id",
+  "severity",
+  "status",
+  "resolved_at",
+  "resolved_by",
+  "resolution_notes",
+  "detected_at",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof GovernanceViolationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// authority_escalations
+// Source: 20260627000000_authority_registry_governance.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type EscalationTriggerType =
+  | "no_authority_holder"
+  | "governance_violation"
+  | "authority_gap"
+  | "delegation_chain_broken"
+  | "manual";
+
+export type EscalationTarget = "governance_board" | "steering_committee" | "sponsor" | "external_approver";
+export type EscalationStatus = "pending" | "acknowledged" | "resolved" | "closed";
+
+export type AuthorityEscalationRow = {
+  id: string;                             // uuid PK
+  workspace_id: string;                   // uuid references workspaces
+  trigger_type: EscalationTriggerType;    // text not null (enum-constrained)
+  action_entity_type: string;             // text not null
+  action_entity_id: string;              // uuid not null
+  action_type: string;                    // text not null
+  required_authority: string;             // text not null
+  escalated_to: EscalationTarget;         // text not null default 'governance_board'
+  escalated_by: string;                   // uuid references auth.users
+  status: EscalationStatus;              // text not null default 'pending'
+  resolution: string | null;              // text nullable
+  resolved_by: string | null;             // uuid nullable
+  resolved_at: string | null;             // timestamptz nullable
+  violation_id: string | null;            // uuid nullable references governance_violations
+  created_at: string;                     // timestamptz
+  updated_at: string;                     // timestamptz
+};
+
+export const AUTHORITY_ESCALATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "trigger_type",
+  "action_entity_type",
+  "action_entity_id",
+  "action_type",
+  "required_authority",
+  "escalated_to",
+  "escalated_by",
+  "status",
+  "resolution",
+  "resolved_by",
+  "resolved_at",
+  "violation_id",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof AuthorityEscalationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance" as const;
