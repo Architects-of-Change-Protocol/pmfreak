@@ -127,6 +127,8 @@ export type GovernanceEventType =
 
 // Constitution Lifecycle
 export type ConstitutionLifecycleEventType =
+  | "CONSTITUTION_CREATED"
+  | "CONSTITUTION_UPDATED"
   | "CONSTITUTION_PROPOSED"
   | "CONSTITUTION_APPROVED"
   | "CONSTITUTION_ACTIVATED"

@@ -52,3 +52,16 @@ export type ConstitutionLifecycleExplanation = {
   auditEvents: ConstitutionLifecycleEventName[];
   rules: string[];
 };
+
+export type ConstitutionListFilters = {
+  workspaceId: string;
+  projectId?: string;
+  status?: ConstitutionStatus;
+  excludeArchived?: boolean;
+};
+
+export type ConstitutionExport = {
+  constitution: ConstitutionRecord;
+  lifecycleHistory: ConstitutionLifecycleHistoryEntry[];
+  exportedAt: string;
+};

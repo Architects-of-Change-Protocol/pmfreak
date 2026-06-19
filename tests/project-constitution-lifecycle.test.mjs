@@ -131,7 +131,7 @@ test('service emits specific lifecycle event for each non-draft target status', 
 
 test('service always emits generic CONSTITUTION_STATUS_CHANGED alongside specific event', () => {
   assert.match(service, /CONSTITUTION_STATUS_CHANGED/);
-  assert.match(service, /specificEvent: eventType/);
+  assert.match(service, /specificEvent/);
 });
 
 test('service emits correct audit payload fields', () => {

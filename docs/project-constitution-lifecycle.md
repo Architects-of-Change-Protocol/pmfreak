@@ -4,6 +4,8 @@
 
 The Project Constitution is a governed entity whose lifecycle is managed by an explicit state machine. Every status change is audited, versioned, and isolated by workspace.
 
+For CRUD operations, soft delete semantics, and foundation events, see [project-constitution-foundation.md](./project-constitution-foundation.md).
+
 ---
 
 ## State Diagram
