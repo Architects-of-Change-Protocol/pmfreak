@@ -264,16 +264,17 @@ export async function getDelegationChain(input: {
   let currentId: string | null = input.delegationId;
 
   while (currentId) {
-    const { data } = await supabase
+    const result = await supabase
       .from("authority_delegations")
       .select(COLUMNS)
       .eq("id", currentId)
       .eq("workspace_id", input.workspaceId)
       .maybeSingle<AuthorityDelegationRecord>();
 
-    if (!data) break;
-    chain.unshift(data); // prepend to get root-first order
-    currentId = data.parent_delegation_id;
+    const node: AuthorityDelegationRecord | null = result.data;
+    if (!node) break;
+    chain.unshift(node); // prepend to get root-first order
+    currentId = node.parent_delegation_id;
   }
 
   return { ok: true, data: chain };
