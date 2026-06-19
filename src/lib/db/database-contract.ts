@@ -2256,4 +2256,88 @@ export const CONSTITUTIONAL_MEMORY_LINK_SELECTABLE_COLUMNS = [
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// constitutional_digests
+// Source: 20260619000002_constitutional_digest_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type DigestStatus =
+  | "draft"
+  | "generated"
+  | "validated"
+  | "published"
+  | "archived";
+
+export type DigestPayload = {
+  project_type?: string;
+  industry?: string;
+  decision_patterns?: string[];
+  risk_patterns?: string[];
+  governance_patterns?: string[];
+  outcome_patterns?: string[];
+};
+
+export type ConstitutionalDigestRow = {
+  id: string;                     // uuid primary key
+  workspace_id: string;           // uuid references workspaces
+  memory_record_id: string;       // uuid references constitutional_memory_records
+  digest_version: number;         // integer >= 1
+  digest_status: DigestStatus;    // text enum-constrained
+  source_memory_version: number;  // integer >= 1
+  digest_payload: DigestPayload;  // jsonb
+  confidence_score: number | null; // numeric(4,3) nullable
+  created_at: string;             // timestamptz
+  created_by: string;             // uuid references auth.users
+  deleted_at: string | null;      // timestamptz nullable (soft delete)
+};
+
+export const CONSTITUTIONAL_DIGEST_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "memory_record_id",
+  "digest_version",
+  "digest_status",
+  "source_memory_version",
+  "digest_payload",
+  "confidence_score",
+  "created_at",
+  "created_by",
+  "deleted_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalDigestRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// constitutional_digest_classifications
+// Source: 20260619000002_constitutional_digest_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type DigestClassificationType =
+  | "industry"
+  | "project_type"
+  | "risk"
+  | "decision"
+  | "outcome"
+  | "governance"
+  | "delivery"
+  | "authority";
+
+export type ConstitutionalDigestClassificationRow = {
+  id: string;                              // uuid primary key
+  workspace_id: string;                    // uuid references workspaces
+  digest_id: string;                       // uuid references constitutional_digests
+  classification_type: DigestClassificationType;  // text enum-constrained
+  classification_value: string;            // text not null
+  confidence_score: number;               // numeric(4,3) 0.0–1.0
+  created_at: string;                     // timestamptz
+};
+
+export const CONSTITUTIONAL_DIGEST_CLASSIFICATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "digest_id",
+  "classification_type",
+  "classification_value",
+  "confidence_score",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalDigestClassificationRow>;
+
+export const DATABASE_CONTRACT_VERSION = "2026-06-19-constitutional-digest-engine" as const;
