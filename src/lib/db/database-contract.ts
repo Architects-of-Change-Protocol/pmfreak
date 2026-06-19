@@ -1445,7 +1445,146 @@ export const CONSTITUTION_LIFECYCLE_HISTORY_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof ConstitutionLifecycleHistoryRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// project_constitutions — constitution_version column (Amendment Governance)
+// Migration: 20260624000000_project_constitution_amendment_governance.sql
+// ─────────────────────────────────────────────────────────────────────────────
+// constitution_version is declared as an augmentation of ProjectConstitutionRow.
+// The column is added via ALTER TABLE in the amendment governance migration.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProjectConstitutionWithVersionRow = ProjectConstitutionRow & {
+  constitution_version: number; // integer >= 1, increments per applied amendment
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// constitution_amendments — Amendment Governance
+// Migration: 20260624000000_project_constitution_amendment_governance.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AmendmentStatus =
+  | "draft"
+  | "proposed"
+  | "approved"
+  | "rejected"
+  | "withdrawn"
+  | "applied";
+
+export type ConstitutionAmendmentRow = {
+  id: string;                         // uuid PK
+  workspace_id: string;               // uuid references workspaces
+  constitution_id: string;            // uuid references project_constitutions
+
+  title: string;                      // text not null
+  description: string | null;         // text
+  justification: string | null;       // text
+
+  status: AmendmentStatus;            // text not null default 'draft'
+
+  created_by: string;                 // uuid references auth.users
+  created_at: string;                 // timestamptz
+  updated_at: string;                 // timestamptz
+
+  approved_by: string | null;         // uuid references auth.users
+  approved_at: string | null;         // timestamptz
+
+  rejected_by: string | null;         // uuid references auth.users
+  rejected_at: string | null;         // timestamptz
+  rejection_reason: string | null;    // text
+
+  withdrawn_by: string | null;        // uuid references auth.users
+  withdrawn_at: string | null;        // timestamptz
+
+  applied_by: string | null;          // uuid references auth.users
+  applied_at: string | null;          // timestamptz
+
+  deleted_at: string | null;          // timestamptz
+};
+
+export const CONSTITUTION_AMENDMENT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "constitution_id",
+  "title",
+  "description",
+  "justification",
+  "status",
+  "created_by",
+  "created_at",
+  "updated_at",
+  "approved_by",
+  "approved_at",
+  "rejected_by",
+  "rejected_at",
+  "rejection_reason",
+  "withdrawn_by",
+  "withdrawn_at",
+  "applied_by",
+  "applied_at",
+  "deleted_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionAmendmentRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// constitution_amendment_changes — Amendment Change Records
+// Migration: 20260624000000_project_constitution_amendment_governance.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AmendmentChangeType = "add" | "update" | "remove";
+
+export type ConstitutionAmendmentChangeRow = {
+  id: string;                       // uuid PK
+  workspace_id: string;             // uuid references workspaces
+  amendment_id: string;             // uuid references constitution_amendments
+
+  change_type: AmendmentChangeType; // 'add' | 'update' | 'remove'
+  field_name: string;               // text not null
+
+  old_value: string | null;         // text
+  new_value: string | null;         // text
+
+  created_at: string;               // timestamptz
+};
+
+export const CONSTITUTION_AMENDMENT_CHANGE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "amendment_id",
+  "change_type",
+  "field_name",
+  "old_value",
+  "new_value",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionAmendmentChangeRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// constitution_snapshots — Constitutional Snapshots
+// Migration: 20260624000000_project_constitution_amendment_governance.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConstitutionSnapshotRow = {
+  id: string;                         // uuid PK
+  workspace_id: string;               // uuid references workspaces
+  constitution_id: string;            // uuid references project_constitutions
+
+  version: number;                    // integer >= 1 (matches constitution_version)
+
+  snapshot_data: Record<string, unknown>; // jsonb — full constitution state
+
+  created_by: string;                 // uuid references auth.users
+  created_at: string;                 // timestamptz
+};
+
+export const CONSTITUTION_SNAPSHOT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "constitution_id",
+  "version",
+  "snapshot_data",
+  "created_by",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionSnapshotRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-23-project-constitution-lifecycle" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-24-project-constitution-amendment-governance" as const;

@@ -137,6 +137,18 @@ export type ConstitutionLifecycleEventType =
   | "CONSTITUTION_ARCHIVED"
   | "CONSTITUTION_STATUS_CHANGED";
 
+// Constitution Amendment Governance
+export type ConstitutionAmendmentEventType =
+  | "CONSTITUTION_AMENDMENT_CREATED"
+  | "CONSTITUTION_AMENDMENT_UPDATED"
+  | "CONSTITUTION_AMENDMENT_PROPOSED"
+  | "CONSTITUTION_AMENDMENT_APPROVED"
+  | "CONSTITUTION_AMENDMENT_REJECTED"
+  | "CONSTITUTION_AMENDMENT_WITHDRAWN"
+  | "CONSTITUTION_AMENDMENT_APPLIED"
+  | "CONSTITUTION_SNAPSHOT_CREATED"
+  | "CONSTITUTION_VERSION_INCREMENTED";
+
 // Document
 export type DocumentEventType =
   | "DOCUMENT_ADDED"
@@ -179,7 +191,8 @@ export type PlatformEventType =
   | StakeholderEventType
   | FinancialEventType
   | SystemEventType
-  | ConstitutionLifecycleEventType;
+  | ConstitutionLifecycleEventType
+  | ConstitutionAmendmentEventType;
 
 // ─── Row type (matches platform_events table) ─────────────────────────────────
 
