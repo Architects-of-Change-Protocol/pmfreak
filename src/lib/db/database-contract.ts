@@ -2134,6 +2134,125 @@ export const AUTHORITY_ESCALATION_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof AuthorityEscalationRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Constitutional Vault — EPIC 2 Sprint 1
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ArtifactType =
+  | "document"
+  | "email"
+  | "meeting"
+  | "transcript"
+  | "spreadsheet"
+  | "image"
+  | "video"
+  | "link"
+  | "chat"
+  | "other";
+
+export type StorageProvider =
+  | "local"
+  | "supabase"
+  | "s3"
+  | "azure_blob"
+  | "google_drive"
+  | "sharepoint"
+  | "dropbox"
+  | "custom";
+
+export type MemoryType =
+  | "decision"
+  | "objective"
+  | "constraint"
+  | "risk"
+  | "issue"
+  | "amendment"
+  | "ratification"
+  | "authority"
+  | "evidence"
+  | "other";
+
+export type MemoryLinkEntityType =
+  | "constitution"
+  | "decision"
+  | "amendment"
+  | "ratification"
+  | "authority"
+  | "violation"
+  | "escalation";
+
+export type ConstitutionalArtifactRow = {
+  id: string;                        // uuid primary key
+  workspace_id: string;              // uuid references workspaces
+  artifact_type: ArtifactType;       // text not null (enum-constrained)
+  title: string;                     // text not null
+  description: string | null;        // text nullable
+  storage_provider: StorageProvider; // text not null (enum-constrained)
+  storage_reference: string;         // text not null
+  storage_path: string | null;       // text nullable
+  checksum: string;                  // text not null
+  uploaded_by: string;               // uuid references auth.users
+  created_at: string;                // timestamptz
+  deleted_at: string | null;         // timestamptz nullable (soft delete)
+};
+
+export const CONSTITUTIONAL_ARTIFACT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "artifact_type",
+  "title",
+  "description",
+  "storage_provider",
+  "storage_reference",
+  "storage_path",
+  "checksum",
+  "uploaded_by",
+  "created_at",
+  "deleted_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalArtifactRow>;
+
+export type ConstitutionalMemoryRecordRow = {
+  id: string;              // uuid primary key
+  workspace_id: string;    // uuid references workspaces
+  artifact_id: string;     // uuid references constitutional_artifacts
+  memory_type: MemoryType; // text not null (enum-constrained)
+  title: string;           // text not null
+  canonical_text: string;  // text not null
+  summary: string | null;  // text nullable
+  created_at: string;      // timestamptz
+  created_by: string;      // uuid references auth.users
+};
+
+export const CONSTITUTIONAL_MEMORY_RECORD_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "artifact_id",
+  "memory_type",
+  "title",
+  "canonical_text",
+  "summary",
+  "created_at",
+  "created_by",
+] as const satisfies ReadonlyArray<keyof ConstitutionalMemoryRecordRow>;
+
+export type ConstitutionalMemoryLinkRow = {
+  id: string;                        // uuid primary key
+  workspace_id: string;              // uuid references workspaces
+  memory_record_id: string;          // uuid references constitutional_memory_records
+  entity_type: MemoryLinkEntityType; // text not null (enum-constrained)
+  entity_id: string;                 // uuid not null
+  created_at: string;                // timestamptz
+};
+
+export const CONSTITUTIONAL_MEMORY_LINK_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "memory_record_id",
+  "entity_type",
+  "entity_id",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalMemoryLinkRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contract version — bump when any row type changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
