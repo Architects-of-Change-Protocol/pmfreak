@@ -81,7 +81,7 @@ export async function dbListPrograms(
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
   if (error) return persistFailed("list");
-  return { ok: true, data: data ?? [] };
+  return { ok: true, data: (data ?? []) as ProgramRow[] };
 }
 
 export async function dbArchiveProgram(
