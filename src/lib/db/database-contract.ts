@@ -2340,4 +2340,56 @@ export const CONSTITUTIONAL_DIGEST_CLASSIFICATION_SELECTABLE_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof ConstitutionalDigestClassificationRow>;
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// programs
+// Source: 20260628000000_programs.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProgramType =
+  | "SOFTWARE_DEVELOPMENT"
+  | "INFRASTRUCTURE_PROJECT"
+  | "CUSTOMER_ONBOARDING"
+  | "AOC_PROTOCOL_ADOPTION"
+  | "ORGANIZATIONAL_CHANGE"
+  | "STRATEGIC_INITIATIVE"
+  | "INTERNAL_PROGRAM"
+  | "CUSTOM";
+
+export type ProgramStatus =
+  | "DRAFT"
+  | "ACTIVE"
+  | "PAUSED"
+  | "COMPLETED"
+  | "ARCHIVED";
+
+export type ProgramRow = {
+  id: string;                   // uuid
+  workspace_id: string;         // uuid references workspaces
+  name: string;                 // text 1–200
+  description: string | null;   // text 0–5000
+  type: ProgramType;            // text enum-constrained
+  status: ProgramStatus;        // text enum-constrained default 'DRAFT'
+  owner_id: string | null;      // uuid references auth.users
+  start_date: string | null;    // timestamptz
+  target_date: string | null;   // timestamptz
+  created_at: string;           // timestamptz
+  updated_at: string;           // timestamptz
+  deleted_at: string | null;    // timestamptz (soft delete)
+};
+
+export const PROGRAM_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "name",
+  "description",
+  "type",
+  "status",
+  "owner_id",
+  "start_date",
+  "target_date",
+  "created_at",
+  "updated_at",
+  "deleted_at",
+] as const satisfies ReadonlyArray<keyof ProgramRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs" as const;

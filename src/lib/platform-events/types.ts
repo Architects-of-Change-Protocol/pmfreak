@@ -227,6 +227,13 @@ export type ConstitutionalVaultEventType =
   | "CONSTITUTIONAL_MEMORY_LINKED"
   | "CONSTITUTIONAL_LINEAGE_GENERATED";
 
+// Program
+export type ProgramEventType =
+  | "PROGRAM_CREATED"
+  | "PROGRAM_UPDATED"
+  | "PROGRAM_ARCHIVED"
+  | "PROGRAM_STATUS_CHANGED";
+
 // Union of all event types
 export type PlatformEventType =
   | ProjectEventType
@@ -246,7 +253,8 @@ export type PlatformEventType =
   | ConstitutionalDecisionEventType
   | ConstitutionalRatificationEventType
   | AuthorityGovernanceEventType
-  | ConstitutionalVaultEventType;
+  | ConstitutionalVaultEventType
+  | ProgramEventType;
 
 // ─── Row type (matches platform_events table) ─────────────────────────────────
 
