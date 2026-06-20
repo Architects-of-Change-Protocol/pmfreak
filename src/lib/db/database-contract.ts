@@ -2392,4 +2392,131 @@ export const PROGRAM_SELECTABLE_COLUMNS = [
   "deleted_at",
 ] as const satisfies ReadonlyArray<keyof ProgramRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// program_epics
+// Source: 20260629000000_program_hierarchy.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProgramItemStatus =
+  | "DRAFT"
+  | "BACKLOG"
+  | "READY"
+  | "IN_PROGRESS"
+  | "IN_REVIEW"
+  | "DONE"
+  | "ARCHIVED";
+
+export type ProgramEpicRow = {
+  id: string;                 // uuid
+  workspace_id: string;       // uuid references workspaces
+  program_id: string;         // uuid references programs
+  number: number;             // integer unique per program
+  title: string;              // text 1–200
+  description: string | null; // text
+  status: ProgramItemStatus;  // text enum-constrained default 'DRAFT'
+  order_index: number;        // integer
+  created_at: string;         // timestamptz
+  updated_at: string;         // timestamptz
+  deleted_at: string | null;  // timestamptz (soft delete)
+};
+
+export const PROGRAM_EPIC_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "program_id",
+  "number",
+  "title",
+  "description",
+  "status",
+  "order_index",
+  "created_at",
+  "updated_at",
+  "deleted_at",
+] as const satisfies ReadonlyArray<keyof ProgramEpicRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// program_sprints
+// Source: 20260629000000_program_hierarchy.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProgramSprintRow = {
+  id: string;                 // uuid
+  workspace_id: string;       // uuid references workspaces
+  program_id: string;         // uuid references programs
+  epic_id: string;            // uuid references program_epics
+  number: number;             // integer unique per program
+  title: string;              // text 1–200
+  description: string | null; // text
+  objective: string | null;   // text
+  status: ProgramItemStatus;  // text enum-constrained default 'DRAFT'
+  order_index: number;        // integer
+  created_at: string;         // timestamptz
+  updated_at: string;         // timestamptz
+  deleted_at: string | null;  // timestamptz (soft delete)
+};
+
+export const PROGRAM_SPRINT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "program_id",
+  "epic_id",
+  "number",
+  "title",
+  "description",
+  "objective",
+  "status",
+  "order_index",
+  "created_at",
+  "updated_at",
+  "deleted_at",
+] as const satisfies ReadonlyArray<keyof ProgramSprintRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// program_cards
+// Source: 20260629000000_program_hierarchy.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProgramCardType =
+  | "EPIC"
+  | "SPRINT"
+  | "TASK"
+  | "PROMPT"
+  | "MILESTONE"
+  | "DELIVERABLE"
+  | "CUSTOM";
+
+export type ProgramCardRow = {
+  id: string;                 // uuid
+  workspace_id: string;       // uuid references workspaces
+  program_id: string;         // uuid references programs
+  epic_id: string | null;     // uuid references program_epics (nullable)
+  sprint_id: string | null;   // uuid references program_sprints (nullable)
+  title: string;              // text 1–200
+  description: string | null; // text
+  prompt_body: string | null; // text (preserve formatting, never modify)
+  type: ProgramCardType;      // text enum-constrained
+  status: ProgramItemStatus;  // text enum-constrained default 'DRAFT'
+  order_index: number;        // integer
+  created_at: string;         // timestamptz
+  updated_at: string;         // timestamptz
+  deleted_at: string | null;  // timestamptz (soft delete)
+};
+
+export const PROGRAM_CARD_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "program_id",
+  "epic_id",
+  "sprint_id",
+  "title",
+  "description",
+  "prompt_body",
+  "type",
+  "status",
+  "order_index",
+  "created_at",
+  "updated_at",
+  "deleted_at",
+] as const satisfies ReadonlyArray<keyof ProgramCardRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy" as const;
