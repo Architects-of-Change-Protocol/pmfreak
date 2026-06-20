@@ -29,6 +29,10 @@ const PROGRAM_STATUSES = ["DRAFT", "ACTIVE", "PAUSED", "COMPLETED", "ARCHIVED"];
 function validUuid(v) {
   return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 }
+
+// Supabase-style UUIDs (v4) use [89ab] in position 17; verify the regex matches them
+assert.ok(validUuid("550e8400-e29b-41d4-a716-446655440000"), "known v4 UUID must match");
+assert.ok(!validUuid("not-a-uuid"), "non-UUID must not match");
 function required(v) {
   return typeof v === "string" && v.trim().length > 0;
 }
@@ -98,13 +102,14 @@ function createProgramStore() {
     }
     if (input.status !== undefined) {
       if (!PROGRAM_STATUSES.includes(input.status)) return validation(`status must be one of: ${PROGRAM_STATUSES.join(", ")}.`);
+      if (input.status === "ARCHIVED") return validation("Use DELETE /programs/:id to archive a program.");
       patch.status = input.status;
     }
     if (input.startDate !== undefined) patch.start_date = input.startDate;
     if (input.targetDate !== undefined) patch.target_date = input.targetDate;
 
-    const startDate = (patch.start_date ?? current.data.start_date);
-    const targetDate = (patch.target_date ?? current.data.target_date);
+    const startDate = input.startDate !== undefined ? input.startDate : current.data.start_date;
+    const targetDate = input.targetDate !== undefined ? input.targetDate : current.data.target_date;
     if (startDate && targetDate && new Date(targetDate) < new Date(startDate)) {
       return validation("targetDate must be on or after startDate.");
     }
@@ -288,6 +293,28 @@ describe("Program — UpdateProgram", () => {
     const result = store.update(prog.id, workspaceId, { name: "New Name", actorId: ownerId });
     // Archived programs are soft-deleted; findById returns not_found since deleted_at is set.
     assert.ok(!result.ok);
+  });
+
+  test("blocks setting status to ARCHIVED via update", () => {
+    const store = createProgramStore();
+    const workspaceId = uuid();
+    const ownerId = uuid();
+    const { data: prog } = store.create({ workspaceId, ownerId, name: "P", type: "CUSTOM" });
+    const result = store.update(prog.id, workspaceId, { status: "ARCHIVED", actorId: ownerId });
+    assert.ok(!result.ok);
+    assert.equal(result.failureClass, "validation_failed");
+  });
+
+  test("clearing startDate to null passes date range validation", () => {
+    const store = createProgramStore();
+    const workspaceId = uuid();
+    const ownerId = uuid();
+    const { data: prog } = store.create({ workspaceId, ownerId, name: "P", type: "CUSTOM" });
+    // Set start and target dates first
+    store.update(prog.id, workspaceId, { startDate: "2027-01-01T00:00:00Z", targetDate: "2027-12-01T00:00:00Z", actorId: ownerId });
+    // Clear startDate — targetDate should not be compared against old startDate
+    const result = store.update(prog.id, workspaceId, { startDate: null, actorId: ownerId });
+    assert.ok(result.ok, "clearing startDate should pass");
   });
 });
 

@@ -4,7 +4,7 @@ import { PROGRAM_STATUSES, PROGRAM_TYPES } from "./types";
 import type { CreateProgramInput, ProgramEventType, ProgramExplanation, ProgramResult, ProgramRow, ProgramStatus, UpdateProgramInput } from "./types";
 
 function validUuid(v: string | null | undefined): v is string {
-  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(v);
+  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 }
 function required(v: unknown): v is string {
   return typeof v === "string" && v.trim().length > 0;
@@ -82,13 +82,15 @@ export async function updateProgram(
   }
   if (input.status !== undefined) {
     if (!PROGRAM_STATUSES.includes(input.status)) return validation(`status must be one of: ${PROGRAM_STATUSES.join(", ")}.`);
+    if (input.status === "ARCHIVED") return validation("Use DELETE /programs/:id to archive a program.");
     patch.status = input.status;
   }
   if (input.startDate !== undefined) patch.start_date = input.startDate;
   if (input.targetDate !== undefined) patch.target_date = input.targetDate;
 
-  const startDate = (patch.start_date as string | null | undefined) ?? current.data.start_date;
-  const targetDate = (patch.target_date as string | null | undefined) ?? current.data.target_date;
+  // Use the patched value when explicitly provided (including null clears), else fall back to current.
+  const startDate = input.startDate !== undefined ? input.startDate : current.data.start_date;
+  const targetDate = input.targetDate !== undefined ? input.targetDate : current.data.target_date;
   if (startDate && targetDate && new Date(targetDate) < new Date(startDate)) {
     return validation("targetDate must be on or after startDate.");
   }

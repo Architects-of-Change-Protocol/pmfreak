@@ -97,6 +97,6 @@ export async function dbArchiveProgram(
     .is("deleted_at", null)
     .select(COLUMNS)
     .single<ProgramRow>();
-  if (error || !data) return persistFailed("archive");
+  if (error || !data) return { ok: false, error: "Program not found.", failureClass: "not_found" };
   return { ok: true, data };
 }

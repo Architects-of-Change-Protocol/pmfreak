@@ -40,7 +40,12 @@ export async function POST(request: NextRequest) {
       return denyResponse({ status: 403, routeId: ROUTE, message: "Workspace context required.", reason: "workspace_missing", actorUserId: user.id });
     }
     await requireWorkspaceMember(workspaceId);
-    const body = await request.json() as { name?: unknown; description?: unknown; type?: unknown };
+    let body: { name?: unknown; description?: unknown; type?: unknown };
+    try {
+      body = await request.json() as typeof body;
+    } catch {
+      return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
+    }
     if (typeof body.name !== "string" || !body.name.trim()) {
       return NextResponse.json({ error: "name is required." }, { status: 400 });
     }

@@ -9,7 +9,7 @@ CREATE TABLE public.programs (
   name          text        NOT NULL CHECK (char_length(name) BETWEEN 1 AND 200),
   description   text        CHECK (description IS NULL OR char_length(description) <= 5000),
   type          text        NOT NULL,
-  status        text        NOT NULL DEFAULT 'draft',
+  status        text        NOT NULL DEFAULT 'DRAFT',
   owner_id      uuid        REFERENCES auth.users(id),
   start_date    timestamptz,
   target_date   timestamptz,

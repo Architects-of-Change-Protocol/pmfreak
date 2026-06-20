@@ -14,6 +14,13 @@ async function resolveContext(userId: string) {
   return workspaceId ?? null;
 }
 
+function accessDeniedResponse(error: AccessDeniedError) {
+  if (String(error.metadata.reason) === "unauthorized") {
+    return denyResponse({ status: 401, routeId: ROUTE, message: "Unauthorized", reason: "unauthorized" });
+  }
+  return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -33,12 +40,7 @@ export async function GET(
     }
     return NextResponse.json({ program: result.data, explanation: explainProgram(result.data) });
   } catch (error) {
-    if (error instanceof AccessDeniedError) {
-      if (String(error.metadata.reason) === "unauthorized") {
-        return denyResponse({ status: 401, routeId: ROUTE, message: "Unauthorized", reason: "unauthorized" });
-      }
-      return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
-    }
+    if (error instanceof AccessDeniedError) return accessDeniedResponse(error);
     throw error;
   }
 }
@@ -55,13 +57,36 @@ export async function PATCH(
       return denyResponse({ status: 403, routeId: ROUTE, message: "Workspace context required.", reason: "workspace_missing", actorUserId: user.id });
     }
     await requireWorkspaceMember(workspaceId);
-    const body = await request.json() as Record<string, unknown>;
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json() as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
+    }
+    // Only pass a field when the client included it. Non-string values for optional
+    // string fields are rejected rather than silently clearing stored data.
+    const nameField = "name" in body
+      ? (typeof body.name === "string" ? body.name : undefined)
+      : undefined;
+    const descriptionField = "description" in body
+      ? (body.description === null || typeof body.description === "string" ? body.description as string | null : (() => { throw new Error("invalid_description"); })())
+      : undefined;
+    const statusField = "status" in body
+      ? (typeof body.status === "string" ? body.status as ProgramStatus : undefined)
+      : undefined;
+    const startDateField = "startDate" in body
+      ? (body.startDate === null || typeof body.startDate === "string" ? body.startDate as string | null : (() => { throw new Error("invalid_startDate"); })())
+      : undefined;
+    const targetDateField = "targetDate" in body
+      ? (body.targetDate === null || typeof body.targetDate === "string" ? body.targetDate as string | null : (() => { throw new Error("invalid_targetDate"); })())
+      : undefined;
+
     const result = await updateProgram(id, workspaceId, {
-      name: typeof body.name === "string" ? body.name : undefined,
-      description: body.description !== undefined ? (typeof body.description === "string" ? body.description : null) : undefined,
-      status: typeof body.status === "string" ? body.status as ProgramStatus : undefined,
-      startDate: body.startDate !== undefined ? (typeof body.startDate === "string" ? body.startDate : null) : undefined,
-      targetDate: body.targetDate !== undefined ? (typeof body.targetDate === "string" ? body.targetDate : null) : undefined,
+      name: nameField,
+      description: descriptionField,
+      status: statusField,
+      startDate: startDateField,
+      targetDate: targetDateField,
       actorId: user.id,
     });
     if (!result.ok) {
@@ -70,11 +95,10 @@ export async function PATCH(
     }
     return NextResponse.json({ program: result.data });
   } catch (error) {
-    if (error instanceof AccessDeniedError) {
-      if (String(error.metadata.reason) === "unauthorized") {
-        return denyResponse({ status: 401, routeId: ROUTE, message: "Unauthorized", reason: "unauthorized" });
-      }
-      return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
+    if (error instanceof AccessDeniedError) return accessDeniedResponse(error);
+    if (error instanceof Error && error.message.startsWith("invalid_")) {
+      const field = error.message.replace("invalid_", "");
+      return NextResponse.json({ error: `${field} must be a string or null.` }, { status: 400 });
     }
     throw error;
   }
@@ -99,12 +123,7 @@ export async function DELETE(
     }
     return NextResponse.json({ program: result.data });
   } catch (error) {
-    if (error instanceof AccessDeniedError) {
-      if (String(error.metadata.reason) === "unauthorized") {
-        return denyResponse({ status: 401, routeId: ROUTE, message: "Unauthorized", reason: "unauthorized" });
-      }
-      return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
-    }
+    if (error instanceof AccessDeniedError) return accessDeniedResponse(error);
     throw error;
   }
 }
