@@ -133,6 +133,11 @@ export function anonymizeText(text: string): AnonymizationResult {
 // ─── Validate absence of PII ──────────────────────────────────────────────────
 
 export function containsPii(text: string): boolean {
+  // Reset lastIndex before each test — module-level regexes with `g` flag
+  // retain state across calls, causing false negatives on repeated invocations.
+  EMAIL_RE.lastIndex = 0;
+  PROJECT_ID_RE.lastIndex = 0;
+  URL_RE.lastIndex = 0;
   return (
     EMAIL_RE.test(text) ||
     PROJECT_ID_RE.test(text) ||

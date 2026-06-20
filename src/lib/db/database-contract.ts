@@ -2340,4 +2340,4 @@ export const CONSTITUTIONAL_DIGEST_CLASSIFICATION_SELECTABLE_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof ConstitutionalDigestClassificationRow>;
 
-export const DATABASE_CONTRACT_VERSION = "2026-06-19-constitutional-digest-engine" as const;
+export const DATABASE_CONTRACT_VERSION = "2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine" as const;

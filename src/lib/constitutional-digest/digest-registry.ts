@@ -189,6 +189,7 @@ export async function generateDigest(
     .update({ digest_status: "generated", digest_payload: payload })
     .eq("id", input.digestId)
     .eq("workspace_id", input.workspaceId)
+    .eq("digest_status", "draft")
     .select(digestColumns)
     .single<ConstitutionalDigestRow>();
 
@@ -223,7 +224,10 @@ export async function generateDigest(
   }
 
   if (classificationRows.length > 0) {
-    await supabase.from("constitutional_digest_classifications").insert(classificationRows);
+    const { error: classError } = await supabase
+      .from("constitutional_digest_classifications")
+      .insert(classificationRows);
+    if (classError) return failed("Unable to persist digest classifications.");
   }
 
   // Emit events
@@ -453,6 +457,9 @@ export async function listClassificationsForDigest(
 ): Promise<DigestResult<ConstitutionalDigestClassificationRow[]>> {
   if (!validUuid(digestId)) return validation("digestId must be a UUID.");
   if (!validUuid(workspaceId)) return validation("workspaceId must be a UUID.");
+
+  const digestResult = await getDigest(digestId, workspaceId);
+  if (!digestResult.ok) return digestResult as DigestResult<ConstitutionalDigestClassificationRow[]>;
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase

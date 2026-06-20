@@ -44,7 +44,6 @@ export async function getDigestLineage(input: {
     .select("id,workspace_id,artifact_type,title,storage_provider,storage_reference,checksum,created_at,deleted_at")
     .eq("id", memory.artifact_id)
     .eq("workspace_id", input.workspaceId)
-    .is("deleted_at", null)
     .single();
 
   if (!artifact) return failed("Artifact for digest lineage not found.");

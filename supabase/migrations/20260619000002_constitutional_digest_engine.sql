@@ -21,9 +21,9 @@ CREATE TABLE public.constitutional_digests (
   created_by            uuid NOT NULL REFERENCES auth.users(id),
   deleted_at            timestamptz,
 
-  CONSTRAINT constitutional_digests_workspace_fk
-    FOREIGN KEY (memory_record_id, workspace_id)
-    REFERENCES public.constitutional_memory_records(id, workspace_id)
+  CONSTRAINT constitutional_digests_memory_fk
+    FOREIGN KEY (memory_record_id)
+    REFERENCES public.constitutional_memory_records(id)
     ON DELETE CASCADE,
 
   CONSTRAINT constitutional_digests_status_check CHECK (
@@ -64,10 +64,12 @@ CREATE POLICY "workspace members can insert constitutional digests"
     AND created_by = auth.uid()
   );
 
-CREATE POLICY "workspace members can update constitutional digests"
-  ON public.constitutional_digests FOR UPDATE TO authenticated
-  USING (public.is_workspace_member(workspace_id))
-  WITH CHECK (public.is_workspace_member(workspace_id));
+-- UPDATE is restricted to service role; application code performs lifecycle
+-- transitions server-side where business rules are enforced.
+CREATE POLICY "service role can update constitutional digests"
+  ON public.constitutional_digests FOR UPDATE TO service_role
+  USING (true)
+  WITH CHECK (true);
 
 -- ─── constitutional_digest_classifications ────────────────────────────────────
 
@@ -81,8 +83,8 @@ CREATE TABLE public.constitutional_digest_classifications (
   created_at            timestamptz NOT NULL DEFAULT now(),
 
   CONSTRAINT constitutional_digest_classifications_digest_fk
-    FOREIGN KEY (digest_id, workspace_id)
-    REFERENCES public.constitutional_digests(id, workspace_id)
+    FOREIGN KEY (digest_id)
+    REFERENCES public.constitutional_digests(id)
     ON DELETE CASCADE,
 
   CONSTRAINT constitutional_digest_classifications_type_check CHECK (
