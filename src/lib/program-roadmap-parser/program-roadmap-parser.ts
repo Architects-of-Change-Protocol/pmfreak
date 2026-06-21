@@ -1,6 +1,10 @@
 import type {
   ParsedProgramEpic,
+  ParsedProgramPrompt,
   ParsedProgramSprint,
+  PromptSections,
+  PromptStats,
+  PromptUnknownSection,
   ProgramRoadmapParseError,
   ProgramRoadmapParseErrorCode,
   ProgramRoadmapParseResult,
@@ -11,6 +15,182 @@ import type {
 
 const EPIC_RE = /^EPIC\s+(\d+)\s*(?:—|-|:)?\s*(.*)$/i;
 const SPRINT_RE = /^Sprint\s+(\d+)\s*(?:—|-|:)?\s*(.*)$/i;
+const PROMPT_RE = /^Prompt\s*:?\s*$/i;
+const ALL_CAPS_SECTION_RE = /^[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ\s]+$/;
+const MAX_PROMPT_CHARS = 100_000;
+
+const KNOWN_SECTION_MAP: Record<string, keyof PromptSections> = {
+  objetivo: "objective",
+  capacidades: "capabilities",
+  entregables: "deliverables",
+  reglas: "rules",
+  notas: "notes",
+};
+
+function classifyLine(line: string): { type: "known"; key: keyof PromptSections } | { type: "unknown" } | null {
+  const trimmed = line.trim();
+  const lower = trimmed.toLowerCase();
+  if (KNOWN_SECTION_MAP[lower]) return { type: "known", key: KNOWN_SECTION_MAP[lower] };
+  if (ALL_CAPS_SECTION_RE.test(trimmed) && trimmed.length >= 3) return { type: "unknown" };
+  return null;
+}
+
+function parsePromptSections(bodyLines: string[]): { sections: PromptSections; sectionCount: number } {
+  const sections: PromptSections = {
+    capabilities: [],
+    deliverables: [],
+    rules: [],
+    notes: [],
+    unknownSections: [],
+  };
+
+  let currentSection: keyof PromptSections | "unknown" | null = null;
+  let currentUnknownTitle = "";
+  let currentUnknownLines: string[] = [];
+  const objectiveLines: string[] = [];
+  let sectionCount = 0;
+
+  function flushUnknown() {
+    if (currentUnknownTitle) {
+      sections.unknownSections.push({
+        title: currentUnknownTitle,
+        content: currentUnknownLines.join("\n").trim(),
+      } as PromptUnknownSection);
+      currentUnknownTitle = "";
+      currentUnknownLines = [];
+    }
+  }
+
+  for (const raw of bodyLines) {
+    const classification = classifyLine(raw);
+    if (classification) {
+      flushUnknown();
+      sectionCount++;
+      if (classification.type === "known") {
+        currentSection = classification.key;
+      } else {
+        currentSection = "unknown";
+        currentUnknownTitle = raw.trim();
+      }
+      continue;
+    }
+
+    const trimmed = raw.trim();
+
+    if (currentSection === null || !trimmed) {
+      if (currentSection === "unknown" && !trimmed) currentUnknownLines.push("");
+      continue;
+    }
+
+    if (currentSection === "objective") {
+      objectiveLines.push(trimmed);
+    } else if (currentSection === "capabilities" || currentSection === "deliverables" || currentSection === "rules") {
+      if (trimmed.startsWith("-") || trimmed.startsWith("*")) {
+        (sections[currentSection] as string[]).push(trimmed.replace(/^[-*]\s*/, ""));
+      }
+    } else if (currentSection === "notes") {
+      sections.notes.push(trimmed);
+    } else if (currentSection === "unknown") {
+      currentUnknownLines.push(raw);
+    }
+  }
+
+  flushUnknown();
+
+  if (objectiveLines.length > 0) {
+    sections.objective = objectiveLines.join(" ");
+  }
+
+  return { sections, sectionCount };
+}
+
+function extractPrompt(
+  lines: string[],
+  sprintStartLine: number,
+  sprintEndLine: number,
+  sprintLineForWarning: number,
+): { prompt: ParsedProgramPrompt; warnings: ProgramRoadmapParseWarning[] } | { prompt: null; warnings: ProgramRoadmapParseWarning[] } {
+  const collectedWarnings: ProgramRoadmapParseWarning[] = [];
+
+  let promptHeadingIdx = -1;
+  for (let i = sprintStartLine; i <= sprintEndLine - 1; i++) {
+    if (PROMPT_RE.test(lines[i].trim())) {
+      promptHeadingIdx = i;
+      break;
+    }
+  }
+
+  if (promptHeadingIdx === -1) {
+    collectedWarnings.push(warn("SPRINT_WITHOUT_PROMPT", "Sprint has no Prompt section.", sprintLineForWarning));
+    return { prompt: null, warnings: collectedWarnings };
+  }
+
+  const rawHeading = lines[promptHeadingIdx];
+  const promptStartLine = promptHeadingIdx + 2; // 1-based line after heading
+  const bodyLines = lines.slice(promptHeadingIdx + 1, sprintEndLine);
+  const body = bodyLines.join("\n").trim();
+
+  if (!body) {
+    collectedWarnings.push(warn("EMPTY_PROMPT", "Sprint Prompt is empty.", promptHeadingIdx + 1, rawHeading));
+    const emptyPrompt: ParsedProgramPrompt = {
+      rawHeading,
+      body: "",
+      startLine: promptHeadingIdx + 1,
+      endLine: sprintEndLine,
+      characterCount: 0,
+      lineCount: 0,
+      sections: { capabilities: [], deliverables: [], rules: [], notes: [], unknownSections: [] },
+      stats: { sectionCount: 0, capabilityCount: 0, deliverableCount: 0, ruleCount: 0, noteCount: 0, characterCount: 0, lineCount: 0 },
+    };
+    return { prompt: emptyPrompt, warnings: collectedWarnings };
+  }
+
+  if (body.length > MAX_PROMPT_CHARS) {
+    collectedWarnings.push(warn("PROMPT_TOO_LARGE", `Prompt exceeds ${MAX_PROMPT_CHARS} characters.`, promptHeadingIdx + 1));
+  }
+
+  const { sections, sectionCount } = parsePromptSections(bodyLines);
+
+  if (!sections.objective) {
+    collectedWarnings.push(warn("OBJECTIVE_MISSING", "Prompt has no OBJETIVO section.", promptHeadingIdx + 1));
+  }
+  if (sections.capabilities.length === 0) {
+    collectedWarnings.push(warn("CAPABILITIES_MISSING", "Prompt has no CAPACIDADES section.", promptHeadingIdx + 1));
+  }
+  if (sections.deliverables.length === 0) {
+    collectedWarnings.push(warn("DELIVERABLES_MISSING", "Prompt has no ENTREGABLES section.", promptHeadingIdx + 1));
+  }
+  if (sections.rules.length === 0) {
+    collectedWarnings.push(warn("RULES_MISSING", "Prompt has no REGLAS section.", promptHeadingIdx + 1));
+  }
+  for (const unknown of sections.unknownSections) {
+    collectedWarnings.push(warn("UNKNOWN_SECTION", `Unknown prompt section: ${unknown.title}.`, promptHeadingIdx + 1, unknown.title));
+  }
+
+  const bodyLineCount = bodyLines.filter(l => l.trim()).length;
+  const stats: PromptStats = {
+    sectionCount,
+    capabilityCount: sections.capabilities.length,
+    deliverableCount: sections.deliverables.length,
+    ruleCount: sections.rules.length,
+    noteCount: sections.notes.length,
+    characterCount: body.length,
+    lineCount: bodyLineCount,
+  };
+
+  const prompt: ParsedProgramPrompt = {
+    rawHeading,
+    body,
+    startLine: promptHeadingIdx + 1,
+    endLine: sprintEndLine,
+    characterCount: body.length,
+    lineCount: bodyLineCount,
+    sections,
+    stats,
+  };
+
+  return { prompt, warnings: collectedWarnings };
+}
 
 function warn(
   code: ProgramRoadmapParseWarningCode,
@@ -208,6 +388,10 @@ export function parseProgramRoadmapText(input: {
         warnings.push(warn("NON_SEQUENTIAL_SPRINT_NUMBER", `Sprint number ${s.number} is not sequential after ${prevSprintNum}.`, s.startLine, s.rawHeading));
       }
       prevSprintNum = s.number;
+
+      const { prompt, warnings: promptWarnings } = extractPrompt(lines, s.startLine, s.endLine, s.startLine);
+      for (const w of promptWarnings) warnings.push(w);
+
       sprints.push({
         number: s.number,
         title: s.title,
@@ -215,6 +399,7 @@ export function parseProgramRoadmapText(input: {
         startLine: s.startLine,
         endLine: s.endLine,
         epicNumber: s.epicNumber,
+        ...(prompt ? { prompt } : {}),
       });
     }
 

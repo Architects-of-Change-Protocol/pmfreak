@@ -12,7 +12,15 @@ export type ProgramRoadmapParseWarningCode =
   | "NON_SEQUENTIAL_SPRINT_NUMBER"
   | "TEXT_OUTSIDE_EPIC"
   | "UNRECOGNIZED_HEADING"
-  | "EMPTY_SOURCE";
+  | "EMPTY_SOURCE"
+  | "SPRINT_WITHOUT_PROMPT"
+  | "EMPTY_PROMPT"
+  | "OBJECTIVE_MISSING"
+  | "CAPABILITIES_MISSING"
+  | "DELIVERABLES_MISSING"
+  | "RULES_MISSING"
+  | "PROMPT_TOO_LARGE"
+  | "UNKNOWN_SECTION";
 
 export type ProgramRoadmapParseErrorCode =
   | "SOURCE_NOT_FOUND"
@@ -36,6 +44,41 @@ export type ProgramRoadmapParseError = {
   context?: string;
 };
 
+export type PromptUnknownSection = {
+  title: string;
+  content: string;
+};
+
+export type PromptSections = {
+  objective?: string;
+  capabilities: string[];
+  deliverables: string[];
+  rules: string[];
+  notes: string[];
+  unknownSections: PromptUnknownSection[];
+};
+
+export type PromptStats = {
+  sectionCount: number;
+  capabilityCount: number;
+  deliverableCount: number;
+  ruleCount: number;
+  noteCount: number;
+  characterCount: number;
+  lineCount: number;
+};
+
+export type ParsedProgramPrompt = {
+  rawHeading: string;
+  body: string;
+  startLine: number;
+  endLine: number;
+  characterCount: number;
+  lineCount: number;
+  sections: PromptSections;
+  stats: PromptStats;
+};
+
 export type ParsedProgramSprint = {
   number: number;
   title: string;
@@ -43,6 +86,7 @@ export type ParsedProgramSprint = {
   startLine: number;
   endLine: number;
   epicNumber: number;
+  prompt?: ParsedProgramPrompt;
 };
 
 export type ParsedProgramEpic = {
