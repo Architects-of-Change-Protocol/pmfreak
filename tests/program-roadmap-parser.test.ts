@@ -35,7 +35,7 @@ function parsePromptSections(bodyLines) {
   let currentSection = null;
   let currentUnknownTitle = "";
   let currentUnknownLines = [];
-  let objectiveLines = [];
+  const objectiveLines = [];
   let sectionCount = 0;
 
   function flushUnknown() {
