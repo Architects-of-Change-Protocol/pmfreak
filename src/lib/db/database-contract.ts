@@ -2570,4 +2570,48 @@ export const PROGRAM_ROADMAP_SOURCE_SELECTABLE_COLUMNS = [
   "deleted_at",
 ] as const satisfies ReadonlyArray<keyof ProgramRoadmapSourceRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// program_roadmap_parse_results
+// Source: 20260630000000_program_roadmap_parse_results.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProgramRoadmapParseStatus =
+  | "VALID"
+  | "VALID_WITH_WARNINGS"
+  | "INVALID";
+
+export type ProgramRoadmapParseResultRow = {
+  id: string;               // uuid
+  workspace_id: string;     // uuid references workspaces
+  program_id: string;       // uuid references programs
+  source_id: string;        // uuid references program_roadmap_sources
+  status: ProgramRoadmapParseStatus; // text enum-constrained
+  result_json: Record<string, unknown>; // jsonb — full parse result
+  error_count: number;      // integer >= 0
+  warning_count: number;    // integer >= 0
+  epic_count: number;       // integer >= 0
+  sprint_count: number;     // integer >= 0
+  parsed_at: string;        // timestamptz
+  created_at: string;       // timestamptz
+  updated_at: string;       // timestamptz
+  deleted_at: string | null; // timestamptz (soft delete)
+};
+
+export const PROGRAM_ROADMAP_PARSE_RESULT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "program_id",
+  "source_id",
+  "status",
+  "result_json",
+  "error_count",
+  "warning_count",
+  "epic_count",
+  "sprint_count",
+  "parsed_at",
+  "created_at",
+  "updated_at",
+  "deleted_at",
+] as const satisfies ReadonlyArray<keyof ProgramRoadmapParseResultRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results" as const;
