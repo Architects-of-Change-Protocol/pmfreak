@@ -234,6 +234,13 @@ export type ProgramEventType =
   | "PROGRAM_ARCHIVED"
   | "PROGRAM_STATUS_CHANGED";
 
+// Program Roadmap Source
+export type ProgramRoadmapSourceEventType =
+  | "PROGRAM_ROADMAP_SOURCE_CREATED"
+  | "PROGRAM_ROADMAP_SOURCE_UPDATED"
+  | "PROGRAM_ROADMAP_SOURCE_ACTIVATED"
+  | "PROGRAM_ROADMAP_SOURCE_ARCHIVED";
+
 // Union of all event types
 export type PlatformEventType =
   | ProjectEventType
@@ -254,7 +261,8 @@ export type PlatformEventType =
   | ConstitutionalRatificationEventType
   | AuthorityGovernanceEventType
   | ConstitutionalVaultEventType
-  | ProgramEventType;
+  | ProgramEventType
+  | ProgramRoadmapSourceEventType;
 
 // ─── Row type (matches platform_events table) ─────────────────────────────────
 
