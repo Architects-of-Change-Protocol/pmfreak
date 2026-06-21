@@ -32,7 +32,7 @@ async function emitParseEvent(
     actorId: actorId ?? undefined,
     actorType: actorId ? "user" : "system",
     eventType,
-    eventCategory: "program",
+    eventCategory: "document",
     source: "user_action",
     correlationId: row.program_id,
     causationId: null,
