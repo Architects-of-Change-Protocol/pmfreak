@@ -2485,6 +2485,8 @@ export type ProgramCardType =
   | "DELIVERABLE"
   | "CUSTOM";
 
+export type ProgramCardMaterializationType = "CAPABILITY" | "DELIVERABLE";
+
 export type ProgramCardRow = {
   id: string;                 // uuid
   workspace_id: string;       // uuid references workspaces
@@ -2497,6 +2499,10 @@ export type ProgramCardRow = {
   type: ProgramCardType;      // text enum-constrained
   status: ProgramItemStatus;  // text enum-constrained default 'DRAFT'
   order_index: number;        // integer
+  // Materialization tracing (added 20260701000000_program_materializations.sql)
+  materialization_source: string | null;           // text — materialization id that created this card
+  materialization_type: ProgramCardMaterializationType | null; // text enum-constrained
+  source_line_number: number | null;               // integer — line in source roadmap
   created_at: string;         // timestamptz
   updated_at: string;         // timestamptz
   deleted_at: string | null;  // timestamptz (soft delete)
@@ -2514,6 +2520,9 @@ export const PROGRAM_CARD_SELECTABLE_COLUMNS = [
   "type",
   "status",
   "order_index",
+  "materialization_source",
+  "materialization_type",
+  "source_line_number",
   "created_at",
   "updated_at",
   "deleted_at",
@@ -2613,5 +2622,50 @@ export const PROGRAM_ROADMAP_PARSE_RESULT_SELECTABLE_COLUMNS = [
   "updated_at",
   "deleted_at",
 ] as const satisfies ReadonlyArray<keyof ProgramRoadmapParseResultRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// program_materializations
+// Source: 20260701000000_program_materializations.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProgramMaterializationStatus =
+  | "NOT_STARTED"
+  | "RUNNING"
+  | "COMPLETED"
+  | "ARCHIVED";
+
+export type ProgramMaterializationRow = {
+  id: string;              // uuid
+  workspace_id: string;    // uuid references workspaces
+  program_id: string;      // uuid references programs
+  source_id: string;       // uuid references program_roadmap_sources
+  parse_result_id: string; // uuid references program_roadmap_parse_results
+  status: ProgramMaterializationStatus; // text enum-constrained
+  epics_created: number;   // integer >= 0
+  sprints_created: number; // integer >= 0
+  cards_created: number;   // integer >= 0
+  started_at: string | null;   // timestamptz
+  completed_at: string | null; // timestamptz
+  created_at: string;      // timestamptz
+  updated_at: string;      // timestamptz
+  deleted_at: string | null; // timestamptz (soft delete)
+};
+
+export const PROGRAM_MATERIALIZATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "program_id",
+  "source_id",
+  "parse_result_id",
+  "status",
+  "epics_created",
+  "sprints_created",
+  "cards_created",
+  "started_at",
+  "completed_at",
+  "created_at",
+  "updated_at",
+  "deleted_at",
+] as const satisfies ReadonlyArray<keyof ProgramMaterializationRow>;
 
 export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results" as const;

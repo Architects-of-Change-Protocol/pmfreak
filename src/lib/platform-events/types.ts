@@ -241,6 +241,39 @@ export type ProgramRoadmapSourceEventType =
   | "PROGRAM_ROADMAP_SOURCE_ACTIVATED"
   | "PROGRAM_ROADMAP_SOURCE_ARCHIVED";
 
+// Program Roadmap Parse Result
+export type ProgramRoadmapParseResultEventType =
+  | "PROGRAM_ROADMAP_PARSED"
+  | "PROGRAM_ROADMAP_PARSE_FAILED"
+  | "PROGRAM_ROADMAP_PARSE_RESULT_ARCHIVED";
+
+// Program Epic
+export type ProgramEpicEventType =
+  | "PROGRAM_EPIC_CREATED"
+  | "PROGRAM_EPIC_UPDATED"
+  | "PROGRAM_EPIC_ARCHIVED";
+
+// Program Sprint
+export type ProgramSprintEventType =
+  | "PROGRAM_SPRINT_CREATED"
+  | "PROGRAM_SPRINT_UPDATED"
+  | "PROGRAM_SPRINT_ARCHIVED";
+
+// Program Card
+export type ProgramCardEventType =
+  | "PROGRAM_CARD_CREATED"
+  | "PROGRAM_CARD_UPDATED"
+  | "PROGRAM_CARD_ARCHIVED";
+
+// Program Materialization
+export type ProgramMaterializationEventType =
+  | "PROGRAM_MATERIALIZATION_STARTED"
+  | "PROGRAM_MATERIALIZATION_COMPLETED"
+  | "PROGRAM_MATERIALIZATION_FAILED"
+  | "PROGRAM_EPIC_MATERIALIZED"
+  | "PROGRAM_SPRINT_MATERIALIZED"
+  | "PROGRAM_CARD_MATERIALIZED";
+
 // Union of all event types
 export type PlatformEventType =
   | ProjectEventType
@@ -262,7 +295,12 @@ export type PlatformEventType =
   | AuthorityGovernanceEventType
   | ConstitutionalVaultEventType
   | ProgramEventType
-  | ProgramRoadmapSourceEventType;
+  | ProgramRoadmapSourceEventType
+  | ProgramRoadmapParseResultEventType
+  | ProgramEpicEventType
+  | ProgramSprintEventType
+  | ProgramCardEventType
+  | ProgramMaterializationEventType;
 
 // ─── Row type (matches platform_events table) ─────────────────────────────────
 

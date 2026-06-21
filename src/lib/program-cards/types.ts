@@ -1,6 +1,6 @@
-import type { ProgramCardRow, ProgramCardType, ProgramItemStatus } from "@/lib/db/database-contract";
+import type { ProgramCardMaterializationType, ProgramCardRow, ProgramCardType, ProgramItemStatus } from "@/lib/db/database-contract";
 
-export type { ProgramCardRow, ProgramCardType, ProgramItemStatus };
+export type { ProgramCardMaterializationType, ProgramCardRow, ProgramCardType, ProgramItemStatus };
 
 export type ProgramCardEventType =
   | "PROGRAM_CARD_CREATED"
