@@ -3011,4 +3011,143 @@ export const CONSTITUTIONAL_RECOMMENDATION_EFFECTIVENESS_SELECTABLE_COLUMNS = [
   "last_calculated_at",
 ] as const satisfies ReadonlyArray<keyof ConstitutionalRecommendationEffectivenessRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// governance_signals
+// Source: 20260704000000_governance_signal_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GovernanceSignalType =
+  | "approval_delay"
+  | "authority_gap"
+  | "escalation_gap"
+  | "decision_bottleneck"
+  | "amendment_backlog"
+  | "ratification_stall"
+  | "risk_accumulation"
+  | "recommendation_ignored"
+  | "governance_violation"
+  | "delivery_drift";
+
+export type GovernanceSignalSeverity = "low" | "medium" | "high" | "critical";
+export type GovernanceSignalStatus = "active" | "acknowledged" | "resolved" | "dismissed";
+
+export type GovernanceSignalSource =
+  | "constitution"
+  | "decision"
+  | "amendment"
+  | "ratification"
+  | "authority"
+  | "delegation"
+  | "recommendation"
+  | "risk"
+  | "project";
+
+export type GovernanceSignalRow = {
+  id: string;                     // uuid PK
+  workspace_id: string;           // uuid references workspaces
+  signal_type: GovernanceSignalType;     // text not null
+  signal_source: GovernanceSignalSource; // text not null
+  source_entity_type: string;     // text not null
+  source_entity_id: string;       // uuid not null
+  title: string;                  // text not null
+  description: string;            // text not null
+  severity: GovernanceSignalSeverity;    // text not null
+  confidence_score: number;       // numeric(4,3) 0.0–1.0
+  status: GovernanceSignalStatus; // text not null default 'active'
+  detected_at: string;            // timestamptz
+  acknowledged_at: string | null; // timestamptz
+  acknowledged_by: string | null; // uuid
+  resolved_at: string | null;     // timestamptz
+  resolved_by: string | null;     // uuid
+  dismissed_at: string | null;    // timestamptz
+  dismissed_by: string | null;    // uuid
+  dismissed_reason: string | null;// text
+  created_at: string;             // timestamptz
+  updated_at: string;             // timestamptz
+};
+
+export const GOVERNANCE_SIGNAL_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "signal_type",
+  "signal_source",
+  "source_entity_type",
+  "source_entity_id",
+  "title",
+  "description",
+  "severity",
+  "confidence_score",
+  "status",
+  "detected_at",
+  "acknowledged_at",
+  "acknowledged_by",
+  "resolved_at",
+  "resolved_by",
+  "dismissed_at",
+  "dismissed_by",
+  "dismissed_reason",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof GovernanceSignalRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// governance_signal_evidence
+// Source: 20260704000000_governance_signal_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GovernanceSignalEvidenceType =
+  | "decision_observation"
+  | "amendment_observation"
+  | "authority_observation"
+  | "ratification_observation"
+  | "recommendation_observation"
+  | "violation_observation"
+  | "pattern_match"
+  | "historical_data";
+
+export type GovernanceSignalEvidenceRow = {
+  id: string;                              // uuid PK
+  workspace_id: string;                    // uuid references workspaces
+  signal_id: string;                       // uuid references governance_signals
+  evidence_type: GovernanceSignalEvidenceType; // text not null
+  reference_entity_type: string;           // text not null
+  reference_entity_id: string;             // uuid not null
+  contribution_weight: number;             // numeric(4,3) 0.0–1.0
+  created_at: string;                      // timestamptz
+};
+
+export const GOVERNANCE_SIGNAL_EVIDENCE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "signal_id",
+  "evidence_type",
+  "reference_entity_type",
+  "reference_entity_id",
+  "contribution_weight",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof GovernanceSignalEvidenceRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// governance_signal_recommendations
+// Source: 20260704000000_governance_signal_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GovernanceSignalRecommendationRow = {
+  id: string;               // uuid PK
+  workspace_id: string;     // uuid references workspaces
+  signal_id: string;        // uuid references governance_signals
+  recommendation_id: string;// uuid references constitutional_recommendations
+  confidence_score: number; // numeric(4,3) 0.0–1.0
+  created_at: string;       // timestamptz
+};
+
+export const GOVERNANCE_SIGNAL_RECOMMENDATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "signal_id",
+  "recommendation_id",
+  "confidence_score",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof GovernanceSignalRecommendationRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine" as const;
