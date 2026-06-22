@@ -7,22 +7,34 @@ import type {
   ConstitutionalRecommendationRow,
   ConstitutionalRecommendationEvidenceRow,
   ConstitutionalRecommendationApplicationRow,
+  ConstitutionalRecommendationOutcomeRow,
+  ConstitutionalRecommendationFeedbackRow,
+  ConstitutionalRecommendationEffectivenessRow,
   RecommendationType,
   RecommendationScope,
   RecommendationStatus,
   RecommendationApplicationEntityType,
   RecommendationApplicationStatus,
+  RecommendationOutcomeType,
+  RecommendationOutcomeStatus,
+  RecommendationFeedbackType,
 } from "@/lib/db/database-contract";
 
 export type {
   ConstitutionalRecommendationRow,
   ConstitutionalRecommendationEvidenceRow,
   ConstitutionalRecommendationApplicationRow,
+  ConstitutionalRecommendationOutcomeRow,
+  ConstitutionalRecommendationFeedbackRow,
+  ConstitutionalRecommendationEffectivenessRow,
   RecommendationType,
   RecommendationScope,
   RecommendationStatus,
   RecommendationApplicationEntityType,
   RecommendationApplicationStatus,
+  RecommendationOutcomeType,
+  RecommendationOutcomeStatus,
+  RecommendationFeedbackType,
 };
 
 // ─── Result ──────────────────────────────────────────────────────────────────
@@ -51,7 +63,14 @@ export type ConstitutionalRecommendationEventType =
   | "CONSTITUTIONAL_RECOMMENDATION_APPLIED"
   | "CONSTITUTIONAL_RECOMMENDATION_CONFIDENCE_CALCULATED"
   | "CONSTITUTIONAL_RECOMMENDATION_LINEAGE_GENERATED"
-  | "CONSTITUTIONAL_RECOMMENDATION_JUSTIFIED";
+  | "CONSTITUTIONAL_RECOMMENDATION_JUSTIFIED"
+  | "CONSTITUTIONAL_RECOMMENDATION_OUTCOME_RECORDED"
+  | "CONSTITUTIONAL_RECOMMENDATION_FEEDBACK_SUBMITTED"
+  | "CONSTITUTIONAL_RECOMMENDATION_EFFECTIVENESS_CALCULATED"
+  | "CONSTITUTIONAL_RECOMMENDATION_CONFIDENCE_ADJUSTED"
+  | "CONSTITUTIONAL_RECOMMENDATION_BENCHMARK_GENERATED"
+  | "CONSTITUTIONAL_RECOMMENDATION_RANKING_GENERATED"
+  | "CONSTITUTIONAL_RECOMMENDATION_DEPRECATED";
 
 // ─── Confidence breakdown ─────────────────────────────────────────────────────
 
@@ -187,4 +206,99 @@ export type ApplicabilityContext = {
   observedPatternKeys?: string[];
   projectType?: string;
   constitutionStatus?: string;
+};
+
+// ─── Effectiveness inputs ──────────────────────────────────────────────────────
+
+export type RecordOutcomeInput = {
+  workspaceId: string;
+  actorId: string;
+  recommendationId: string;
+  applicationId: string;
+  outcomeType: RecommendationOutcomeType;
+  outcomeStatus: RecommendationOutcomeStatus;
+  observedValue?: number;
+  expectedValue?: number;
+};
+
+export type SubmitFeedbackInput = {
+  workspaceId: string;
+  actorId: string;
+  recommendationId: string;
+  applicationId: string;
+  feedbackType: RecommendationFeedbackType;
+  rating: number;
+  comments?: string;
+};
+
+export type CalculateEffectivenessInput = {
+  workspaceId: string;
+  actorId: string;
+  recommendationId: string;
+};
+
+export type ListOutcomesInput = {
+  workspaceId: string;
+  recommendationId?: string;
+  outcomeType?: RecommendationOutcomeType;
+  outcomeStatus?: RecommendationOutcomeStatus;
+  fromDate?: string;
+  toDate?: string;
+};
+
+export type ListFeedbackInput = {
+  workspaceId: string;
+  recommendationId?: string;
+  feedbackType?: RecommendationFeedbackType;
+};
+
+// ─── Effectiveness summary ────────────────────────────────────────────────────
+
+export type RecommendationEffectivenessBreakdown = {
+  recommendationId: string;
+  applicationsCount: number;
+  successfulCount: number;
+  failedCount: number;
+  neutralCount: number;
+  successRate: number;
+  failureRate: number;
+  neutralRate: number;
+  averageEffectiveness: number;
+  confidenceAdjustment: number;
+};
+
+// ─── Benchmark / Ranking ──────────────────────────────────────────────────────
+
+export type RecommendationBenchmark = {
+  recommendationId: string;
+  recommendationKey: string;
+  title: string;
+  averageEffectiveness: number;
+  applicationsCount: number;
+  confidenceScore: number;
+};
+
+export type RecommendationRankEntry = {
+  rank: number;
+  recommendationId: string;
+  recommendationKey: string;
+  title: string;
+  rankScore: number;
+  averageEffectiveness: number;
+  confidenceScore: number;
+  applicationsCount: number;
+};
+
+// ─── Extended lineage with outcome ───────────────────────────────────────────
+
+export type RecommendationLineageWithOutcome = RecommendationLineage & {
+  outcomes: ConstitutionalRecommendationOutcomeRow[];
+};
+
+// ─── Extended justification with effectiveness ────────────────────────────────
+
+export type RecommendationJustificationWithEffectiveness = RecommendationJustification & {
+  historicalEffectiveness: number | null;
+  applicationsCount: number;
+  successRate: number | null;
 };
