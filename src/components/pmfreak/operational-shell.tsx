@@ -796,8 +796,8 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
     locked: !isLensUnlocked(item.href, awakening.stage),
   }));
   const primaryNav = navItems.filter((item) => item.idle === "text-indigo-100/90");
-  const lensNav = navItems.filter((item) => item.idle === "text-slate-300" && !item.href.startsWith("/projects") && !item.href.startsWith("/upload") && !item.href.startsWith("/team"));
-  const utilityNav = navItems.filter((item) => ["/projects", "/upload", "/team"].includes(item.href));
+  const lensNav = navItems.filter((item) => item.idle === "text-slate-300" && !item.href.startsWith("/projects") && !item.href.startsWith("/programs") && !item.href.startsWith("/upload") && !item.href.startsWith("/team"));
+  const utilityNav = navItems.filter((item) => ["/projects", "/programs", "/upload", "/team"].includes(item.href));
   const advancedNav = navItems.filter((item) => item.idle === "text-slate-300" && !lensNav.includes(item) && !utilityNav.includes(item));
 
   const imprintFocus = (() => {

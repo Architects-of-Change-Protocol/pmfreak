@@ -19,6 +19,7 @@ export const NAVIGATION_HIERARCHY: NavigationNode[] = [
   { label: "Portfolio", href: "/portfolio", tier: "lens", visibleByDefault: true },
 
   { label: "Projects", href: "/projects", tier: "utility", visibleByDefault: true },
+  { label: "Programs", href: "/programs", tier: "utility", visibleByDefault: true },
   { label: "Upload", href: "/upload", tier: "utility", visibleByDefault: true },
   { label: "Settings", href: "/team", tier: "utility", visibleByDefault: true },
 
