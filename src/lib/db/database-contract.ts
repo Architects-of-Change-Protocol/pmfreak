@@ -2769,4 +2769,134 @@ export const CONSTITUTIONAL_LEARNING_RECOMMENDATION_SELECTABLE_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof ConstitutionalLearningRecommendationRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// constitutional_recommendations
+// Source: 20260622000002_sovereign_recommendation_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type RecommendationType =
+  | "risk_mitigation"
+  | "governance_control"
+  | "decision_guidance"
+  | "authority_control"
+  | "delivery_improvement"
+  | "ratification_control"
+  | "amendment_guidance"
+  | "portfolio_guidance";
+
+export type RecommendationScope =
+  | "project"
+  | "decision"
+  | "risk"
+  | "governance"
+  | "amendment"
+  | "authority"
+  | "ratification"
+  | "delivery"
+  | "portfolio";
+
+export type RecommendationStatus =
+  | "draft"
+  | "generated"
+  | "validated"
+  | "published"
+  | "retired";
+
+export type RecommendationApplicationEntityType =
+  | "constitution"
+  | "decision"
+  | "amendment"
+  | "risk"
+  | "authority"
+  | "project";
+
+export type RecommendationApplicationStatus =
+  | "applied"
+  | "dismissed"
+  | "superseded";
+
+export type ConstitutionalRecommendationRow = {
+  id: string;                       // uuid primary key
+  workspace_id: string;             // uuid references workspaces
+  recommendation_key: string;       // text not null
+  recommendation_type: RecommendationType; // text enum-constrained
+  recommendation_scope: RecommendationScope; // text enum-constrained
+  title: string;                    // text not null
+  description: string;              // text not null
+  recommendation_text: string;      // text not null
+  confidence_score: number;         // numeric(4,3) 0.0–1.0
+  supporting_pattern_count: number; // integer >= 0
+  status: RecommendationStatus;     // text enum-constrained
+  created_at: string;               // timestamptz
+  updated_at: string;               // timestamptz
+  deleted_at: string | null;        // timestamptz nullable
+};
+
+export const CONSTITUTIONAL_RECOMMENDATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "recommendation_key",
+  "recommendation_type",
+  "recommendation_scope",
+  "title",
+  "description",
+  "recommendation_text",
+  "confidence_score",
+  "supporting_pattern_count",
+  "status",
+  "created_at",
+  "updated_at",
+  "deleted_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalRecommendationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// constitutional_recommendation_evidence
+// Source: 20260622000002_sovereign_recommendation_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConstitutionalRecommendationEvidenceRow = {
+  id: string;                   // uuid primary key
+  workspace_id: string;         // uuid references workspaces
+  recommendation_id: string;    // uuid references constitutional_recommendations
+  learning_pattern_id: string;  // uuid references constitutional_learning_patterns
+  contribution_weight: number;  // numeric(4,3) 0.0–1.0
+  created_at: string;           // timestamptz
+};
+
+export const CONSTITUTIONAL_RECOMMENDATION_EVIDENCE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "recommendation_id",
+  "learning_pattern_id",
+  "contribution_weight",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalRecommendationEvidenceRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// constitutional_recommendation_applications
+// Source: 20260622000002_sovereign_recommendation_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConstitutionalRecommendationApplicationRow = {
+  id: string;                // uuid primary key
+  workspace_id: string;      // uuid references workspaces
+  recommendation_id: string; // uuid references constitutional_recommendations
+  entity_type: RecommendationApplicationEntityType; // text enum-constrained
+  entity_id: string;         // uuid
+  application_status: RecommendationApplicationStatus; // text enum-constrained
+  applied_at: string;        // timestamptz
+  created_at: string;        // timestamptz
+};
+
+export const CONSTITUTIONAL_RECOMMENDATION_APPLICATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "recommendation_id",
+  "entity_type",
+  "entity_id",
+  "application_status",
+  "applied_at",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalRecommendationApplicationRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine" as const;
