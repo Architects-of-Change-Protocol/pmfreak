@@ -364,9 +364,10 @@ export async function calculatePatternConfidence(
     .eq("learning_pattern_id", patternId)
     .eq("workspace_id", workspaceId);
 
-  const evidence = evidenceRows ?? [];
+  type EvidenceRow = { contribution_weight: number; digest_id: string; learning_pattern_id: string };
+  const evidence = (evidenceRows ?? []) as unknown as EvidenceRow[];
   const avgWeight = evidence.length > 0
-    ? evidence.reduce((s: number, e: { contribution_weight: number }) => s + e.contribution_weight, 0) / evidence.length
+    ? evidence.reduce((s, e) => s + e.contribution_weight, 0) / evidence.length
     : 0.5;
 
   const { count: totalDigests } = await supabase
@@ -379,12 +380,13 @@ export async function calculatePatternConfidence(
   const { data: coPatterns } = await supabase
     .from("constitutional_learning_evidence")
     .select("learning_pattern_id")
-    .in("digest_id", evidence.map((e: { digest_id: string }) => e.digest_id))
+    .in("digest_id", evidence.map((e) => e.digest_id))
     .eq("workspace_id", workspaceId)
     .neq("learning_pattern_id", patternId);
 
   const distinctCoPatterns = new Set(
-    (coPatterns ?? []).map((r: { learning_pattern_id: string }) => r.learning_pattern_id),
+    ((coPatterns ?? []) as unknown as Array<{ learning_pattern_id: string }>)
+      .map((r) => r.learning_pattern_id),
   ).size;
 
   const breakdown = calculateLearningConfidence({
@@ -504,6 +506,11 @@ export async function getLearningLineage(
 
   const supabase = await createSupabaseServerClient();
 
+  type LineageEvidenceRow = { digest_id: string };
+  type LineageDigestRow = { id: string; workspace_id: string; memory_record_id: string; digest_status: string; digest_payload: Record<string, unknown>; confidence_score: number | null; created_at: string };
+  type LineageMemoryRow = { id: string; workspace_id: string; artifact_id: string; memory_type: string; title: string; canonical_text: string; summary: string | null; created_at: string; created_by: string };
+  type LineageArtifactRow = { id: string; workspace_id: string; artifact_type: string; title: string; storage_provider: string; storage_reference: string; checksum: string; created_at: string };
+
   // Get evidence: which digests contributed to this pattern
   const { data: evidenceRows } = await supabase
     .from("constitutional_learning_evidence")
@@ -515,7 +522,8 @@ export async function getLearningLineage(
     return { ok: true, data: [] };
   }
 
-  const digestIds = evidenceRows.map((e: { digest_id: string }) => e.digest_id);
+  const typedEvidence = evidenceRows as unknown as LineageEvidenceRow[];
+  const digestIds = typedEvidence.map((e) => e.digest_id);
 
   // Fetch digests
   const { data: digests } = await supabase
@@ -528,7 +536,8 @@ export async function getLearningLineage(
     return failed("Digest records for lineage not found.", "not_found");
   }
 
-  const memoryIds = [...new Set(digests.map((d: { memory_record_id: string }) => d.memory_record_id))];
+  const typedDigests = digests as unknown as LineageDigestRow[];
+  const memoryIds = [...new Set(typedDigests.map((d) => d.memory_record_id))];
 
   // Fetch memory records
   const { data: memories } = await supabase
@@ -541,7 +550,8 @@ export async function getLearningLineage(
     return failed("Memory records for lineage not found.", "not_found");
   }
 
-  const artifactIds = [...new Set(memories.map((m: { artifact_id: string }) => m.artifact_id))];
+  const typedMemories = memories as unknown as LineageMemoryRow[];
+  const artifactIds = [...new Set(typedMemories.map((m) => m.artifact_id))];
 
   // Fetch artifacts
   const { data: artifacts } = await supabase
@@ -554,13 +564,15 @@ export async function getLearningLineage(
     return failed("Artifact records for lineage not found.", "not_found");
   }
 
+  const typedArtifacts = artifacts as unknown as LineageArtifactRow[];
+
   // Build memory lookup
-  const memoryById = new Map(memories.map((m: { id: string }) => [m.id, m]));
-  const artifactById = new Map(artifacts.map((a: { id: string }) => [a.id, a]));
+  const memoryById = new Map(typedMemories.map((m) => [m.id, m]));
+  const artifactById = new Map(typedArtifacts.map((a) => [a.id, a]));
 
   const lineages: LearningLineage[] = [];
 
-  for (const digest of digests) {
+  for (const digest of typedDigests) {
     const memory = memoryById.get(digest.memory_record_id);
     if (!memory) continue;
     const artifact = artifactById.get(memory.artifact_id);

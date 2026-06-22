@@ -5,7 +5,8 @@
 // Sovereignty Rule 3: No direct learning from Memory Records.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { DigestPayload, LearningPatternType } from "./types";
+import type { DigestPayload } from "@/lib/db/database-contract";
+import type { LearningPatternType } from "./types";
 
 export type AggregatedPattern = {
   patternType: LearningPatternType;

@@ -3,8 +3,8 @@
 // Discovers correlations between patterns that co-occur in the same digest.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import type { DigestPayload } from "@/lib/db/database-contract";
 import type { LearningPatternType, PatternCorrelation } from "./types";
-import type { DigestPayload } from "./types";
 
 type PatternRef = { patternType: LearningPatternType; patternKey: string };
 
