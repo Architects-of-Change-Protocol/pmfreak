@@ -55,7 +55,7 @@ export async function generateSignalRecommendations(input: {
     return { ok: false, error: "Unable to query recommendations.", failureClass: "persistence_failed" };
   }
 
-  const recommendations = (data ?? []) as Array<{
+  const recommendations = (data ?? []) as unknown as Array<{
     id: string;
     recommendation_key: string;
     recommendation_type: string;
