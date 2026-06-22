@@ -2487,6 +2487,13 @@ export type ProgramCardType =
 
 export type ProgramCardMaterializationType = "CAPABILITY" | "DELIVERABLE";
 
+export type ProgramBoardColumn =
+  | "BACKLOG"
+  | "READY"
+  | "IN_PROGRESS"
+  | "IN_REVIEW"
+  | "DONE";
+
 export type ProgramCardRow = {
   id: string;                 // uuid
   workspace_id: string;       // uuid references workspaces
@@ -2503,6 +2510,8 @@ export type ProgramCardRow = {
   materialization_source: string | null;           // text — materialization id that created this card
   materialization_type: ProgramCardMaterializationType | null; // text enum-constrained
   source_line_number: number | null;               // integer — line in source roadmap
+  // Execution board (added 20260702000000_program_execution_board.sql)
+  board_column: ProgramBoardColumn;                // text enum-constrained default 'BACKLOG'
   created_at: string;         // timestamptz
   updated_at: string;         // timestamptz
   deleted_at: string | null;  // timestamptz (soft delete)
@@ -2523,6 +2532,7 @@ export const PROGRAM_CARD_SELECTABLE_COLUMNS = [
   "materialization_source",
   "materialization_type",
   "source_line_number",
+  "board_column",
   "created_at",
   "updated_at",
   "deleted_at",
@@ -2668,4 +2678,4 @@ export const PROGRAM_MATERIALIZATION_SELECTABLE_COLUMNS = [
   "deleted_at",
 ] as const satisfies ReadonlyArray<keyof ProgramMaterializationRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results" as const;
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board" as const;
