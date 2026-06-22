@@ -2681,4 +2681,92 @@ export const PROGRAM_MATERIALIZATION_SELECTABLE_COLUMNS = [
   "deleted_at",
 ] as const satisfies ReadonlyArray<keyof ProgramMaterializationRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// constitutional_learning_patterns
+// Source: 20260622000001_constitutional_learning_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type LearningPatternType =
+  | "decision_pattern"
+  | "risk_pattern"
+  | "governance_pattern"
+  | "authority_pattern"
+  | "amendment_pattern"
+  | "delivery_pattern"
+  | "outcome_pattern";
+
+export type ConstitutionalLearningPatternRow = {
+  id: string;                       // uuid primary key
+  workspace_id: string;             // uuid references workspaces
+  pattern_type: LearningPatternType; // text enum-constrained
+  pattern_key: string;              // text not null
+  description: string;              // text not null
+  confidence_score: number;         // numeric(4,3) 0.0–1.0
+  occurrence_count: number;         // integer >= 1
+  first_seen_at: string;            // timestamptz
+  last_seen_at: string;             // timestamptz
+  created_at: string;               // timestamptz
+  updated_at: string;               // timestamptz
+};
+
+export const CONSTITUTIONAL_LEARNING_PATTERN_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "pattern_type",
+  "pattern_key",
+  "description",
+  "confidence_score",
+  "occurrence_count",
+  "first_seen_at",
+  "last_seen_at",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalLearningPatternRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// constitutional_learning_evidence
+// Source: 20260622000001_constitutional_learning_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConstitutionalLearningEvidenceRow = {
+  id: string;                   // uuid primary key
+  workspace_id: string;         // uuid references workspaces
+  learning_pattern_id: string;  // uuid references constitutional_learning_patterns
+  digest_id: string;            // uuid references constitutional_digests
+  contribution_weight: number;  // numeric(4,3) 0.0–1.0
+  created_at: string;           // timestamptz
+};
+
+export const CONSTITUTIONAL_LEARNING_EVIDENCE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "learning_pattern_id",
+  "digest_id",
+  "contribution_weight",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalLearningEvidenceRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// constitutional_learning_recommendations
+// Source: 20260622000001_constitutional_learning_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConstitutionalLearningRecommendationRow = {
+  id: string;                   // uuid primary key
+  workspace_id: string;         // uuid references workspaces
+  learning_pattern_id: string;  // uuid references constitutional_learning_patterns
+  recommendation: string;       // text not null
+  confidence_score: number;     // numeric(4,3) 0.0–1.0
+  created_at: string;           // timestamptz
+};
+
+export const CONSTITUTIONAL_LEARNING_RECOMMENDATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "learning_pattern_id",
+  "recommendation",
+  "confidence_score",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ConstitutionalLearningRecommendationRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine" as const;
