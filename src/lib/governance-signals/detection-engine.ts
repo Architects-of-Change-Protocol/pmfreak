@@ -106,7 +106,7 @@ type SupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 async function detectApprovalDelays(
   workspaceId: string,
   supabase: SupabaseClient,
-  existingSignalKeys: Set<string>
+  existingSignalTypes: Set<string>
 ): Promise<DetectedSignalCandidate[]> {
   const cols = CONSTITUTIONAL_DECISION_SELECTABLE_COLUMNS.join(",");
   const { data } = await supabase
@@ -124,7 +124,7 @@ async function detectApprovalDelays(
     if (days < APPROVAL_DELAY_THRESHOLD_DAYS) continue;
 
     const dedupeKey = `approval_delay:${decision.id}`;
-    if (existingSignalKeys.has(dedupeKey)) continue;
+    if (existingSignalTypes.has(dedupeKey)) continue;
 
     const evidence = [
       {
@@ -171,7 +171,7 @@ async function detectApprovalDelays(
 async function detectAmendmentBacklog(
   workspaceId: string,
   supabase: SupabaseClient,
-  existingSignalKeys: Set<string>
+  existingSignalTypes: Set<string>
 ): Promise<DetectedSignalCandidate[]> {
   const cols = CONSTITUTION_AMENDMENT_SELECTABLE_COLUMNS.join(",");
   const { data } = await supabase
@@ -184,7 +184,7 @@ async function detectAmendmentBacklog(
   const amendments = (data ?? []) as unknown as ConstitutionAmendmentRow[];
   if (amendments.length < AMENDMENT_BACKLOG_THRESHOLD) return [];
 
-  if (existingSignalKeys.has("amendment_backlog:workspace")) return [];
+  if (existingSignalTypes.has("amendment_backlog:workspace")) return [];
 
   const evidence = amendments.map((a) => ({
     evidenceType: "amendment_observation" as GovernanceSignalEvidenceType,
@@ -231,7 +231,7 @@ async function detectAmendmentBacklog(
 async function detectGovernanceViolations(
   workspaceId: string,
   supabase: SupabaseClient,
-  existingSignalKeys: Set<string>
+  existingSignalTypes: Set<string>
 ): Promise<DetectedSignalCandidate[]> {
   const { data } = await supabase
     .from("governance_violations")
@@ -244,7 +244,7 @@ async function detectGovernanceViolations(
 
   for (const violation of violations) {
     const dedupeKey = `governance_violation:${violation.id}`;
-    if (existingSignalKeys.has(dedupeKey)) continue;
+    if (existingSignalTypes.has(dedupeKey)) continue;
 
     const days = durationDaysSince(violation.created_at);
     const evidence = [
@@ -286,7 +286,7 @@ async function detectGovernanceViolations(
 async function detectAuthorityGaps(
   workspaceId: string,
   supabase: SupabaseClient,
-  existingSignalKeys: Set<string>
+  existingSignalTypes: Set<string>
 ): Promise<DetectedSignalCandidate[]> {
   const { data } = await supabase
     .from("authority_registrations")
@@ -299,7 +299,7 @@ async function detectAuthorityGaps(
 
   for (const authority of authorities) {
     const dedupeKey = `authority_gap:${authority.id}`;
-    if (existingSignalKeys.has(dedupeKey)) continue;
+    if (existingSignalTypes.has(dedupeKey)) continue;
 
     const evidence = [
       {
@@ -345,7 +345,7 @@ async function detectAuthorityGaps(
 async function detectRatificationStalls(
   workspaceId: string,
   supabase: SupabaseClient,
-  existingSignalKeys: Set<string>
+  existingSignalTypes: Set<string>
 ): Promise<DetectedSignalCandidate[]> {
   const { data } = await supabase
     .from("constitutional_signature_requests")
@@ -361,7 +361,7 @@ async function detectRatificationStalls(
     if (days < RATIFICATION_STALL_THRESHOLD_DAYS) continue;
 
     const dedupeKey = `ratification_stall:${request.id}`;
-    if (existingSignalKeys.has(dedupeKey)) continue;
+    if (existingSignalTypes.has(dedupeKey)) continue;
 
     const evidence = [
       {
@@ -406,7 +406,7 @@ async function detectRatificationStalls(
 async function detectEscalationGaps(
   workspaceId: string,
   supabase: SupabaseClient,
-  existingSignalKeys: Set<string>
+  existingSignalTypes: Set<string>
 ): Promise<DetectedSignalCandidate[]> {
   const { data: violationData } = await supabase
     .from("governance_violations")
@@ -436,7 +436,7 @@ async function detectEscalationGaps(
     if (escalatedViolationIds.has(violation.id)) continue;
 
     const dedupeKey = `escalation_gap:${violation.id}`;
-    if (existingSignalKeys.has(dedupeKey)) continue;
+    if (existingSignalTypes.has(dedupeKey)) continue;
 
     const days = durationDaysSince(violation.created_at);
     const evidence = [
@@ -492,11 +492,11 @@ export async function detectGovernanceSignals(workspaceId: string): Promise<Dete
 
   const existingSignals = (existingData ?? []) as unknown as GovernanceSignalRow[];
 
-  const existingSignalKeys = new Set<string>(
+  const existingSignalTypes = new Set<string>(
     existingSignals.map((s) => `${s.signal_type}:${s.source_entity_id}`)
   );
   if (existingSignals.some((s) => s.signal_type === "amendment_backlog")) {
-    existingSignalKeys.add("amendment_backlog:workspace");
+    existingSignalTypes.add("amendment_backlog:workspace");
   }
 
   const [
@@ -507,12 +507,12 @@ export async function detectGovernanceSignals(workspaceId: string): Promise<Dete
     ratificationStalls,
     escalationGaps,
   ] = await Promise.all([
-    detectApprovalDelays(workspaceId, supabase, existingSignalKeys),
-    detectAmendmentBacklog(workspaceId, supabase, existingSignalKeys),
-    detectGovernanceViolations(workspaceId, supabase, existingSignalKeys),
-    detectAuthorityGaps(workspaceId, supabase, existingSignalKeys),
-    detectRatificationStalls(workspaceId, supabase, existingSignalKeys),
-    detectEscalationGaps(workspaceId, supabase, existingSignalKeys),
+    detectApprovalDelays(workspaceId, supabase, existingSignalTypes),
+    detectAmendmentBacklog(workspaceId, supabase, existingSignalTypes),
+    detectGovernanceViolations(workspaceId, supabase, existingSignalTypes),
+    detectAuthorityGaps(workspaceId, supabase, existingSignalTypes),
+    detectRatificationStalls(workspaceId, supabase, existingSignalTypes),
+    detectEscalationGaps(workspaceId, supabase, existingSignalTypes),
   ]);
 
   return [
