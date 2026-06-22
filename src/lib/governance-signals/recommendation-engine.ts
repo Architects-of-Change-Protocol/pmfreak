@@ -48,7 +48,7 @@ export async function generateSignalRecommendations(input: {
     .eq("workspace_id", input.workspaceId)
     .in("recommendation_type", affinityTypes)
     .in("status", ["published", "validated"])
-    .order("base_confidence", { ascending: false })
+    .order("confidence_score", { ascending: false })
     .limit(5);
 
   if (error) {
@@ -59,7 +59,7 @@ export async function generateSignalRecommendations(input: {
     id: string;
     recommendation_key: string;
     recommendation_type: string;
-    base_confidence: number;
+    confidence_score: number;
   }>;
 
   const links: RecommendationLink[] = [];
@@ -68,7 +68,7 @@ export async function generateSignalRecommendations(input: {
     // Confidence is boosted for higher-priority affinity types
     const affinityIndex = affinityTypes.indexOf(rec.recommendation_type);
     const affinityBoost = affinityIndex === 0 ? 0.10 : 0.05;
-    const confidenceScore = Math.min(1.0, rec.base_confidence + affinityBoost);
+    const confidenceScore = Math.min(1.0, rec.confidence_score + affinityBoost);
 
     const result = await dbCreateSignalRecommendation({
       workspaceId: input.workspaceId,

@@ -44,15 +44,16 @@ async function emitSignalEvent(
   signal: GovernanceSignalRow,
   eventType: GovernanceSignalEventType,
   actorId: string,
-  extraPayload?: Record<string, unknown>
+  extraPayload?: Record<string, unknown>,
+  actorType: "user" | "system" = "system"
 ): Promise<GovernanceSignalResult<GovernanceSignalRow>> {
   const event = await createPlatformEvent({
     workspaceId: signal.workspace_id,
     actorId,
-    actorType: "system",
+    actorType,
     eventType,
     eventCategory: "governance",
-    source: "system",
+    source: actorType === "user" ? "user_action" : "system",
     correlationId: signal.id,
     causationId: null,
     rawReferenceTable: "governance_signals",
@@ -169,7 +170,7 @@ export async function acknowledgeSignal(
   });
   if (!result.ok) return result;
 
-  return emitSignalEvent(result.data, "GOVERNANCE_SIGNAL_ACKNOWLEDGED", input.actorId);
+  return emitSignalEvent(result.data, "GOVERNANCE_SIGNAL_ACKNOWLEDGED", input.actorId, undefined, "user");
 }
 
 // ─── resolveSignal ────────────────────────────────────────────────────────────
@@ -195,7 +196,7 @@ export async function resolveSignal(
   });
   if (!result.ok) return result;
 
-  return emitSignalEvent(result.data, "GOVERNANCE_SIGNAL_RESOLVED", input.actorId);
+  return emitSignalEvent(result.data, "GOVERNANCE_SIGNAL_RESOLVED", input.actorId, undefined, "user");
 }
 
 // ─── dismissSignal ────────────────────────────────────────────────────────────
@@ -225,7 +226,7 @@ export async function dismissSignal(
 
   return emitSignalEvent(result.data, "GOVERNANCE_SIGNAL_DISMISSED", input.actorId, {
     dismissedReason: input.dismissedReason.trim(),
-  });
+  }, "user");
 }
 
 // ─── getSignal ────────────────────────────────────────────────────────────────

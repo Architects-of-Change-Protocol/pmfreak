@@ -62,9 +62,10 @@ type AuthorityRow = {
   id: string;
   workspace_id: string;
   authority_type: string | null;
-  scope: string | null;
+  authority_scope: string | null;
   status: string;
-  expires_at: string | null;
+  valid_until: string | null;
+  revoked_at: string | null;
   created_at: string;
 };
 
@@ -81,7 +82,6 @@ type ViolationRow = {
   id: string;
   workspace_id: string;
   violation_type: string | null;
-  description: string | null;
   severity: string;
   created_at: string;
 };
@@ -235,7 +235,7 @@ async function detectGovernanceViolations(
 ): Promise<DetectedSignalCandidate[]> {
   const { data } = await supabase
     .from("governance_violations")
-    .select("id,workspace_id,violation_type,description,severity,created_at")
+    .select("id,workspace_id,violation_type,severity,created_at")
     .eq("workspace_id", workspaceId)
     .eq("status", "open");
 
@@ -290,7 +290,7 @@ async function detectAuthorityGaps(
 ): Promise<DetectedSignalCandidate[]> {
   const { data } = await supabase
     .from("authority_registrations")
-    .select("id,workspace_id,authority_type,scope,status,expires_at,created_at")
+    .select("id,workspace_id,authority_type,authority_scope,status,valid_until,revoked_at,created_at")
     .eq("workspace_id", workspaceId)
     .in("status", ["expired", "revoked"]);
 
@@ -310,7 +310,10 @@ async function detectAuthorityGaps(
       },
     ];
 
-    const days = durationDaysSince(authority.created_at);
+    const gapStart = authority.status === "revoked"
+      ? (authority.revoked_at ?? authority.created_at)
+      : (authority.valid_until ?? authority.created_at);
+    const days = durationDaysSince(gapStart);
     const { score: confidenceScore } = calculateSignalConfidence({
       patternMatch: 0.88,
       evidenceStrength: deriveEvidenceStrength(evidence),
@@ -488,7 +491,7 @@ export async function detectGovernanceSignals(workspaceId: string): Promise<Dete
     .from("governance_signals")
     .select(GOVERNANCE_SIGNAL_SELECTABLE_COLUMNS.join(","))
     .eq("workspace_id", workspaceId)
-    .eq("status", "active");
+    .in("status", ["active", "acknowledged"]);
 
   const existingSignals = (existingData ?? []) as unknown as GovernanceSignalRow[];
 
