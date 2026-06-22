@@ -7,17 +7,52 @@ import type {
   ProgramRoadmapParseResultRow,
   ProgramBoardColumn,
   ProgramCardRow,
+  ProgramCardMaterializationType,
 } from "@/lib/db/database-contract";
 import type { ProgramRoadmapParseResult } from "@/lib/program-roadmap-parser/types";
 
-export type { ProgramRow, ProgramType, ProgramRoadmapSourceRow, ProgramRoadmapParseResultRow, ProgramBoardColumn, ProgramCardRow };
+export type { ProgramRow, ProgramType, ProgramRoadmapSourceRow, ProgramRoadmapParseResultRow, ProgramBoardColumn, ProgramCardRow, ProgramCardMaterializationType };
+
+export type ProgramCardContext = {
+  epic?: {
+    id: string;
+    number: number;
+    title: string;
+  };
+  sprint?: {
+    id: string;
+    number: number;
+    title: string;
+    objective?: string | null;
+  };
+  source?: {
+    id: string;
+    title?: string | null;
+    sourceType: string;
+    version: number;
+  };
+  materialization?: {
+    id: string;
+    parseResultId: string;
+    createdAt: string;
+  };
+  origin?: {
+    materializationType?: ProgramCardMaterializationType | null;
+    materializationSource?: string | null;
+    sourceLineNumber?: number | null;
+  };
+};
+
+export type ProgramBoardCard = ProgramCardRow & {
+  context: ProgramCardContext;
+};
 
 export type ProgramExecutionBoard = {
-  backlog: ProgramCardRow[];
-  ready: ProgramCardRow[];
-  inProgress: ProgramCardRow[];
-  inReview: ProgramCardRow[];
-  done: ProgramCardRow[];
+  backlog: ProgramBoardCard[];
+  ready: ProgramBoardCard[];
+  inProgress: ProgramBoardCard[];
+  inReview: ProgramBoardCard[];
+  done: ProgramBoardCard[];
   stats: {
     totalCards: number;
     backlogCount: number;

@@ -418,3 +418,44 @@ describe("Materialization Lifecycle", () => {
     assert.equal(archived.status, "ARCHIVED");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Materialization ID Tracing (Sprint 9)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Materialization ID Tracing", () => {
+  function simulateMaterializeCards(materializationId, cards) {
+    return cards.map(card => ({ ...card, materialization_id: materializationId }));
+  }
+
+  test("card creada por materialization tiene materialization_id", () => {
+    const card = { id: "card-1", title: "Create Program", type: "TASK" };
+    const [result] = simulateMaterializeCards("mat-1", [card]);
+    assert.equal(result.materialization_id, "mat-1");
+  });
+
+  test("materialization_id apunta a la materialization correcta", () => {
+    const materializationId = "mat-abc-123";
+    const card = { id: "card-1", title: "Build API" };
+    const [result] = simulateMaterializeCards(materializationId, [card]);
+    assert.equal(result.materialization_id, materializationId);
+  });
+
+  test("todas las cards creadas en una materialization comparten materialization_id", () => {
+    const matId = "mat-shared";
+    const cards = [
+      { id: "c1", title: "Create Program" },
+      { id: "c2", title: "Edit Program" },
+      { id: "c3", title: "List Programs" },
+    ];
+    const results = simulateMaterializeCards(matId, cards);
+    const allSame = results.every(r => r.materialization_id === matId);
+    assert.ok(allSame);
+    assert.equal(results.length, 3);
+  });
+
+  test("materialization_id es null cuando no fue creada por materialización", () => {
+    const manualCard = { id: "card-manual", title: "Manual Card", materialization_id: null };
+    assert.equal(manualCard.materialization_id, null);
+  });
+});

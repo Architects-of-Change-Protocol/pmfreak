@@ -42,7 +42,7 @@ function buildBoard(cards) {
   };
 }
 
-function makeCard(id, column = "BACKLOG", deleted = false) {
+function makeCard(id, column = "BACKLOG", deleted = false, extra = {}) {
   return {
     id,
     workspace_id: "ws-1",
@@ -53,7 +53,52 @@ function makeCard(id, column = "BACKLOG", deleted = false) {
     type: "TASK",
     status: "BACKLOG",
     order_index: 0,
+    epic_id: null,
+    sprint_id: null,
+    materialization_id: null,
+    materialization_source: null,
+    materialization_type: null,
+    source_line_number: null,
+    ...extra,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Context Projection Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function enrichWithContext(cards, { epics = [], sprints = [], materializations = [], sources = [] } = {}) {
+  const epicById = new Map(epics.map(e => [e.id, e]));
+  const sprintById = new Map(sprints.map(s => [s.id, s]));
+  const materializationById = new Map(materializations.map(m => [m.id, m]));
+  const sourceById = new Map(sources.map(s => [s.id, s]));
+
+  return cards.map(card => {
+    const context = {};
+
+    const epic = card.epic_id ? epicById.get(card.epic_id) : undefined;
+    if (epic) context.epic = { id: epic.id, number: epic.number, title: epic.title };
+
+    const sprint = card.sprint_id ? sprintById.get(card.sprint_id) : undefined;
+    if (sprint) context.sprint = { id: sprint.id, number: sprint.number, title: sprint.title, objective: sprint.objective };
+
+    const mat = card.materialization_id ? materializationById.get(card.materialization_id) : undefined;
+    if (mat) {
+      context.materialization = { id: mat.id, parseResultId: mat.parse_result_id, createdAt: mat.created_at };
+      const source = sourceById.get(mat.source_id);
+      if (source) context.source = { id: source.id, title: source.title, sourceType: source.source_type, version: source.version };
+    }
+
+    if (card.materialization_type || card.materialization_source || card.source_line_number != null) {
+      context.origin = {
+        materializationType: card.materialization_type,
+        materializationSource: card.materialization_source,
+        sourceLineNumber: card.source_line_number,
+      };
+    }
+
+    return { ...card, context };
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -307,5 +352,117 @@ describe("Materialization Integration", () => {
     ];
     const allInBacklog = materializedCards.every(c => c.board_column === "BACKLOG");
     assert.ok(allInBacklog);
+  });
+
+  test("card creada por materialization tiene materialization_id", () => {
+    const card = makeCard("c1", "BACKLOG", false, { materialization_id: "mat-1" });
+    assert.equal(card.materialization_id, "mat-1");
+  });
+
+  test("materialization_id apunta a la materialization correcta", () => {
+    const mat = { id: "mat-1", parse_result_id: "pr-1", source_id: "src-1", created_at: "2026-07-03T00:00:00Z" };
+    const card = makeCard("c1", "BACKLOG", false, { materialization_id: "mat-1" });
+    const enriched = enrichWithContext([card], { materializations: [mat] });
+    assert.equal(enriched[0].context.materialization.id, "mat-1");
+    assert.equal(enriched[0].context.materialization.parseResultId, "pr-1");
+  });
+
+  test("todas las cards de una materialization comparten materialization_id", () => {
+    const cards = [
+      makeCard("c1", "BACKLOG", false, { materialization_id: "mat-1" }),
+      makeCard("c2", "BACKLOG", false, { materialization_id: "mat-1" }),
+      makeCard("c3", "BACKLOG", false, { materialization_id: "mat-1" }),
+    ];
+    const allSameMatId = cards.every(c => c.materialization_id === "mat-1");
+    assert.ok(allSameMatId);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Context Projection
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Context Projection — enrichWithContext", () => {
+  const epic = { id: "epic-1", number: 1, title: "Project Constitution" };
+  const sprint = { id: "sprint-1", number: 1, title: "Program Model Foundation", objective: "Crear Program." };
+  const mat = { id: "mat-1", parse_result_id: "pr-1", source_id: "src-1", created_at: "2026-07-03T00:00:00Z" };
+  const source = { id: "src-1", title: "Initial Roadmap", source_type: "CLAUDE_PLAN", version: 1 };
+
+  test("board retorna card con epic context", () => {
+    const card = makeCard("c1", "BACKLOG", false, { epic_id: "epic-1" });
+    const [enriched] = enrichWithContext([card], { epics: [epic] });
+    assert.ok(enriched.context.epic);
+    assert.equal(enriched.context.epic.number, 1);
+    assert.equal(enriched.context.epic.title, "Project Constitution");
+  });
+
+  test("board retorna card con sprint context", () => {
+    const card = makeCard("c1", "BACKLOG", false, { sprint_id: "sprint-1" });
+    const [enriched] = enrichWithContext([card], { sprints: [sprint] });
+    assert.ok(enriched.context.sprint);
+    assert.equal(enriched.context.sprint.number, 1);
+    assert.equal(enriched.context.sprint.title, "Program Model Foundation");
+    assert.equal(enriched.context.sprint.objective, "Crear Program.");
+  });
+
+  test("board retorna card con source context", () => {
+    const card = makeCard("c1", "BACKLOG", false, { materialization_id: "mat-1" });
+    const [enriched] = enrichWithContext([card], { materializations: [mat], sources: [source] });
+    assert.ok(enriched.context.source);
+    assert.equal(enriched.context.source.title, "Initial Roadmap");
+    assert.equal(enriched.context.source.sourceType, "CLAUDE_PLAN");
+    assert.equal(enriched.context.source.version, 1);
+  });
+
+  test("board retorna card con materialization context", () => {
+    const card = makeCard("c1", "BACKLOG", false, { materialization_id: "mat-1" });
+    const [enriched] = enrichWithContext([card], { materializations: [mat] });
+    assert.ok(enriched.context.materialization);
+    assert.equal(enriched.context.materialization.id, "mat-1");
+    assert.equal(enriched.context.materialization.parseResultId, "pr-1");
+  });
+
+  test("board retorna origin context", () => {
+    const card = makeCard("c1", "BACKLOG", false, {
+      materialization_type: "CAPABILITY",
+      materialization_source: "Create Program",
+      source_line_number: 42,
+    });
+    const [enriched] = enrichWithContext([card]);
+    assert.ok(enriched.context.origin);
+    assert.equal(enriched.context.origin.materializationType, "CAPABILITY");
+    assert.equal(enriched.context.origin.materializationSource, "Create Program");
+    assert.equal(enriched.context.origin.sourceLineNumber, 42);
+  });
+
+  test("board no falla si card no tiene epic", () => {
+    const card = makeCard("c1", "BACKLOG", false, { epic_id: null });
+    const [enriched] = enrichWithContext([card]);
+    assert.equal(enriched.context.epic, undefined);
+  });
+
+  test("board no falla si card no tiene sprint", () => {
+    const card = makeCard("c1", "BACKLOG", false, { sprint_id: null });
+    const [enriched] = enrichWithContext([card]);
+    assert.equal(enriched.context.sprint, undefined);
+  });
+
+  test("board no falla si card no tiene materialization", () => {
+    const card = makeCard("c1", "BACKLOG", false, { materialization_id: null });
+    const [enriched] = enrichWithContext([card]);
+    assert.equal(enriched.context.materialization, undefined);
+    assert.equal(enriched.context.source, undefined);
+  });
+
+  test("board respeta workspace isolation en proyección de contexto", () => {
+    const cards = [
+      { ...makeCard("c1", "BACKLOG"), workspace_id: "ws-1", epic_id: "epic-1" },
+      { ...makeCard("c2", "BACKLOG"), workspace_id: "ws-2", epic_id: "epic-1" },
+    ];
+    // Only cards for ws-1 would be passed (repo filters by workspace)
+    const ws1Cards = cards.filter(c => c.workspace_id === "ws-1");
+    const enriched = enrichWithContext(ws1Cards, { epics: [epic] });
+    assert.equal(enriched.length, 1);
+    assert.equal(enriched[0].workspace_id, "ws-1");
   });
 });

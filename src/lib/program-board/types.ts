@@ -1,4 +1,4 @@
-import type { ProgramBoardColumn, ProgramCardRow } from "@/lib/db/database-contract";
+import type { ProgramBoardColumn, ProgramCardRow, ProgramCardMaterializationType } from "@/lib/db/database-contract";
 
 export type { ProgramBoardColumn, ProgramCardRow };
 
@@ -16,12 +16,46 @@ export type ProgramBoardStats = {
   completionPercentage: number;
 };
 
+export type ProgramCardContext = {
+  epic?: {
+    id: string;
+    number: number;
+    title: string;
+  };
+  sprint?: {
+    id: string;
+    number: number;
+    title: string;
+    objective?: string | null;
+  };
+  source?: {
+    id: string;
+    title?: string | null;
+    sourceType: string;
+    version: number;
+  };
+  materialization?: {
+    id: string;
+    parseResultId: string;
+    createdAt: string;
+  };
+  origin?: {
+    materializationType?: ProgramCardMaterializationType | null;
+    materializationSource?: string | null;
+    sourceLineNumber?: number | null;
+  };
+};
+
+export type ProgramBoardCard = ProgramCardRow & {
+  context: ProgramCardContext;
+};
+
 export type ProgramExecutionBoard = {
-  backlog: ProgramCardRow[];
-  ready: ProgramCardRow[];
-  inProgress: ProgramCardRow[];
-  inReview: ProgramCardRow[];
-  done: ProgramCardRow[];
+  backlog: ProgramBoardCard[];
+  ready: ProgramBoardCard[];
+  inProgress: ProgramBoardCard[];
+  inReview: ProgramBoardCard[];
+  done: ProgramBoardCard[];
   stats: ProgramBoardStats;
 };
 
