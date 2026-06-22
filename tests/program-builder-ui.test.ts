@@ -125,3 +125,61 @@ describe("Program Builder UI — Board Stats Formatting", () => {
     assert.equal(result, "0 cards · 0% complete");
   });
 });
+
+// Context label formatters
+
+function formatEpicContextLabel(epic: { number: number; title: string }): string {
+  return `Epic ${epic.number} — ${epic.title}`;
+}
+
+function formatSprintContextLabel(sprint: { number: number; title: string }): string {
+  return `Sprint ${sprint.number} — ${sprint.title}`;
+}
+
+function formatSourceContextLabel(source: { title?: string | null; sourceType: string; version: number }): string {
+  return `Source: ${source.title ?? source.sourceType} v${source.version}`;
+}
+
+function formatOriginLabel(origin: { materializationSource?: string | null; sourceLineNumber?: number | null }): string {
+  if (!origin.materializationSource) return "";
+  let label = `Origin: ${origin.materializationSource}`;
+  if (origin.sourceLineNumber != null) label += ` · Line ${origin.sourceLineNumber}`;
+  return label;
+}
+
+describe("Program Builder UI — Context Formatting", () => {
+  it("formatea epic context label", () => {
+    const label = formatEpicContextLabel({ number: 1, title: "Project Constitution" });
+    assert.equal(label, "Epic 1 — Project Constitution");
+  });
+
+  it("formatea sprint context label", () => {
+    const label = formatSprintContextLabel({ number: 1, title: "Program Model Foundation" });
+    assert.equal(label, "Sprint 1 — Program Model Foundation");
+  });
+
+  it("formatea source context label con title", () => {
+    const label = formatSourceContextLabel({ title: "Initial Roadmap", sourceType: "CLAUDE_PLAN", version: 1 });
+    assert.equal(label, "Source: Initial Roadmap v1");
+  });
+
+  it("formatea source context label sin title usa sourceType", () => {
+    const label = formatSourceContextLabel({ title: null, sourceType: "CLAUDE_PLAN", version: 2 });
+    assert.equal(label, "Source: CLAUDE_PLAN v2");
+  });
+
+  it("formatea origin label con line number", () => {
+    const label = formatOriginLabel({ materializationSource: "Create Program", sourceLineNumber: 42 });
+    assert.equal(label, "Origin: Create Program · Line 42");
+  });
+
+  it("formatea origin label sin line number", () => {
+    const label = formatOriginLabel({ materializationSource: "Create Program", sourceLineNumber: null });
+    assert.equal(label, "Origin: Create Program");
+  });
+
+  it("card sin contexto no falla — origen vacío", () => {
+    const label = formatOriginLabel({ materializationSource: null, sourceLineNumber: null });
+    assert.equal(label, "");
+  });
+});

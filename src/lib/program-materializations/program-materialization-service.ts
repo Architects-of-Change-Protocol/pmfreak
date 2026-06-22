@@ -214,6 +214,7 @@ export async function materializeProgramRoadmap(
         materializationSource: materialization.id,
         materializationType: cardPlan.materializationType,
         sourceLineNumber: cardPlan.sourceLineNumber,
+        materializationId: materialization.id,
       });
       if (!cardResult.ok) {
         report.warnings.push(`Failed to create card "${cardPlan.title}": ${cardResult.error}`);

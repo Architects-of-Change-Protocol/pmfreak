@@ -1,6 +1,6 @@
 "use client";
 
-import type { ProgramCardRow, ProgramBoardColumn } from "@/lib/program-builder-client";
+import type { ProgramBoardCard, ProgramBoardColumn } from "@/lib/program-builder-client";
 
 const VALID_TRANSITIONS: Record<ProgramBoardColumn, ProgramBoardColumn[]> = {
   BACKLOG:     ["READY"],
@@ -31,7 +31,7 @@ const CARD_TYPE_BADGE: Record<string, string> = {
 };
 
 type Props = {
-  card: ProgramCardRow;
+  card: ProgramBoardCard;
   onMove: (cardId: string, targetColumn: ProgramBoardColumn) => Promise<void>;
   moving: boolean;
 };
@@ -39,6 +39,7 @@ type Props = {
 export function ExecutionCard({ card, onMove, moving }: Props) {
   const transitions = VALID_TRANSITIONS[card.board_column] ?? [];
   const typeBadge = CARD_TYPE_BADGE[card.type] ?? CARD_TYPE_BADGE.CUSTOM;
+  const { context } = card;
 
   return (
     <div className="rounded-xl border border-white/10 bg-black/25 p-3 transition hover:border-white/20">
@@ -59,12 +60,34 @@ export function ExecutionCard({ card, onMove, moving }: Props) {
         <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-zinc-500">{card.prompt_body}</p>
       )}
 
-      {(card.epic_id || card.sprint_id) && (
-        <p className="mt-1 text-[9px] text-zinc-600">
-          {card.epic_id && <span>Epic context</span>}
-          {card.epic_id && card.sprint_id && <span> · </span>}
-          {card.sprint_id && <span>Sprint context</span>}
-        </p>
+      {(context.epic || context.sprint || context.source) ? (
+        <div className="mt-1.5 space-y-0.5">
+          {context.epic && (
+            <p className="text-[9px] text-zinc-500">
+              Epic {context.epic.number} — {context.epic.title}
+            </p>
+          )}
+          {context.sprint && (
+            <p className="text-[9px] text-zinc-500">
+              Sprint {context.sprint.number} — {context.sprint.title}
+            </p>
+          )}
+          {context.source && (
+            <p className="text-[9px] text-zinc-600">
+              Source: {context.source.title ?? context.source.sourceType} v{context.source.version}
+            </p>
+          )}
+          {context.origin?.materializationSource && (
+            <p className="text-[9px] text-zinc-700">
+              Origin: {context.origin.materializationSource}
+              {context.origin.sourceLineNumber != null && ` · Line ${context.origin.sourceLineNumber}`}
+            </p>
+          )}
+        </div>
+      ) : (
+        !card.epic_id && !card.sprint_id && (
+          <p className="mt-1.5 text-[9px] text-zinc-700">No source context available</p>
+        )
       )}
 
       {transitions.length > 0 && (

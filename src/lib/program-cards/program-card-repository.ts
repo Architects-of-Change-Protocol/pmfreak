@@ -25,6 +25,7 @@ export async function dbCreateProgramCard(input: {
   materializationSource?: string | null;
   materializationType?: string | null;
   sourceLineNumber?: number | null;
+  materializationId?: string | null;
   boardColumn?: string;
 }): Promise<ProgramCardResult<ProgramCardRow>> {
   const supabase = await createSupabaseServerClient();
@@ -44,6 +45,7 @@ export async function dbCreateProgramCard(input: {
       materialization_source: input.materializationSource ?? null,
       materialization_type: input.materializationType ?? null,
       source_line_number: input.sourceLineNumber ?? null,
+      materialization_id: input.materializationId ?? null,
       board_column: input.boardColumn ?? "BACKLOG",
     })
     .select(COLUMNS)

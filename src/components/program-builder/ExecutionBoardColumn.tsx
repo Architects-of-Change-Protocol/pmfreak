@@ -1,4 +1,4 @@
-import type { ProgramCardRow, ProgramBoardColumn } from "@/lib/program-builder-client";
+import type { ProgramBoardCard, ProgramBoardColumn } from "@/lib/program-builder-client";
 import { ExecutionCard } from "./ExecutionCard";
 
 const COLUMN_LABELS: Record<ProgramBoardColumn, string> = {
@@ -27,7 +27,7 @@ const COLUMN_HEADER: Record<ProgramBoardColumn, string> = {
 
 type Props = {
   column: ProgramBoardColumn;
-  cards: ProgramCardRow[];
+  cards: ProgramBoardCard[];
   onMove: (cardId: string, targetColumn: ProgramBoardColumn) => Promise<void>;
   movingCardId: string | null;
 };

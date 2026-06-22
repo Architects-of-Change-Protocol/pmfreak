@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { getExecutionBoard, moveProgramCard } from "@/lib/program-builder-client";
-import type { ProgramExecutionBoard, ProgramBoardColumn, ProgramCardRow } from "@/lib/program-builder-client";
+import type { ProgramExecutionBoard, ProgramBoardColumn, ProgramBoardCard } from "@/lib/program-builder-client";
 import { ExecutionBoardColumn } from "./ExecutionBoardColumn";
 import { ProgramErrorState } from "./ProgramErrorState";
 
@@ -65,7 +65,7 @@ export function ExecutionBoard({ programId }: Props) {
   if (error) return <ProgramErrorState message={error} />;
   if (!board) return null;
 
-  const colCards: Record<ProgramBoardColumn, ProgramCardRow[]> = {
+  const colCards: Record<ProgramBoardColumn, ProgramBoardCard[]> = {
     BACKLOG:     board.backlog,
     READY:       board.ready,
     IN_PROGRESS: board.inProgress,
@@ -101,7 +101,7 @@ export function ExecutionBoard({ programId }: Props) {
 
       <div className="flex gap-3 overflow-x-auto pb-3">
         {COLUMNS.map((col) => {
-          const cards: ProgramCardRow[] = colCards[col];
+          const cards: ProgramBoardCard[] = colCards[col];
           return (
             <ExecutionBoardColumn
               key={col}

@@ -1,5 +1,13 @@
 import { createPlatformEvent } from "@/lib/platform-events";
-import { dbGetProgramCards, dbGetProgramCardById, dbUpdateBoardColumn } from "./program-board-repository";
+import {
+  dbGetProgramCards,
+  dbGetProgramCardById,
+  dbUpdateBoardColumn,
+  dbGetProgramEpicsByIds,
+  dbGetProgramSprintsByIds,
+  dbGetProgramMaterializationsByIds,
+  dbGetProgramRoadmapSourcesByIds,
+} from "./program-board-repository";
 import { VALID_TRANSITIONS, resolveMovedEventType } from "./types";
 import type {
   ProgramBoardColumn,
@@ -7,6 +15,8 @@ import type {
   ProgramBoardStats,
   ProgramExecutionBoard,
   ProgramCardRow,
+  ProgramBoardCard,
+  ProgramCardContext,
 } from "./types";
 
 function validUuid(v: string | null | undefined): v is string {
@@ -14,6 +24,10 @@ function validUuid(v: string | null | undefined): v is string {
 }
 function validation<T>(error: string): ProgramBoardResult<T> {
   return { ok: false, error, failureClass: "validation_failed" };
+}
+
+function unique<T>(arr: (T | null | undefined)[]): T[] {
+  return [...new Set(arr.filter((v): v is T => v != null))];
 }
 
 function buildStats(cards: ProgramCardRow[]): ProgramBoardStats {
@@ -27,6 +41,70 @@ function buildStats(cards: ProgramCardRow[]): ProgramBoardStats {
   return { totalCards: total, backlogCount, readyCount, inProgressCount, inReviewCount, doneCount, completionPercentage };
 }
 
+async function enrichProgramCardsWithContext(input: {
+  workspaceId: string;
+  programId: string;
+  cards: ProgramCardRow[];
+}): Promise<ProgramBoardCard[]> {
+  const { workspaceId, programId, cards } = input;
+
+  const epicIds = unique(cards.map(c => c.epic_id));
+  const sprintIds = unique(cards.map(c => c.sprint_id));
+  const materializationIds = unique(cards.map(c => c.materialization_id));
+
+  const [epicsResult, sprintsResult, matsResult] = await Promise.all([
+    dbGetProgramEpicsByIds({ workspaceId, programId, epicIds }),
+    dbGetProgramSprintsByIds({ workspaceId, programId, sprintIds }),
+    dbGetProgramMaterializationsByIds({ workspaceId, programId, materializationIds }),
+  ]);
+
+  const epics = epicsResult.ok ? epicsResult.data : [];
+  const sprints = sprintsResult.ok ? sprintsResult.data : [];
+  const materializations = matsResult.ok ? matsResult.data : [];
+
+  const sourceIds = unique(materializations.map(m => m.source_id));
+  const sourcesResult = await dbGetProgramRoadmapSourcesByIds({ workspaceId, programId, sourceIds });
+  const sources = sourcesResult.ok ? sourcesResult.data : [];
+
+  const epicById = new Map(epics.map(e => [e.id, e]));
+  const sprintById = new Map(sprints.map(s => [s.id, s]));
+  const materializationById = new Map(materializations.map(m => [m.id, m]));
+  const sourceById = new Map(sources.map(s => [s.id, s]));
+
+  return cards.map(card => {
+    const context: ProgramCardContext = {};
+
+    const epic = card.epic_id ? epicById.get(card.epic_id) : undefined;
+    if (epic) {
+      context.epic = { id: epic.id, number: epic.number, title: epic.title };
+    }
+
+    const sprint = card.sprint_id ? sprintById.get(card.sprint_id) : undefined;
+    if (sprint) {
+      context.sprint = { id: sprint.id, number: sprint.number, title: sprint.title, objective: sprint.objective };
+    }
+
+    const mat = card.materialization_id ? materializationById.get(card.materialization_id) : undefined;
+    if (mat) {
+      context.materialization = { id: mat.id, parseResultId: mat.parse_result_id, createdAt: mat.created_at };
+      const source = sourceById.get(mat.source_id);
+      if (source) {
+        context.source = { id: source.id, title: source.title, sourceType: source.source_type, version: source.version };
+      }
+    }
+
+    if (card.materialization_type || card.materialization_source || card.source_line_number != null) {
+      context.origin = {
+        materializationType: card.materialization_type,
+        materializationSource: card.materialization_source,
+        sourceLineNumber: card.source_line_number,
+      };
+    }
+
+    return { ...card, context };
+  });
+}
+
 export async function getProgramExecutionBoard(input: {
   workspaceId: string;
   programId: string;
@@ -37,14 +115,19 @@ export async function getProgramExecutionBoard(input: {
   const result = await dbGetProgramCards(input.programId, input.workspaceId);
   if (!result.ok) return result;
 
-  const cards = result.data;
+  const boardCards = await enrichProgramCardsWithContext({
+    workspaceId: input.workspaceId,
+    programId: input.programId,
+    cards: result.data,
+  });
+
   const board: ProgramExecutionBoard = {
-    backlog: cards.filter(c => c.board_column === "BACKLOG"),
-    ready: cards.filter(c => c.board_column === "READY"),
-    inProgress: cards.filter(c => c.board_column === "IN_PROGRESS"),
-    inReview: cards.filter(c => c.board_column === "IN_REVIEW"),
-    done: cards.filter(c => c.board_column === "DONE"),
-    stats: buildStats(cards),
+    backlog: boardCards.filter(c => c.board_column === "BACKLOG"),
+    ready: boardCards.filter(c => c.board_column === "READY"),
+    inProgress: boardCards.filter(c => c.board_column === "IN_PROGRESS"),
+    inReview: boardCards.filter(c => c.board_column === "IN_REVIEW"),
+    done: boardCards.filter(c => c.board_column === "DONE"),
+    stats: buildStats(result.data),
   };
 
   return { ok: true, data: board };
