@@ -298,6 +298,16 @@ export type ExecutionProjectionEventType =
   | "EXECUTION_PROJECTION_READINESS_CALCULATED"
   | "EXECUTION_PROJECTION_LINEAGE_GENERATED";
 
+// Project Operating System — EPIC 4 Sprint 1
+export type ProjectOSEventType =
+  | "PROJECT_OS_SNAPSHOT_GENERATED"
+  | "PROJECT_OS_SNAPSHOT_VALIDATED"
+  | "PROJECT_OS_SNAPSHOT_ARCHIVED"
+  | "PROJECT_OS_HEALTH_CALCULATED"
+  | "PROJECT_OS_ATTENTION_ITEM_CREATED"
+  | "PROJECT_OS_CONTEXT_COMPOSED"
+  | "PROJECT_OS_LINEAGE_GENERATED";
+
 // Union of all event types
 export type PlatformEventType =
   | ProjectEventType
@@ -325,7 +335,8 @@ export type PlatformEventType =
   | ProgramSprintEventType
   | ProgramCardEventType
   | ProgramMaterializationEventType
-  | ExecutionProjectionEventType;
+  | ExecutionProjectionEventType
+  | ProjectOSEventType;
 
 // ─── Row type (matches platform_events table) ─────────────────────────────────
 

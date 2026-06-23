@@ -3727,4 +3727,114 @@ export const EXECUTION_DRIFT_SELECTABLE_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof ExecutionDriftRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// project_os_snapshots
+// Source: 20260709000000_project_operating_system.sql
+// Central orchestration snapshot composing governance, memory, execution,
+// and intelligence data into a unified project operating view.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProjectOSSnapshotStatus = "generated" | "validated" | "archived";
+
+export type ProjectOSSnapshotRow = {
+  id: string;                                   // uuid PK
+  workspace_id: string;                         // uuid references workspaces
+  project_id: string;                           // uuid references projects
+  snapshot_status: ProjectOSSnapshotStatus;     // text not null
+  operating_health_score: number;               // numeric(5,2)
+  governance_health_score: number;              // numeric(5,2)
+  execution_health_score: number;               // numeric(5,2)
+  memory_health_score: number;                  // numeric(5,2)
+  recommendation_health_score: number;          // numeric(5,2)
+  snapshot_payload: Record<string, unknown>;    // jsonb
+  generated_at: string;                         // timestamptz
+  created_at: string;                           // timestamptz
+};
+
+export const PROJECT_OS_SNAPSHOT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "snapshot_status",
+  "operating_health_score",
+  "governance_health_score",
+  "execution_health_score",
+  "memory_health_score",
+  "recommendation_health_score",
+  "snapshot_payload",
+  "generated_at",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ProjectOSSnapshotRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// project_os_attention_items
+// Source: 20260709000000_project_operating_system.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProjectOSAttentionType =
+  | "critical_signal"
+  | "overdue_commitment"
+  | "execution_drift"
+  | "governance_violation"
+  | "ratification_stall"
+  | "authority_gap"
+  | "low_health_score"
+  | "ignored_recommendation"
+  | "projection_variance";
+
+export type ProjectOSAttentionSeverity = "low" | "medium" | "high" | "critical";
+
+export type ProjectOSAttentionItemRow = {
+  id: string;                                       // uuid PK
+  workspace_id: string;                             // uuid references workspaces
+  snapshot_id: string;                              // uuid references project_os_snapshots
+  attention_type: ProjectOSAttentionType;           // text not null
+  attention_severity: ProjectOSAttentionSeverity;   // text not null
+  source_entity_type: string;                       // text not null
+  source_entity_id: string;                         // uuid not null
+  title: string;                                    // text not null
+  description: string;                              // text not null
+  recommended_action: string | null;                // text
+  created_at: string;                               // timestamptz
+};
+
+export const PROJECT_OS_ATTENTION_ITEM_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "snapshot_id",
+  "attention_type",
+  "attention_severity",
+  "source_entity_type",
+  "source_entity_id",
+  "title",
+  "description",
+  "recommended_action",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ProjectOSAttentionItemRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// project_os_context_links
+// Source: 20260709000000_project_operating_system.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProjectOSContextLinkRow = {
+  id: string;               // uuid PK
+  workspace_id: string;     // uuid references workspaces
+  snapshot_id: string;      // uuid references project_os_snapshots
+  entity_type: string;      // text not null
+  entity_id: string;        // uuid not null
+  relationship_type: string; // text not null
+  created_at: string;       // timestamptz
+};
+
+export const PROJECT_OS_CONTEXT_LINK_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "snapshot_id",
+  "entity_type",
+  "entity_id",
+  "relationship_type",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ProjectOSContextLinkRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system" as const;
