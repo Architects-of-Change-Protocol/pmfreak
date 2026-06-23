@@ -3964,4 +3964,159 @@ export const OPERATIONAL_FOCUS_LINK_SELECTABLE_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof OperationalFocusLinkRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// operational_consequences
+// Source: 20260711000000_operational_consequence_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConsequenceSeverity =
+  | "low"
+  | "medium"
+  | "high"
+  | "critical"
+  | "systemic";
+
+export type ConsequenceImpactHorizon =
+  | "24h"
+  | "48h"
+  | "7d"
+  | "14d"
+  | "30d"
+  | "90d";
+
+export type ConsequenceAnalysisStatus =
+  | "generated"
+  | "validated"
+  | "archived";
+
+export type OperationalConsequenceRow = {
+  id: string;                               // uuid PK
+  workspace_id: string;                     // uuid references workspaces
+  focus_item_id: string;                    // uuid references operational_focus_items
+  severity: ConsequenceSeverity;            // text not null
+  impact_horizon: ConsequenceImpactHorizon; // text not null
+  escalation_probability: number;           // numeric(4,3)
+  impact_score: number;                     // numeric(5,2)
+  analysis_status: ConsequenceAnalysisStatus; // text not null
+  generated_at: string;                     // timestamptz
+  created_at: string;                       // timestamptz
+  updated_at: string;                       // timestamptz
+};
+
+export const OPERATIONAL_CONSEQUENCE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "focus_item_id",
+  "severity",
+  "impact_horizon",
+  "escalation_probability",
+  "impact_score",
+  "analysis_status",
+  "generated_at",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof OperationalConsequenceRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// operational_consequence_impacts
+// Source: 20260711000000_operational_consequence_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConsequenceImpactType =
+  | "governance"
+  | "execution"
+  | "authority"
+  | "ratification"
+  | "commitment"
+  | "projection"
+  | "reality"
+  | "recommendation"
+  | "risk"
+  | "health";
+
+export type OperationalConsequenceImpactRow = {
+  id: string;                           // uuid PK
+  workspace_id: string;                 // uuid references workspaces
+  consequence_id: string;               // uuid references operational_consequences
+  impact_type: ConsequenceImpactType;   // text not null
+  affected_entity_type: string;         // text not null
+  affected_entity_count: number;        // integer
+  impact_score: number;                 // numeric(5,2)
+  description: string;                  // text not null
+  created_at: string;                   // timestamptz
+};
+
+export const OPERATIONAL_CONSEQUENCE_IMPACT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "consequence_id",
+  "impact_type",
+  "affected_entity_type",
+  "affected_entity_count",
+  "impact_score",
+  "description",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof OperationalConsequenceImpactRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// operational_consequence_paths
+// Source: 20260711000000_operational_consequence_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type OperationalConsequencePathRow = {
+  id: string;                       // uuid PK
+  workspace_id: string;             // uuid references workspaces
+  consequence_id: string;           // uuid references operational_consequences
+  source_entity_type: string;       // text not null
+  source_entity_id: string;         // uuid not null
+  target_entity_type: string;       // text not null
+  target_entity_id: string;         // uuid not null
+  relationship_type: string;        // text not null
+  cascade_depth: number;            // integer
+  created_at: string;               // timestamptz
+};
+
+export const OPERATIONAL_CONSEQUENCE_PATH_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "consequence_id",
+  "source_entity_type",
+  "source_entity_id",
+  "target_entity_type",
+  "target_entity_id",
+  "relationship_type",
+  "cascade_depth",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof OperationalConsequencePathRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// operational_consequence_scenarios
+// Source: 20260711000000_operational_consequence_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConsequenceScenarioName =
+  | "best_case"
+  | "expected_case"
+  | "worst_case";
+
+export type OperationalConsequenceScenarioRow = {
+  id: string;                           // uuid PK
+  workspace_id: string;                 // uuid references workspaces
+  consequence_id: string;               // uuid references operational_consequences
+  scenario_name: ConsequenceScenarioName; // text not null
+  scenario_description: string;         // text not null
+  probability: number;                  // numeric(4,3)
+  created_at: string;                   // timestamptz
+};
+
+export const OPERATIONAL_CONSEQUENCE_SCENARIO_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "consequence_id",
+  "scenario_name",
+  "scenario_description",
+  "probability",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof OperationalConsequenceScenarioRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine" as const;
