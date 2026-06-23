@@ -3837,4 +3837,131 @@ export const PROJECT_OS_CONTEXT_LINK_SELECTABLE_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof ProjectOSContextLinkRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// operational_command_centers
+// Source: 20260710000000_operational_command_center.sql
+// EPIC 4 Sprint 2 — Operational Command Center
+// Transforms Project OS Snapshots into a prioritized operational focus layer.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type OperationalCommandStatus = "generated" | "validated" | "archived";
+export type OperationalPriority = "low" | "medium" | "high" | "critical";
+
+export type OperationalCommandCenterRow = {
+  id: string;                               // uuid PK
+  workspace_id: string;                     // uuid references workspaces
+  project_id: string;                       // uuid
+  snapshot_id: string;                      // uuid references project_os_snapshots
+  command_status: OperationalCommandStatus; // text not null
+  overall_priority: OperationalPriority;    // text not null
+  focus_score: number;                      // numeric(5,2)
+  generated_at: string;                     // timestamptz
+  created_at: string;                       // timestamptz
+  updated_at: string;                       // timestamptz
+};
+
+export const OPERATIONAL_COMMAND_CENTER_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "snapshot_id",
+  "command_status",
+  "overall_priority",
+  "focus_score",
+  "generated_at",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof OperationalCommandCenterRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// operational_focus_items
+// Source: 20260710000000_operational_command_center.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type OperationalFocusType =
+  | "governance"
+  | "execution"
+  | "authority"
+  | "ratification"
+  | "recommendation"
+  | "commitment"
+  | "projection"
+  | "reality"
+  | "risk"
+  | "health";
+
+export type OperationalFocusStatus =
+  | "open"
+  | "acknowledged"
+  | "in_progress"
+  | "resolved"
+  | "dismissed";
+
+export type OperationalFocusItemRow = {
+  id: string;                                 // uuid PK
+  workspace_id: string;                       // uuid references workspaces
+  command_center_id: string;                  // uuid references operational_command_centers
+  attention_item_id: string | null;           // uuid references project_os_attention_items
+  focus_type: OperationalFocusType;           // text not null
+  priority: OperationalPriority;              // text not null
+  focus_score: number;                        // numeric(5,2)
+  title: string;                              // text not null
+  description: string;                        // text not null
+  rationale: string;                          // text not null
+  recommended_action_type: string | null;     // text
+  recommended_owner_type: string | null;      // text
+  recommended_due_date: string | null;        // timestamptz
+  status: OperationalFocusStatus;             // text not null
+  created_at: string;                         // timestamptz
+  updated_at: string;                         // timestamptz
+  resolved_at: string | null;                 // timestamptz
+  dismissed_at: string | null;                // timestamptz
+};
+
+export const OPERATIONAL_FOCUS_ITEM_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "command_center_id",
+  "attention_item_id",
+  "focus_type",
+  "priority",
+  "focus_score",
+  "title",
+  "description",
+  "rationale",
+  "recommended_action_type",
+  "recommended_owner_type",
+  "recommended_due_date",
+  "status",
+  "created_at",
+  "updated_at",
+  "resolved_at",
+  "dismissed_at",
+] as const satisfies ReadonlyArray<keyof OperationalFocusItemRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// operational_focus_links
+// Source: 20260710000000_operational_command_center.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type OperationalFocusLinkRow = {
+  id: string;               // uuid PK
+  workspace_id: string;     // uuid references workspaces
+  focus_item_id: string;    // uuid references operational_focus_items
+  entity_type: string;      // text not null
+  entity_id: string;        // uuid not null
+  relationship_type: string; // text not null
+  created_at: string;       // timestamptz
+};
+
+export const OPERATIONAL_FOCUS_LINK_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "focus_item_id",
+  "entity_type",
+  "entity_id",
+  "relationship_type",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof OperationalFocusLinkRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center" as const;
