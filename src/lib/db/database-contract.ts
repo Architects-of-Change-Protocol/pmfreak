@@ -4442,4 +4442,99 @@ export const OPERATIONAL_LEARNING_FEEDBACK_SELECTABLE_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof OperationalLearningFeedbackRow>;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// project_managers
+// Source: 20260623000000_pm_registry_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProjectManagerStatus = "active" | "inactive" | "suspended";
+
+export type ProjectManagerRow = {
+  id: string;           // uuid
+  workspace_id: string; // uuid references workspaces
+  user_id: string | null; // uuid references auth.users (nullable)
+  display_name: string; // text not null
+  email: string;        // text not null
+  status: ProjectManagerStatus; // text not null default 'active'
+  joined_at: string;    // timestamptz
+  created_at: string;   // timestamptz
+  updated_at: string;   // timestamptz
+};
+
+export const PROJECT_MANAGER_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "user_id",
+  "display_name",
+  "email",
+  "status",
+  "joined_at",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof ProjectManagerRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// pm_assignments
+// Source: 20260623000000_pm_registry_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PMAssignmentType = "primary" | "secondary" | "program" | "observer";
+
+export type PMAssignmentRow = {
+  id: string;             // uuid
+  workspace_id: string;   // uuid references workspaces
+  pm_id: string;          // uuid references project_managers
+  project_id: string;     // uuid references projects
+  assignment_type: PMAssignmentType; // text not null
+  assigned_at: string;    // timestamptz
+  removed_at: string | null; // timestamptz (null = active)
+};
+
+export const PM_ASSIGNMENT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "pm_id",
+  "project_id",
+  "assignment_type",
+  "assigned_at",
+  "removed_at",
+] as const satisfies ReadonlyArray<keyof PMAssignmentRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// pm_profiles
+// Source: 20260623000000_pm_registry_foundation.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PMRole =
+  | "project_manager"
+  | "senior_pm"
+  | "program_manager"
+  | "portfolio_manager";
+
+export type PMExperienceLevel = "junior" | "mid" | "senior" | "principal";
+
+export type PMProfileRow = {
+  id: string;                   // uuid
+  workspace_id: string;         // uuid references workspaces
+  pm_id: string;                // uuid references project_managers
+  role: PMRole;                 // text not null default 'project_manager'
+  experience_level: PMExperienceLevel; // text not null default 'mid'
+  capacity_limit: number;       // integer not null default 100 (0-100)
+  active_projects_limit: number; // integer not null default 5
+  created_at: string;           // timestamptz
+  updated_at: string;           // timestamptz
+};
+
+export const PM_PROFILE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "pm_id",
+  "role",
+  "experience_level",
+  "capacity_limit",
+  "active_projects_limit",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof PMProfileRow>;
+
 export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine" as const;
