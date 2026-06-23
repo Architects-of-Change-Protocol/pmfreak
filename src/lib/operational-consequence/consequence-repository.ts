@@ -90,8 +90,7 @@ export async function dbListConsequences(
     .from("operational_consequences")
     .select(CC)
     .eq("workspace_id", input.workspaceId)
-    .order("created_at", { ascending: false })
-    .returns<OperationalConsequenceRow[]>();
+    .order("created_at", { ascending: false });
 
   if (input.focusItemId)    q = q.eq("focus_item_id",    input.focusItemId);
   if (input.severity)       q = q.eq("severity",         input.severity);
@@ -101,7 +100,7 @@ export async function dbListConsequences(
   if (input.toDate)         q = q.lte("created_at",      input.toDate);
   if (input.limit)          q = q.limit(input.limit);
 
-  const { data, error } = await q;
+  const { data, error } = await q.returns<OperationalConsequenceRow[]>();
   if (error) return persistFailed("list consequences");
   return { ok: true, data: data ?? [] };
 }
