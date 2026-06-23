@@ -1,5 +1,6 @@
 export {
   createPersonalPortfolio,
+  explainPersonalPortfolioIntelligence,
   addProjectToPortfolio,
   removeProjectFromPortfolio,
   listPortfolioProjects,
