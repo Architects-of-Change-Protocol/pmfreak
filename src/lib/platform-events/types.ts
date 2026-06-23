@@ -308,6 +308,20 @@ export type ProjectOSEventType =
   | "PROJECT_OS_CONTEXT_COMPOSED"
   | "PROJECT_OS_LINEAGE_GENERATED";
 
+// Operational Command Center — EPIC 4 Sprint 2
+export type OperationalCommandCenterEventType =
+  | "OPERATIONAL_COMMAND_CENTER_GENERATED"
+  | "OPERATIONAL_COMMAND_CENTER_VALIDATED"
+  | "OPERATIONAL_COMMAND_CENTER_ARCHIVED"
+  | "OPERATIONAL_FOCUS_ITEM_CREATED"
+  | "OPERATIONAL_FOCUS_ITEM_ACKNOWLEDGED"
+  | "OPERATIONAL_FOCUS_ITEM_STARTED"
+  | "OPERATIONAL_FOCUS_ITEM_RESOLVED"
+  | "OPERATIONAL_FOCUS_ITEM_DISMISSED"
+  | "OPERATIONAL_FOCUS_SCORE_CALCULATED"
+  | "OPERATIONAL_PRIORITY_CALCULATED"
+  | "OPERATIONAL_FOCUS_LINEAGE_GENERATED";
+
 // Union of all event types
 export type PlatformEventType =
   | ProjectEventType
@@ -336,7 +350,8 @@ export type PlatformEventType =
   | ProgramCardEventType
   | ProgramMaterializationEventType
   | ExecutionProjectionEventType
-  | ProjectOSEventType;
+  | ProjectOSEventType
+  | OperationalCommandCenterEventType;
 
 // ─── Row type (matches platform_events table) ─────────────────────────────────
 
