@@ -4537,4 +4537,104 @@ export const PM_PROFILE_SELECTABLE_COLUMNS = [
   "updated_at",
 ] as const satisfies ReadonlyArray<keyof PMProfileRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// pm_performance_snapshots
+// Source: 20260715000000_pm_performance_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PMPerformanceStatus = "excellent" | "strong" | "stable" | "warning" | "critical";
+
+export type PMPerformanceSnapshotRow = {
+  id: string;                              // uuid PK
+  workspace_id: string;                    // uuid references workspaces
+  pm_id: string;                           // uuid references project_managers
+  governance_score: number;                // numeric(5,2) 0-100
+  execution_score: number;                 // numeric(5,2) 0-100
+  prediction_accuracy_score: number;       // numeric(5,2) 0-100
+  decision_effectiveness_score: number;    // numeric(5,2) 0-100
+  portfolio_health_score: number;          // numeric(5,2) 0-100
+  overall_score: number;                   // numeric(5,2) 0-100
+  performance_status: PMPerformanceStatus; // text not null
+  snapshot_payload: Record<string, unknown>; // jsonb
+  generated_at: string;                    // timestamptz
+  created_at: string;                      // timestamptz
+  updated_at: string;                      // timestamptz
+};
+
+export const PM_PERFORMANCE_SNAPSHOT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "pm_id",
+  "governance_score",
+  "execution_score",
+  "prediction_accuracy_score",
+  "decision_effectiveness_score",
+  "portfolio_health_score",
+  "overall_score",
+  "performance_status",
+  "snapshot_payload",
+  "generated_at",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof PMPerformanceSnapshotRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// pm_performance_metrics
+// Source: 20260715000000_pm_performance_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PMPerformanceDomain = "governance" | "execution" | "prediction" | "decision" | "portfolio" | "overall";
+export type PMPerformanceMetricStatus = "excellent" | "strong" | "stable" | "warning" | "critical";
+
+export type PMPerformanceMetricRow = {
+  id: string;                              // uuid PK
+  workspace_id: string;                    // uuid references workspaces
+  performance_snapshot_id: string;         // uuid references pm_performance_snapshots
+  metric_domain: PMPerformanceDomain;      // text not null
+  metric_name: string;                     // text not null
+  metric_value: number;                    // numeric(7,4)
+  metric_weight: number;                   // numeric(5,4) 0-1
+  metric_status: PMPerformanceMetricStatus; // text not null
+  created_at: string;                      // timestamptz
+};
+
+export const PM_PERFORMANCE_METRIC_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "performance_snapshot_id",
+  "metric_domain",
+  "metric_name",
+  "metric_value",
+  "metric_weight",
+  "metric_status",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof PMPerformanceMetricRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// pm_performance_evidence
+// Source: 20260715000000_pm_performance_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PMPerformanceEvidenceRow = {
+  id: string;                              // uuid PK
+  workspace_id: string;                    // uuid references workspaces
+  performance_snapshot_id: string;         // uuid references pm_performance_snapshots
+  source_entity_type: string;              // text not null
+  source_entity_id: string;               // uuid not null
+  evidence_type: string;                   // text not null
+  contribution_weight: number;             // numeric(5,4) 0-1
+  created_at: string;                      // timestamptz
+};
+
+export const PM_PERFORMANCE_EVIDENCE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "performance_snapshot_id",
+  "source_entity_type",
+  "source_entity_id",
+  "evidence_type",
+  "contribution_weight",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof PMPerformanceEvidenceRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine" as const;
