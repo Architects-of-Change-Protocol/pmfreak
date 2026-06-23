@@ -3432,4 +3432,144 @@ export const GOVERNANCE_COMMITMENT_EVIDENCE_SELECTABLE_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof GovernanceCommitmentEvidenceRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// execution_projections
+// Source: 20260707000000_execution_projection_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ExecutionProjectionStatus =
+  | "generated"
+  | "validated"
+  | "approved"
+  | "rejected"
+  | "archived";
+
+export type ExecutionProjectionRisk = "low" | "medium" | "high" | "critical";
+
+export type ExecutionProjectionRow = {
+  id: string;                                   // uuid PK
+  workspace_id: string;                         // uuid references workspaces
+  commitment_id: string;                        // uuid references governance_commitments
+  projection_title: string;                     // text not null
+  projection_description: string;               // text not null
+  status: ExecutionProjectionStatus;            // text not null default 'generated'
+  estimated_effort_hours: number;               // integer not null default 0
+  estimated_duration_days: number;              // integer not null default 0
+  projected_risk: ExecutionProjectionRisk;      // text not null default 'low'
+  confidence_score: number;                     // numeric(4,3) not null default 0.0
+  generated_at: string;                         // timestamptz not null
+  validated_at: string | null;                  // timestamptz
+  approved_at: string | null;                   // timestamptz
+  archived_at: string | null;                   // timestamptz
+  created_at: string;                           // timestamptz
+  updated_at: string;                           // timestamptz
+};
+
+export const EXECUTION_PROJECTION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "commitment_id",
+  "projection_title",
+  "projection_description",
+  "status",
+  "estimated_effort_hours",
+  "estimated_duration_days",
+  "projected_risk",
+  "confidence_score",
+  "generated_at",
+  "validated_at",
+  "approved_at",
+  "archived_at",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof ExecutionProjectionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// execution_projection_tasks
+// Source: 20260707000000_execution_projection_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ExecutionProjectionTaskRow = {
+  id: string;              // uuid PK
+  workspace_id: string;    // uuid references workspaces
+  projection_id: string;   // uuid references execution_projections
+  task_name: string;       // text not null
+  task_description: string; // text not null
+  estimated_hours: number; // integer not null default 0
+  sequence_order: number;  // integer not null default 0
+  owner_type: string;      // text not null
+  created_at: string;      // timestamptz
+};
+
+export const EXECUTION_PROJECTION_TASK_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "projection_id",
+  "task_name",
+  "task_description",
+  "estimated_hours",
+  "sequence_order",
+  "owner_type",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ExecutionProjectionTaskRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// execution_projection_dependencies
+// Source: 20260707000000_execution_projection_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ExecutionProjectionDependencyType =
+  | "decision"
+  | "authority"
+  | "ratification"
+  | "amendment"
+  | "resource";
+
+export type ExecutionProjectionDependencyCriticality = "low" | "medium" | "high" | "critical";
+
+export type ExecutionProjectionDependencyRow = {
+  id: string;                                                   // uuid PK
+  workspace_id: string;                                         // uuid references workspaces
+  projection_id: string;                                        // uuid references execution_projections
+  dependency_type: ExecutionProjectionDependencyType;           // text not null
+  dependency_reference: string;                                 // text not null
+  criticality: ExecutionProjectionDependencyCriticality;        // text not null default 'medium'
+  created_at: string;                                           // timestamptz
+};
+
+export const EXECUTION_PROJECTION_DEPENDENCY_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "projection_id",
+  "dependency_type",
+  "dependency_reference",
+  "criticality",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ExecutionProjectionDependencyRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// execution_projection_participants
+// Source: 20260707000000_execution_projection_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ExecutionProjectionParticipantRow = {
+  id: string;                    // uuid PK
+  workspace_id: string;          // uuid references workspaces
+  projection_id: string;         // uuid references execution_projections
+  participant_type: string;      // text not null
+  participant_reference: string; // text not null
+  responsibility: string;        // text not null
+  created_at: string;            // timestamptz
+};
+
+export const EXECUTION_PROJECTION_PARTICIPANT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "projection_id",
+  "participant_type",
+  "participant_reference",
+  "responsibility",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ExecutionProjectionParticipantRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine" as const;
