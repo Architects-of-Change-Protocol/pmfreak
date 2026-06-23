@@ -3279,4 +3279,157 @@ export const GOVERNANCE_ACTION_ASSIGNMENT_SELECTABLE_COLUMNS = [
   "completed_at",
 ] as const satisfies ReadonlyArray<keyof GovernanceActionAssignmentRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// governance_commitments
+// Source: 20260706000000_governance_commitment_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GovernanceCommitmentStatus =
+  | "pending_acceptance"
+  | "accepted"
+  | "rejected"
+  | "active"
+  | "completed"
+  | "breached"
+  | "cancelled"
+  | "delegated"
+  | "expired";
+
+export type GovernanceCommitmentPriority = "low" | "medium" | "high" | "critical";
+
+export type GovernanceCommitmentOutcome = "successful" | "partial" | "failed" | "unknown";
+
+export type GovernanceCommitmentRow = {
+  id: string;                                      // uuid PK
+  workspace_id: string;                            // uuid references workspaces
+  action_id: string;                               // uuid references governance_actions
+  commitment_title: string;                        // text not null
+  commitment_description: string;                  // text not null
+  owner_id: string;                                // uuid not null
+  owner_type: string;                              // text not null
+  priority: GovernanceCommitmentPriority;          // text not null
+  status: GovernanceCommitmentStatus;              // text not null default 'pending_acceptance'
+  due_date: string;                                // timestamptz not null
+  accepted_at: string | null;                      // timestamptz
+  started_at: string | null;                       // timestamptz
+  completed_at: string | null;                     // timestamptz
+  cancelled_at: string | null;                     // timestamptz
+  breached_at: string | null;                      // timestamptz
+  expired_at: string | null;                       // timestamptz
+  outcome: GovernanceCommitmentOutcome | null;     // text
+  created_at: string;                              // timestamptz
+  updated_at: string;                              // timestamptz
+};
+
+export const GOVERNANCE_COMMITMENT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "action_id",
+  "commitment_title",
+  "commitment_description",
+  "owner_id",
+  "owner_type",
+  "priority",
+  "status",
+  "due_date",
+  "accepted_at",
+  "started_at",
+  "completed_at",
+  "cancelled_at",
+  "breached_at",
+  "expired_at",
+  "outcome",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof GovernanceCommitmentRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// governance_commitment_history
+// Source: 20260706000000_governance_commitment_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GovernanceCommitmentHistoryRow = {
+  id: string;              // uuid PK
+  workspace_id: string;    // uuid references workspaces
+  commitment_id: string;   // uuid references governance_commitments
+  previous_status: string; // text not null
+  new_status: string;      // text not null
+  changed_by: string;      // uuid not null
+  reason: string | null;   // text
+  created_at: string;      // timestamptz
+};
+
+export const GOVERNANCE_COMMITMENT_HISTORY_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "commitment_id",
+  "previous_status",
+  "new_status",
+  "changed_by",
+  "reason",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof GovernanceCommitmentHistoryRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// governance_commitment_delegations
+// Source: 20260706000000_governance_commitment_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GovernanceCommitmentDelegationStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "cancelled";
+
+export type GovernanceCommitmentDelegationRow = {
+  id: string;              // uuid PK
+  workspace_id: string;    // uuid references workspaces
+  commitment_id: string;   // uuid references governance_commitments
+  delegated_by: string;    // uuid not null
+  delegated_to: string;    // uuid not null
+  reason: string;          // text not null
+  delegated_at: string;    // timestamptz
+  accepted_at: string | null; // timestamptz
+  status: GovernanceCommitmentDelegationStatus; // text not null
+  created_at: string;      // timestamptz
+};
+
+export const GOVERNANCE_COMMITMENT_DELEGATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "commitment_id",
+  "delegated_by",
+  "delegated_to",
+  "reason",
+  "delegated_at",
+  "accepted_at",
+  "status",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof GovernanceCommitmentDelegationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// governance_commitment_evidence
+// Source: 20260706000000_governance_commitment_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GovernanceCommitmentEvidenceRow = {
+  id: string;                       // uuid PK
+  workspace_id: string;             // uuid references workspaces
+  commitment_id: string;            // uuid references governance_commitments
+  artifact_id: string | null;       // uuid
+  memory_record_id: string | null;  // uuid
+  description: string;              // text not null
+  created_at: string;               // timestamptz
+};
+
+export const GOVERNANCE_COMMITMENT_EVIDENCE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "commitment_id",
+  "artifact_id",
+  "memory_record_id",
+  "description",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof GovernanceCommitmentEvidenceRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine" as const;
