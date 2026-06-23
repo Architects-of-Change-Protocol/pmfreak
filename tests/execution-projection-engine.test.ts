@@ -331,7 +331,7 @@ function compareExecutionProjections(a: { id: string; estimated_effort_hours: nu
   const confDiff     = round3(b.confidence_score - a.confidence_score);
   const rA = RISK_ORDER[a.projected_risk] ?? 0;
   const rB = RISK_ORDER[b.projected_risk] ?? 0;
-  let riskComparison = rA === rB ? "equal" : rB > rA ? `b_higher_by_${rB - rA}` : `a_higher_by_${rA - rB}`;
+  const riskComparison = rA === rB ? "equal" : rB > rA ? `b_higher_by_${rB - rA}` : `a_higher_by_${rA - rB}`;
   return { projectionA: a.id, projectionB: b.id, effortDifferenceHours: effortDiff, durationDifferenceDays: durationDiff, riskComparison, confidenceDifference: confDiff };
 }
 
