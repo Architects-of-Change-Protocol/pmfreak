@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-require-imports */
+// @ts-nocheck -- Node 20 executes this TypeScript-named test without a loader.
 // ─────────────────────────────────────────────────────────────────────────────
 // Governance Action Engine — Test Suite
 // EPIC 3, Sprint 2

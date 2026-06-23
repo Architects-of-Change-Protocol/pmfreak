@@ -20,7 +20,7 @@ export {
 
 // Generation engine
 export { generateActionsForSignalType } from "./generation-engine";
-export type { SignalContext, ActionPriorityFactors } from "./generation-engine";
+export type { SignalContext } from "./generation-engine";
 
 // Priority engine
 export { calculateActionPriority } from "./priority-engine";
