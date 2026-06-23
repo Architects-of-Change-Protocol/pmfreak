@@ -5,6 +5,7 @@ import type { ConsequenceLineage, ConsequenceLineageLayer, ConsequenceResult } f
 // Reconstructs the full lineage chain from constitution → consequence_analysis.
 // 13 layers total: constitution, memory, learning, recommendation, signal, action,
 // commitment, projection, reality, snapshot, command_center, focus_item, consequence_analysis.
+// Table names match existing migrations — see command-center lineage-engine.ts for reference.
 
 export async function getOperationalConsequenceLineage(input: {
   workspaceId: string;
@@ -27,13 +28,14 @@ export async function getOperationalConsequenceLineage(input: {
   // Load focus item to get command_center_id
   const { data: focusItem } = await supabase
     .from("operational_focus_items")
-    .select("id, command_center_id, attention_item_id, focus_type")
+    .select("id, command_center_id")
     .eq("id", consequence.focus_item_id)
     .eq("workspace_id", input.workspaceId)
     .single();
 
-  // Load command center to get snapshot_id and project_id
   const commandCenterId = focusItem?.command_center_id ?? null;
+
+  // Load command center to get snapshot_id and project_id
   const { data: commandCenter } = commandCenterId
     ? await supabase
         .from("operational_command_centers")
@@ -43,37 +45,77 @@ export async function getOperationalConsequenceLineage(input: {
         .single()
     : { data: null };
 
-  const snapshotId  = commandCenter?.snapshot_id ?? null;
-  const projectId   = commandCenter?.project_id  ?? input.workspaceId;
+  const snapshotId = commandCenter?.snapshot_id ?? null;
+  const projectId  = (commandCenter?.project_id as string) ?? null;
 
-  // Count upstream entities
-  const [constitutions, memories, learnings, recommendations, signals, actions, commitments, projections, realities] =
-    await Promise.all([
-      count(supabase, "project_constitutions",       "project_id",  projectId,         input.workspaceId),
-      count(supabase, "organizational_memories",     "workspace_id", input.workspaceId, null),
-      count(supabase, "constitutional_learnings",    "workspace_id", input.workspaceId, null),
-      count(supabase, "sovereign_recommendations",   "workspace_id", input.workspaceId, null),
-      count(supabase, "governance_signals",          "workspace_id", input.workspaceId, null),
-      count(supabase, "governance_actions",          "workspace_id", input.workspaceId, null),
-      count(supabase, "governance_commitments",      "workspace_id", input.workspaceId, null),
-      count(supabase, "execution_projections",       "workspace_id", input.workspaceId, null),
-      count(supabase, "execution_realities",         "workspace_id", input.workspaceId, null),
-    ]);
+  // Fetch domain counts in parallel — scoped to project where possible,
+  // matching the pattern in command-center lineage-engine.ts.
+  const [
+    constitutionResult,
+    memoryResult,
+    learningResult,
+    recommendationResult,
+    signalResult,
+    actionResult,
+    commitmentResult,
+    projectionResult,
+    realityResult,
+  ] = await Promise.all([
+    supabase.from("project_constitutions")
+      .select("id")
+      .eq("workspace_id", input.workspaceId)
+      .eq("project_id", projectId ?? ""),
+
+    supabase.from("operational_memory_entries")
+      .select("id")
+      .eq("workspace_id", input.workspaceId)
+      .eq("project_id", projectId ?? ""),
+
+    supabase.from("learning_patterns")
+      .select("id")
+      .eq("workspace_id", input.workspaceId),
+
+    supabase.from("recommendations")
+      .select("id")
+      .eq("workspace_id", input.workspaceId),
+
+    supabase.from("governance_signals")
+      .select("id")
+      .eq("workspace_id", input.workspaceId),
+
+    supabase.from("governance_actions")
+      .select("id")
+      .eq("workspace_id", input.workspaceId),
+
+    supabase.from("governance_commitments")
+      .select("id")
+      .eq("workspace_id", input.workspaceId)
+      .eq("project_id", projectId ?? ""),
+
+    supabase.from("execution_projections")
+      .select("id")
+      .eq("workspace_id", input.workspaceId)
+      .eq("project_id", projectId ?? ""),
+
+    supabase.from("execution_realities")
+      .select("id")
+      .eq("workspace_id", input.workspaceId),
+  ]);
 
   const chain: ConsequenceLineageLayer[] = [
-    { layer: "constitution",        entityType: "project_constitutions",     entityId: projectId,                 label: "Project Constitution",        count: constitutions  },
-    { layer: "memory",              entityType: "organizational_memories",   entityId: null,                      label: "Organizational Memory",        count: memories       },
-    { layer: "learning",            entityType: "constitutional_learnings",  entityId: null,                      label: "Constitutional Learning",      count: learnings      },
-    { layer: "recommendation",      entityType: "sovereign_recommendations", entityId: null,                      label: "Sovereign Recommendation",     count: recommendations },
-    { layer: "signal",              entityType: "governance_signals",        entityId: null,                      label: "Governance Signal",            count: signals        },
-    { layer: "action",              entityType: "governance_actions",        entityId: null,                      label: "Governance Action",            count: actions        },
-    { layer: "commitment",          entityType: "governance_commitments",    entityId: null,                      label: "Governance Commitment",        count: commitments    },
-    { layer: "projection",          entityType: "execution_projections",     entityId: null,                      label: "Execution Projection",         count: projections    },
-    { layer: "reality",             entityType: "execution_realities",       entityId: null,                      label: "Execution Reality",            count: realities      },
-    { layer: "snapshot",            entityType: "project_os_snapshots",      entityId: snapshotId,                label: "Project OS Snapshot",          count: snapshotId ? 1 : 0 },
-    { layer: "command_center",      entityType: "operational_command_centers", entityId: commandCenterId,         label: "Operational Command Center",   count: commandCenterId ? 1 : 0 },
-    { layer: "focus_item",          entityType: "operational_focus_items",   entityId: consequence.focus_item_id, label: "Operational Focus Item",       count: 1              },
-    { layer: "consequence_analysis", entityType: "operational_consequences", entityId: input.consequenceId,       label: "Consequence Analysis",         count: 1              },
+    { layer: "constitution",         entityType: "project_constitutions",      entityId: projectId,                  label: "Project Constitution",       count: (constitutionResult.data    ?? []).length },
+    { layer: "memory",               entityType: "operational_memory_entries", entityId: null,                       label: "Operational Memory",          count: (memoryResult.data          ?? []).length },
+    { layer: "learning",             entityType: "learning_patterns",          entityId: null,                       label: "Constitutional Learning",     count: (learningResult.data        ?? []).length },
+    { layer: "recommendation",       entityType: "recommendations",            entityId: null,                       label: "Sovereign Recommendation",    count: (recommendationResult.data  ?? []).length },
+    { layer: "signal",               entityType: "governance_signals",         entityId: null,                       label: "Governance Signal",           count: (signalResult.data          ?? []).length },
+    { layer: "action",               entityType: "governance_actions",         entityId: null,                       label: "Governance Action",           count: (actionResult.data          ?? []).length },
+    { layer: "commitment",           entityType: "governance_commitments",     entityId: null,                       label: "Governance Commitment",       count: (commitmentResult.data      ?? []).length },
+    { layer: "projection",           entityType: "execution_projections",      entityId: null,                       label: "Execution Projection",        count: (projectionResult.data      ?? []).length },
+    { layer: "reality",              entityType: "execution_realities",        entityId: null,                       label: "Execution Reality",           count: (realityResult.data         ?? []).length },
+    { layer: "snapshot",             entityType: "project_os_snapshots",       entityId: snapshotId,                 label: "Project OS Snapshot",         count: snapshotId      ? 1 : 0    },
+    { layer: "command_center",       entityType: "operational_command_centers",entityId: commandCenterId,            label: "Operational Command Center",  count: commandCenterId ? 1 : 0    },
+    { layer: "focus_item",           entityType: "operational_focus_items",    entityId: consequence.focus_item_id,  label: "Operational Focus Item",      count: 1                           },
+    { layer: "consequence_analysis", entityType: "operational_consequences",   entityId: input.consequenceId,        label: "Consequence Analysis",        count: 1                           },
   ];
 
   return {
@@ -86,19 +128,4 @@ export async function getOperationalConsequenceLineage(input: {
       generatedAt:   new Date().toISOString(),
     },
   };
-}
-
-async function count(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
-  table: string,
-  field: string,
-  value: string | null,
-  workspaceId: string | null
-): Promise<number> {
-  if (!value) return 0;
-  let q = supabase.from(table).select("id", { count: "exact", head: true }).eq(field, value);
-  if (workspaceId && field !== "workspace_id") q = q.eq("workspace_id", workspaceId);
-  const { count: c } = await q;
-  return c ?? 0;
 }

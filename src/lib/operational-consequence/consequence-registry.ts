@@ -53,13 +53,14 @@ async function emitConsequenceEvent(
   workspaceId:   string,
   consequenceId: string,
   focusItemId:   string,
+  projectId:     string,
   eventType:     ConsequenceEventType,
   actorId:       string,
   extra?:        Record<string, unknown>
 ): Promise<void> {
   await createPlatformEvent({
     workspaceId,
-    projectId:         focusItemId,
+    projectId,
     actorId,
     actorType:         "system",
     eventType,
@@ -71,6 +72,27 @@ async function emitConsequenceEvent(
     learningEligible:  false,
     eventPayload:      { consequenceId, focusItemId, ...extra },
   });
+}
+
+// ─── resolveProjectId ─────────────────────────────────────────────────────────
+// Resolves the real project_id for a focus item via its command center.
+
+async function resolveProjectId(focusItemId: string, workspaceId: string): Promise<string> {
+  const supabase = await createSupabaseServerClient();
+  const { data: fi } = await supabase
+    .from("operational_focus_items")
+    .select("command_center_id")
+    .eq("id", focusItemId)
+    .eq("workspace_id", workspaceId)
+    .single();
+  if (!fi) return focusItemId;
+  const { data: cc } = await supabase
+    .from("operational_command_centers")
+    .select("project_id")
+    .eq("id", fi.command_center_id)
+    .eq("workspace_id", workspaceId)
+    .single();
+  return (cc?.project_id as string) ?? focusItemId;
 }
 
 // ─── Impact type mapping ──────────────────────────────────────────────────────
@@ -110,27 +132,38 @@ export async function generateOperationalConsequence(
     return { ok: false, error: "Focus item not found.", failureClass: "not_found" };
   }
 
-  // Count dependencies (focus links)
+  // Load command center to get the real project_id for event emission
+  const { data: commandCenter } = await supabase
+    .from("operational_command_centers")
+    .select("project_id")
+    .eq("id", focusItem.command_center_id)
+    .eq("workspace_id", input.workspaceId)
+    .single();
+  const projectId = (commandCenter?.project_id as string) ?? input.focusItemId;
+
+  // Count dependencies (focus links) — scoped to workspace for isolation
   const { count: depCount } = await supabase
     .from("operational_focus_links")
     .select("id", { count: "exact", head: true })
-    .eq("focus_item_id", input.focusItemId);
+    .eq("focus_item_id", input.focusItemId)
+    .eq("workspace_id", input.workspaceId);
 
   const dependencyCount = depCount ?? 0;
 
-  // Count open commitments in workspace
+  // Count active (not completed/rejected/cancelled/etc.) commitments in workspace
   const { count: openCommits } = await supabase
     .from("governance_commitments")
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", input.workspaceId)
-    .eq("commitment_status", "open");
+    .in("status", ["pending_acceptance", "accepted", "active", "delegated"]);
 
-  // Count active violations
+  // Count active (not resolved/dismissed) governance_violation signals
   const { count: activeViolations } = await supabase
     .from("governance_signals")
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", input.workspaceId)
-    .eq("signal_type", "governance_violation");
+    .eq("signal_type", "governance_violation")
+    .in("status", ["active", "acknowledged"]);
 
   const priorityGovernanceImpact: Record<string, number> = { critical: 80, high: 60, medium: 40, low: 20 };
   const priorityExecutionImpact:  Record<string, number> = { critical: 75, high: 55, medium: 35, low: 15 };
@@ -168,14 +201,14 @@ export async function generateOperationalConsequence(
   const consequence = cResult.data;
 
   await emitConsequenceEvent(
-    input.workspaceId, consequence.id, input.focusItemId,
+    input.workspaceId, consequence.id, input.focusItemId, projectId,
     "OPERATIONAL_CONSEQUENCE_GENERATED", input.actorId,
     { severity, impactScore, escalationProbability, impactHorizon: horizon }
   );
 
-  // Persist impact record
+  // Persist impact record — fail generation if it cannot be stored
   const impactType = FOCUS_TYPE_TO_IMPACT_TYPE[focusItem.focus_type] ?? "governance";
-  await dbCreateConsequenceImpact({
+  const impactResult = await dbCreateConsequenceImpact({
     workspaceId:         input.workspaceId,
     consequenceId:       consequence.id,
     impactType,
@@ -186,9 +219,10 @@ export async function generateOperationalConsequence(
       `A ${severity} ${focusItem.focus_type} focus item with score ${focusItem.focus_score} ` +
       `will affect ${dependencyCount + 1} downstream entities if left unresolved within ${horizon}.`,
   });
+  if (!impactResult.ok) return impactResult;
 
   await emitConsequenceEvent(
-    input.workspaceId, consequence.id, input.focusItemId,
+    input.workspaceId, consequence.id, input.focusItemId, projectId,
     "OPERATIONAL_IMPACT_SCORE_CALCULATED", input.actorId,
     { impactScore, severity }
   );
@@ -204,7 +238,7 @@ export async function generateOperationalConsequence(
   for (let i = 0; i < chain.length - 1; i++) {
     const src = chain[i];
     const tgt = chain[i + 1];
-    await dbCreateConsequencePath({
+    const pathResult = await dbCreateConsequencePath({
       workspaceId:      input.workspaceId,
       consequenceId:    consequence.id,
       sourceEntityType: src.entityType,
@@ -214,10 +248,11 @@ export async function generateOperationalConsequence(
       relationshipType: "cascade_effect",
       cascadeDepth:     i,
     });
+    if (!pathResult.ok) return pathResult;
   }
 
   await emitConsequenceEvent(
-    input.workspaceId, consequence.id, input.focusItemId,
+    input.workspaceId, consequence.id, input.focusItemId, projectId,
     "OPERATIONAL_CASCADE_ANALYZED", input.actorId,
     { cascadeDepth: cascade.maxDepth, totalAffectedEntities: cascade.totalAffectedEntities }
   );
@@ -231,24 +266,25 @@ export async function generateOperationalConsequence(
   });
 
   for (const s of scenarios) {
-    await dbCreateConsequenceScenario({
+    const scenarioResult = await dbCreateConsequenceScenario({
       workspaceId:         input.workspaceId,
       consequenceId:       consequence.id,
       scenarioName:        s.name,
       scenarioDescription: s.description,
       probability:         s.probability,
     });
+    if (!scenarioResult.ok) return scenarioResult;
   }
 
   await emitConsequenceEvent(
-    input.workspaceId, consequence.id, input.focusItemId,
+    input.workspaceId, consequence.id, input.focusItemId, projectId,
     "OPERATIONAL_SCENARIO_GENERATED", input.actorId,
     { scenarioCount: scenarios.length }
   );
 
   // Decision support event
   await emitConsequenceEvent(
-    input.workspaceId, consequence.id, input.focusItemId,
+    input.workspaceId, consequence.id, input.focusItemId, projectId,
     "OPERATIONAL_DECISION_SUPPORT_GENERATED", input.actorId,
     {
       recommendedAction:     FOCUS_TYPE_TO_IMPACT_TYPE[focusItem.focus_type],
@@ -259,7 +295,7 @@ export async function generateOperationalConsequence(
   );
 
   await emitConsequenceEvent(
-    input.workspaceId, consequence.id, input.focusItemId,
+    input.workspaceId, consequence.id, input.focusItemId, projectId,
     "OPERATIONAL_ESCALATION_PROBABILITY_CALCULATED", input.actorId,
     { escalationProbability }
   );
@@ -313,8 +349,9 @@ export async function validateOperationalConsequence(
   const result = await dbUpdateConsequenceStatus(input.consequenceId, input.workspaceId, "validated");
   if (!result.ok) return result;
 
+  const projectId = await resolveProjectId(result.data.focus_item_id, input.workspaceId);
   await emitConsequenceEvent(
-    input.workspaceId, input.consequenceId, result.data.focus_item_id,
+    input.workspaceId, input.consequenceId, result.data.focus_item_id, projectId,
     "OPERATIONAL_CONSEQUENCE_VALIDATED", input.actorId
   );
 
@@ -340,8 +377,9 @@ export async function archiveOperationalConsequence(
   const result = await dbUpdateConsequenceStatus(input.consequenceId, input.workspaceId, "archived");
   if (!result.ok) return result;
 
+  const projectId = await resolveProjectId(result.data.focus_item_id, input.workspaceId);
   await emitConsequenceEvent(
-    input.workspaceId, input.consequenceId, result.data.focus_item_id,
+    input.workspaceId, input.consequenceId, result.data.focus_item_id, projectId,
     "OPERATIONAL_CONSEQUENCE_ARCHIVED", input.actorId
   );
 
@@ -408,8 +446,9 @@ export async function getOperationalConsequenceLineageForConsequence(
   });
 
   if (result.ok) {
+    const projectId = await resolveProjectId(result.data.focusItemId, input.workspaceId);
     await emitConsequenceEvent(
-      input.workspaceId, input.consequenceId, result.data.focusItemId,
+      input.workspaceId, input.consequenceId, result.data.focusItemId, projectId,
       "OPERATIONAL_CONSEQUENCE_LINEAGE_GENERATED", input.actorId,
       { layerCount: result.data.chain.length }
     );

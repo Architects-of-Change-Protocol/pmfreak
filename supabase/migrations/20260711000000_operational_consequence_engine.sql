@@ -33,7 +33,13 @@ create table if not exists public.operational_consequences (
   updated_at              timestamptz not null default now(),
 
   -- composite unique for FK target
-  unique (id, workspace_id)
+  unique (id, workspace_id),
+
+  -- enforce source focus item belongs to same workspace
+  constraint oc_focus_item_workspace_fk
+    foreign key (focus_item_id, workspace_id)
+    references public.operational_focus_items(id, workspace_id)
+    on delete cascade
 );
 
 create index if not exists oc_workspace_id_idx
