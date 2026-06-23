@@ -322,6 +322,19 @@ export type OperationalCommandCenterEventType =
   | "OPERATIONAL_PRIORITY_CALCULATED"
   | "OPERATIONAL_FOCUS_LINEAGE_GENERATED";
 
+// Decision Outcome Engine — EPIC 4 Sprint 5
+export type DecisionOutcomeEngineEventType =
+  | "OPERATIONAL_DECISION_OUTCOME_CREATED"
+  | "OPERATIONAL_OUTCOME_OBSERVATION_RECORDED"
+  | "OPERATIONAL_DECISION_OUTCOME_EVALUATED"
+  | "OPERATIONAL_DECISION_OUTCOME_COMPLETED"
+  | "OPERATIONAL_DECISION_OUTCOME_ARCHIVED"
+  | "OPERATIONAL_DECISION_EFFECTIVENESS_CALCULATED"
+  | "OPERATIONAL_RECOMMENDATION_QUALITY_CALCULATED"
+  | "OPERATIONAL_OUTCOME_LEARNING_GENERATED"
+  | "OPERATIONAL_RECOMMENDATION_EVOLUTION_UPDATED"
+  | "OPERATIONAL_DECISION_OUTCOME_LINEAGE_GENERATED";
+
 // Union of all event types
 export type PlatformEventType =
   | ProjectEventType
@@ -351,7 +364,8 @@ export type PlatformEventType =
   | ProgramMaterializationEventType
   | ExecutionProjectionEventType
   | ProjectOSEventType
-  | OperationalCommandCenterEventType;
+  | OperationalCommandCenterEventType
+  | DecisionOutcomeEngineEventType;
 
 // ─── Row type (matches platform_events table) ─────────────────────────────────
 

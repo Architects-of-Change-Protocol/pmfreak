@@ -4278,4 +4278,168 @@ export const OPERATIONAL_DECISION_TRADEOFF_SELECTABLE_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof OperationalDecisionTradeoffRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// operational_decision_outcomes
+// Source: 20260713000000_operational_decision_outcome_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type OutcomeStatus =
+  | "pending"
+  | "observed"
+  | "evaluated"
+  | "successful"
+  | "partially_successful"
+  | "unsuccessful"
+  | "archived";
+
+export type RecommendationQuality =
+  | "poor"
+  | "fair"
+  | "good"
+  | "very_good"
+  | "excellent";
+
+export type OperationalDecisionOutcomeRow = {
+  id: string;                              // uuid PK
+  workspace_id: string;                    // uuid references workspaces
+  decision_id: string;                     // uuid references operational_decisions
+  outcome_status: OutcomeStatus;           // text not null
+  expected_impact_score: number;           // numeric(5,2)
+  actual_impact_score: number;             // numeric(5,2)
+  effectiveness_score: number;             // numeric(5,2)
+  recommendation_quality: RecommendationQuality; // text not null
+  outcome_variance: number;                // numeric(7,4)
+  observed_at: string | null;              // timestamptz
+  evaluated_at: string | null;             // timestamptz
+  created_at: string;                      // timestamptz
+  updated_at: string;                      // timestamptz
+};
+
+export const OPERATIONAL_DECISION_OUTCOME_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "decision_id",
+  "outcome_status",
+  "expected_impact_score",
+  "actual_impact_score",
+  "effectiveness_score",
+  "recommendation_quality",
+  "outcome_variance",
+  "observed_at",
+  "evaluated_at",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof OperationalDecisionOutcomeRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// operational_outcome_observations
+// Source: 20260713000000_operational_decision_outcome_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type OutcomeObservationType =
+  | "governance_health"
+  | "execution_health"
+  | "risk_reduction"
+  | "authority_recovery"
+  | "ratification_speed"
+  | "commitment_completion"
+  | "projection_accuracy"
+  | "recommendation_effectiveness";
+
+export type OperationalOutcomeObservationRow = {
+  id: string;                                  // uuid PK
+  workspace_id: string;                        // uuid references workspaces
+  outcome_id: string;                          // uuid references operational_decision_outcomes
+  observation_type: OutcomeObservationType;    // text not null
+  observation_value: number;                   // numeric(7,4)
+  observation_source: string;                  // text not null
+  observed_by: string;                         // uuid not null
+  observed_at: string;                         // timestamptz
+  created_at: string;                          // timestamptz
+};
+
+export const OPERATIONAL_OUTCOME_OBSERVATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "outcome_id",
+  "observation_type",
+  "observation_value",
+  "observation_source",
+  "observed_by",
+  "observed_at",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof OperationalOutcomeObservationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// operational_outcome_effects
+// Source: 20260713000000_operational_decision_outcome_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type OutcomeEffectType =
+  | "governance_health"
+  | "execution_health"
+  | "risk_reduction"
+  | "authority_recovery"
+  | "ratification_speed"
+  | "commitment_completion"
+  | "projection_accuracy"
+  | "recommendation_effectiveness";
+
+export type OperationalOutcomeEffectRow = {
+  id: string;                          // uuid PK
+  workspace_id: string;                // uuid references workspaces
+  outcome_id: string;                  // uuid references operational_decision_outcomes
+  effect_type: OutcomeEffectType;      // text not null
+  before_value: number;                // numeric(7,4)
+  after_value: number;                 // numeric(7,4)
+  improvement_percentage: number;      // numeric(7,4)
+  created_at: string;                  // timestamptz
+};
+
+export const OPERATIONAL_OUTCOME_EFFECT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "outcome_id",
+  "effect_type",
+  "before_value",
+  "after_value",
+  "improvement_percentage",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof OperationalOutcomeEffectRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// operational_learning_feedback
+// Source: 20260713000000_operational_decision_outcome_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type LearningFeedbackType =
+  | "decision_pattern"
+  | "effectiveness_signal"
+  | "quality_signal"
+  | "risk_insight"
+  | "governance_insight"
+  | "recommendation_calibration";
+
+export type OperationalLearningFeedbackRow = {
+  id: string;                              // uuid PK
+  workspace_id: string;                    // uuid references workspaces
+  outcome_id: string;                      // uuid references operational_decision_outcomes
+  learning_type: LearningFeedbackType;     // text not null
+  learning_summary: string;                // text not null
+  confidence_score: number;                // numeric(4,3)
+  should_recommend_again: boolean;         // boolean not null
+  created_at: string;                      // timestamptz
+};
+
+export const OPERATIONAL_LEARNING_FEEDBACK_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "outcome_id",
+  "learning_type",
+  "learning_summary",
+  "confidence_score",
+  "should_recommend_again",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof OperationalLearningFeedbackRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine" as const;
