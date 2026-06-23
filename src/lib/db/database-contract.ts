@@ -3150,4 +3150,133 @@ export const GOVERNANCE_SIGNAL_RECOMMENDATION_SELECTABLE_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof GovernanceSignalRecommendationRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// governance_actions
+// Source: 20260705000000_governance_action_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GovernanceActionType =
+  | "create_escalation"
+  | "request_ratification"
+  | "request_approval"
+  | "create_delegation"
+  | "assign_authority"
+  | "review_amendment"
+  | "review_decision"
+  | "review_risk"
+  | "initiate_governance_review"
+  | "close_signal"
+  | "reassess_recommendation"
+  | "other";
+
+export type GovernanceActionPriority = "low" | "medium" | "high" | "critical";
+
+export type GovernanceActionStatus =
+  | "generated"
+  | "reviewed"
+  | "approved"
+  | "rejected"
+  | "expired"
+  | "completed";
+
+export type GovernanceActionRow = {
+  id: string;                        // uuid PK
+  workspace_id: string;              // uuid references workspaces
+  signal_id: string;                 // uuid references governance_signals
+  action_type: GovernanceActionType; // text not null
+  action_priority: GovernanceActionPriority; // text not null
+  action_status: GovernanceActionStatus;     // text not null default 'generated'
+  title: string;                     // text not null
+  description: string;               // text not null
+  recommended_owner_type: string;    // text not null
+  recommended_owner_id: string | null; // uuid
+  recommended_due_date: string;      // timestamptz not null
+  justification: string;             // text not null
+  confidence_score: number;          // numeric(4,3) 0.0–1.0
+  created_at: string;                // timestamptz
+  updated_at: string;                // timestamptz
+  completed_at: string | null;       // timestamptz
+  expired_at: string | null;         // timestamptz
+};
+
+export const GOVERNANCE_ACTION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "signal_id",
+  "action_type",
+  "action_priority",
+  "action_status",
+  "title",
+  "description",
+  "recommended_owner_type",
+  "recommended_owner_id",
+  "recommended_due_date",
+  "justification",
+  "confidence_score",
+  "created_at",
+  "updated_at",
+  "completed_at",
+  "expired_at",
+] as const satisfies ReadonlyArray<keyof GovernanceActionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// governance_action_evidence
+// Source: 20260705000000_governance_action_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GovernanceActionEvidenceRow = {
+  id: string;                     // uuid PK
+  workspace_id: string;           // uuid references workspaces
+  action_id: string;              // uuid references governance_actions
+  signal_id: string | null;       // uuid references governance_signals
+  recommendation_id: string | null; // uuid
+  learning_pattern_id: string | null; // uuid
+  contribution_weight: number;    // numeric(4,3) 0.0–1.0
+  created_at: string;             // timestamptz
+};
+
+export const GOVERNANCE_ACTION_EVIDENCE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "action_id",
+  "signal_id",
+  "recommendation_id",
+  "learning_pattern_id",
+  "contribution_weight",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof GovernanceActionEvidenceRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// governance_action_assignments
+// Source: 20260705000000_governance_action_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GovernanceActionAssignmentStatus =
+  | "assigned"
+  | "accepted"
+  | "completed"
+  | "declined";
+
+export type GovernanceActionAssignmentRow = {
+  id: string;              // uuid PK
+  workspace_id: string;    // uuid references workspaces
+  action_id: string;       // uuid references governance_actions
+  assigned_to: string;     // uuid
+  assignment_status: GovernanceActionAssignmentStatus; // text not null
+  assigned_at: string;     // timestamptz
+  accepted_at: string | null; // timestamptz
+  completed_at: string | null; // timestamptz
+};
+
+export const GOVERNANCE_ACTION_ASSIGNMENT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "action_id",
+  "assigned_to",
+  "assignment_status",
+  "assigned_at",
+  "accepted_at",
+  "completed_at",
+] as const satisfies ReadonlyArray<keyof GovernanceActionAssignmentRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine" as const;
