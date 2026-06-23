@@ -13,29 +13,20 @@ const { readFileSync } = require("node:fs");
 
 // ─── Read source files for verification ──────────────────────────────────────
 
-const typesFile       = readFileSync("src/lib/governance-commitments/types.ts", "utf8");
-const lifecycleFile   = readFileSync("src/lib/governance-commitments/lifecycle-engine.ts", "utf8");
-const accountFile     = readFileSync("src/lib/governance-commitments/accountability-engine.ts", "utf8");
-const healthFile      = readFileSync("src/lib/governance-commitments/health-engine.ts", "utf8");
-const breachFile      = readFileSync("src/lib/governance-commitments/breach-engine.ts", "utf8");
-const delegationFile  = readFileSync("src/lib/governance-commitments/delegation-engine.ts", "utf8");
-const forecastFile    = readFileSync("src/lib/governance-commitments/forecast-engine.ts", "utf8");
-const lineageFile     = readFileSync("src/lib/governance-commitments/lineage.ts", "utf8");
-const explainFile     = readFileSync("src/lib/governance-commitments/explain.ts", "utf8");
-const registryFile    = readFileSync("src/lib/governance-commitments/commitment-registry.ts", "utf8");
-const indexFile       = readFileSync("src/lib/governance-commitments/index.ts", "utf8");
-const repoFile        = readFileSync("src/lib/governance-commitments/governance-commitment-repository.ts", "utf8");
-const dbContract      = readFileSync("src/lib/db/database-contract.ts", "utf8");
-const migration       = readFileSync("supabase/migrations/20260706000000_governance_commitment_engine.sql", "utf8");
-const docsFile        = readFileSync("docs/governance-commitment-engine.md", "utf8");
+const typesFile    = readFileSync("src/lib/governance-commitments/types.ts", "utf8");
+const explainFile  = readFileSync("src/lib/governance-commitments/explain.ts", "utf8");
+const registryFile = readFileSync("src/lib/governance-commitments/commitment-registry.ts", "utf8");
+const indexFile    = readFileSync("src/lib/governance-commitments/index.ts", "utf8");
+const repoFile     = readFileSync("src/lib/governance-commitments/governance-commitment-repository.ts", "utf8");
+const dbContract   = readFileSync("src/lib/db/database-contract.ts", "utf8");
+const migration    = readFileSync("supabase/migrations/20260706000000_governance_commitment_engine.sql", "utf8");
+const docsFile     = readFileSync("docs/governance-commitment-engine.md", "utf8");
 
 // ─── In-memory implementations ────────────────────────────────────────────────
 
 type CommitmentStatus =
   | "pending_acceptance" | "accepted" | "rejected" | "active"
   | "completed" | "breached" | "cancelled" | "delegated" | "expired";
-type Priority = "low" | "medium" | "high" | "critical";
-type Outcome  = "successful" | "partial" | "failed" | "unknown";
 type DelegationStatus = "pending" | "accepted" | "rejected" | "cancelled";
 
 const TERMINAL: CommitmentStatus[] = ["completed", "breached", "cancelled", "rejected", "expired"];
@@ -62,9 +53,15 @@ function transitionCommitmentStatus(
   return { ok: true };
 }
 
+type CommitmentLike = { id: string; workspace_id: string; action_id: string; commitment_title: string; owner_id: string; owner_type: string; priority: string; status: CommitmentStatus; due_date: string; accepted_at: string | null; started_at: string | null; completed_at: string | null; cancelled_at: string | null; breached_at: string | null; expired_at: string | null; outcome: string | null; created_at: string; updated_at: string };
+type DelegationLike = { status: DelegationStatus };
+type ForecastOpts = { signalSeverity?: string; historicalEffectiveness?: number };
+type ActionLike = { id: string; action_type: string; title: string; signal_id: string };
+type SignalLike = { id: string; signal_type: string; title: string };
+
 // Accountability
 const MS_PER_DAY = 86_400_000;
-function calculateCommitmentAccountability(c: any, now = new Date()) {
+function calculateCommitmentAccountability(c: CommitmentLike, now = new Date()) {
   const dueDate = new Date(c.due_date);
   const overdue =
     !["completed", "cancelled", "rejected"].includes(c.status) && now > dueDate;
@@ -80,7 +77,7 @@ function calculateCommitmentAccountability(c: any, now = new Date()) {
 }
 
 // Health
-function calculateCommitmentHealth(workspaceId: string, commitments: any[], now = new Date()) {
+function calculateCommitmentHealth(workspaceId: string, commitments: CommitmentLike[], now = new Date()) {
   const total = commitments.length;
   let completed = 0, breached = 0, delegated = 0, active = 0, pendingAcceptance = 0, overdue = 0;
   for (const c of commitments) {
@@ -102,7 +99,7 @@ function calculateCommitmentHealth(workspaceId: string, commitments: any[], now 
 }
 
 // Breach detection
-function detectCommitmentBreaches(workspaceId: string, commitments: any[], now = new Date()) {
+function detectCommitmentBreaches(workspaceId: string, commitments: CommitmentLike[], now = new Date()) {
   const skip = new Set(["completed","cancelled","rejected","breached","expired"]);
   const breaches = commitments
     .filter(c => !skip.has(c.status) && now > new Date(c.due_date))
@@ -119,10 +116,10 @@ function detectCommitmentBreaches(workspaceId: string, commitments: any[], now =
 
 // Delegation validation
 function validateCommitmentDelegation(input: {
-  commitment: any;
+  commitment: CommitmentLike;
   delegatedBy: string;
   delegatedTo: string;
-  existingDelegations: any[];
+  existingDelegations: DelegationLike[];
 }) {
   const { commitment, delegatedBy, delegatedTo, existingDelegations } = input;
   if (commitment.owner_id !== delegatedBy)
@@ -143,7 +140,7 @@ const PRIORITY_BASE: Record<string, number> = { critical: 0.55, high: 0.65, medi
 const STATUS_MOD: Record<string, number> = { accepted: 0.10, active: 0.20, pending_acceptance: -0.05, delegated: -0.05 };
 function clamp(v: number) { return Math.max(0, Math.min(1, v)); }
 function round3(v: number) { return Math.round(v * 1000) / 1000; }
-function forecastCommitmentOutcome(commitment: any, opts: any = {}, now = new Date()) {
+function forecastCommitmentOutcome(commitment: CommitmentLike, opts: ForecastOpts = {}, now = new Date()) {
   const base = PRIORITY_BASE[commitment.priority] ?? 0.70;
   const statusMod = STATUS_MOD[commitment.status] ?? 0;
   const daysUntilDue = (new Date(commitment.due_date).getTime() - now.getTime()) / 86_400_000;
@@ -155,7 +152,7 @@ function forecastCommitmentOutcome(commitment: any, opts: any = {}, now = new Da
 }
 
 // Lineage
-function getCommitmentLineage(commitment: any, action: any, signal: any) {
+function getCommitmentLineage(commitment: CommitmentLike, action: ActionLike, signal: SignalLike) {
   return {
     commitmentId: commitment.id,
     chain: [
@@ -195,10 +192,9 @@ function explainGovernanceCommitments() {
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const W  = "11111111-1111-1111-1111-111111111111";
-const W2 = "22222222-2222-2222-2222-222222222222";
 const UID = (n: number) => `${n.toString().padStart(8,"0")}-0000-1000-8000-000000000000`;
 
-function makeCommitment(overrides: Partial<any> = {}): any {
+function makeCommitment(overrides: Partial<CommitmentLike> = {}): CommitmentLike {
   const dueDate = new Date(Date.now() + 7 * 86_400_000).toISOString();
   return {
     id:                     UID(1),
