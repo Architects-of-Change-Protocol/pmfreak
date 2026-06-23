@@ -23,6 +23,16 @@ const CI = OPERATIONAL_CONSEQUENCE_IMPACT_SELECTABLE_COLUMNS.join(",");
 const CP = OPERATIONAL_CONSEQUENCE_PATH_SELECTABLE_COLUMNS.join(",");
 const CS = OPERATIONAL_CONSEQUENCE_SCENARIO_SELECTABLE_COLUMNS.join(",");
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function notFound<T>(entity: string): ConsequenceResult<T> {
+  return { ok: false, error: `${entity} not found.`, failureClass: "not_found" };
+}
+
+function persistFailed<T>(action: string): ConsequenceResult<T> {
+  return { ok: false, error: `Unable to ${action}.`, failureClass: "persistence_failed" };
+}
+
 // ─── dbCreateConsequence ──────────────────────────────────────────────────────
 
 export async function dbCreateConsequence(input: {
@@ -46,12 +56,10 @@ export async function dbCreateConsequence(input: {
       analysis_status:        "generated",
     })
     .select(CC)
-    .single();
+    .single<OperationalConsequenceRow>();
 
-  if (error || !data) {
-    return { ok: false, error: error?.message ?? "Failed to create consequence.", failureClass: "persistence_failed" };
-  }
-  return { ok: true, data: data as OperationalConsequenceRow };
+  if (error || !data) return persistFailed("create consequence");
+  return { ok: true, data };
 }
 
 // ─── dbFindConsequenceById ────────────────────────────────────────────────────
@@ -66,12 +74,10 @@ export async function dbFindConsequenceById(
     .select(CC)
     .eq("id", consequenceId)
     .eq("workspace_id", workspaceId)
-    .single();
+    .single<OperationalConsequenceRow>();
 
-  if (error || !data) {
-    return { ok: false, error: "Consequence not found.", failureClass: "not_found" };
-  }
-  return { ok: true, data: data as OperationalConsequenceRow };
+  if (error || !data) return notFound("Consequence");
+  return { ok: true, data };
 }
 
 // ─── dbListConsequences ───────────────────────────────────────────────────────
@@ -84,7 +90,8 @@ export async function dbListConsequences(
     .from("operational_consequences")
     .select(CC)
     .eq("workspace_id", input.workspaceId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .returns<OperationalConsequenceRow[]>();
 
   if (input.focusItemId)    q = q.eq("focus_item_id",    input.focusItemId);
   if (input.severity)       q = q.eq("severity",         input.severity);
@@ -95,10 +102,8 @@ export async function dbListConsequences(
   if (input.limit)          q = q.limit(input.limit);
 
   const { data, error } = await q;
-  if (error) {
-    return { ok: false, error: error.message, failureClass: "persistence_failed" };
-  }
-  return { ok: true, data: (data ?? []) as OperationalConsequenceRow[] };
+  if (error) return persistFailed("list consequences");
+  return { ok: true, data: data ?? [] };
 }
 
 // ─── dbUpdateConsequenceStatus ────────────────────────────────────────────────
@@ -115,12 +120,10 @@ export async function dbUpdateConsequenceStatus(
     .eq("id", consequenceId)
     .eq("workspace_id", workspaceId)
     .select(CC)
-    .single();
+    .single<OperationalConsequenceRow>();
 
-  if (error || !data) {
-    return { ok: false, error: error?.message ?? "Failed to update consequence status.", failureClass: "persistence_failed" };
-  }
-  return { ok: true, data: data as OperationalConsequenceRow };
+  if (error || !data) return persistFailed("update consequence status");
+  return { ok: true, data };
 }
 
 // ─── dbCreateConsequenceImpact ────────────────────────────────────────────────
@@ -147,12 +150,10 @@ export async function dbCreateConsequenceImpact(input: {
       description:           input.description,
     })
     .select(CI)
-    .single();
+    .single<OperationalConsequenceImpactRow>();
 
-  if (error || !data) {
-    return { ok: false, error: error?.message ?? "Failed to create impact.", failureClass: "persistence_failed" };
-  }
-  return { ok: true, data: data as OperationalConsequenceImpactRow };
+  if (error || !data) return persistFailed("create consequence impact");
+  return { ok: true, data };
 }
 
 // ─── dbListConsequenceImpacts ─────────────────────────────────────────────────
@@ -167,12 +168,11 @@ export async function dbListConsequenceImpacts(
     .select(CI)
     .eq("consequence_id", consequenceId)
     .eq("workspace_id",   workspaceId)
-    .order("impact_score", { ascending: false });
+    .order("impact_score", { ascending: false })
+    .returns<OperationalConsequenceImpactRow[]>();
 
-  if (error) {
-    return { ok: false, error: error.message, failureClass: "persistence_failed" };
-  }
-  return { ok: true, data: (data ?? []) as OperationalConsequenceImpactRow[] };
+  if (error) return persistFailed("list consequence impacts");
+  return { ok: true, data: data ?? [] };
 }
 
 // ─── dbCreateConsequencePath ──────────────────────────────────────────────────
@@ -191,22 +191,20 @@ export async function dbCreateConsequencePath(input: {
   const { data, error } = await supabase
     .from("operational_consequence_paths")
     .insert({
-      workspace_id:      input.workspaceId,
-      consequence_id:    input.consequenceId,
+      workspace_id:       input.workspaceId,
+      consequence_id:     input.consequenceId,
       source_entity_type: input.sourceEntityType,
-      source_entity_id:  input.sourceEntityId,
+      source_entity_id:   input.sourceEntityId,
       target_entity_type: input.targetEntityType,
-      target_entity_id:  input.targetEntityId,
-      relationship_type: input.relationshipType,
-      cascade_depth:     input.cascadeDepth,
+      target_entity_id:   input.targetEntityId,
+      relationship_type:  input.relationshipType,
+      cascade_depth:      input.cascadeDepth,
     })
     .select(CP)
-    .single();
+    .single<OperationalConsequencePathRow>();
 
-  if (error || !data) {
-    return { ok: false, error: error?.message ?? "Failed to create path.", failureClass: "persistence_failed" };
-  }
-  return { ok: true, data: data as OperationalConsequencePathRow };
+  if (error || !data) return persistFailed("create consequence path");
+  return { ok: true, data };
 }
 
 // ─── dbListConsequencePaths ───────────────────────────────────────────────────
@@ -221,12 +219,11 @@ export async function dbListConsequencePaths(
     .select(CP)
     .eq("consequence_id", consequenceId)
     .eq("workspace_id",   workspaceId)
-    .order("cascade_depth", { ascending: true });
+    .order("cascade_depth", { ascending: true })
+    .returns<OperationalConsequencePathRow[]>();
 
-  if (error) {
-    return { ok: false, error: error.message, failureClass: "persistence_failed" };
-  }
-  return { ok: true, data: (data ?? []) as OperationalConsequencePathRow[] };
+  if (error) return persistFailed("list consequence paths");
+  return { ok: true, data: data ?? [] };
 }
 
 // ─── dbCreateConsequenceScenario ──────────────────────────────────────────────
@@ -242,19 +239,17 @@ export async function dbCreateConsequenceScenario(input: {
   const { data, error } = await supabase
     .from("operational_consequence_scenarios")
     .insert({
-      workspace_id:        input.workspaceId,
-      consequence_id:      input.consequenceId,
-      scenario_name:       input.scenarioName,
+      workspace_id:         input.workspaceId,
+      consequence_id:       input.consequenceId,
+      scenario_name:        input.scenarioName,
       scenario_description: input.scenarioDescription,
-      probability:         input.probability,
+      probability:          input.probability,
     })
     .select(CS)
-    .single();
+    .single<OperationalConsequenceScenarioRow>();
 
-  if (error || !data) {
-    return { ok: false, error: error?.message ?? "Failed to create scenario.", failureClass: "persistence_failed" };
-  }
-  return { ok: true, data: data as OperationalConsequenceScenarioRow };
+  if (error || !data) return persistFailed("create consequence scenario");
+  return { ok: true, data };
 }
 
 // ─── dbListConsequenceScenarios ───────────────────────────────────────────────
@@ -269,10 +264,9 @@ export async function dbListConsequenceScenarios(
     .select(CS)
     .eq("consequence_id", consequenceId)
     .eq("workspace_id",   workspaceId)
-    .order("probability",  { ascending: false });
+    .order("probability",  { ascending: false })
+    .returns<OperationalConsequenceScenarioRow[]>();
 
-  if (error) {
-    return { ok: false, error: error.message, failureClass: "persistence_failed" };
-  }
-  return { ok: true, data: (data ?? []) as OperationalConsequenceScenarioRow[] };
+  if (error) return persistFailed("list consequence scenarios");
+  return { ok: true, data: data ?? [] };
 }
