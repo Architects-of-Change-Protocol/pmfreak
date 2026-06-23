@@ -285,6 +285,19 @@ export type ProgramMaterializationEventType =
   | "PROGRAM_SPRINT_MATERIALIZED"
   | "PROGRAM_CARD_MATERIALIZED";
 
+// Execution Projection Engine — EPIC 3 Sprint 4
+export type ExecutionProjectionEventType =
+  | "EXECUTION_PROJECTION_GENERATED"
+  | "EXECUTION_PROJECTION_VALIDATED"
+  | "EXECUTION_PROJECTION_APPROVED"
+  | "EXECUTION_PROJECTION_REJECTED"
+  | "EXECUTION_PROJECTION_ARCHIVED"
+  | "EXECUTION_PROJECTION_EFFORT_CALCULATED"
+  | "EXECUTION_PROJECTION_RISK_CALCULATED"
+  | "EXECUTION_PROJECTION_CONFIDENCE_CALCULATED"
+  | "EXECUTION_PROJECTION_READINESS_CALCULATED"
+  | "EXECUTION_PROJECTION_LINEAGE_GENERATED";
+
 // Union of all event types
 export type PlatformEventType =
   | ProjectEventType
@@ -311,7 +324,8 @@ export type PlatformEventType =
   | ProgramEpicEventType
   | ProgramSprintEventType
   | ProgramCardEventType
-  | ProgramMaterializationEventType;
+  | ProgramMaterializationEventType
+  | ExecutionProjectionEventType;
 
 // ─── Row type (matches platform_events table) ─────────────────────────────────
 
