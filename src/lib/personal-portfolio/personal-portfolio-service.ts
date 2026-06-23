@@ -663,6 +663,58 @@ function mapSnapshotRow(
   };
 }
 
+// ─── Explain capability ───────────────────────────────────────────────────────
+
+export function explainPersonalPortfolioIntelligence(): {
+  concept: string;
+  components: Record<string, string>;
+  ownerIsolation: string;
+  humanAttentionModel: string;
+} {
+  return {
+    concept:
+      "Personal Portfolio Intelligence gives each owner a curated, ranked view of their projects. " +
+      "Rather than showing every project equally, it scores projects by urgency, computes how " +
+      "attention should be distributed across them, surfaces neglect risks, and synthesizes a " +
+      "Personal Command Center so the owner can start each day with a clear prioritized agenda.",
+    components: {
+      "Personal Portfolio":
+        "A named collection of projects owned by a single user within a workspace. " +
+        "Projects can be added or removed. The portfolio is workspace-scoped and owner-scoped.",
+      "Project Ranking":
+        "Each project receives a 0–100 urgency score computed from six weighted factors: " +
+        "health deficit (30%), risk score (20%), execution drift/overdue tasks (15%), " +
+        "open decisions (15%), open commitments (10%), and critical focus items (10%). " +
+        "Projects are ranked highest-urgency first.",
+      "Attention Allocation":
+        "Attention percentage is distributed proportionally to each project's urgency score, " +
+        "with a minimum floor of 5% per project so no project is ever completely invisible. " +
+        "Total allocation across all projects sums to approximately 100%.",
+      "Neglect Consequences":
+        "For each project, the engine estimates what happens if the owner stops paying attention: " +
+        "how many deliverables would be blocked, the projected health impact, and the escalation " +
+        "probability (capped at 0.99). This is a read-only analysis — it never modifies projects.",
+      "Personal Command Center":
+        "A synthesized daily briefing that surfaces the most critical attention items, " +
+        "separates them into immediate (critical) vs high-urgency buckets, provides a ranked " +
+        "recommended agenda, and generates a plain-language today summary. It is a pure " +
+        "compute function — no side effects.",
+    },
+    ownerIsolation:
+      "Every portfolio record carries both workspace_id and owner_id. " +
+      "Row-Level Security policies in the database enforce that a user can only read or modify " +
+      "portfolios where owner_id = auth.uid() AND the user is a workspace member. " +
+      "The service layer additionally passes both IDs on every query to provide defense-in-depth. " +
+      "No owner can access or mutate another owner's portfolios, even within the same workspace.",
+    humanAttentionModel:
+      "Human attention is modeled as a finite resource that must be deliberately allocated. " +
+      "The system never assumes all projects deserve equal attention; instead it computes " +
+      "proportional shares based on urgency. Projects with lower urgency still receive a " +
+      "guaranteed minimum floor (5%) so they remain visible. The neglect engine makes the " +
+      "opportunity cost of inattention explicit and actionable.",
+  };
+}
+
 // ─── Read operations ──────────────────────────────────────────────────────────
 
 export async function getPortfolio(input: {
