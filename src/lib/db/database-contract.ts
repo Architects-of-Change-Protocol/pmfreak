@@ -3572,4 +3572,159 @@ export const EXECUTION_PROJECTION_PARTICIPANT_SELECTABLE_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof ExecutionProjectionParticipantRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// execution_realities
+// Source: 20260708000000_execution_reality_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ExecutionRealityStatus =
+  | "observed"
+  | "validated"
+  | "completed"
+  | "archived";
+
+export type ExecutionRealityRisk = "low" | "medium" | "high" | "critical";
+
+export type ExecutionRealityRow = {
+  id: string;                        // uuid PK
+  workspace_id: string;              // uuid references workspaces
+  projection_id: string;             // uuid references execution_projections
+  reality_title: string;             // text not null
+  reality_description: string;       // text not null
+  status: ExecutionRealityStatus;    // text not null default 'observed'
+  actual_effort_hours: number;       // integer not null default 0
+  actual_duration_days: number;      // integer not null default 0
+  actual_risk: ExecutionRealityRisk; // text not null default 'low'
+  actual_task_count: number;         // integer not null default 0
+  actual_participant_count: number;  // integer not null default 0
+  confidence_score: number;          // numeric(4,3) not null default 0.0
+  observed_at: string;               // timestamptz not null
+  validated_at: string | null;       // timestamptz
+  completed_at: string | null;       // timestamptz
+  archived_at: string | null;        // timestamptz
+  created_at: string;                // timestamptz not null
+  updated_at: string;                // timestamptz not null
+};
+
+export const EXECUTION_REALITY_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "projection_id",
+  "reality_title",
+  "reality_description",
+  "status",
+  "actual_effort_hours",
+  "actual_duration_days",
+  "actual_risk",
+  "actual_task_count",
+  "actual_participant_count",
+  "confidence_score",
+  "observed_at",
+  "validated_at",
+  "completed_at",
+  "archived_at",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof ExecutionRealityRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// execution_variances
+// Source: 20260708000000_execution_reality_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ExecutionVarianceType =
+  | "effort"
+  | "duration"
+  | "risk"
+  | "tasks"
+  | "participants";
+
+export type ExecutionVarianceSeverity = "low" | "medium" | "high" | "critical";
+
+export type ExecutionVarianceRow = {
+  id: string;                           // uuid PK
+  workspace_id: string;                 // uuid references workspaces
+  reality_id: string;                   // uuid references execution_realities
+  variance_type: ExecutionVarianceType; // text not null
+  projected_value: number;              // numeric not null
+  actual_value: number;                 // numeric not null
+  variance_percentage: number;          // numeric(8,2) not null
+  severity: ExecutionVarianceSeverity;  // text not null
+  created_at: string;                   // timestamptz not null
+};
+
+export const EXECUTION_VARIANCE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "reality_id",
+  "variance_type",
+  "projected_value",
+  "actual_value",
+  "variance_percentage",
+  "severity",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ExecutionVarianceRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// execution_observations
+// Source: 20260708000000_execution_reality_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ExecutionObservationRow = {
+  id: string;                 // uuid PK
+  workspace_id: string;       // uuid references workspaces
+  reality_id: string;         // uuid references execution_realities
+  observation_type: string;   // text not null
+  observation_value: string;  // text not null
+  observation_source: string; // text not null
+  observed_by: string | null; // uuid
+  observed_at: string;        // timestamptz not null
+  created_at: string;         // timestamptz not null
+};
+
+export const EXECUTION_OBSERVATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "reality_id",
+  "observation_type",
+  "observation_value",
+  "observation_source",
+  "observed_by",
+  "observed_at",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ExecutionObservationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// execution_drifts
+// Source: 20260708000000_execution_reality_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ExecutionDriftType = "schedule" | "effort" | "resource" | "risk";
+
+export type ExecutionDriftSeverity = "none" | "emerging" | "persistent" | "critical";
+
+export type ExecutionDriftRow = {
+  id: string;                         // uuid PK
+  workspace_id: string;               // uuid references workspaces
+  reality_id: string;                 // uuid references execution_realities
+  drift_type: ExecutionDriftType;     // text not null
+  severity: ExecutionDriftSeverity;   // text not null
+  description: string;                // text not null
+  detected_at: string;                // timestamptz not null
+  resolved_at: string | null;         // timestamptz
+  created_at: string;                 // timestamptz not null
+};
+
+export const EXECUTION_DRIFT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "reality_id",
+  "drift_type",
+  "severity",
+  "description",
+  "detected_at",
+  "resolved_at",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ExecutionDriftRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine" as const;
