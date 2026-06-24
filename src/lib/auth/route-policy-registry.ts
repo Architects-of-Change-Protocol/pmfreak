@@ -49,6 +49,7 @@ const WORKSPACE_CONTEXTUAL_ROUTES = [
   "/early-access",
   "/trial-inactive",
   "/pm-registry",
+  "/pmo-interventions",
 ] as const;
 const INTERNAL_DEBUG_ROUTES = ["/debug-session"] as const;
 const PUBLIC_ROUTES = [
