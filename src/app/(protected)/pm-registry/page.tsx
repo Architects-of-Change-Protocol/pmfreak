@@ -119,6 +119,8 @@ export default function PMRegistryPage() {
     }
   }, []);
 
+  // fetchPMs is stable (useCallback with [] deps) — calling it here is intentional
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void fetchPMs(); }, [fetchPMs]);
 
   function handleCreated(pm: PM) {

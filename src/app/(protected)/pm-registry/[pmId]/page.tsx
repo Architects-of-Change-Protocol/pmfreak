@@ -143,6 +143,8 @@ export default function PMDetailPage() {
     }
   }, [pmId]);
 
+  // fetchData is stable for the lifetime of pmId — calling it here is intentional
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void fetchData(); }, [fetchData]);
 
   if (loading) {

@@ -47,7 +47,7 @@ export async function GET(_request: NextRequest, { params }: Props) {
 
     // Enrich with PM display info — fetch distinct PMs in one query
     const pmIds = [...new Set(result.data.map((a) => a.pm_id))];
-    let pmMap: Record<string, { display_name: string; email: string }> = {};
+    const pmMap: Record<string, { display_name: string; email: string }> = {};
     if (pmIds.length > 0) {
       const PM_COLS = PROJECT_MANAGER_SELECTABLE_COLUMNS.join(",");
       const { data: pms } = await supabase

@@ -148,6 +148,8 @@ export function ProjectPMAssignment({ projectId }: Props) {
     }
   }, [projectId]);
 
+  // fetchAssignments is stable for the lifetime of projectId — calling it here is intentional
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void fetchAssignments(); }, [fetchAssignments]);
 
   async function handleUnassign(assignmentId: string) {
