@@ -468,3 +468,66 @@ export async function recordPMUnassignedEvent(
     },
   });
 }
+
+// ─── PM Performance events ────────────────────────────────────────────────────
+
+export async function recordPMPerformanceSnapshotGeneratedEvent(
+  base: BaseEventInput & {
+    pmId: string;
+    snapshotId: string;
+    overallScore: number;
+    performanceStatus: string;
+    assignedProjectCount: number;
+    capacityStatus?: string | null;
+    actorId?: string | null;
+  }
+): Promise<PlatformEventResult> {
+  return createPlatformEvent({
+    ...base,
+    eventType: "PM_PERFORMANCE_SNAPSHOT_GENERATED",
+    eventCategory: "governance",
+    source: base.actorId ? "user_action" : "system",
+    actorType: base.actorId ? "user" : "system",
+    actorId: base.actorId ?? null,
+    rawReferenceTable: "pm_performance_snapshots",
+    rawReferenceId: base.snapshotId,
+    eventPayload: {
+      pm_id:                  base.pmId,
+      snapshot_id:            base.snapshotId,
+      overall_score:          base.overallScore,
+      performance_status:     base.performanceStatus,
+      assigned_project_count: base.assignedProjectCount,
+      capacity_status:        base.capacityStatus ?? null,
+      workspace_id:           base.workspaceId,
+      source:                 "pm_performance",
+    },
+  });
+}
+
+export async function recordWorkspacePMPerformanceSnapshotsGeneratedEvent(
+  base: BaseEventInput & {
+    generatedCount: number;
+    totalPmCount: number;
+    averageScore: number;
+    actorId?: string | null;
+  }
+): Promise<PlatformEventResult> {
+  return createPlatformEvent({
+    ...base,
+    eventType: "PM_WORKSPACE_PERFORMANCE_SNAPSHOTS_GENERATED",
+    eventCategory: "governance",
+    source: base.actorId ? "user_action" : "system",
+    actorType: base.actorId ? "user" : "system",
+    actorId: base.actorId ?? null,
+    rawReferenceTable: "pm_performance_snapshots",
+    rawReferenceId: null,
+    eventPayload: {
+      workspace_id:             base.workspaceId,
+      actor_user_id:            base.actorId ?? null,
+      generated_snapshot_count: base.generatedCount,
+      total_pm_count:           base.totalPmCount,
+      average_performance_score: base.averageScore,
+      source:                   "pm_performance",
+    },
+  });
+}
