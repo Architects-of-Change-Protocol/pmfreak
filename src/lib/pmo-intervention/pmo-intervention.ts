@@ -238,9 +238,10 @@ export async function generatePMOInterventionActions(
     .from("pmo_intervention_actions")
     .select(COLUMNS)
     .eq("workspace_id", workspaceId)
-    .in("status", OPEN_STATUSES);
+    .in("status", OPEN_STATUSES)
+    .returns<PMOInterventionActionRow[]>();
 
-  const existing = (existingRows ?? []) as PMOInterventionActionRow[];
+  const existing = existingRows ?? [];
   const openKeys = new Set<string>();
   let existingOpenCount = existing.length;
 
