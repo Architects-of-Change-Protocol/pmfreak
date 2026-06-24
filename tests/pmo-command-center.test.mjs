@@ -1,827 +1,502 @@
+// tests/pmo-command-center.test.mjs
+// Pure function tests for PMO Command Center logic.
+// Mirrors the logic in src/lib/pmo-command-center/pmo-command-center.ts
+
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { test, describe } from "node:test";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Mirror pure functions ────────────────────────────────────────────────────
 
-function uuid() {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+function derivePMOOperationalStatus(dossiers) {
+  if (dossiers.length === 0) return "healthy";
+  const statuses = dossiers.map((d) => d.executive_summary.operational_status);
+  if (statuses.includes("critical")) return "critical";
+  const perfRiskCount = statuses.filter((s) => s === "performance_risk").length;
+  if (perfRiskCount > 0) return "performance_pressure";
+  const capRiskCount = statuses.filter((s) => s === "capacity_risk").length;
+  if (capRiskCount > 0) return "capacity_pressure";
+  const evidenceGapCount = statuses.filter((s) => s === "insufficient_evidence").length;
+  if (evidenceGapCount > 0) return "evidence_gap";
+  const watchCount = statuses.filter((s) => s === "watch").length;
+  if (watchCount > 0) return "watch";
+  return "healthy";
 }
 
-function isoNow(offsetMs = 0) {
-  return new Date(Date.now() + offsetMs).toISOString();
-}
-
-// ─── Pure Engine Implementations ──────────────────────────────────────────────
-// Mirrors src/lib/pmo-command-center/engines/ for in-process testing.
-
-const PMO_HEALTH_WEIGHTS = {
-  performance:   0.30,
-  capacity:      0.25,
-  compliance:    0.25,
-  projectHealth: 0.20,
-};
-
-function calculatePMOHealth({ avgPerformanceScore, avgCapacityScore, avgComplianceScore, projectHealthScore }) {
-  const weighted =
-    avgPerformanceScore  * PMO_HEALTH_WEIGHTS.performance   +
-    avgCapacityScore     * PMO_HEALTH_WEIGHTS.capacity      +
-    avgComplianceScore   * PMO_HEALTH_WEIGHTS.compliance    +
-    projectHealthScore   * PMO_HEALTH_WEIGHTS.projectHealth;
-  return Math.round(Math.min(100, Math.max(0, weighted)) * 100) / 100;
-}
-
-const PMO_STATUS_THRESHOLDS = { excellent: 90, healthy: 75, stable: 60, warning: 45 };
-
-function classifyPMOStatus(score) {
-  if (score >= PMO_STATUS_THRESHOLDS.excellent) return "excellent";
-  if (score >= PMO_STATUS_THRESHOLDS.healthy)   return "healthy";
-  if (score >= PMO_STATUS_THRESHOLDS.stable)    return "stable";
-  if (score >= PMO_STATUS_THRESHOLDS.warning)   return "warning";
-  return "critical";
-}
-
-function calculateOrganizationalCapacity({ pmCount, overloadedPMCount, warningPMCount, healthyPMCount, avgUtilizationPercentage }) {
-  if (pmCount === 0) return 100;
-  const utilizationScore = Math.max(0, 100 - avgUtilizationPercentage);
-  const overloadRatio    = overloadedPMCount / pmCount;
-  const overloadPenalty  = overloadRatio * 30;
-  const healthyRatio     = healthyPMCount / pmCount;
-  const healthyBonus     = healthyRatio * 10;
-  const raw = utilizationScore - overloadPenalty + healthyBonus;
-  return Math.round(Math.min(100, Math.max(0, raw)) * 100) / 100;
-}
-
-function calculateGovernanceMaturity({ avgComplianceScore, totalGovernanceDebt, hotspotCount }) {
-  if (avgComplianceScore === 0 && totalGovernanceDebt === 0) return 100;
-  const base         = avgComplianceScore * 0.70;
-  const debtPenalty  = Math.min(20, totalGovernanceDebt * 0.5);
-  const hotspotPenalty = Math.min(10, hotspotCount * 2);
-  const raw = base - debtPenalty - hotspotPenalty + (avgComplianceScore * 0.30);
-  return Math.round(Math.min(100, Math.max(0, raw)) * 100) / 100;
-}
-
-const PMO_RISK_WEIGHTS = {
-  criticalProjects: 0.35,
-  executionDrift:   0.25,
-  governanceGaps:   0.20,
-  overloadedPMs:    0.15,
-  escalations:      0.05,
-};
-
-function calculatePMORiskIndex({ criticalProjectCount, totalProjectCount, executionDriftCount,
-  totalCommitmentCount, governanceGapCount, overloadedPMCount, pmCount, escalationCount }) {
-  const critRisk  = totalProjectCount > 0 ? (criticalProjectCount / totalProjectCount) * 100 : 0;
-  const driftRisk = totalCommitmentCount > 0 ? (executionDriftCount / totalCommitmentCount) * 100 : 0;
-  const govRisk   = Math.min(100, governanceGapCount * 5);
-  const overRisk  = pmCount > 0 ? (overloadedPMCount / pmCount) * 100 : 0;
-  const escRisk   = Math.min(100, escalationCount * 10);
-  const raw =
-    critRisk  * PMO_RISK_WEIGHTS.criticalProjects +
-    driftRisk * PMO_RISK_WEIGHTS.executionDrift   +
-    govRisk   * PMO_RISK_WEIGHTS.governanceGaps   +
-    overRisk  * PMO_RISK_WEIGHTS.overloadedPMs    +
-    escRisk   * PMO_RISK_WEIGHTS.escalations;
-  return Math.round(Math.min(100, Math.max(0, raw)) * 100) / 100;
-}
-
-const PRIORITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
-
-function generateAttentionQueue({ pms, projects, riskScore, governanceScore }) {
-  const items = [];
-
-  for (const pm of pms) {
-    if (pm.utilizationPercentage >= 130) {
-      items.push({ priority: "critical", entityType: "pm", entityId: pm.id, title: `${pm.name} — critical overload`, description: `PM is at ${Math.round(pm.utilizationPercentage)}% utilization — well above safe threshold.`, recommendedAction: "Immediately redistribute projects or defer non-critical work." });
-    } else if (pm.utilizationPercentage >= 110) {
-      items.push({ priority: "high", entityType: "pm", entityId: pm.id, title: `${pm.name} — overloaded`, description: `PM is at ${Math.round(pm.utilizationPercentage)}% utilization.`, recommendedAction: "Review project assignments and consider load redistribution." });
-    } else if (pm.utilizationPercentage >= 90) {
-      items.push({ priority: "medium", entityType: "pm", entityId: pm.id, title: `${pm.name} — approaching capacity`, description: `PM is at ${Math.round(pm.utilizationPercentage)}% utilization — nearing overload.`, recommendedAction: "Monitor closely and avoid assigning new projects." });
-    }
-    if (pm.complianceScore < 60) {
-      items.push({ priority: "high", entityType: "pm", entityId: pm.id, title: `${pm.name} — critical governance debt`, description: `Compliance score is ${Math.round(pm.complianceScore)}.`, recommendedAction: "Conduct governance review and accelerate ratifications." });
-    } else if (pm.complianceScore < 80) {
-      items.push({ priority: "medium", entityType: "pm", entityId: pm.id, title: `${pm.name} — governance warning`, description: `Compliance score is ${Math.round(pm.complianceScore)}.`, recommendedAction: "Address open governance gaps in next sprint." });
-    }
-    if (pm.performanceScore < 60) {
-      items.push({ priority: "high", entityType: "pm", entityId: pm.id, title: `${pm.name} — low performance`, description: `Performance score is ${Math.round(pm.performanceScore)}.`, recommendedAction: "Investigate root causes and provide targeted support." });
-    }
-  }
-
-  for (const project of projects) {
-    if (project.healthScore < 50) {
-      items.push({ priority: "critical", entityType: "project", entityId: project.id, title: `${project.name} — critical health`, description: `Project health score is ${Math.round(project.healthScore)}.`, recommendedAction: "Escalate to PMO and initiate recovery plan." });
-    } else if (project.healthScore < 70) {
-      items.push({ priority: "high", entityType: "project", entityId: project.id, title: `${project.name} — warning health`, description: `Project health score is ${Math.round(project.healthScore)}.`, recommendedAction: "Schedule executive review and define corrective actions." });
-    }
-  }
-
-  if (governanceScore < 60) {
-    items.push({ priority: "critical", entityType: "governance", entityId: "pmo", title: "PMO governance maturity — critical", description: `Governance maturity score is ${Math.round(governanceScore)}.`, recommendedAction: "Launch governance remediation program across all PMs." });
-  }
-  if (riskScore > 70) {
-    items.push({ priority: "critical", entityType: "governance", entityId: "pmo", title: "PMO risk index — elevated", description: `Risk index is ${Math.round(riskScore)}.`, recommendedAction: "Convene PMO risk review and prioritize mitigation actions." });
-  }
-
-  items.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
-  return items;
-}
-
-function generateExecutiveRecommendations({ pms, projects, capacityScore, governanceScore, riskScore, overloadedPMCount, criticalProjectCount }) {
-  const recs = [];
-
-  if (overloadedPMCount >= 2) {
-    recs.push({ type: "capacity", recommendation: "Redistribute project load across underutilized PMs to reduce burn risk.", confidence: Math.min(0.99, 0.70 + overloadedPMCount * 0.05), impact: overloadedPMCount >= 4 ? "critical" : "high" });
-  }
-  if (capacityScore < 50) {
-    recs.push({ type: "staffing", recommendation: "Organizational capacity is critically low. Evaluate PM headcount expansion or project deferral.", confidence: 0.85, impact: "critical" });
-  } else if (capacityScore < 70) {
-    recs.push({ type: "staffing", recommendation: "Consider onboarding additional PM capacity before next portfolio cycle.", confidence: 0.72, impact: "high" });
-  }
-  if (governanceScore < 65) {
-    recs.push({ type: "governance", recommendation: "Accelerate ratifications and close authority gaps.", confidence: 0.81, impact: "high" });
-  }
-  if (governanceScore < 50) {
-    recs.push({ type: "governance", recommendation: "Launch governance maturity program.", confidence: 0.90, impact: "critical" });
-  }
-  const criticalRatio = projects.length > 0 ? criticalProjectCount / projects.length : 0;
-  if (criticalRatio > 0.15) {
-    recs.push({ type: "execution", recommendation: "High proportion of critical projects detected. Prioritize triage and assign senior PMs.", confidence: 0.78, impact: "high" });
-  }
-  if (riskScore > 60) {
-    recs.push({ type: "risk", recommendation: "PMO risk index exceeds threshold. Convene risk steering committee.", confidence: 0.83, impact: riskScore > 80 ? "critical" : "high" });
-  }
-  const unassigned = projects.filter((p) => p.pmId === null);
-  if (unassigned.length > 0) {
-    recs.push({ type: "portfolio", recommendation: `${unassigned.length} project(s) lack PM assignment. Assign responsible PMs.`, confidence: 0.95, impact: unassigned.length >= 3 ? "high" : "medium" });
-  }
-  recs.sort((a, b) => b.confidence - a.confidence);
-  return recs;
-}
-
-function identifyPMOHotspots({ pms, projects, riskScore }) {
-  const hotspots = [];
-  for (const pm of pms) {
-    if (pm.utilizationPercentage >= 110) {
-      hotspots.push({ type: "capacity", entityId: pm.id, severity: pm.utilizationPercentage >= 130 ? "critical" : "high" });
-    }
-    if (pm.complianceScore < 60) {
-      hotspots.push({ type: "governance", entityId: pm.id, severity: "critical" });
-    } else if (pm.complianceScore < 75) {
-      hotspots.push({ type: "governance", entityId: pm.id, severity: "high" });
-    }
-  }
-  for (const project of projects) {
-    if (project.healthScore < 50) {
-      hotspots.push({ type: "execution", entityId: project.id, severity: "critical" });
-    } else if (project.healthScore < 65) {
-      hotspots.push({ type: "execution", entityId: project.id, severity: "high" });
-    }
-  }
-  if (riskScore > 70) {
-    hotspots.push({ type: "portfolio", entityId: "pmo", severity: riskScore > 85 ? "critical" : "high" });
-  }
-  return hotspots;
-}
-
-function calculatePMOTrends(snapshots) {
-  if (snapshots.length < 2) return null;
-  const current  = snapshots[0];
-  const previous = snapshots[snapshots.length - 1];
-  function buildTrend(cur, prev) {
-    const delta = Math.round((cur - prev) * 100) / 100;
-    return { current: cur, previous: prev, delta, direction: delta > 1 ? "improving" : delta < -1 ? "deteriorating" : "stable" };
+function buildPMOPMCounts(dossiers) {
+  const byStatus = {};
+  for (const d of dossiers) {
+    const s = d.executive_summary.operational_status;
+    byStatus[s] = (byStatus[s] ?? 0) + 1;
   }
   return {
-    health:     buildTrend(current.overall_health_score, previous.overall_health_score),
-    capacity:   buildTrend(current.capacity_score, previous.capacity_score),
-    governance: buildTrend(current.governance_score, previous.governance_score),
-    risk:       buildTrend(current.risk_score, previous.risk_score),
-    snapshotsCompared: snapshots.length,
+    total: dossiers.length,
+    active: dossiers.filter((d) => d.pm.status === "active").length,
+    inactive: dossiers.filter((d) => d.pm.status === "inactive").length,
+    suspended: dossiers.filter((d) => d.pm.status === "suspended").length,
+    by_operational_status: byStatus,
   };
 }
 
-function makeSnapshot(overrides = {}) {
+function buildPMOCapacityOverview(dossiers) {
+  const withCap = dossiers.filter((d) => d.capacity.present);
+  const withoutCap = dossiers.filter((d) => !d.capacity.present);
+  let totalUtil = 0, utilCount = 0, totalCounted = 0, totalObserver = 0;
+  let underutilized = 0, healthyCap = 0, nearCap = 0, atCap = 0, overloaded = 0;
+  let highestUtil = null, highestUtilVal = -1;
+  const overloadedPMs = [], underutilizedPMs = [], recommendations = [];
+
+  for (const d of withCap) {
+    const cap = d.capacity;
+    if (!cap.present) continue;
+    const util = cap.capacity_utilization ?? null;
+    if (util !== null) {
+      totalUtil += util; utilCount++;
+      if (util > highestUtilVal) {
+        highestUtilVal = util;
+        highestUtil = { pm_id: d.pm.pm_id, display_name: d.pm.display_name, capacity_utilization: util, capacity_status: cap.capacity_status };
+      }
+    }
+    totalCounted += cap.counted_assignment_count ?? 0;
+    totalObserver += cap.observer_assignment_count ?? 0;
+    const status = cap.capacity_status;
+    const pmRef = { pm_id: d.pm.pm_id, display_name: d.pm.display_name, capacity_utilization: util, capacity_status: status };
+    if (status === "underutilized") { underutilized++; underutilizedPMs.push(pmRef); }
+    else if (status === "healthy") healthyCap++;
+    else if (status === "near_capacity" || status === "busy") nearCap++;
+    else if (status === "at_capacity") atCap++;
+    else if (status === "overloaded" || status === "critical") { overloaded++; overloadedPMs.push(pmRef); }
+    for (const r of cap.recommendations) {
+      if (!recommendations.includes(r.message)) recommendations.push(r.message);
+    }
+  }
+  if (overloaded > 0) recommendations.unshift(`${overloaded} PM(s) are overloaded — review workload before new assignments.`);
+  if (underutilized > 0 && underutilized >= Math.ceil(dossiers.length / 2)) {
+    recommendations.push(`${underutilized} PM(s) are underutilized — consider rebalancing assignments.`);
+  }
   return {
-    id:                   uuid(),
-    workspace_id:         uuid(),
-    overall_health_score: 80,
-    capacity_score:       75,
-    governance_score:     85,
-    execution_score:      78,
-    risk_score:           22,
-    project_count:        20,
-    portfolio_count:      3,
-    pm_count:             8,
-    critical_projects:    2,
-    warning_projects:     5,
-    healthy_projects:     13,
-    snapshot_payload:     {},
-    generated_at:         isoNow(),
-    created_at:           isoNow(),
-    updated_at:           isoNow(),
-    ...overrides,
+    pms_with_capacity_snapshot: withCap.length,
+    pms_missing_capacity_snapshot: withoutCap.length,
+    average_capacity_utilization: utilCount > 0 ? totalUtil / utilCount : null,
+    underutilized_count: underutilized,
+    healthy_capacity_count: healthyCap,
+    near_capacity_count: nearCap,
+    at_capacity_count: atCap,
+    overloaded_count: overloaded,
+    total_counted_assignments: totalCounted,
+    total_observer_assignments: totalObserver,
+    highest_utilization_pm: highestUtil,
+    overloaded_pms: overloadedPMs,
+    underutilized_pms: underutilizedPMs,
+    capacity_recommendations: recommendations.slice(0, 10),
   };
 }
 
-// ─── PMO Health ───────────────────────────────────────────────────────────────
+function buildPMOPerformanceOverview(dossiers) {
+  const withPerf = dossiers.filter((d) => d.performance.present);
+  const withoutPerf = dossiers.filter((d) => !d.performance.present);
+  let totalScore = 0, scoreCount = 0;
+  let excellent = 0, strong = 0, stable = 0, warning = 0, criticalPerf = 0;
+  let lowRisk = 0, medRisk = 0, highRisk = 0, criticalRisk = 0;
+  const topPerformers = [], atRiskPMs = [], criticalPMs = [], recommendations = [];
 
-describe("PMO Health Engine", () => {
-  test("high score — all dimensions excellent", () => {
-    const score = calculatePMOHealth({ avgPerformanceScore: 95, avgCapacityScore: 92, avgComplianceScore: 94, projectHealthScore: 91 });
-    assert.ok(score >= 90, `Expected >= 90, got ${score}`);
-    assert.equal(classifyPMOStatus(score), "excellent");
-  });
-
-  test("medium score — mixed dimensions", () => {
-    const score = calculatePMOHealth({ avgPerformanceScore: 72, avgCapacityScore: 65, avgComplianceScore: 70, projectHealthScore: 68 });
-    assert.ok(score >= 60 && score < 80, `Expected 60-80, got ${score}`);
-    const status = classifyPMOStatus(score);
-    assert.ok(["stable", "healthy"].includes(status), `Unexpected status ${status}`);
-  });
-
-  test("low score — critical dimensions", () => {
-    const score = calculatePMOHealth({ avgPerformanceScore: 30, avgCapacityScore: 25, avgComplianceScore: 35, projectHealthScore: 20 });
-    assert.ok(score < 45, `Expected < 45, got ${score}`);
-    assert.equal(classifyPMOStatus(score), "critical");
-  });
-
-  test("score is bounded 0-100", () => {
-    const high = calculatePMOHealth({ avgPerformanceScore: 100, avgCapacityScore: 100, avgComplianceScore: 100, projectHealthScore: 100 });
-    assert.equal(high, 100);
-    const low = calculatePMOHealth({ avgPerformanceScore: 0, avgCapacityScore: 0, avgComplianceScore: 0, projectHealthScore: 0 });
-    assert.equal(low, 0);
-  });
-
-  test("PMO status thresholds", () => {
-    assert.equal(classifyPMOStatus(92), "excellent");
-    assert.equal(classifyPMOStatus(80), "healthy");
-    assert.equal(classifyPMOStatus(65), "stable");
-    assert.equal(classifyPMOStatus(50), "warning");
-    assert.equal(classifyPMOStatus(30), "critical");
-  });
-
-  test("weights sum to 1", () => {
-    const sum = Object.values(PMO_HEALTH_WEIGHTS).reduce((a, b) => a + b, 0);
-    assert.ok(Math.abs(sum - 1.0) < 0.0001, `Weights sum = ${sum}`);
-  });
-});
-
-// ─── Organizational Capacity ──────────────────────────────────────────────────
-
-describe("Organizational Capacity Engine", () => {
-  test("PMO saturated — many overloaded PMs", () => {
-    const score = calculateOrganizationalCapacity({ pmCount: 10, overloadedPMCount: 7, warningPMCount: 2, healthyPMCount: 1, avgUtilizationPercentage: 140 });
-    assert.ok(score < 40, `Expected < 40 (saturated), got ${score}`);
-  });
-
-  test("PMO healthy — balanced utilization", () => {
-    const score = calculateOrganizationalCapacity({ pmCount: 10, overloadedPMCount: 1, warningPMCount: 2, healthyPMCount: 7, avgUtilizationPercentage: 75 });
-    assert.ok(score >= 25, `Expected >= 25 (healthy), got ${score}`);
-  });
-
-  test("PMO with full available capacity — underutilized", () => {
-    const score = calculateOrganizationalCapacity({ pmCount: 8, overloadedPMCount: 0, warningPMCount: 0, healthyPMCount: 8, avgUtilizationPercentage: 40 });
-    assert.ok(score >= 60, `Expected >= 60 (underutilized), got ${score}`);
-  });
-
-  test("zero PMs returns 100", () => {
-    const score = calculateOrganizationalCapacity({ pmCount: 0, overloadedPMCount: 0, warningPMCount: 0, healthyPMCount: 0, avgUtilizationPercentage: 0 });
-    assert.equal(score, 100);
-  });
-
-  test("score is bounded 0-100", () => {
-    const s = calculateOrganizationalCapacity({ pmCount: 5, overloadedPMCount: 5, warningPMCount: 0, healthyPMCount: 0, avgUtilizationPercentage: 200 });
-    assert.ok(s >= 0 && s <= 100, `Out of bounds: ${s}`);
-  });
-});
-
-// ─── Governance Maturity ──────────────────────────────────────────────────────
-
-describe("Governance Maturity Engine", () => {
-  test("high maturity — excellent compliance, no debt", () => {
-    const score = calculateGovernanceMaturity({ avgComplianceScore: 92, totalGovernanceDebt: 0, hotspotCount: 0, criticalGapCount: 0, highGapCount: 0 });
-    assert.ok(score >= 85, `Expected >= 85, got ${score}`);
-  });
-
-  test("low maturity — poor compliance and high debt", () => {
-    const score = calculateGovernanceMaturity({ avgComplianceScore: 45, totalGovernanceDebt: 30, hotspotCount: 8, criticalGapCount: 10, highGapCount: 5 });
-    assert.ok(score < 50, `Expected < 50, got ${score}`);
-  });
-
-  test("hotspots reduce score", () => {
-    const withoutHotspots = calculateGovernanceMaturity({ avgComplianceScore: 80, totalGovernanceDebt: 0, hotspotCount: 0, criticalGapCount: 0, highGapCount: 0 });
-    const withHotspots    = calculateGovernanceMaturity({ avgComplianceScore: 80, totalGovernanceDebt: 0, hotspotCount: 5, criticalGapCount: 0, highGapCount: 0 });
-    assert.ok(withoutHotspots > withHotspots, "Hotspots should reduce maturity score");
-  });
-
-  test("score is bounded 0-100", () => {
-    const high = calculateGovernanceMaturity({ avgComplianceScore: 100, totalGovernanceDebt: 0, hotspotCount: 0, criticalGapCount: 0, highGapCount: 0 });
-    assert.ok(high <= 100 && high >= 0);
-    const low = calculateGovernanceMaturity({ avgComplianceScore: 0, totalGovernanceDebt: 100, hotspotCount: 50, criticalGapCount: 100, highGapCount: 100 });
-    assert.ok(low >= 0 && low <= 100);
-  });
-});
-
-// ─── PMO Risk Index ───────────────────────────────────────────────────────────
-
-describe("PMO Risk Engine", () => {
-  test("low risk — healthy organization", () => {
-    const risk = calculatePMORiskIndex({ criticalProjectCount: 0, totalProjectCount: 20, executionDriftCount: 1, totalCommitmentCount: 50, governanceGapCount: 0, overloadedPMCount: 0, pmCount: 8, escalationCount: 0 });
-    assert.ok(risk < 20, `Expected < 20 (low risk), got ${risk}`);
-  });
-
-  test("medium risk — some issues", () => {
-    const risk = calculatePMORiskIndex({ criticalProjectCount: 3, totalProjectCount: 20, executionDriftCount: 8, totalCommitmentCount: 50, governanceGapCount: 5, overloadedPMCount: 2, pmCount: 8, escalationCount: 2 });
-    assert.ok(risk >= 10 && risk < 60, `Expected medium risk, got ${risk}`);
-  });
-
-  test("critical risk — multiple risk factors", () => {
-    const risk = calculatePMORiskIndex({ criticalProjectCount: 10, totalProjectCount: 20, executionDriftCount: 30, totalCommitmentCount: 50, governanceGapCount: 15, overloadedPMCount: 6, pmCount: 8, escalationCount: 8 });
-    assert.ok(risk >= 60, `Expected >= 60 (critical risk), got ${risk}`);
-  });
-
-  test("risk is bounded 0-100", () => {
-    const max = calculatePMORiskIndex({ criticalProjectCount: 100, totalProjectCount: 100, executionDriftCount: 100, totalCommitmentCount: 100, governanceGapCount: 100, overloadedPMCount: 10, pmCount: 10, escalationCount: 100 });
-    assert.ok(max >= 0 && max <= 100, `Out of bounds: ${max}`);
-  });
-
-  test("zero total projects returns 0 critical ratio", () => {
-    const risk = calculatePMORiskIndex({ criticalProjectCount: 0, totalProjectCount: 0, executionDriftCount: 0, totalCommitmentCount: 0, governanceGapCount: 0, overloadedPMCount: 0, pmCount: 0, escalationCount: 0 });
-    assert.equal(risk, 0);
-  });
-});
-
-// ─── Attention Queue ──────────────────────────────────────────────────────────
-
-describe("Attention Queue Engine", () => {
-  const healthyPM   = { id: uuid(), name: "Alice", utilizationPercentage: 75, complianceScore: 88, performanceScore: 85 };
-  const overloadedPM = { id: uuid(), name: "Bob",   utilizationPercentage: 145, complianceScore: 55, performanceScore: 72 };
-  const warningPM   = { id: uuid(), name: "Carol",  utilizationPercentage: 95, complianceScore: 70, performanceScore: 62 };
-  const critProject = { id: uuid(), name: "PROJ-001", healthScore: 35, pmId: null };
-  const warnProject = { id: uuid(), name: "PROJ-002", healthScore: 62, pmId: uuid() };
-  const goodProject = { id: uuid(), name: "PROJ-003", healthScore: 85, pmId: uuid() };
-
-  test("prioritization — critical items come first", () => {
-    const queue = generateAttentionQueue({ pms: [healthyPM, overloadedPM], projects: [critProject], riskScore: 30, governanceScore: 80 });
-    assert.ok(queue.length > 0, "Queue should not be empty");
-    assert.equal(queue[0].priority, "critical", "First item must be critical");
-  });
-
-  test("order — critical before high before medium before low", () => {
-    const queue = generateAttentionQueue({ pms: [overloadedPM, warningPM, healthyPM], projects: [critProject, warnProject, goodProject], riskScore: 75, governanceScore: 55 });
-    let maxPriority = -1;
-    for (const item of queue) {
-      const p = PRIORITY_ORDER[item.priority];
-      assert.ok(p >= maxPriority, `Priority out of order: ${item.priority} after a lower-priority item`);
-      maxPriority = p;
+  for (const d of withPerf) {
+    const perf = d.performance;
+    if (!perf.present) continue;
+    const score = perf.overall_performance_score;
+    totalScore += score; scoreCount++;
+    const pmRef = { pm_id: d.pm.pm_id, display_name: d.pm.display_name, performance_score: score, performance_status: perf.performance_status };
+    const status = perf.performance_status;
+    if (status === "excellent") { excellent++; topPerformers.push(pmRef); }
+    else if (status === "strong") { strong++; topPerformers.push(pmRef); }
+    else if (status === "stable") stable++;
+    else if (status === "warning") { warning++; atRiskPMs.push(pmRef); }
+    else if (status === "critical") { criticalPerf++; criticalPMs.push(pmRef); }
+    const risk = perf.performance_risk;
+    if (risk === "low") lowRisk++;
+    else if (risk === "medium") medRisk++;
+    else if (risk === "high") highRisk++;
+    else if (risk === "critical") criticalRisk++;
+    for (const r of perf.recommendations) {
+      if (!recommendations.includes(r)) recommendations.push(r);
     }
-  });
+  }
+  if (criticalPerf > 0) recommendations.unshift(`${criticalPerf} PM(s) have critical performance — immediate PMO review required.`);
+  if (warning > 0) recommendations.push(`${warning} PM(s) have warning-level performance — schedule check-ins.`);
 
-  test("overloaded PM at 145% generates critical item", () => {
-    const queue = generateAttentionQueue({ pms: [overloadedPM], projects: [], riskScore: 0, governanceScore: 90 });
-    const critItems = queue.filter((i) => i.priority === "critical" && i.entityType === "pm");
-    assert.ok(critItems.length >= 1, "Should have critical capacity item for 145% utilization PM");
-  });
+  return {
+    pms_with_performance_snapshot: withPerf.length,
+    pms_missing_performance_snapshot: withoutPerf.length,
+    average_performance_score: scoreCount > 0 ? totalScore / scoreCount : null,
+    excellent_count: excellent, strong_count: strong, stable_count: stable,
+    warning_count: warning, critical_count: criticalPerf,
+    low_risk_count: lowRisk, medium_risk_count: medRisk, high_risk_count: highRisk, critical_risk_count: criticalRisk,
+    top_performers: topPerformers.slice(0, 5),
+    at_risk_pms: atRiskPMs,
+    critical_pms: criticalPMs,
+    performance_recommendations: recommendations.slice(0, 10),
+  };
+}
 
-  test("warning PM at 95% generates medium item", () => {
-    const queue = generateAttentionQueue({ pms: [warningPM], projects: [], riskScore: 0, governanceScore: 90 });
-    const medItems = queue.filter((i) => i.priority === "medium" && i.entityType === "pm" && i.entityId === warningPM.id);
-    assert.ok(medItems.length >= 1, "Should have medium capacity item for 95% utilization PM");
-  });
+function buildPMOEvidenceConfidenceOverview(dossiers) {
+  const withEvidence = dossiers.filter((d) => d.evidence_confidence.present);
+  const withoutEvidence = dossiers.filter((d) => !d.evidence_confidence.present);
+  let totalCompleteness = 0, completenessCount = 0;
+  let highConf = 0, medConf = 0, lowConf = 0, veryLowConf = 0;
+  const lowConfPMs = [], missingSources = {}, neutralDomains = [], recommendations = [];
 
-  test("healthy PM generates no capacity attention", () => {
-    const queue = generateAttentionQueue({ pms: [healthyPM], projects: [], riskScore: 0, governanceScore: 90 });
-    const capacityItems = queue.filter((i) => i.entityId === healthyPM.id && i.title.includes("overload"));
-    assert.equal(capacityItems.length, 0, "Healthy PM should not have capacity attention");
-  });
-
-  test("critical project generates critical item", () => {
-    const queue = generateAttentionQueue({ pms: [], projects: [critProject], riskScore: 0, governanceScore: 90 });
-    const critItems = queue.filter((i) => i.priority === "critical" && i.entityType === "project");
-    assert.ok(critItems.length >= 1);
-  });
-
-  test("high risk score triggers governance attention", () => {
-    const queue = generateAttentionQueue({ pms: [], projects: [], riskScore: 80, governanceScore: 90 });
-    const riskItems = queue.filter((i) => i.entityType === "governance");
-    assert.ok(riskItems.length >= 1, "High risk score should trigger governance attention");
-  });
-
-  test("each attention item has required fields", () => {
-    const queue = generateAttentionQueue({ pms: [overloadedPM], projects: [critProject], riskScore: 50, governanceScore: 50 });
-    for (const item of queue) {
-      assert.ok(typeof item.priority === "string", "priority required");
-      assert.ok(typeof item.entityType === "string", "entityType required");
-      assert.ok(typeof item.entityId === "string", "entityId required");
-      assert.ok(typeof item.title === "string" && item.title.length > 0, "title required");
-      assert.ok(typeof item.description === "string" && item.description.length > 0, "description required");
-      assert.ok(typeof item.recommendedAction === "string" && item.recommendedAction.length > 0, "recommendedAction required");
+  for (const d of withEvidence) {
+    const ev = d.evidence_confidence;
+    if (!ev.present) continue;
+    totalCompleteness += ev.evidence_completeness; completenessCount++;
+    const level = ev.confidence_level;
+    if (level === "high") highConf++;
+    else if (level === "medium") medConf++;
+    else if (level === "low") { lowConf++; lowConfPMs.push({ pm_id: d.pm.pm_id, display_name: d.pm.display_name, evidence_confidence_level: level }); }
+    else if (level === "very_low") { veryLowConf++; lowConfPMs.push({ pm_id: d.pm.pm_id, display_name: d.pm.display_name, evidence_confidence_level: level }); }
+    for (const src of ev.missing_sources) {
+      missingSources[src] = (missingSources[src] ?? 0) + 1;
     }
+  }
+  if (veryLowConf > 0) recommendations.push(`${veryLowConf} PM(s) have very low evidence confidence — performance scores are provisional.`);
+  if (lowConf > 0) recommendations.push(`${lowConf} PM(s) have low evidence confidence — expand data coverage.`);
+
+  const commonMissingSources = Object.entries(missingSources)
+    .sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([source, missing_count]) => ({ source, missing_count }));
+
+  return {
+    pms_with_evidence_confidence: withEvidence.length,
+    pms_missing_evidence_confidence: withoutEvidence.length,
+    average_evidence_completeness: completenessCount > 0 ? totalCompleteness / completenessCount : null,
+    high_confidence_count: highConf, medium_confidence_count: medConf,
+    low_confidence_count: lowConf, very_low_confidence_count: veryLowConf,
+    low_confidence_pms: lowConfPMs,
+    common_missing_sources: commonMissingSources,
+    common_neutral_baseline_domains: neutralDomains,
+    evidence_recommendations: recommendations.slice(0, 10),
+  };
+}
+
+function buildPMOAttentionQueues(dossiers) {
+  const criticalAttention = [], capacityAttention = [], performanceAttention = [];
+  const evidenceAttention = [], underutilizedCapacity = [], highPerformers = [];
+
+  for (const d of dossiers) {
+    const es = d.executive_summary;
+    const item = {
+      pm_id: d.pm.pm_id, display_name: d.pm.display_name, email: d.pm.email,
+      operational_status: es.operational_status, capacity_status: es.capacity_status,
+      performance_status: es.performance_status, performance_risk: es.performance_risk,
+      evidence_confidence_level: es.evidence_confidence_level,
+      top_recommendation: es.top_recommendation,
+      dossier_url: `/pm-registry/${d.pm.pm_id}`,
+    };
+    if (es.operational_status === "critical") criticalAttention.push(item);
+    if (["overloaded", "critical", "at_capacity", "near_capacity"].includes(es.capacity_status)) capacityAttention.push(item);
+    if (["critical", "warning"].includes(es.performance_status) || ["critical", "high"].includes(es.performance_risk)) performanceAttention.push(item);
+    if (["very_low", "low"].includes(es.evidence_confidence_level)) evidenceAttention.push(item);
+    if (es.capacity_status === "underutilized") underutilizedCapacity.push(item);
+    if (["excellent", "strong"].includes(es.performance_status)) highPerformers.push(item);
+  }
+  return { critical_attention: criticalAttention, capacity_attention: capacityAttention, performance_attention: performanceAttention, evidence_attention: evidenceAttention, underutilized_capacity: underutilizedCapacity, high_performers: highPerformers };
+}
+
+function buildPMORecommendationQueue(dossiers) {
+  const SEVERITY_ORDER = ["critical", "high", "medium", "low"];
+  const OPERATIONAL_ORDER = { critical: 0, performance_risk: 1, capacity_risk: 2, insufficient_evidence: 3, watch: 4, healthy: 5 };
+  const raw = [];
+  for (const d of dossiers) {
+    for (const rec of d.recommendations) {
+      raw.push({ type: rec.type, severity: rec.severity, message: rec.message, source: rec.source, pm_id: d.pm.pm_id, pm_name: d.pm.display_name, operational_status: d.executive_summary.operational_status, created_from: d.generated_at });
+    }
+  }
+  const seen = new Set();
+  const deduped = raw.filter((r) => {
+    const key = `${r.pm_id ?? ""}::${r.type}::${r.message}`;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+  return deduped.sort((a, b) => {
+    const sd = SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity);
+    if (sd !== 0) return sd;
+    return (OPERATIONAL_ORDER[a.operational_status ?? ""] ?? 99) - (OPERATIONAL_ORDER[b.operational_status ?? ""] ?? 99);
+  });
+}
+
+function buildPMODossierRows(dossiers) {
+  return dossiers.map((d) => {
+    const es = d.executive_summary;
+    return {
+      pm_id: d.pm.pm_id, display_name: d.pm.display_name, email: d.pm.email,
+      pm_status: d.pm.status, role: es.role, operational_status: es.operational_status,
+      active_assignment_count: es.active_assignment_count, counted_assignment_count: es.counted_assignment_count,
+      capacity_status: es.capacity_status, capacity_utilization: d.capacity.present ? d.capacity.capacity_utilization : null,
+      performance_status: es.performance_status, performance_risk: es.performance_risk,
+      overall_performance_score: d.performance.present ? d.performance.overall_performance_score : null,
+      evidence_confidence_level: es.evidence_confidence_level, evidence_completeness: es.evidence_completeness,
+      top_recommendation: es.top_recommendation, dossier_url: `/pm-registry/${d.pm.pm_id}`,
+    };
+  });
+}
+
+// ─── Test data helpers ────────────────────────────────────────────────────────
+
+function makeDossier({ pmId = "pm-1", status = "active", operationalStatus = "healthy", capacityStatus = null, perfStatus = null, perfRisk = null, confLevel = null } = {}) {
+  return {
+    pm: { pm_id: pmId, display_name: `PM ${pmId}`, email: `${pmId}@test.com`, status },
+    executive_summary: {
+      operational_status: operationalStatus, capacity_status: capacityStatus,
+      performance_status: perfStatus, performance_risk: perfRisk,
+      evidence_confidence_level: confLevel, active_assignment_count: 3,
+      counted_assignment_count: 2, role: "project_manager", top_recommendation: null,
+      evidence_completeness: null,
+    },
+    capacity: capacityStatus
+      ? { present: true, capacity_status: capacityStatus, capacity_utilization: 0.5, counted_assignment_count: 2, observer_assignment_count: 1, recommendations: [] }
+      : { present: false, message: "No snapshot." },
+    performance: perfStatus
+      ? { present: true, performance_status: perfStatus, performance_risk: perfRisk, overall_performance_score: 75, recommendations: [] }
+      : { present: false, message: "No snapshot." },
+    evidence_confidence: confLevel
+      ? { present: true, confidence_level: confLevel, evidence_completeness: 0.6, missing_sources: ["execution_data"], neutral_baseline_domains: [] }
+      : { present: false, message: "No evidence." },
+    recommendations: [],
+    generated_at: new Date().toISOString(),
+  };
+}
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+describe("derivePMOOperationalStatus", () => {
+  test("returns healthy for empty list", () => {
+    assert.equal(derivePMOOperationalStatus([]), "healthy");
+  });
+
+  test("returns healthy when all healthy", () => {
+    const d = [makeDossier({ operationalStatus: "healthy" }), makeDossier({ pmId: "pm-2", operationalStatus: "healthy" })];
+    assert.equal(derivePMOOperationalStatus(d), "healthy");
+  });
+
+  test("critical takes precedence", () => {
+    const d = [makeDossier({ operationalStatus: "critical" }), makeDossier({ pmId: "pm-2", operationalStatus: "performance_risk" })];
+    assert.equal(derivePMOOperationalStatus(d), "critical");
+  });
+
+  test("performance_pressure when no critical", () => {
+    const d = [makeDossier({ operationalStatus: "performance_risk" }), makeDossier({ pmId: "pm-2", operationalStatus: "capacity_risk" })];
+    assert.equal(derivePMOOperationalStatus(d), "performance_pressure");
+  });
+
+  test("capacity_pressure when no perf risk", () => {
+    const d = [makeDossier({ operationalStatus: "capacity_risk" })];
+    assert.equal(derivePMOOperationalStatus(d), "capacity_pressure");
+  });
+
+  test("evidence_gap when only insufficient_evidence", () => {
+    const d = [makeDossier({ operationalStatus: "insufficient_evidence" })];
+    assert.equal(derivePMOOperationalStatus(d), "evidence_gap");
+  });
+
+  test("watch when only watch", () => {
+    const d = [makeDossier({ operationalStatus: "watch" })];
+    assert.equal(derivePMOOperationalStatus(d), "watch");
   });
 });
 
-// ─── Executive Recommendations ────────────────────────────────────────────────
-
-describe("Executive Recommendations Engine", () => {
-  const pm1 = { id: uuid(), name: "Alice", utilizationPercentage: 75, complianceScore: 88, performanceScore: 85, status: "healthy" };
-  const pm2 = { id: uuid(), name: "Bob",   utilizationPercentage: 145, complianceScore: 55, performanceScore: 72, status: "overloaded" };
-
-  test("recommendations are generated for overloaded PMO", () => {
-    const recs = generateExecutiveRecommendations({
-      pms: [pm1, pm2, pm2], projects: [], healthScore: 55, capacityScore: 45, governanceScore: 58, riskScore: 70, overloadedPMCount: 3, criticalProjectCount: 0
-    });
-    assert.ok(recs.length > 0, "Should generate recommendations");
+describe("buildPMOPMCounts", () => {
+  test("empty list returns zeros", () => {
+    const counts = buildPMOPMCounts([]);
+    assert.equal(counts.total, 0);
+    assert.equal(counts.active, 0);
+    assert.deepEqual(counts.by_operational_status, {});
   });
 
-  test("capacity recommendation for low capacity score", () => {
-    const recs = generateExecutiveRecommendations({
-      pms: [], projects: [], healthScore: 55, capacityScore: 40, governanceScore: 80, riskScore: 30, overloadedPMCount: 0, criticalProjectCount: 0
-    });
-    const capRec = recs.find((r) => r.type === "staffing");
-    assert.ok(capRec, "Should recommend staffing for critically low capacity");
-    assert.equal(capRec.impact, "critical");
-  });
-
-  test("governance recommendation for low governance score", () => {
-    const recs = generateExecutiveRecommendations({
-      pms: [], projects: [], healthScore: 60, capacityScore: 80, governanceScore: 50, riskScore: 30, overloadedPMCount: 0, criticalProjectCount: 0
-    });
-    const govRec = recs.find((r) => r.type === "governance");
-    assert.ok(govRec, "Should recommend governance for low score");
-  });
-
-  test("confidence is between 0 and 1", () => {
-    const recs = generateExecutiveRecommendations({
-      pms: [pm2, pm2, pm2], projects: [], healthScore: 40, capacityScore: 35, governanceScore: 40, riskScore: 75, overloadedPMCount: 3, criticalProjectCount: 2
-    });
-    for (const rec of recs) {
-      assert.ok(rec.confidence >= 0 && rec.confidence <= 1, `Confidence out of range: ${rec.confidence}`);
-    }
-  });
-
-  test("impact is a valid value", () => {
-    const valid = ["low", "medium", "high", "critical"];
-    const recs = generateExecutiveRecommendations({
-      pms: [pm2], projects: [{ id: uuid(), healthScore: 30, pmId: null }], healthScore: 50, capacityScore: 55, governanceScore: 45, riskScore: 75, overloadedPMCount: 1, criticalProjectCount: 1
-    });
-    for (const rec of recs) {
-      assert.ok(valid.includes(rec.impact), `Invalid impact: ${rec.impact}`);
-    }
-  });
-
-  test("recommendations sorted by confidence descending", () => {
-    const recs = generateExecutiveRecommendations({
-      pms: [pm2, pm2], projects: [{ id: uuid(), healthScore: 30, pmId: null }], healthScore: 45, capacityScore: 40, governanceScore: 45, riskScore: 75, overloadedPMCount: 2, criticalProjectCount: 3
-    });
-    for (let i = 1; i < recs.length; i++) {
-      assert.ok(recs[i - 1].confidence >= recs[i].confidence, "Should be sorted by confidence desc");
-    }
-  });
-
-  test("portfolio recommendation when projects have no PM", () => {
-    const recs = generateExecutiveRecommendations({
-      pms: [], projects: [{ id: uuid(), healthScore: 80, pmId: null }, { id: uuid(), healthScore: 75, pmId: null }, { id: uuid(), healthScore: 85, pmId: null }],
-      healthScore: 80, capacityScore: 80, governanceScore: 80, riskScore: 20, overloadedPMCount: 0, criticalProjectCount: 0
-    });
-    const portRec = recs.find((r) => r.type === "portfolio");
-    assert.ok(portRec, "Should recommend portfolio fix for unassigned projects");
-  });
-});
-
-// ─── PMO Hotspots ─────────────────────────────────────────────────────────────
-
-describe("PMO Hotspot Engine", () => {
-  const overloadedPM = { id: uuid(), name: "Bob", utilizationPercentage: 145, complianceScore: 88 };
-  const lowCompPM    = { id: uuid(), name: "Carol", utilizationPercentage: 75, complianceScore: 52 };
-  const critProject  = { id: uuid(), name: "PROJ-001", healthScore: 35 };
-  const warnProject  = { id: uuid(), name: "PROJ-002", healthScore: 58 };
-
-  test("capacity hotspot — overloaded PM", () => {
-    const hotspots = identifyPMOHotspots({ pms: [overloadedPM], projects: [], governanceScore: 80, riskScore: 30 });
-    const cap = hotspots.filter((h) => h.type === "capacity");
-    assert.ok(cap.length >= 1, "Should detect capacity hotspot");
-    assert.equal(cap[0].severity, "critical");
-  });
-
-  test("governance hotspot — low compliance PM", () => {
-    const hotspots = identifyPMOHotspots({ pms: [lowCompPM], projects: [], governanceScore: 80, riskScore: 30 });
-    const gov = hotspots.filter((h) => h.type === "governance");
-    assert.ok(gov.length >= 1, "Should detect governance hotspot");
-    assert.equal(gov[0].severity, "critical");
-  });
-
-  test("execution hotspot — critical health project", () => {
-    const hotspots = identifyPMOHotspots({ pms: [], projects: [critProject], governanceScore: 80, riskScore: 30 });
-    const exec = hotspots.filter((h) => h.type === "execution");
-    assert.ok(exec.length >= 1, "Should detect execution hotspot");
-    assert.equal(exec[0].severity, "critical");
-  });
-
-  test("portfolio hotspot — high risk score", () => {
-    const hotspots = identifyPMOHotspots({ pms: [], projects: [], governanceScore: 80, riskScore: 90 });
-    const port = hotspots.filter((h) => h.type === "portfolio");
-    assert.ok(port.length >= 1, "Should detect portfolio hotspot at risk 90");
-    assert.equal(port[0].severity, "critical");
-  });
-
-  test("no hotspots — healthy PMO", () => {
-    const healthyPM = { id: uuid(), name: "Alice", utilizationPercentage: 70, complianceScore: 90 };
-    const healthProject = { id: uuid(), name: "PROJ-OK", healthScore: 88 };
-    const hotspots = identifyPMOHotspots({ pms: [healthyPM], projects: [healthProject], governanceScore: 85, riskScore: 20 });
-    assert.equal(hotspots.length, 0, "Healthy PMO should have no hotspots");
-  });
-
-  test("multiple hotspot types can coexist", () => {
-    const hotspots = identifyPMOHotspots({ pms: [overloadedPM, lowCompPM], projects: [critProject, warnProject], governanceScore: 55, riskScore: 80 });
-    const types = new Set(hotspots.map((h) => h.type));
-    assert.ok(types.has("capacity"),   "Should have capacity hotspot");
-    assert.ok(types.has("governance"), "Should have governance hotspot");
-    assert.ok(types.has("execution"),  "Should have execution hotspot");
-    assert.ok(types.has("portfolio"),  "Should have portfolio hotspot");
-  });
-});
-
-// ─── PMO Trends ───────────────────────────────────────────────────────────────
-
-describe("PMO Trend Engine", () => {
-  test("null when only one snapshot", () => {
-    const trend = calculatePMOTrends([makeSnapshot()]);
-    assert.equal(trend, null);
-  });
-
-  test("null when no snapshots", () => {
-    const trend = calculatePMOTrends([]);
-    assert.equal(trend, null);
-  });
-
-  test("improving trend — health increased", () => {
-    const older = makeSnapshot({ overall_health_score: 65, capacity_score: 60, governance_score: 70, risk_score: 40 });
-    const newer = makeSnapshot({ overall_health_score: 82, capacity_score: 78, governance_score: 85, risk_score: 22 });
-    const trend = calculatePMOTrends([newer, older]);
-    assert.equal(trend.health.direction, "improving");
-    assert.ok(trend.health.delta > 0, "Health delta should be positive");
-  });
-
-  test("deteriorating trend — health decreased", () => {
-    const older = makeSnapshot({ overall_health_score: 82, capacity_score: 78, governance_score: 85, risk_score: 22 });
-    const newer = makeSnapshot({ overall_health_score: 61, capacity_score: 55, governance_score: 60, risk_score: 45 });
-    const trend = calculatePMOTrends([newer, older]);
-    assert.equal(trend.health.direction, "deteriorating");
-    assert.ok(trend.health.delta < 0, "Health delta should be negative");
-  });
-
-  test("stable trend — minimal change", () => {
-    const older = makeSnapshot({ overall_health_score: 80, capacity_score: 75, governance_score: 85, risk_score: 22 });
-    const newer = makeSnapshot({ overall_health_score: 80.5, capacity_score: 75, governance_score: 85, risk_score: 22 });
-    const trend = calculatePMOTrends([newer, older]);
-    assert.equal(trend.health.direction, "stable");
-  });
-
-  test("trend includes snapshotsCompared count", () => {
-    const snaps = [
-      makeSnapshot({ overall_health_score: 85 }),
-      makeSnapshot({ overall_health_score: 78 }),
-      makeSnapshot({ overall_health_score: 70 }),
+  test("counts by status", () => {
+    const d = [
+      makeDossier({ pmId: "pm-1", status: "active", operationalStatus: "healthy" }),
+      makeDossier({ pmId: "pm-2", status: "inactive", operationalStatus: "watch" }),
+      makeDossier({ pmId: "pm-3", status: "suspended", operationalStatus: "healthy" }),
     ];
-    const trend = calculatePMOTrends(snaps);
-    assert.equal(trend.snapshotsCompared, 3);
+    const counts = buildPMOPMCounts(d);
+    assert.equal(counts.total, 3);
+    assert.equal(counts.active, 1);
+    assert.equal(counts.inactive, 1);
+    assert.equal(counts.suspended, 1);
+    assert.equal(counts.by_operational_status.healthy, 2);
+    assert.equal(counts.by_operational_status.watch, 1);
+  });
+});
+
+describe("buildPMOCapacityOverview", () => {
+  test("empty list returns nulls and zeros", () => {
+    const ov = buildPMOCapacityOverview([]);
+    assert.equal(ov.pms_with_capacity_snapshot, 0);
+    assert.equal(ov.average_capacity_utilization, null);
+    assert.equal(ov.overloaded_count, 0);
   });
 
-  test("trend compares newest vs oldest in list", () => {
-    const snaps = [
-      makeSnapshot({ overall_health_score: 90 }),
-      makeSnapshot({ overall_health_score: 75 }),
-      makeSnapshot({ overall_health_score: 60 }),
+  test("missing capacity snapshot counted", () => {
+    const d = [makeDossier({ pmId: "pm-1" })];
+    const ov = buildPMOCapacityOverview(d);
+    assert.equal(ov.pms_missing_capacity_snapshot, 1);
+    assert.equal(ov.pms_with_capacity_snapshot, 0);
+  });
+
+  test("overloaded PM is captured", () => {
+    const d = [makeDossier({ pmId: "pm-1", capacityStatus: "overloaded" })];
+    const ov = buildPMOCapacityOverview(d);
+    assert.equal(ov.overloaded_count, 1);
+    assert.equal(ov.overloaded_pms.length, 1);
+    assert.equal(ov.overloaded_pms[0].pm_id, "pm-1");
+  });
+
+  test("average capacity utilization computed", () => {
+    const d = [
+      makeDossier({ pmId: "pm-1", capacityStatus: "healthy" }),
+      makeDossier({ pmId: "pm-2", capacityStatus: "near_capacity" }),
     ];
-    const trend = calculatePMOTrends(snaps);
-    assert.equal(trend.health.current, 90);
-    assert.equal(trend.health.previous, 60);
-    assert.ok(trend.health.delta > 1, "Should be improving from 60 to 90");
+    const ov = buildPMOCapacityOverview(d);
+    assert.equal(ov.average_capacity_utilization, 0.5);
   });
 });
 
-// ─── PMO Summary / Snapshot ───────────────────────────────────────────────────
-
-describe("PMO Snapshot — Aggregation", () => {
-  test("snapshot has correct structure", () => {
-    const snap = makeSnapshot();
-    assert.ok(typeof snap.id === "string");
-    assert.ok(typeof snap.overall_health_score === "number");
-    assert.ok(typeof snap.capacity_score === "number");
-    assert.ok(typeof snap.governance_score === "number");
-    assert.ok(typeof snap.execution_score === "number");
-    assert.ok(typeof snap.risk_score === "number");
-    assert.ok(typeof snap.project_count === "number");
-    assert.ok(typeof snap.portfolio_count === "number");
-    assert.ok(typeof snap.pm_count === "number");
-    assert.ok(typeof snap.critical_projects === "number");
-    assert.ok(typeof snap.warning_projects === "number");
-    assert.ok(typeof snap.healthy_projects === "number");
-    assert.ok(typeof snap.generated_at === "string");
+describe("buildPMOPerformanceOverview", () => {
+  test("empty returns zeros and null avg", () => {
+    const ov = buildPMOPerformanceOverview([]);
+    assert.equal(ov.average_performance_score, null);
+    assert.equal(ov.excellent_count, 0);
   });
 
-  test("project counts are correct", () => {
-    const snap = makeSnapshot({ critical_projects: 3, warning_projects: 7, healthy_projects: 10 });
-    assert.equal(snap.critical_projects + snap.warning_projects + snap.healthy_projects, 20);
+  test("missing performance snapshot counted", () => {
+    const d = [makeDossier({ pmId: "pm-1" })];
+    const ov = buildPMOPerformanceOverview(d);
+    assert.equal(ov.pms_missing_performance_snapshot, 1);
   });
 
-  test("scores are within 0-100 range", () => {
-    const snap = makeSnapshot();
-    for (const field of ["overall_health_score", "capacity_score", "governance_score", "execution_score", "risk_score"]) {
-      assert.ok(snap[field] >= 0 && snap[field] <= 100, `${field} out of range: ${snap[field]}`);
-    }
+  test("top performers extracted", () => {
+    const d = [makeDossier({ pmId: "pm-1", perfStatus: "excellent" }), makeDossier({ pmId: "pm-2", perfStatus: "strong" })];
+    const ov = buildPMOPerformanceOverview(d);
+    assert.equal(ov.excellent_count, 1);
+    assert.equal(ov.strong_count, 1);
+    assert.equal(ov.top_performers.length, 2);
   });
 
-  test("health score aggregation uses correct weights", () => {
-    const score = calculatePMOHealth({ avgPerformanceScore: 80, avgCapacityScore: 70, avgComplianceScore: 75, projectHealthScore: 85 });
-    const expected = 80 * 0.30 + 70 * 0.25 + 75 * 0.25 + 85 * 0.20;
-    assert.equal(score, Math.round(expected * 100) / 100);
+  test("critical performance captured", () => {
+    const d = [makeDossier({ pmId: "pm-1", perfStatus: "critical", perfRisk: "critical" })];
+    const ov = buildPMOPerformanceOverview(d);
+    assert.equal(ov.critical_count, 1);
+    assert.equal(ov.critical_pms.length, 1);
+    assert(ov.performance_recommendations.some((r) => r.includes("critical")));
   });
 });
 
-// ─── Lineage ──────────────────────────────────────────────────────────────────
-
-describe("PMO Lineage", () => {
-  test("lineage types file contains PMOLineage type", () => {
-    const src = readFileSync("src/lib/pmo-command-center/types.ts", "utf8");
-    assert.ok(src.includes("PMOLineage"), "types.ts must export PMOLineage");
-    assert.ok(src.includes("ProjectSummary"), "types.ts must export ProjectSummary");
-    assert.ok(src.includes("PMSummary"), "types.ts must export PMSummary");
+describe("buildPMOEvidenceConfidenceOverview", () => {
+  test("empty returns zeros", () => {
+    const ov = buildPMOEvidenceConfidenceOverview([]);
+    assert.equal(ov.pms_with_evidence_confidence, 0);
+    assert.equal(ov.average_evidence_completeness, null);
   });
 
-  test("lineage engine file exports getPMOLineage", () => {
-    const src = readFileSync("src/lib/pmo-command-center/pmo-lineage.ts", "utf8");
-    assert.ok(src.includes("getPMOLineage"), "pmo-lineage.ts must export getPMOLineage");
-    assert.ok(src.includes("PMO_LINEAGE_GENERATED"), "lineage must emit PMO_LINEAGE_GENERATED event");
+  test("very_low confidence captured", () => {
+    const d = [makeDossier({ pmId: "pm-1", confLevel: "very_low" })];
+    const ov = buildPMOEvidenceConfidenceOverview(d);
+    assert.equal(ov.very_low_confidence_count, 1);
+    assert.equal(ov.low_confidence_pms.length, 1);
+    assert(ov.evidence_recommendations.some((r) => r.includes("very low")));
   });
 
-  test("lineage references all chain components", () => {
-    const src = readFileSync("src/lib/pmo-command-center/pmo-lineage.ts", "utf8");
-    assert.ok(src.includes("pm_performance_snapshots"), "lineage must reference performance");
-    assert.ok(src.includes("pm_capacity_snapshots"), "lineage must reference capacity");
-    assert.ok(src.includes("governance_compliance_snapshots"), "lineage must reference compliance");
-    assert.ok(src.includes("project_os_snapshots"), "lineage must reference project health");
-    assert.ok(src.includes("pm_assignments"), "lineage must reference assignments");
-    assert.ok(src.includes("programs"), "lineage must reference portfolios");
+  test("missing sources aggregated", () => {
+    const d1 = makeDossier({ pmId: "pm-1", confLevel: "low" });
+    const d2 = makeDossier({ pmId: "pm-2", confLevel: "low" });
+    // Both share "execution_data" as missing source
+    const ov = buildPMOEvidenceConfidenceOverview([d1, d2]);
+    assert.equal(ov.common_missing_sources[0].source, "execution_data");
+    assert.equal(ov.common_missing_sources[0].missing_count, 2);
   });
 });
 
-// ─── Audit Events ─────────────────────────────────────────────────────────────
+describe("buildPMOAttentionQueues", () => {
+  test("critical PM goes in critical queue", () => {
+    const d = [makeDossier({ pmId: "pm-1", operationalStatus: "critical" })];
+    const q = buildPMOAttentionQueues(d);
+    assert.equal(q.critical_attention.length, 1);
+  });
 
-describe("Audit Events", () => {
-  test("registry emits all required event types", () => {
-    const src = readFileSync("src/lib/pmo-command-center/pmo-registry.ts", "utf8");
-    const events = [
-      "PMO_SNAPSHOT_GENERATED",
-      "PMO_HEALTH_CALCULATED",
-      "PMO_CAPACITY_CALCULATED",
-      "PMO_GOVERNANCE_MATURITY_CALCULATED",
-      "PMO_RISK_INDEX_CALCULATED",
-      "PMO_ATTENTION_QUEUE_GENERATED",
-      "PMO_RECOMMENDATIONS_GENERATED",
-      "PMO_HOTSPOT_IDENTIFIED",
+  test("overloaded PM goes in capacity queue", () => {
+    const d = [makeDossier({ pmId: "pm-1", capacityStatus: "overloaded" })];
+    const q = buildPMOAttentionQueues(d);
+    assert.equal(q.capacity_attention.length, 1);
+  });
+
+  test("excellent performer goes in high_performers queue", () => {
+    const d = [makeDossier({ pmId: "pm-1", perfStatus: "excellent" })];
+    const q = buildPMOAttentionQueues(d);
+    assert.equal(q.high_performers.length, 1);
+  });
+
+  test("empty dossiers produces empty queues", () => {
+    const q = buildPMOAttentionQueues([]);
+    assert.equal(q.critical_attention.length, 0);
+    assert.equal(q.high_performers.length, 0);
+  });
+});
+
+describe("buildPMORecommendationQueue", () => {
+  test("empty dossiers returns empty queue", () => {
+    assert.deepEqual(buildPMORecommendationQueue([]), []);
+  });
+
+  test("deduplicates same type+message per PM", () => {
+    const d = makeDossier({ pmId: "pm-1" });
+    d.recommendations = [
+      { type: "foo", severity: "high", message: "Fix it", source: "pm_capacity" },
+      { type: "foo", severity: "high", message: "Fix it", source: "pm_capacity" },
     ];
-    for (const event of events) {
-      assert.ok(src.includes(event), `Missing event: ${event}`);
-    }
+    const q = buildPMORecommendationQueue([d]);
+    assert.equal(q.length, 1);
   });
 
-  test("lineage emits PMO_LINEAGE_GENERATED", () => {
-    const src = readFileSync("src/lib/pmo-command-center/pmo-lineage.ts", "utf8");
-    assert.ok(src.includes("PMO_LINEAGE_GENERATED"), "lineage must emit PMO_LINEAGE_GENERATED");
+  test("sorted by severity: critical first", () => {
+    const d = makeDossier({ pmId: "pm-1" });
+    d.recommendations = [
+      { type: "a", severity: "low", message: "Low msg", source: "pm_capacity" },
+      { type: "b", severity: "critical", message: "Critical msg", source: "pm_capacity" },
+    ];
+    const q = buildPMORecommendationQueue([d]);
+    assert.equal(q[0].severity, "critical");
+    assert.equal(q[1].severity, "low");
   });
 
-  test("trend event type declared in types", () => {
-    const src = readFileSync("src/lib/pmo-command-center/types.ts", "utf8");
-    assert.ok(src.includes("PMO_TREND_CALCULATED"), "types must include PMO_TREND_CALCULATED event");
-  });
-
-  test("audit event payloads include snapshot_id", () => {
-    const src = readFileSync("src/lib/pmo-command-center/pmo-registry.ts", "utf8");
-    assert.ok(src.includes("snapshot_id:"), "Event payloads must reference snapshot_id");
-  });
-
-  test("event metadata includes correlation and causation IDs", () => {
-    const src = readFileSync("src/lib/pmo-command-center/pmo-registry.ts", "utf8");
-    assert.ok(src.includes("correlationId:"), "Must set correlationId on events");
-    assert.ok(src.includes("causationId:"), "Must set causationId on sub-events");
+  test("includes pm_id and pm_name", () => {
+    const d = makeDossier({ pmId: "pm-42" });
+    d.recommendations = [{ type: "x", severity: "medium", message: "Hello", source: "pm_detail_intelligence" }];
+    const q = buildPMORecommendationQueue([d]);
+    assert.equal(q[0].pm_id, "pm-42");
+    assert.equal(q[0].pm_name, "PM pm-42");
   });
 });
 
-// ─── Workspace Isolation ──────────────────────────────────────────────────────
-
-describe("Workspace Isolation", () => {
-  test("all queries filter by workspace_id", () => {
-    const registrySrc  = readFileSync("src/lib/pmo-command-center/pmo-registry.ts", "utf8");
-    const dashboardSrc = readFileSync("src/lib/pmo-command-center/pmo-dashboard.ts", "utf8");
-    const lineageSrc   = readFileSync("src/lib/pmo-command-center/pmo-lineage.ts", "utf8");
-
-    for (const [name, src] of [["pmo-registry", registrySrc], ["pmo-dashboard", dashboardSrc], ["pmo-lineage", lineageSrc]]) {
-      assert.ok(src.includes('.eq("workspace_id"'), `${name} must filter by workspace_id`);
-    }
+describe("buildPMODossierRows", () => {
+  test("empty returns empty array", () => {
+    assert.deepEqual(buildPMODossierRows([]), []);
   });
 
-  test("UUID validation rejects invalid workspace IDs", () => {
-    const src = readFileSync("src/lib/pmo-command-center/pmo-registry.ts", "utf8");
-    assert.ok(src.includes("validUuid(input.workspaceId)"), "Must validate workspaceId UUID");
+  test("maps fields correctly", () => {
+    const d = makeDossier({ pmId: "pm-1", status: "active", operationalStatus: "healthy", capacityStatus: "healthy", perfStatus: "strong" });
+    const rows = buildPMODossierRows([d]);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].pm_id, "pm-1");
+    assert.equal(rows[0].pm_status, "active");
+    assert.equal(rows[0].operational_status, "healthy");
+    assert.equal(rows[0].capacity_status, "healthy");
+    assert.equal(rows[0].performance_status, "strong");
+    assert.equal(rows[0].dossier_url, "/pm-registry/pm-1");
   });
 
-  test("UUID validation rejects invalid snapshot IDs", () => {
-    const src = readFileSync("src/lib/pmo-command-center/pmo-registry.ts", "utf8");
-    assert.ok(src.includes("validUuid(input.snapshotId)"), "Must validate snapshotId UUID");
-  });
-
-  test("result type includes failureClass for error cases", () => {
-    const src = readFileSync("src/lib/pmo-command-center/types.ts", "utf8");
-    assert.ok(src.includes("failureClass"), "PMOCommandCenterResult must include failureClass");
-  });
-
-  test("no automatic modifications to projects or PMs", () => {
-    const registrySrc = readFileSync("src/lib/pmo-command-center/pmo-registry.ts", "utf8");
-    // Verify no update calls on project_managers or projects tables
-    assert.ok(!registrySrc.includes('.from("project_managers")\n    .update'), "Must not update project_managers");
-    assert.ok(!registrySrc.includes('.from("projects")\n    .update'), "Must not update projects");
-  });
-});
-
-// ─── Database Contract ────────────────────────────────────────────────────────
-
-describe("Database Contract", () => {
-  test("database-contract includes all PMO Command Center tables", () => {
-    const src = readFileSync("src/lib/db/database-contract.ts", "utf8");
-    assert.ok(src.includes("PMOCommandCenterSnapshotRow"), "Contract must include PMOCommandCenterSnapshotRow");
-    assert.ok(src.includes("PMOAttentionItemRow"), "Contract must include PMOAttentionItemRow");
-    assert.ok(src.includes("PMORecommendationRow"), "Contract must include PMORecommendationRow");
-  });
-
-  test("database-contract exports selectable column arrays", () => {
-    const src = readFileSync("src/lib/db/database-contract.ts", "utf8");
-    assert.ok(src.includes("PMO_COMMAND_CENTER_SNAPSHOT_SELECTABLE_COLUMNS"), "Must export snapshot column selector");
-    assert.ok(src.includes("PMO_ATTENTION_ITEM_SELECTABLE_COLUMNS"), "Must export attention item column selector");
-    assert.ok(src.includes("PMO_RECOMMENDATION_SELECTABLE_COLUMNS"), "Must export recommendation column selector");
-  });
-
-  test("database contract version updated for sprint 5", () => {
-    const src = readFileSync("src/lib/db/database-contract.ts", "utf8");
-    assert.ok(src.includes("pmo-command-center"), "DATABASE_CONTRACT_VERSION must reference pmo-command-center");
-  });
-
-  test("migration file exists", () => {
-    const src = readFileSync("supabase/migrations/20260718000000_pmo_command_center.sql", "utf8");
-    assert.ok(src.includes("pmo_command_center_snapshots"), "Migration must create pmo_command_center_snapshots");
-    assert.ok(src.includes("pmo_attention_items"), "Migration must create pmo_attention_items");
-    assert.ok(src.includes("pmo_recommendations"), "Migration must create pmo_recommendations");
-  });
-
-  test("migration enables RLS on all tables", () => {
-    const src = readFileSync("supabase/migrations/20260718000000_pmo_command_center.sql", "utf8");
-    const rlsCount = (src.match(/enable row level security/g) ?? []).length;
-    assert.equal(rlsCount, 3, "All 3 tables must have RLS enabled");
-  });
-});
-
-// ─── Index / Exports ──────────────────────────────────────────────────────────
-
-describe("Module Exports", () => {
-  test("index exports all required services", () => {
-    const src = readFileSync("src/lib/pmo-command-center/index.ts", "utf8");
-    assert.ok(src.includes("generatePMOSnapshot"), "Must export generatePMOSnapshot");
-    assert.ok(src.includes("getPMOSnapshot"), "Must export getPMOSnapshot");
-    assert.ok(src.includes("listPMOSnapshots"), "Must export listPMOSnapshots");
-    assert.ok(src.includes("generatePMODashboardModel"), "Must export generatePMODashboardModel");
-    assert.ok(src.includes("getPMOLineage"), "Must export getPMOLineage");
-    assert.ok(src.includes("explainPMOCommandCenter"), "Must export explainPMOCommandCenter");
-    assert.ok(src.includes("calculatePMOTrendsFromWorkspace"), "Must export calculatePMOTrendsFromWorkspace");
-  });
-
-  test("index exports all engine functions", () => {
-    const src = readFileSync("src/lib/pmo-command-center/index.ts", "utf8");
-    assert.ok(src.includes("calculatePMOHealth"), "Must export calculatePMOHealth");
-    assert.ok(src.includes("calculateOrganizationalCapacity"), "Must export calculateOrganizationalCapacity");
-    assert.ok(src.includes("calculateGovernanceMaturity"), "Must export calculateGovernanceMaturity");
-    assert.ok(src.includes("calculatePMORiskIndex"), "Must export calculatePMORiskIndex");
-    assert.ok(src.includes("generateAttentionQueue"), "Must export generateAttentionQueue");
-    assert.ok(src.includes("generateExecutiveRecommendations"), "Must export generateExecutiveRecommendations");
-    assert.ok(src.includes("identifyPMOHotspots"), "Must export identifyPMOHotspots");
-    assert.ok(src.includes("calculatePMOTrends"), "Must export calculatePMOTrends");
-  });
-
-  test("explain function returns structured explanation", () => {
-    const src = readFileSync("src/lib/pmo-command-center/explain.ts", "utf8");
-    assert.ok(src.includes("PMO Health Engine"), "Explanation must describe PMO Health Engine");
-    assert.ok(src.includes("Organizational Capacity Engine"), "Explanation must describe Organizational Capacity Engine");
-    assert.ok(src.includes("Governance Maturity Engine"), "Explanation must describe Governance Maturity Engine");
-    assert.ok(src.includes("PMO Risk Engine"), "Explanation must describe PMO Risk Engine");
-    assert.ok(src.includes("Attention Queue Engine"), "Explanation must describe Attention Queue Engine");
-    assert.ok(src.includes("Executive Recommendation Engine"), "Explanation must describe Recommendation Engine");
-    assert.ok(src.includes("PMO Hotspot Engine"), "Explanation must describe Hotspot Engine");
-    assert.ok(src.includes("PMO Trend Engine"), "Explanation must describe Trend Engine");
-    assert.ok(src.includes("PMO Lineage Engine"), "Explanation must describe Lineage Engine");
-    assert.ok(src.includes("governance-by-exception"), "Explanation must describe governance-by-exception");
+  test("null capacity and performance when absent", () => {
+    const d = makeDossier({ pmId: "pm-1" });
+    const rows = buildPMODossierRows([d]);
+    assert.equal(rows[0].capacity_utilization, null);
+    assert.equal(rows[0].overall_performance_score, null);
   });
 });
