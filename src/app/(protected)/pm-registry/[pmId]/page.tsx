@@ -333,7 +333,14 @@ export default function PMDetailPage() {
           {/* Capacity Snapshot */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-white">Capacity Snapshot</h2>
+              <div>
+                <h2 className="text-sm font-semibold text-white">Capacity Snapshot</h2>
+                {capacitySnapshot && (
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Last generated: {new Date(capacitySnapshot.generated_at).toLocaleString()}
+                  </p>
+                )}
+              </div>
               <button
                 onClick={generateCapacity}
                 disabled={generatingCapacity || capacityLoading}
@@ -357,49 +364,59 @@ export default function PMDetailPage() {
                 ? (ac.assignment_capacity_utilization * 100).toFixed(1) + "%"
                 : capacitySnapshot.utilization_percentage.toFixed(1) + "%";
               const recommendation = ac?.recommendations?.[0]?.message ?? capacitySnapshot.recommended_action;
+              const isAlert = capacityStatus === "at_capacity" || capacityStatus === "overloaded";
+              const isWarning = capacityStatus === "near_capacity";
               return (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                    <p className="text-xs text-zinc-500">Active project limit</p>
-                    <p className="mt-1 text-sm font-medium text-white">{ac?.active_projects_limit ?? capacitySnapshot.snapshot_payload?.active_projects_limit ?? "—"}</p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                    <p className="text-xs text-zinc-500">Counted assignments</p>
-                    <p className="mt-1 text-sm font-medium text-white">{ac?.counted_assignment_count ?? "—"}</p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                    <p className="text-xs text-zinc-500">Observer assignments</p>
-                    <p className="mt-1 text-sm font-medium text-white">{ac?.observer_assignment_count ?? "—"}</p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                    <p className="text-xs text-zinc-500">Utilization</p>
-                    <p className="mt-1 text-sm font-medium text-white">{utilization}</p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                    <p className="text-xs text-zinc-500">Capacity status</p>
-                    <div className="mt-1">
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${CAPACITY_STATUS_STYLES[capacityStatus] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30"}`}>
-                        {capacityStatus.replace(/_/g, " ")}
-                      </span>
+                <>
+                  {isAlert && (
+                    <div className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                      This PM is {capacityStatus.replace(/_/g, " ")}. Review assignments before adding new projects.
+                    </div>
+                  )}
+                  {isWarning && (
+                    <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                      This PM is approaching capacity. Monitor before adding new workload-counting assignments.
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Active project limit</p>
+                      <p className="mt-1 text-sm font-medium text-white">{ac?.active_projects_limit ?? capacitySnapshot.snapshot_payload?.active_projects_limit ?? "—"}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Counted assignments</p>
+                      <p className="mt-1 text-sm font-medium text-white">{ac?.counted_assignment_count ?? "—"}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Observer assignments</p>
+                      <p className="mt-1 text-sm font-medium text-white">{ac?.observer_assignment_count ?? "—"}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Utilization</p>
+                      <p className="mt-1 text-sm font-medium text-white">{utilization}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Capacity status</p>
+                      <div className="mt-1">
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${CAPACITY_STATUS_STYLES[capacityStatus] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30"}`}>
+                          {capacityStatus.replace(/_/g, " ")}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Overload risk</p>
+                      <div className="mt-1">
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${RISK_STYLES[overloadRisk] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30"}`}>
+                          {overloadRisk}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="col-span-2 sm:col-span-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Recommendation</p>
+                      <p className="mt-1 text-sm text-zinc-300">{recommendation}</p>
                     </div>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                    <p className="text-xs text-zinc-500">Overload risk</p>
-                    <div className="mt-1">
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${RISK_STYLES[overloadRisk] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30"}`}>
-                        {overloadRisk}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="col-span-2 sm:col-span-3 rounded-xl border border-white/10 bg-white/5 p-3">
-                    <p className="text-xs text-zinc-500">Recommendation</p>
-                    <p className="mt-1 text-sm text-zinc-300">{recommendation}</p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                    <p className="text-xs text-zinc-500">Generated at</p>
-                    <p className="mt-1 text-xs text-zinc-400">{new Date(capacitySnapshot.generated_at).toLocaleString()}</p>
-                  </div>
-                </div>
+                </>
               );
             })()}
           </div>

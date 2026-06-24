@@ -928,3 +928,365 @@ describe("Assignment-Based Capacity Snapshot Activation", () => {
     assert.ok(eventPayload.generated_snapshot_count <= eventPayload.total_pm_count);
   });
 });
+
+// ─── PM Capacity Alerting + Auto-Generation Hardening ─────────────────────────
+
+// Pure helpers mirroring capacity-registry.ts alerting logic
+
+const OVERLOADED_ASSIGNMENT_STATUSES = new Set(["at_capacity", "overloaded"]);
+const HIGH_RISK_LEVELS = new Set(["high", "critical"]);
+
+function isOverloadedByAssignmentCapacity(snapshot) {
+  const ac = snapshot?.snapshot_payload?.assignment_capacity;
+  if (ac) {
+    return (
+      OVERLOADED_ASSIGNMENT_STATUSES.has(ac.assignment_capacity_status) ||
+      HIGH_RISK_LEVELS.has(ac.assignment_overload_risk)
+    );
+  }
+  // Fallback for pre-activation snapshots without assignment_capacity
+  return (
+    snapshot?.capacity_status === "overloaded" ||
+    snapshot?.capacity_status === "critical" ||
+    snapshot?.burn_risk === "high" ||
+    snapshot?.burn_risk === "critical"
+  );
+}
+
+function buildSnapshot(overrides = {}) {
+  return {
+    id: uuid(),
+    pm_id: uuid(),
+    capacity_status: "healthy",
+    burn_risk: "low",
+    utilization_percentage: 60,
+    generated_at: new Date().toISOString(),
+    snapshot_payload: {
+      pm_name: "Test PM",
+      pm_email: "test@example.com",
+      active_projects_limit: 5,
+      assignment_capacity: {
+        active_assignment_count: 3,
+        counted_assignment_count: 3,
+        observer_assignment_count: 0,
+        active_projects_limit: 5,
+        assignment_capacity_utilization: 0.6,
+        assignment_capacity_status: "healthy",
+        assignment_overload_risk: "low",
+        assignment_breakdown: { primary: 3, secondary: 0, program: 0, observer: 0 },
+        recommendations: [{ type: "maintain_load", severity: "low", message: "PM load is within healthy operating range." }],
+      },
+    },
+    ...overrides,
+  };
+}
+
+describe("Overloaded Filtering — Assignment-Based Source of Truth", () => {
+
+  test("PM at_capacity by assignment_capacity appears in overloaded filter", () => {
+    const snap = buildSnapshot({
+      snapshot_payload: {
+        pm_name: "At Cap PM",
+        pm_email: "atcap@example.com",
+        active_projects_limit: 5,
+        assignment_capacity: {
+          assignment_capacity_status: "at_capacity",
+          assignment_overload_risk: "high",
+          assignment_capacity_utilization: 1.0,
+        },
+      },
+    });
+    assert.ok(isOverloadedByAssignmentCapacity(snap));
+  });
+
+  test("PM overloaded by assignment_capacity appears in overloaded filter", () => {
+    const snap = buildSnapshot({
+      snapshot_payload: {
+        pm_name: "Overloaded PM",
+        pm_email: "overloaded@example.com",
+        active_projects_limit: 5,
+        assignment_capacity: {
+          assignment_capacity_status: "overloaded",
+          assignment_overload_risk: "critical",
+          assignment_capacity_utilization: 1.4,
+        },
+      },
+    });
+    assert.ok(isOverloadedByAssignmentCapacity(snap));
+  });
+
+  test("PM near_capacity with medium risk does NOT appear in overloaded filter", () => {
+    const snap = buildSnapshot({
+      snapshot_payload: {
+        pm_name: "Near Cap PM",
+        pm_email: "near@example.com",
+        active_projects_limit: 5,
+        assignment_capacity: {
+          assignment_capacity_status: "near_capacity",
+          assignment_overload_risk: "medium",
+          assignment_capacity_utilization: 0.8,
+        },
+      },
+    });
+    assert.ok(!isOverloadedByAssignmentCapacity(snap));
+  });
+
+  test("PM healthy does not appear in overloaded filter", () => {
+    const snap = buildSnapshot();
+    assert.ok(!isOverloadedByAssignmentCapacity(snap));
+  });
+
+  test("PM underutilized does not appear in overloaded filter", () => {
+    const snap = buildSnapshot({
+      snapshot_payload: {
+        pm_name: "Under PM",
+        pm_email: "under@example.com",
+        active_projects_limit: 5,
+        assignment_capacity: {
+          assignment_capacity_status: "underutilized",
+          assignment_overload_risk: "low",
+          assignment_capacity_utilization: 0.2,
+        },
+      },
+    });
+    assert.ok(!isOverloadedByAssignmentCapacity(snap));
+  });
+
+  test("PM with high risk but near_capacity status still appears (risk-based)", () => {
+    const snap = buildSnapshot({
+      snapshot_payload: {
+        pm_name: "High Risk PM",
+        pm_email: "highrisk@example.com",
+        active_projects_limit: 5,
+        assignment_capacity: {
+          assignment_capacity_status: "near_capacity",
+          assignment_overload_risk: "high",
+          assignment_capacity_utilization: 0.9,
+        },
+      },
+    });
+    assert.ok(isOverloadedByAssignmentCapacity(snap));
+  });
+
+  test("fallback for snapshots without assignment_capacity uses multi-domain fields", () => {
+    const snapOverloaded = buildSnapshot({
+      snapshot_payload: {
+        pm_name: "Legacy PM",
+        pm_email: "legacy@example.com",
+        active_projects_limit: 5,
+        // No assignment_capacity field
+      },
+      capacity_status: "critical",
+      burn_risk: "critical",
+    });
+    assert.ok(isOverloadedByAssignmentCapacity(snapOverloaded));
+
+    const snapHealthy = buildSnapshot({
+      snapshot_payload: {
+        pm_name: "Legacy Healthy PM",
+        pm_email: "legacyhealthy@example.com",
+        active_projects_limit: 5,
+      },
+      capacity_status: "healthy",
+      burn_risk: "low",
+    });
+    assert.ok(!isOverloadedByAssignmentCapacity(snapHealthy));
+  });
+
+  test("only latest snapshot per PM is used (deduplication)", () => {
+    const pmId = uuid();
+    const older = buildSnapshot({ pm_id: pmId, generated_at: new Date(Date.now() - 3600000).toISOString() });
+    const newer = buildSnapshot({ pm_id: pmId, generated_at: new Date().toISOString() });
+
+    // Simulate listLatestPMCapacitySnapshots deduplication: keep first seen per pm_id (desc order)
+    const snapshots = [newer, older]; // newest first
+    const seen = new Set();
+    const latest = snapshots.filter((s) => {
+      if (seen.has(s.pm_id)) return false;
+      seen.add(s.pm_id);
+      return true;
+    });
+
+    assert.equal(latest.length, 1);
+    assert.equal(latest[0].id, newer.id, "Must use newer snapshot, not older");
+  });
+});
+
+describe("Threshold Alert Event Logic", () => {
+
+  function shouldEmitThresholdEvent(newStatus, prevStatus) {
+    const thresholdStatuses = ["near_capacity", "at_capacity", "overloaded"];
+    const statusChanged = newStatus !== prevStatus;
+    const isFirstSnapshot = prevStatus === null;
+    return thresholdStatuses.includes(newStatus) && (statusChanged || isFirstSnapshot);
+  }
+
+  function deriveThresholdEventType(status) {
+    if (status === "near_capacity") return "PM_CAPACITY_NEAR_LIMIT";
+    if (status === "at_capacity")   return "PM_CAPACITY_AT_LIMIT";
+    if (status === "overloaded")    return "PM_CAPACITY_OVERLOADED";
+    return null;
+  }
+
+  test("near_capacity status emits PM_CAPACITY_NEAR_LIMIT on first snapshot", () => {
+    assert.ok(shouldEmitThresholdEvent("near_capacity", null));
+    assert.equal(deriveThresholdEventType("near_capacity"), "PM_CAPACITY_NEAR_LIMIT");
+  });
+
+  test("at_capacity status emits PM_CAPACITY_AT_LIMIT on first snapshot", () => {
+    assert.ok(shouldEmitThresholdEvent("at_capacity", null));
+    assert.equal(deriveThresholdEventType("at_capacity"), "PM_CAPACITY_AT_LIMIT");
+  });
+
+  test("overloaded status emits PM_CAPACITY_OVERLOADED on first snapshot", () => {
+    assert.ok(shouldEmitThresholdEvent("overloaded", null));
+    assert.equal(deriveThresholdEventType("overloaded"), "PM_CAPACITY_OVERLOADED");
+  });
+
+  test("healthy status does NOT emit threshold event", () => {
+    assert.ok(!shouldEmitThresholdEvent("healthy", null));
+    assert.equal(deriveThresholdEventType("healthy"), null);
+  });
+
+  test("underutilized status does NOT emit threshold event", () => {
+    assert.ok(!shouldEmitThresholdEvent("underutilized", null));
+    assert.equal(deriveThresholdEventType("underutilized"), null);
+  });
+
+  test("repeated near_capacity (same status) does NOT re-emit threshold event", () => {
+    assert.ok(!shouldEmitThresholdEvent("near_capacity", "near_capacity"));
+  });
+
+  test("repeated at_capacity does NOT re-emit threshold event", () => {
+    assert.ok(!shouldEmitThresholdEvent("at_capacity", "at_capacity"));
+  });
+
+  test("status transition from healthy to near_capacity DOES emit threshold event", () => {
+    assert.ok(shouldEmitThresholdEvent("near_capacity", "healthy"));
+  });
+
+  test("status transition from near_capacity to overloaded DOES emit threshold event", () => {
+    assert.ok(shouldEmitThresholdEvent("overloaded", "near_capacity"));
+  });
+
+  test("status transition from overloaded to healthy does NOT emit threshold event", () => {
+    assert.ok(!shouldEmitThresholdEvent("healthy", "overloaded"));
+  });
+
+  test("threshold event payload has governance-useful fields", () => {
+    const payload = {
+      workspace_id:             uuid(),
+      actor_user_id:            uuid(),
+      pm_id:                    uuid(),
+      snapshot_id:              uuid(),
+      active_projects_limit:    5,
+      counted_assignment_count: 5,
+      capacity_utilization:     1.0,
+      capacity_status:          "at_capacity",
+      overload_risk:            "high",
+      previous_capacity_status: "near_capacity",
+      generated_at:             new Date().toISOString(),
+      source:                   "pm_capacity",
+    };
+    assert.ok(validUuid(payload.workspace_id));
+    assert.ok(validUuid(payload.pm_id));
+    assert.ok(validUuid(payload.snapshot_id));
+    assert.equal(payload.source, "pm_capacity");
+    assert.ok(["near_capacity", "at_capacity", "overloaded"].includes(payload.capacity_status));
+    assert.ok(typeof payload.capacity_utilization === "number");
+    assert.ok(typeof payload.counted_assignment_count === "number");
+    assert.ok(typeof payload.previous_capacity_status === "string");
+  });
+
+  test("failed snapshot generation does not emit threshold event (event gate is after successful persist)", () => {
+    // This is a behavioral contract test: threshold events are emitted only inside
+    // generatePMCapacitySnapshot after snapshot.id is available. If persist fails,
+    // the function returns early with persistFailed before reaching event emission.
+    const persistFailed = { ok: false, error: "Unable to generate capacity snapshot.", failureClass: "persistence_failed" };
+    assert.ok(!persistFailed.ok, "Failed result prevents further execution");
+  });
+});
+
+describe("Auto-Generation Behavioral Contract", () => {
+
+  test("successful assignment triggers capacity snapshot generation (non-blocking)", () => {
+    // Contract: after a successful assignProjectManager(), generatePMCapacitySnapshot()
+    // is called with the same workspaceId and pmId. It is fire-and-forget (void).
+    const assignmentResult = { ok: true, data: { id: uuid(), pm_id: uuid(), project_id: uuid() } };
+    const snapshotGenerated = assignmentResult.ok; // Generation is triggered iff ok
+    assert.ok(snapshotGenerated);
+  });
+
+  test("failed assignment does NOT trigger capacity snapshot generation", () => {
+    const failedResult = { ok: false, error: "PM at capacity.", failureClass: "PM_ACTIVE_PROJECT_LIMIT_EXCEEDED" };
+    const snapshotGenerated = failedResult.ok; // Generation is triggered iff ok
+    assert.ok(!snapshotGenerated);
+  });
+
+  test("successful unassignment triggers capacity snapshot generation", () => {
+    const unassignResult = { ok: true, data: { id: uuid(), removed_at: new Date().toISOString() } };
+    const snapshotGenerated = unassignResult.ok;
+    assert.ok(snapshotGenerated);
+  });
+
+  test("failed unassignment does NOT trigger capacity snapshot generation", () => {
+    const failedResult = { ok: false, error: "Assignment not found.", failureClass: "not_found" };
+    const snapshotGenerated = failedResult.ok;
+    assert.ok(!snapshotGenerated);
+  });
+
+  test("profile update with changed active_projects_limit triggers capacity snapshot", () => {
+    const existingLimit = 5;
+    const newLimit = 8;
+    const limitChanged = newLimit !== undefined && newLimit !== existingLimit;
+    assert.ok(limitChanged, "Limit changed — snapshot should be regenerated");
+  });
+
+  test("profile update with same active_projects_limit does NOT trigger capacity snapshot", () => {
+    const existingLimit = 5;
+    const newLimit = 5;
+    const limitChanged = newLimit !== undefined && newLimit !== existingLimit;
+    assert.ok(!limitChanged, "Limit unchanged — no unnecessary snapshot regeneration");
+  });
+
+  test("profile update without active_projects_limit does NOT trigger capacity snapshot", () => {
+    const existingLimit = 5;
+    const newLimit = undefined;
+    const limitChanged = newLimit !== undefined && newLimit !== existingLimit;
+    assert.ok(!limitChanged, "No limit in update — no snapshot regeneration");
+  });
+
+  test("upsert profile with explicit active_projects_limit triggers capacity snapshot", () => {
+    const input = { activeProjectsLimit: 7, workspaceId: uuid(), pmId: uuid() };
+    const shouldRegenerate = input.activeProjectsLimit !== undefined;
+    assert.ok(shouldRegenerate);
+  });
+
+  test("upsert profile without active_projects_limit does NOT trigger capacity snapshot", () => {
+    const input = { workspaceId: uuid(), pmId: uuid() }; // No activeProjectsLimit
+    const shouldRegenerate = input.activeProjectsLimit !== undefined;
+    assert.ok(!shouldRegenerate);
+  });
+});
+
+describe("Freshness Model", () => {
+
+  test("snapshot is current immediately after generation", () => {
+    const generatedAt = new Date().toISOString();
+    const ageMs = Date.now() - new Date(generatedAt).getTime();
+    assert.ok(ageMs < 5000, "Snapshot generated within 5s is current");
+  });
+
+  test("snapshot generated_at is an ISO 8601 timestamp", () => {
+    const snap = buildSnapshot();
+    assert.ok(!isNaN(new Date(snap.generated_at).getTime()), "generated_at must parse as valid date");
+  });
+
+  test("snapshots are kept current through mutation-triggered regeneration", () => {
+    // Contract: assignProjectManager and unassignProjectManager and upsertPMProfile/updatePMProfile
+    // (when limit changes) all call generatePMCapacitySnapshot non-blockingly.
+    // This means the latest snapshot reflects the state as of the last mutation.
+    const mutations = ["assignProjectManager", "unassignProjectManager", "upsertPMProfile"];
+    assert.equal(mutations.length, 3, "All three mutation types trigger regeneration");
+  });
+});

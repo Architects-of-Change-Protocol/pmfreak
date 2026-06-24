@@ -163,6 +163,19 @@ export async function generatePMCapacitySnapshot(
   if (pmError || !pm) return notFound("Project Manager");
   if (pm.status !== "active") return validation("Cannot generate a capacity snapshot for an inactive PM.");
 
+  // 1b. Get previous latest snapshot for transition detection (before generating new one)
+  const { data: prevSnapshots } = await supabase
+    .from("pm_capacity_snapshots")
+    .select("id,snapshot_payload,generated_at")
+    .eq("workspace_id", input.workspaceId)
+    .eq("pm_id", input.pmId)
+    .order("generated_at", { ascending: false })
+    .limit(1);
+
+  const prevSnapshotPayload = prevSnapshots?.[0]?.snapshot_payload as Record<string, unknown> | null | undefined;
+  const prevAssignmentCapacity = prevSnapshotPayload?.assignment_capacity as Record<string, unknown> | null | undefined;
+  const prevAssignmentStatus = (prevAssignmentCapacity?.assignment_capacity_status ?? null) as string | null;
+
   // 2. Get PM profile for capacity configuration
   const { data: profile } = await supabase
     .from("pm_profiles")
@@ -483,6 +496,50 @@ export async function generatePMCapacitySnapshot(
     });
   }
 
+  // ─── Threshold alert events ───────────────────────────────────────────────
+  // Emit only when status transitions into a threshold state (or on first snapshot).
+  // Skipped for underutilized/healthy — only near_capacity, at_capacity, overloaded alert.
+
+  const newAssignmentStatus = assignmentCapacity.assignment_capacity_status;
+  const thresholdStatuses: string[] = ["near_capacity", "at_capacity", "overloaded"];
+  const statusChanged = newAssignmentStatus !== prevAssignmentStatus;
+  const isFirstSnapshot = prevAssignmentStatus === null;
+
+  if (thresholdStatuses.includes(newAssignmentStatus) && (statusChanged || isFirstSnapshot)) {
+    const thresholdEventType =
+      newAssignmentStatus === "near_capacity" ? "PM_CAPACITY_NEAR_LIMIT" :
+      newAssignmentStatus === "at_capacity"   ? "PM_CAPACITY_AT_LIMIT"   :
+      "PM_CAPACITY_OVERLOADED";
+
+    await createPlatformEvent({
+      workspaceId:       input.workspaceId,
+      projectId:         null,
+      actorId:           input.actorId ?? null,
+      actorType:         input.actorId ? "user" : "system",
+      eventType:         thresholdEventType,
+      eventCategory:     "governance",
+      source:            input.actorId ? "user_action" : "system",
+      correlationId:     snapshot.id,
+      causationId:       snapshot.id,
+      rawReferenceTable: "pm_capacity_snapshots",
+      rawReferenceId:    snapshot.id,
+      eventPayload: {
+        workspace_id:             input.workspaceId,
+        actor_user_id:            input.actorId ?? null,
+        pm_id:                    input.pmId,
+        snapshot_id:              snapshot.id,
+        active_projects_limit:    activeProjectsLimit,
+        counted_assignment_count: assignmentCapacity.counted_assignment_count,
+        capacity_utilization:     assignmentCapacity.assignment_capacity_utilization,
+        capacity_status:          newAssignmentStatus,
+        overload_risk:            assignmentCapacity.assignment_overload_risk,
+        previous_capacity_status: prevAssignmentStatus,
+        generated_at:             snapshot.generated_at,
+        source:                   "pm_capacity",
+      },
+    });
+  }
+
   return { ok: true, data: snapshot };
 }
 
@@ -585,13 +642,27 @@ export async function listOverloadedProjectManagers(
   const latestResult = await listLatestPMCapacitySnapshots({ workspaceId: input.workspaceId });
   if (!latestResult.ok) return latestResult;
 
-  const overloaded = latestResult.data.filter(
-    (s) =>
+  // Filter by assignment-based capacity status/risk from snapshot_payload (source of truth).
+  // Falls back to multi-domain capacity_status/burn_risk if assignment_capacity is absent.
+  const OVERLOADED_ASSIGNMENT_STATUSES = new Set(["at_capacity", "overloaded"]);
+  const HIGH_RISK_LEVELS = new Set(["high", "critical"]);
+
+  const overloaded = latestResult.data.filter((s) => {
+    const ac = (s.snapshot_payload as Record<string, unknown> | null)?.assignment_capacity as Record<string, unknown> | null | undefined;
+    if (ac) {
+      return (
+        OVERLOADED_ASSIGNMENT_STATUSES.has(ac.assignment_capacity_status as string) ||
+        HIGH_RISK_LEVELS.has(ac.assignment_overload_risk as string)
+      );
+    }
+    // Fallback for snapshots without assignment_capacity (pre-activation snapshots)
+    return (
       s.capacity_status === "overloaded" ||
       s.capacity_status === "critical" ||
       s.burn_risk === "high" ||
       s.burn_risk === "critical"
-  );
+    );
+  });
 
   return { ok: true, data: overloaded };
 }

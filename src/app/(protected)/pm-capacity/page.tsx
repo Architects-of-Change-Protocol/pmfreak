@@ -52,6 +52,12 @@ const RISK_STYLES: Record<string, string> = {
   critical: "bg-red-500/20 text-red-300 border-red-500/30",
 };
 
+const ALERT_ROW: Record<string, string> = {
+  near_capacity: "border-l-2 border-amber-500/60",
+  at_capacity:   "border-l-2 border-orange-500/80",
+  overloaded:    "border-l-2 border-red-500/80",
+};
+
 function StatusBadge({ value, styles }: { value: string; styles: Record<string, string> }) {
   const cls = styles[value] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30";
   return (
@@ -62,13 +68,22 @@ function StatusBadge({ value, styles }: { value: string; styles: Record<string, 
 }
 
 function SummaryCard({ label, value, highlight }: { label: string; value: number; highlight?: string }) {
-  const cls = highlight ?? "text-white";
   return (
     <div className="rounded-xl border border-white/10 bg-white/5 p-4">
       <p className="text-xs text-zinc-400">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${cls}`}>{value}</p>
+      <p className={`mt-1 text-2xl font-semibold ${highlight ?? "text-white"}`}>{value}</p>
     </div>
   );
+}
+
+function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 export default function PMCapacityPage() {
@@ -115,19 +130,26 @@ export default function PMCapacityPage() {
     }
   }
 
-  // Summary counts derived from snapshots
-  const statuses = snapshots.map((s) => s.snapshot_payload?.assignment_capacity?.assignment_capacity_status ?? s.capacity_status);
+  // Summary counts (assignment-based status, with fallback)
+  const statuses = snapshots.map(
+    (s) => s.snapshot_payload?.assignment_capacity?.assignment_capacity_status ?? s.capacity_status
+  );
   const underutilizedCount = statuses.filter((s) => s === "underutilized").length;
   const healthyCount       = statuses.filter((s) => s === "healthy").length;
   const nearCapacityCount  = statuses.filter((s) => s === "near_capacity" || s === "busy").length;
   const atCapacityCount    = statuses.filter((s) => s === "at_capacity").length;
   const overloadedCount    = statuses.filter((s) => s === "overloaded" || s === "critical").length;
   const avgUtil = snapshots.length > 0
-    ? snapshots.reduce((sum, s) => {
+    ? snapshots.reduce((sum: number, s: CapacitySnapshot) => {
         const u = s.snapshot_payload?.assignment_capacity?.assignment_capacity_utilization;
         return sum + (typeof u === "number" ? u * 100 : s.utilization_percentage);
       }, 0) / snapshots.length
     : 0;
+
+  const alertPMs = snapshots.filter((s) => {
+    const st = s.snapshot_payload?.assignment_capacity?.assignment_capacity_status ?? s.capacity_status;
+    return st === "at_capacity" || st === "overloaded" || st === "critical";
+  });
 
   return (
     <div className="min-h-screen bg-[#08080c] px-6 py-10">
@@ -138,6 +160,9 @@ export default function PMCapacityPage() {
             <h1 className="text-2xl font-semibold text-white">PM Capacity</h1>
             <p className="mt-1 text-sm text-zinc-400">
               Operational load and capacity visibility across project managers.
+            </p>
+            <p className="mt-1 text-xs text-zinc-600">
+              Snapshots regenerate automatically after assignment and profile changes.
             </p>
           </div>
           <div className="flex gap-2">
@@ -161,6 +186,20 @@ export default function PMCapacityPage() {
         {error && (
           <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
             {error}
+          </div>
+        )}
+
+        {/* Capacity alert banner */}
+        {alertPMs.length > 0 && (
+          <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+            <p className="text-sm font-medium text-red-300">
+              {alertPMs.length === 1
+                ? `1 PM is at or exceeding configured capacity.`
+                : `${alertPMs.length} PMs are at or exceeding configured capacity.`}
+            </p>
+            <p className="mt-1 text-xs text-red-400">
+              {alertPMs.map((s) => s.snapshot_payload?.pm_name ?? s.pm_id).join(", ")}
+            </p>
           </div>
         )}
 
@@ -216,7 +255,7 @@ export default function PMCapacityPage() {
                   <th className="px-4 py-3 text-xs font-medium text-zinc-400">Capacity status</th>
                   <th className="px-4 py-3 text-xs font-medium text-zinc-400">Overload risk</th>
                   <th className="px-4 py-3 text-xs font-medium text-zinc-400">Recommendation</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Generated</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Last generated</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -227,14 +266,14 @@ export default function PMCapacityPage() {
                   const utilization    = typeof ac?.assignment_capacity_utilization === "number"
                     ? (ac.assignment_capacity_utilization * 100).toFixed(1) + "%"
                     : s.utilization_percentage.toFixed(1) + "%";
-                  const countedCount  = ac?.counted_assignment_count ?? "—";
-                  const observerCount = ac?.observer_assignment_count ?? "—";
-                  const limit         = ac?.active_projects_limit ?? s.snapshot_payload?.active_projects_limit ?? "—";
+                  const countedCount   = ac?.counted_assignment_count ?? "—";
+                  const observerCount  = ac?.observer_assignment_count ?? "—";
+                  const limit          = ac?.active_projects_limit ?? s.snapshot_payload?.active_projects_limit ?? "—";
                   const recommendation = ac?.recommendations?.[0]?.message ?? s.recommended_action;
-                  const generatedAt = new Date(s.generated_at).toLocaleString();
+                  const alertCls       = ALERT_ROW[capacityStatus] ?? "";
 
                   return (
-                    <tr key={s.id} className="hover:bg-white/5">
+                    <tr key={s.id} className={`hover:bg-white/5 ${alertCls}`}>
                       <td className="px-4 py-3 font-medium text-white">
                         <Link href={`/pm-registry/${s.pm_id}`} className="hover:underline">
                           {s.snapshot_payload?.pm_name ?? s.pm_id}
@@ -252,7 +291,11 @@ export default function PMCapacityPage() {
                         <StatusBadge value={overloadRisk} styles={RISK_STYLES} />
                       </td>
                       <td className="max-w-xs px-4 py-3 text-xs text-zinc-400 leading-relaxed">{recommendation}</td>
-                      <td className="px-4 py-3 text-xs text-zinc-500">{generatedAt}</td>
+                      <td className="px-4 py-3 text-xs text-zinc-500">
+                        <span title={new Date(s.generated_at).toLocaleString()}>
+                          {timeAgo(s.generated_at)}
+                        </span>
+                      </td>
                     </tr>
                   );
                 })}

@@ -288,14 +288,90 @@ Each snapshot includes evidence explaining the calculation in `snapshot_payload.
 - This slice does not include PMO Command Center aggregation.
 - Recommendations are deterministic, not AI-generated.
 - Capacity snapshots are only as current as the last generation time (manual or triggered).
-- The `GET /api/pm-capacity/overloaded` endpoint filters by the **multi-domain** `capacity_status` and `burn_risk` columns (existing DB values), not the assignment-based status stored in `snapshot_payload`. This reflects the DB-indexed columns available in the existing schema.
+- The `GET /api/pm-capacity/overloaded` endpoint filters by `snapshot_payload.assignment_capacity` fields (assignment-based source of truth), with fallback to top-level `capacity_status`/`burn_risk` for legacy pre-activation snapshots.
 
 ---
 
-## Recommended Next Vertical Slice
+## PM Capacity Alerting + Auto-Generation
 
-**PM Capacity Alerting + Auto-Generation**
-- Trigger snapshot generation on `PROJECT_MANAGER_ASSIGNED` and `PROJECT_MANAGER_UNASSIGNED` events
-- Add webhook/cron for periodic workspace-level regeneration
-- Filter `GET /api/pm-capacity/overloaded` by assignment-based status from `snapshot_payload`
-- Add PMO dashboard widget showing overload count
+### Overloaded Filtering
+
+`listOverloadedProjectManagers()` uses the **assignment-based** fields as the source of truth:
+
+1. If `snapshot_payload.assignment_capacity` is present: returns snapshots where `assignment_capacity_status` is `at_capacity` or `overloaded`, **or** `assignment_overload_risk` is `high` or `critical`.
+2. If `snapshot_payload.assignment_capacity` is absent (legacy snapshots): falls back to top-level `capacity_status === "overloaded" || "critical"` or `burn_risk === "high" || "critical"`.
+
+The filter runs in JavaScript after `listLatestPMCapacitySnapshots()` fetches all snapshots (no DB-side filtering on JSONB fields required).
+
+---
+
+### Mutation-Triggered Regeneration
+
+Capacity snapshots regenerate automatically (non-blocking `void` call) after these mutations:
+
+| Trigger | Condition |
+|---|---|
+| `assignProjectManager()` succeeds | Always (any assignment type) |
+| `unassignProjectManager()` succeeds | Always |
+| `upsertPMProfile()` | When `activeProjectsLimit` is provided in input |
+| `updatePMProfile()` | Only when `activeProjectsLimit` value actually changes |
+
+**Contract:** snapshot generation failures do not propagate to the triggering mutation. Assignment and profile operations complete and return their own result regardless of snapshot generation outcome.
+
+---
+
+### Threshold Alert Events
+
+The following platform events emit when `generatePMCapacitySnapshot()` generates a new snapshot that crosses a threshold:
+
+| Event Type | Trigger |
+|---|---|
+| `PM_CAPACITY_NEAR_LIMIT` | `assignment_capacity_status` transitions to `near_capacity` |
+| `PM_CAPACITY_AT_LIMIT` | `assignment_capacity_status` transitions to `at_capacity` |
+| `PM_CAPACITY_OVERLOADED` | `assignment_capacity_status` transitions to `overloaded` |
+
+**Transition detection:** before calculating the new snapshot, the service queries the previous latest snapshot's `assignment_capacity_status`. A threshold event emits only when:
+- The new status is in `{near_capacity, at_capacity, overloaded}`, **and**
+- The status changed from the previous snapshot, **or** this is the first snapshot (no previous exists).
+
+This prevents duplicate threshold events when repeated snapshot generations produce the same status.
+
+**Event payload fields:**
+```
+workspace_id, actor_user_id, pm_id, snapshot_id,
+active_projects_limit, counted_assignment_count,
+capacity_utilization, capacity_status, overload_risk,
+previous_capacity_status, generated_at, source
+```
+
+---
+
+### Freshness Model
+
+Snapshots are kept current through mutation-triggered regeneration. The `generated_at` timestamp in each snapshot reflects when it was last computed. The PM Capacity UI displays "last generated X ago" with a full-timestamp tooltip.
+
+There is no time-based staleness threshold or expiry. Freshness is a function of mutation frequency: a PM with no assignment or profile changes since the last generation retains their last snapshot indefinitely.
+
+`generateWorkspacePMCapacitySnapshots()` is idempotent and safe for external scheduler or webhook invocation when periodic workspace-wide refresh is needed.
+
+---
+
+### UI Alerting
+
+**`/pm-capacity` page:**
+- Alert banner at the top lists names of all PMs at or exceeding capacity (`at_capacity` or `overloaded` assignment status).
+- Table rows with `near_capacity`, `at_capacity`, or `overloaded` status have a colored left-border highlight (amber / orange / red).
+- "Last generated" column shows relative time with tooltip.
+
+**PM detail page (`/pm-registry/[pmId]`) — Capacity section:**
+- Red alert banner when assignment status is `at_capacity` or `overloaded`.
+- Amber warning banner when assignment status is `near_capacity`.
+- "Last generated" timestamp shown below the section title.
+
+---
+
+### Known Limitations (Alerting + Auto-Generation)
+
+- Threshold events fire only on status transitions, not on every snapshot where the PM is near/at/over capacity. PMO notification workflows must handle the case where a PM has been at capacity for multiple generation cycles (first-time subscribers may miss earlier events).
+- Auto-generation is non-blocking and fire-and-forget; there is no retry on snapshot generation failure. A failed generation will leave the snapshot stale until the next mutation or manual "Generate snapshots" action.
+- Workspace-level scheduled regeneration is not implemented as an internal scheduler. `generateWorkspacePMCapacitySnapshots()` is available for external invocation (cron, webhook, or admin action).
