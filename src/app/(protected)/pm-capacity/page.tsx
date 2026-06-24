@@ -110,6 +110,8 @@ export default function PMCapacityPage() {
     }
   }, []);
 
+  // fetchSnapshots is stable (useCallback with [] deps) — calling it here is intentional
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void fetchSnapshots(); }, [fetchSnapshots]);
 
   async function handleGenerate() {
