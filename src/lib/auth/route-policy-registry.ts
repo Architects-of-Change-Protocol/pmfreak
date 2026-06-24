@@ -48,6 +48,7 @@ const WORKSPACE_CONTEXTUAL_ROUTES = [
   "/escalation-guide",
   "/early-access",
   "/trial-inactive",
+  "/pm-registry",
 ] as const;
 const INTERNAL_DEBUG_ROUTES = ["/debug-session"] as const;
 const PUBLIC_ROUTES = [

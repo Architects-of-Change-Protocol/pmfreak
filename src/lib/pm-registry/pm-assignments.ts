@@ -1,8 +1,11 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   PM_ASSIGNMENT_SELECTABLE_COLUMNS,
+  PM_PROFILE_SELECTABLE_COLUMNS,
+  PROJECT_MANAGER_SELECTABLE_COLUMNS,
 } from "@/lib/db/database-contract";
-import type { PMAssignmentRow } from "@/lib/db/database-contract";
+import type { PMAssignmentRow, PMProfileRow, ProjectManagerRow } from "@/lib/db/database-contract";
+import { recordPMAssignedEvent, recordPMUnassignedEvent } from "@/lib/platform-events/domain-events";
 import type {
   PMRegistryResult,
   AssignProjectManagerInput,
@@ -10,6 +13,10 @@ import type {
   ListProjectManagerProjectsInput,
   PMAssignmentType,
 } from "./types";
+
+// Assignment types that count toward a PM's active project load.
+// Observer is excluded — it is a monitoring role, not an ownership commitment.
+const CAPACITY_COUNTING_TYPES: PMAssignmentType[] = ["primary", "secondary", "program"];
 
 const ASSIGN_COLS = PM_ASSIGNMENT_SELECTABLE_COLUMNS.join(",");
 
@@ -31,6 +38,57 @@ export async function assignProjectManager(
   if (!input.projectId) return validation("projectId is required.");
 
   const supabase = await createSupabaseServerClient();
+
+  // Validate PM exists, belongs to workspace, and is active
+  const PM_COLS = PROJECT_MANAGER_SELECTABLE_COLUMNS.join(",");
+  const { data: pm } = await supabase
+    .from("project_managers")
+    .select(PM_COLS)
+    .eq("id", input.pmId)
+    .eq("workspace_id", input.workspaceId)
+    .single<ProjectManagerRow>();
+
+  if (!pm) return validation("Project Manager not found in this workspace.");
+  if (pm.status !== "active") {
+    return validation(`Cannot assign a PM with status '${pm.status}'. Only active PMs may be assigned.`);
+  }
+
+  // Capacity enforcement: primary/secondary/program count toward active_projects_limit.
+  // Observer does not count — it is a monitoring role, not an ownership commitment.
+  if (CAPACITY_COUNTING_TYPES.includes(input.assignmentType)) {
+    const PROFILE_COLS = PM_PROFILE_SELECTABLE_COLUMNS.join(",");
+    const { data: profile } = await supabase
+      .from("pm_profiles")
+      .select(PROFILE_COLS)
+      .eq("workspace_id", input.workspaceId)
+      .eq("pm_id", input.pmId)
+      .maybeSingle<PMProfileRow>();
+
+    const limit = profile?.active_projects_limit ?? 5;
+
+    const { count } = await supabase
+      .from("pm_assignments")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", input.workspaceId)
+      .eq("pm_id", input.pmId)
+      .in("assignment_type", CAPACITY_COUNTING_TYPES)
+      .is("removed_at", null);
+
+    const currentCount = count ?? 0;
+    if (currentCount >= limit) {
+      return {
+        ok: false,
+        error: `PM has reached their active project limit (${currentCount}/${limit}). Unassign a project or increase the limit in their profile.`,
+        failureClass: "PM_ACTIVE_PROJECT_LIMIT_EXCEEDED",
+        details: {
+          current_count: currentCount,
+          limit,
+          attempted_assignment_type: input.assignmentType,
+        },
+      };
+    }
+  }
+
   const { data, error } = await supabase
     .from("pm_assignments")
     .insert({
@@ -53,6 +111,16 @@ export async function assignProjectManager(
     return persistFailed("create");
   }
   if (!data) return persistFailed("create");
+  if (input.actorId) {
+    void recordPMAssignedEvent({
+      workspaceId: input.workspaceId,
+      projectId: input.projectId,
+      pmId: input.pmId,
+      assignmentId: data.id,
+      assignmentType: input.assignmentType,
+      actorId: input.actorId,
+    });
+  }
   return { ok: true, data };
 }
 
@@ -87,6 +155,16 @@ export async function unassignProjectManager(
     .single<PMAssignmentRow>();
 
   if (error || !data) return persistFailed("remove");
+  if (input.actorId) {
+    void recordPMUnassignedEvent({
+      workspaceId: input.workspaceId,
+      projectId: input.projectId,
+      pmId: input.pmId,
+      assignmentId: data.id,
+      assignmentType: input.assignmentType,
+      actorId: input.actorId,
+    });
+  }
   return { ok: true, data };
 }
 

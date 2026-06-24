@@ -3,6 +3,7 @@ import {
   PM_PROFILE_SELECTABLE_COLUMNS,
 } from "@/lib/db/database-contract";
 import type { PMProfileRow } from "@/lib/db/database-contract";
+import { recordPMProfileUpdatedEvent } from "@/lib/platform-events/domain-events";
 import type {
   PMRegistryResult,
   GetProjectManagerProfileInput,
@@ -77,6 +78,9 @@ export async function upsertPMProfile(
     .single<PMProfileRow>();
 
   if (error || !data) return persistFailed("upsert");
+  if (input.actorId) {
+    void recordPMProfileUpdatedEvent({ workspaceId: input.workspaceId, pmId: input.pmId, actorId: input.actorId });
+  }
   return { ok: true, data };
 }
 

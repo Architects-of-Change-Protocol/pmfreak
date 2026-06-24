@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { evaluateCapabilityAccess } from "@/lib/security/capability-flow";
 import { resolveCanonicalProject } from "@/lib/projects/canonical-project-resolver";
 import { redirect } from "next/navigation";
+import { ProjectPMAssignment } from "@/components/pmfreak/ProjectPMAssignment";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -60,6 +61,8 @@ export default async function ProjectDetailPage({ params }: Props) {
           <button type="submit" className="rounded-xl border border-cyan-300/50 px-4 py-2 text-sm font-semibold">Analyze</button>
         </form>
       </section>
+
+      <ProjectPMAssignment projectId={project.id} />
 
       <section>
         <h2 className="text-lg font-semibold">Previous analyses</h2>

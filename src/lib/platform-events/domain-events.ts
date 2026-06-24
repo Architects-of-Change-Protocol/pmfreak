@@ -331,3 +331,140 @@ export async function recordGovernanceExceptionEvent(
     },
   });
 }
+
+
+// ─── PM Registry events ───────────────────────────────────────────────────────
+
+export async function recordPMRegisteredEvent(
+  base: BaseEventInput & {
+    pmId: string;
+    actorId: string;
+  }
+): Promise<PlatformEventResult> {
+  return createPlatformEvent({
+    ...base,
+    eventType: "PROJECT_MANAGER_REGISTERED",
+    eventCategory: "governance",
+    source: "user_action",
+    actorType: "user",
+    actorId: base.actorId,
+    learningEligible: true,
+    rawReferenceTable: "project_managers",
+    rawReferenceId: base.pmId,
+    eventPayload: {
+      pm_id: base.pmId,
+      workspace_id: base.workspaceId,
+      source: "pm_registry",
+    },
+  });
+}
+
+export async function recordPMUpdatedEvent(
+  base: BaseEventInput & {
+    pmId: string;
+    actorId: string;
+    previousStatus?: string;
+    newStatus?: string;
+  }
+): Promise<PlatformEventResult> {
+  return createPlatformEvent({
+    ...base,
+    eventType: "PROJECT_MANAGER_UPDATED",
+    eventCategory: "governance",
+    source: "user_action",
+    actorType: "user",
+    actorId: base.actorId,
+    learningEligible: true,
+    rawReferenceTable: "project_managers",
+    rawReferenceId: base.pmId,
+    eventPayload: {
+      pm_id: base.pmId,
+      workspace_id: base.workspaceId,
+      previous_status: base.previousStatus ?? null,
+      new_status: base.newStatus ?? null,
+      source: "pm_registry",
+    },
+  });
+}
+
+export async function recordPMProfileUpdatedEvent(
+  base: BaseEventInput & {
+    pmId: string;
+    actorId: string;
+  }
+): Promise<PlatformEventResult> {
+  return createPlatformEvent({
+    ...base,
+    eventType: "PROJECT_MANAGER_PROFILE_UPDATED",
+    eventCategory: "governance",
+    source: "user_action",
+    actorType: "user",
+    actorId: base.actorId,
+    learningEligible: true,
+    rawReferenceTable: "pm_profiles",
+    rawReferenceId: base.pmId,
+    eventPayload: {
+      pm_id: base.pmId,
+      workspace_id: base.workspaceId,
+      source: "pm_registry",
+    },
+  });
+}
+
+export async function recordPMAssignedEvent(
+  base: BaseEventInput & {
+    pmId: string;
+    assignmentId: string;
+    assignmentType: string;
+    actorId: string;
+  }
+): Promise<PlatformEventResult> {
+  return createPlatformEvent({
+    ...base,
+    eventType: "PROJECT_MANAGER_ASSIGNED",
+    eventCategory: "governance",
+    source: "user_action",
+    actorType: "user",
+    actorId: base.actorId,
+    learningEligible: true,
+    rawReferenceTable: "pm_assignments",
+    rawReferenceId: base.assignmentId,
+    eventPayload: {
+      pm_id: base.pmId,
+      project_id: base.projectId ?? null,
+      assignment_id: base.assignmentId,
+      assignment_type: base.assignmentType,
+      workspace_id: base.workspaceId,
+      source: "pm_registry",
+    },
+  });
+}
+
+export async function recordPMUnassignedEvent(
+  base: BaseEventInput & {
+    pmId: string;
+    assignmentId: string;
+    assignmentType: string;
+    actorId: string;
+  }
+): Promise<PlatformEventResult> {
+  return createPlatformEvent({
+    ...base,
+    eventType: "PROJECT_MANAGER_UNASSIGNED",
+    eventCategory: "governance",
+    source: "user_action",
+    actorType: "user",
+    actorId: base.actorId,
+    learningEligible: true,
+    rawReferenceTable: "pm_assignments",
+    rawReferenceId: base.assignmentId,
+    eventPayload: {
+      pm_id: base.pmId,
+      project_id: base.projectId ?? null,
+      assignment_id: base.assignmentId,
+      assignment_type: base.assignmentType,
+      workspace_id: base.workspaceId,
+      source: "pm_registry",
+    },
+  });
+}

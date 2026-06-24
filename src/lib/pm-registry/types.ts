@@ -53,7 +53,7 @@ export const PM_EXPERIENCE_LEVELS: PMExperienceLevel[] = [
 
 export type PMRegistryResult<T> =
   | { ok: true; data: T }
-  | { ok: false; error: string; failureClass: string };
+  | { ok: false; error: string; failureClass: string; details?: Record<string, unknown> };
 
 // ─── Event Types ──────────────────────────────────────────────────────────────
 
@@ -72,6 +72,7 @@ export type RegisterProjectManagerInput = {
   email: string;
   userId?: string;
   joinedAt?: string;
+  actorId?: string;
 };
 
 export type UpdateProjectManagerInput = {
@@ -80,6 +81,7 @@ export type UpdateProjectManagerInput = {
   displayName?: string;
   email?: string;
   status?: ProjectManagerStatus;
+  actorId?: string;
 };
 
 export type AssignProjectManagerInput = {
@@ -87,6 +89,7 @@ export type AssignProjectManagerInput = {
   pmId: string;
   projectId: string;
   assignmentType: PMAssignmentType;
+  actorId?: string;
 };
 
 export type UnassignProjectManagerInput = {
@@ -94,6 +97,7 @@ export type UnassignProjectManagerInput = {
   pmId: string;
   projectId: string;
   assignmentType: PMAssignmentType;
+  actorId?: string;
 };
 
 export type ListProjectManagerProjectsInput = {
@@ -114,6 +118,7 @@ export type UpdatePMProfileInput = {
   experienceLevel?: PMExperienceLevel;
   capacityLimit?: number;
   activeProjectsLimit?: number;
+  actorId?: string;
 };
 
 // ─── Composite Types ──────────────────────────────────────────────────────────
