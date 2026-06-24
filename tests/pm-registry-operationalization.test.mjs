@@ -123,6 +123,9 @@ function createStore() {
 
   // ── assignProjectManager ──────────────────────────────────────────────────
 
+  // Assignment types that count toward capacity load (observer excluded)
+  const CAPACITY_COUNTING_TYPES = ["primary", "secondary", "program"];
+
   function assignProjectManager(input) {
     if (!input.workspaceId) return validation("workspaceId is required.");
     if (!input.pmId) return validation("pmId is required.");
@@ -138,6 +141,32 @@ function createStore() {
     }
     if (pm.status !== "active") {
       return validation(`Cannot assign a PM with status '${pm.status}'. Only active PMs may be assigned.`);
+    }
+
+    // Capacity enforcement: primary/secondary/program count toward active_projects_limit
+    if (CAPACITY_COUNTING_TYPES.includes(input.assignmentType)) {
+      const profileKey = `${input.workspaceId}::${input.pmId}`;
+      const profile = profiles.get(profileKey);
+      const limit = profile?.active_projects_limit ?? 5;
+      let currentCount = 0;
+      for (const a of assignments.values()) {
+        if (
+          a.workspace_id === input.workspaceId &&
+          a.pm_id === input.pmId &&
+          CAPACITY_COUNTING_TYPES.includes(a.assignment_type) &&
+          a.removed_at === null
+        ) {
+          currentCount++;
+        }
+      }
+      if (currentCount >= limit) {
+        return {
+          ok: false,
+          error: `PM has reached their active project limit (${currentCount}/${limit}). Unassign a project or increase the limit in their profile.`,
+          failureClass: "PM_ACTIVE_PROJECT_LIMIT_EXCEEDED",
+          details: { current_count: currentCount, limit, attempted_assignment_type: input.assignmentType },
+        };
+      }
     }
 
     // Only one active primary per project
@@ -607,5 +636,209 @@ describe("Workspace Isolation", () => {
     const { data: pm } = s.registerProjectManager({ workspaceId: ws1, displayName: "PM", email: "pm@x.com", actorId: uuid() });
     const r = s.listProjectManagerProjects({ workspaceId: uuid(), pmId: pm.id });
     assert.equal(r.data.length, 0);
+  });
+});
+
+// ─── Capacity Enforcement ─────────────────────────────────────────────────────
+
+describe("Capacity Enforcement: active_projects_limit", () => {
+  test("assignment below limit succeeds", () => {
+    const s = createStore();
+    const wsId = uuid();
+    const { data: pm } = s.registerProjectManager({ workspaceId: wsId, displayName: "PM", email: "pm@x.com", actorId: uuid() });
+    s.upsertPMProfile({ workspaceId: wsId, pmId: pm.id, activeProjectsLimit: 3 });
+    const r = s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "primary", actorId: uuid() });
+    assert.equal(r.ok, true);
+  });
+
+  test("assignment at limit fails for primary type", () => {
+    const s = createStore();
+    const wsId = uuid();
+    const { data: pm } = s.registerProjectManager({ workspaceId: wsId, displayName: "PM", email: "pm@x.com", actorId: uuid() });
+    s.upsertPMProfile({ workspaceId: wsId, pmId: pm.id, activeProjectsLimit: 2 });
+    s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "secondary", actorId: uuid() });
+    s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "program", actorId: uuid() });
+    const r = s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "primary", actorId: uuid() });
+    assert.equal(r.ok, false);
+    assert.equal(r.failureClass, "PM_ACTIVE_PROJECT_LIMIT_EXCEEDED");
+  });
+
+  test("assignment at limit fails for secondary type", () => {
+    const s = createStore();
+    const wsId = uuid();
+    const { data: pm } = s.registerProjectManager({ workspaceId: wsId, displayName: "PM", email: "pm@x.com", actorId: uuid() });
+    s.upsertPMProfile({ workspaceId: wsId, pmId: pm.id, activeProjectsLimit: 1 });
+    s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "primary", actorId: uuid() });
+    const r = s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "secondary", actorId: uuid() });
+    assert.equal(r.ok, false);
+    assert.equal(r.failureClass, "PM_ACTIVE_PROJECT_LIMIT_EXCEEDED");
+  });
+
+  test("assignment at limit fails for program type", () => {
+    const s = createStore();
+    const wsId = uuid();
+    const { data: pm } = s.registerProjectManager({ workspaceId: wsId, displayName: "PM", email: "pm@x.com", actorId: uuid() });
+    s.upsertPMProfile({ workspaceId: wsId, pmId: pm.id, activeProjectsLimit: 1 });
+    s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "primary", actorId: uuid() });
+    const r = s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "program", actorId: uuid() });
+    assert.equal(r.ok, false);
+    assert.equal(r.failureClass, "PM_ACTIVE_PROJECT_LIMIT_EXCEEDED");
+  });
+
+  test("observer assignment does NOT count toward active project limit", () => {
+    const s = createStore();
+    const wsId = uuid();
+    const { data: pm } = s.registerProjectManager({ workspaceId: wsId, displayName: "PM", email: "pm@x.com", actorId: uuid() });
+    s.upsertPMProfile({ workspaceId: wsId, pmId: pm.id, activeProjectsLimit: 1 });
+    // Fill the limit with primary
+    s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "primary", actorId: uuid() });
+    // Observer should still succeed even at the primary/secondary/program limit
+    const r = s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "observer", actorId: uuid() });
+    assert.equal(r.ok, true, "observer assignment should succeed regardless of capacity");
+  });
+
+  test("limit defaults to 5 when no profile exists", () => {
+    const s = createStore();
+    const wsId = uuid();
+    const { data: pm } = s.registerProjectManager({ workspaceId: wsId, displayName: "PM", email: "pm@x.com", actorId: uuid() });
+    // Assign 5 projects (default limit) — all should succeed
+    for (let i = 0; i < 5; i++) {
+      const r = s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "secondary", actorId: uuid() });
+      assert.equal(r.ok, true, `assignment ${i + 1} should succeed within default limit`);
+    }
+    // 6th should fail
+    const r = s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "secondary", actorId: uuid() });
+    assert.equal(r.ok, false);
+    assert.equal(r.failureClass, "PM_ACTIVE_PROJECT_LIMIT_EXCEEDED");
+  });
+
+  test("capacity error includes current_count, limit, and attempted_assignment_type in details", () => {
+    const s = createStore();
+    const wsId = uuid();
+    const { data: pm } = s.registerProjectManager({ workspaceId: wsId, displayName: "PM", email: "pm@x.com", actorId: uuid() });
+    s.upsertPMProfile({ workspaceId: wsId, pmId: pm.id, activeProjectsLimit: 1 });
+    s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "primary", actorId: uuid() });
+    const r = s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "secondary", actorId: uuid() });
+    assert.equal(r.ok, false);
+    assert.equal(r.failureClass, "PM_ACTIVE_PROJECT_LIMIT_EXCEEDED");
+    assert.ok(r.details, "details should be present");
+    assert.equal(r.details.current_count, 1);
+    assert.equal(r.details.limit, 1);
+    assert.equal(r.details.attempted_assignment_type, "secondary");
+  });
+
+  test("unassigning a counting project restores capacity", () => {
+    const s = createStore();
+    const wsId = uuid();
+    const projectId = uuid();
+    const { data: pm } = s.registerProjectManager({ workspaceId: wsId, displayName: "PM", email: "pm@x.com", actorId: uuid() });
+    s.upsertPMProfile({ workspaceId: wsId, pmId: pm.id, activeProjectsLimit: 1 });
+    s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId, assignmentType: "primary", actorId: uuid() });
+    // At limit — secondary should fail
+    const fail = s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "secondary", actorId: uuid() });
+    assert.equal(fail.ok, false);
+    // Unassign and try again
+    s.unassignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId, assignmentType: "primary", actorId: uuid() });
+    const r = s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "secondary", actorId: uuid() });
+    assert.equal(r.ok, true, "capacity should be restored after unassign");
+  });
+});
+
+// ─── Strengthened Audit Event Payload Shape ───────────────────────────────────
+
+describe("Audit Events: governance payload shape", () => {
+  test("PROJECT_MANAGER_REGISTERED payload has all governance fields", () => {
+    const s = createStore();
+    const wsId = uuid();
+    const actorId = uuid();
+    const { data: pm } = s.registerProjectManager({ workspaceId: wsId, displayName: "PM", email: "pm@x.com", actorId });
+    const event = s.auditLog.find((e) => e.type === "PROJECT_MANAGER_REGISTERED");
+    assert.ok(event, "event must exist");
+    assert.equal(event.payload.workspace_id, wsId);
+    assert.equal(event.payload.pm_id, pm.id);
+    assert.equal(event.payload.actor_user_id, actorId);
+    assert.equal(event.payload.source, "pm_registry");
+    assert.ok(event.occurred_at, "occurred_at must be present");
+  });
+
+  test("PROJECT_MANAGER_ASSIGNED payload has assignment_id, pm_id, project_id, assignment_type, workspace_id, actor_user_id, source", () => {
+    const s = createStore();
+    const wsId = uuid();
+    const projectId = uuid();
+    const actorId = uuid();
+    const { data: pm } = s.registerProjectManager({ workspaceId: wsId, displayName: "PM", email: "pm@x.com", actorId });
+    const { data: assignment } = s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId, assignmentType: "primary", actorId });
+    const event = s.auditLog.find((e) => e.type === "PROJECT_MANAGER_ASSIGNED");
+    assert.ok(event, "event must exist");
+    assert.equal(event.payload.assignment_id, assignment.id);
+    assert.equal(event.payload.pm_id, pm.id);
+    assert.equal(event.payload.project_id, projectId);
+    assert.equal(event.payload.assignment_type, "primary");
+    assert.equal(event.payload.workspace_id, wsId);
+    assert.equal(event.payload.actor_user_id, actorId);
+    assert.equal(event.payload.source, "pm_registry");
+    assert.ok(event.occurred_at, "occurred_at must be present");
+  });
+
+  test("PROJECT_MANAGER_UNASSIGNED payload has assignment_id and governance fields", () => {
+    const s = createStore();
+    const wsId = uuid();
+    const projectId = uuid();
+    const actorId = uuid();
+    const { data: pm } = s.registerProjectManager({ workspaceId: wsId, displayName: "PM", email: "pm@x.com", actorId });
+    const { data: assignment } = s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId, assignmentType: "primary", actorId });
+    s.unassignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId, assignmentType: "primary", actorId });
+    const event = s.auditLog.find((e) => e.type === "PROJECT_MANAGER_UNASSIGNED");
+    assert.ok(event, "event must exist");
+    assert.equal(event.payload.assignment_id, assignment.id);
+    assert.equal(event.payload.pm_id, pm.id);
+    assert.equal(event.payload.project_id, projectId);
+    assert.equal(event.payload.workspace_id, wsId);
+    assert.equal(event.payload.actor_user_id, actorId);
+    assert.equal(event.payload.source, "pm_registry");
+  });
+
+  test("PROJECT_MANAGER_UPDATED payload includes previous_status and new_status", () => {
+    const s = createStore();
+    const wsId = uuid();
+    const actorId = uuid();
+    const { data: pm } = s.registerProjectManager({ workspaceId: wsId, displayName: "PM", email: "pm@x.com", actorId });
+    s.updateProjectManager({ workspaceId: wsId, pmId: pm.id, status: "inactive", actorId });
+    const event = s.auditLog.find((e) => e.type === "PROJECT_MANAGER_UPDATED");
+    assert.ok(event, "event must exist");
+    assert.equal(event.payload.previous_status, "active");
+    assert.equal(event.payload.new_status, "inactive");
+    assert.equal(event.payload.workspace_id, wsId);
+    assert.equal(event.payload.pm_id, pm.id);
+    assert.equal(event.payload.actor_user_id, actorId);
+    assert.equal(event.payload.source, "pm_registry");
+  });
+
+  test("PROJECT_MANAGER_PROFILE_UPDATED payload has workspace_id, pm_id, actor_user_id, source", () => {
+    const s = createStore();
+    const wsId = uuid();
+    const actorId = uuid();
+    const { data: pm } = s.registerProjectManager({ workspaceId: wsId, displayName: "PM", email: "pm@x.com", actorId });
+    s.upsertPMProfile({ workspaceId: wsId, pmId: pm.id, role: "senior_pm", actorId });
+    const event = s.auditLog.find((e) => e.type === "PROJECT_MANAGER_PROFILE_UPDATED");
+    assert.ok(event, "event must exist");
+    assert.equal(event.payload.workspace_id, wsId);
+    assert.equal(event.payload.pm_id, pm.id);
+    assert.equal(event.payload.actor_user_id, actorId);
+    assert.equal(event.payload.source, "pm_registry");
+  });
+
+  test("failed capacity check does not emit an assignment event", () => {
+    const s = createStore();
+    const wsId = uuid();
+    const actorId = uuid();
+    const { data: pm } = s.registerProjectManager({ workspaceId: wsId, displayName: "PM", email: "pm@x.com", actorId });
+    s.upsertPMProfile({ workspaceId: wsId, pmId: pm.id, activeProjectsLimit: 1 });
+    s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "primary", actorId });
+    const countBefore = s.auditLog.filter((e) => e.type === "PROJECT_MANAGER_ASSIGNED").length;
+    // This should fail — no new event should be emitted
+    s.assignProjectManager({ workspaceId: wsId, pmId: pm.id, projectId: uuid(), assignmentType: "secondary", actorId });
+    const countAfter = s.auditLog.filter((e) => e.type === "PROJECT_MANAGER_ASSIGNED").length;
+    assert.equal(countAfter, countBefore, "no event emitted on capacity-rejected assignment");
   });
 });

@@ -76,16 +76,45 @@ Events are emitted fire-and-forget (`void`) after successful persistence. A fail
 6. Historical assignments are preserved and queryable via `?includeRemoved=true`.
 7. `assignment_type` must be one of: `primary`, `secondary`, `program`, `observer`.
 
+## Hardening Pass (Sprint 2)
+
+### Capacity enforcement
+
+`active_projects_limit` from `pm_profiles` is now enforced at assignment time. The counting rule:
+
+- Assignment types `primary`, `secondary`, `program` each count toward the PM's active project limit.
+- Assignment type `observer` does **not** count — it is a monitoring role, not an ownership commitment.
+- If no `pm_profiles` row exists for the PM, the limit defaults to **5** (matching the DB column default).
+- On breach, the service returns `failureClass: "PM_ACTIVE_PROJECT_LIMIT_EXCEEDED"` with `details: { current_count, limit, attempted_assignment_type }`.
+- The API route maps this to HTTP 422.
+
+### PM display enrichment
+
+The GET `/api/projects/[projectId]/pm-assignments` response now enriches each assignment with `pm_display_name` and `pm_email`, resolved via a secondary batch query against `project_managers`. The `ProjectPMAssignment` UI component displays these fields; it falls back to a truncated UUID only if enrichment data is absent.
+
+### Audit event payload shape (verified)
+
+All governance events emitted by the PM Registry include:
+- `workspace_id` — workspace boundary for data isolation
+- `actor_user_id` — identity of the user who performed the action
+- `pm_id` — subject PM
+- `source: "pm_registry"` — distinguishes from other event sources
+- Entity-specific fields: `project_id`, `assignment_id`, `assignment_type`, `previous_status`, `new_status` where applicable
+
+Events are classified as `eventCategory: "governance"` and stored in `platform_events`.
+
+### Pre-existing TypeScript errors
+
+The repository has pre-existing `TS2307: Cannot find module 'next/server'` and implicit-any JSX errors in files outside the PM Registry domain (e.g., `src/app/api/programs/route.ts`, `src/components/marketing-navbar.tsx`). These are not introduced by this slice.
+
 ## Known Limitations
 
-- **Capacity enforcement**: `active_projects_limit` from `pm_profiles` is stored but not enforced at assignment time. The validation is noted as a TODO. A future sprint should query active assignment count and compare against the limit before allowing new assignments.
-- **Profile validation against PM existence**: `upsertPMProfile` does not currently verify that the PM exists in the same workspace before upserting. The DB FK constraint and RLS policies enforce this at the database layer, but application-layer verification would provide a clearer error message.
-- **PM display in assignment list**: The project assignment panel shows `pm_id` (UUID), not `display_name`. A follow-up can join with `project_managers` to show human-readable names.
+- **Profile validation against PM existence**: `upsertPMProfile` does not currently verify that the PM exists in the same workspace before upserting. The DB FK constraint and RLS policies enforce this at the database layer.
 
 ## Follow-up Slices
 
-- **Capacity intelligence**: Enforce `active_projects_limit` at assignment time with a count query.
-- **PM selector UX**: Show PM name + email in the assignment panel (join query or enriched response).
+- **PM Capacity Snapshot Activation**: Aggregate capacity utilization snapshots from assignment history for PMO dashboards.
+- **PM Performance Snapshot Activation**: Connect assignment records to delivery metrics to compute PM performance scores.
+- **PM Detail Intelligence**: Surface workload, capacity headroom, and assignment history directly on the PM detail page.
+- **PMO Governance Compliance Activation**: Surface PM Registry events in the `/audit` page with a `source=pm_registry` filter.
 - **PM Registry navigation**: Add `/pm-registry` to the app navigation sidebar.
-- **Audit event page**: Surface PM Registry events in the `/audit` page with a `source=pm_registry` filter.
-- **PM performance engine**: Connect PM assignment history to the performance analysis layer.

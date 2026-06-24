@@ -12,6 +12,8 @@ type PM = {
 type Assignment = {
   id: string;
   pm_id: string;
+  pm_display_name: string | null;
+  pm_email: string | null;
   assignment_type: string;
   assigned_at: string;
   removed_at: string | null;
@@ -201,7 +203,8 @@ export function ProjectPMAssignment({ projectId }: Props) {
                           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${ASSIGNMENT_TYPE_COLORS[a.assignment_type] ?? ""}`}>
                             {a.assignment_type}
                           </span>
-                          <span className="text-xs text-zinc-400 font-mono">{a.pm_id.slice(0, 8)}…</span>
+                          <span className="text-sm font-medium text-white">{a.pm_display_name ?? a.pm_id.slice(0, 8) + "…"}</span>
+                          {a.pm_email && <span className="text-xs text-zinc-400">{a.pm_email}</span>}
                           <span className="text-xs text-zinc-500">{new Date(a.assigned_at).toLocaleDateString()}</span>
                         </div>
                         <button

@@ -53,7 +53,7 @@ export const PM_EXPERIENCE_LEVELS: PMExperienceLevel[] = [
 
 export type PMRegistryResult<T> =
   | { ok: true; data: T }
-  | { ok: false; error: string; failureClass: string };
+  | { ok: false; error: string; failureClass: string; details?: Record<string, unknown> };
 
 // ─── Event Types ──────────────────────────────────────────────────────────────
 

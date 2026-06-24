@@ -10,6 +10,8 @@ import {
 } from "@/lib/pm-registry";
 import type { PMAssignmentType } from "@/lib/pm-registry";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { PROJECT_MANAGER_SELECTABLE_COLUMNS } from "@/lib/db/database-contract";
+import type { ProjectManagerRow } from "@/lib/db/database-contract";
 
 const ROUTE = "/api/projects/[projectId]/pm-assignments";
 
@@ -42,7 +44,32 @@ export async function GET(_request: NextRequest, { params }: Props) {
     if (!result.ok) {
       return NextResponse.json({ ok: false, error: { code: result.failureClass, message: result.error } }, { status: 500 });
     }
-    return NextResponse.json({ ok: true, data: result.data });
+
+    // Enrich with PM display info — fetch distinct PMs in one query
+    const pmIds = [...new Set(result.data.map((a) => a.pm_id))];
+    let pmMap: Record<string, { display_name: string; email: string }> = {};
+    if (pmIds.length > 0) {
+      const PM_COLS = PROJECT_MANAGER_SELECTABLE_COLUMNS.join(",");
+      const { data: pms } = await supabase
+        .from("project_managers")
+        .select(PM_COLS)
+        .in("id", pmIds)
+        .eq("workspace_id", workspaceId)
+        .returns<ProjectManagerRow[]>();
+      if (pms) {
+        for (const pm of pms) {
+          pmMap[pm.id] = { display_name: pm.display_name, email: pm.email };
+        }
+      }
+    }
+
+    const enriched = result.data.map((a) => ({
+      ...a,
+      pm_display_name: pmMap[a.pm_id]?.display_name ?? null,
+      pm_email: pmMap[a.pm_id]?.email ?? null,
+    }));
+
+    return NextResponse.json({ ok: true, data: enriched });
   } catch (error) {
     if (error instanceof AccessDeniedError) {
       if (String(error.metadata.reason) === "unauthorized") {
@@ -100,8 +127,15 @@ export async function POST(request: NextRequest, { params }: Props) {
     });
 
     if (!result.ok) {
-      const status = result.failureClass === "validation" ? 409 : result.failureClass === "not_found" ? 404 : 500;
-      return NextResponse.json({ ok: false, error: { code: result.failureClass, message: result.error } }, { status });
+      const httpStatus =
+        result.failureClass === "PM_ACTIVE_PROJECT_LIMIT_EXCEEDED" ? 422
+        : result.failureClass === "validation" ? 409
+        : result.failureClass === "not_found" ? 404
+        : 500;
+      return NextResponse.json(
+        { ok: false, error: { code: result.failureClass, message: result.error, details: result.details ?? null } },
+        { status: httpStatus }
+      );
     }
     return NextResponse.json({ ok: true, data: result.data }, { status: 201 });
   } catch (error) {
