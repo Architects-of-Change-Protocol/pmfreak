@@ -3,6 +3,7 @@ import {
   PROJECT_MANAGER_SELECTABLE_COLUMNS,
 } from "@/lib/db/database-contract";
 import type { ProjectManagerRow } from "@/lib/db/database-contract";
+import { recordPMRegisteredEvent, recordPMUpdatedEvent } from "@/lib/platform-events/domain-events";
 import type {
   PMRegistryResult,
   RegisterProjectManagerInput,
@@ -50,6 +51,9 @@ export async function registerProjectManager(
     return persistFailed("register");
   }
   if (!data) return persistFailed("register");
+  if (input.actorId) {
+    void recordPMRegisteredEvent({ workspaceId: input.workspaceId, pmId: data.id, actorId: input.actorId });
+  }
   return { ok: true, data };
 }
 
@@ -89,6 +93,14 @@ export async function updateProjectManager(
 
   if (error) return persistFailed("update");
   if (!data) return notFound();
+  if (input.actorId) {
+    void recordPMUpdatedEvent({
+      workspaceId: input.workspaceId,
+      pmId: input.pmId,
+      actorId: input.actorId,
+      ...(input.status !== undefined ? { newStatus: input.status } : {}),
+    });
+  }
   return { ok: true, data };
 }
 

@@ -1,0 +1,116 @@
+import { NextRequest, NextResponse } from "next/server";
+import { AccessDeniedError } from "@/aoc/runtime-consumer";
+import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
+import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
+import { getUserWorkspaces } from "@/lib/workspaces";
+import {
+  assignProjectManager,
+  listProjectAssignments,
+  PM_ASSIGNMENT_TYPES,
+} from "@/lib/pm-registry";
+import type { PMAssignmentType } from "@/lib/pm-registry";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+const ROUTE = "/api/projects/[projectId]/pm-assignments";
+
+type Props = { params: Promise<{ projectId: string }> };
+
+export async function GET(_request: NextRequest, { params }: Props) {
+  try {
+    const { user } = await requireAuthenticatedUser();
+    const { projectId } = await params;
+    const workspaces = await getUserWorkspaces(user.id);
+    const workspaceId = workspaces[0]?.id;
+    if (!workspaceId) {
+      return denyResponse({ status: 403, routeId: ROUTE, message: "Workspace context required.", reason: "workspace_missing", actorUserId: user.id });
+    }
+    await requireWorkspaceMember(workspaceId);
+
+    // Verify project belongs to workspace
+    const supabase = await createSupabaseServerClient();
+    const { data: project } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("id", projectId)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (!project) {
+      return NextResponse.json({ ok: false, error: { code: "not_found", message: "Project not found in this workspace." } }, { status: 404 });
+    }
+
+    const result = await listProjectAssignments(workspaceId, projectId);
+    if (!result.ok) {
+      return NextResponse.json({ ok: false, error: { code: result.failureClass, message: result.error } }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true, data: result.data });
+  } catch (error) {
+    if (error instanceof AccessDeniedError) {
+      if (String(error.metadata.reason) === "unauthorized") {
+        return denyResponse({ status: 401, routeId: ROUTE, message: "Unauthorized", reason: "unauthorized" });
+      }
+      return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
+    }
+    throw error;
+  }
+}
+
+export async function POST(request: NextRequest, { params }: Props) {
+  try {
+    const { user } = await requireAuthenticatedUser();
+    const { projectId } = await params;
+    const workspaces = await getUserWorkspaces(user.id);
+    const workspaceId = workspaces[0]?.id;
+    if (!workspaceId) {
+      return denyResponse({ status: 403, routeId: ROUTE, message: "Workspace context required.", reason: "workspace_missing", actorUserId: user.id });
+    }
+    await requireWorkspaceMember(workspaceId);
+
+    let body: { pmId?: unknown; assignmentType?: unknown };
+    try {
+      body = await request.json() as typeof body;
+    } catch {
+      return NextResponse.json({ ok: false, error: { code: "invalid_body", message: "Request body must be valid JSON." } }, { status: 400 });
+    }
+
+    if (typeof body.pmId !== "string" || !body.pmId.trim()) {
+      return NextResponse.json({ ok: false, error: { code: "validation", message: "pmId is required." } }, { status: 400 });
+    }
+    if (!PM_ASSIGNMENT_TYPES.includes(body.assignmentType as PMAssignmentType)) {
+      return NextResponse.json({ ok: false, error: { code: "validation", message: `assignmentType must be one of: ${PM_ASSIGNMENT_TYPES.join(", ")}.` } }, { status: 400 });
+    }
+
+    // Verify project belongs to workspace
+    const supabase = await createSupabaseServerClient();
+    const { data: project } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("id", projectId)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (!project) {
+      return NextResponse.json({ ok: false, error: { code: "not_found", message: "Project not found in this workspace." } }, { status: 404 });
+    }
+
+    const result = await assignProjectManager({
+      workspaceId,
+      pmId: body.pmId,
+      projectId,
+      assignmentType: body.assignmentType as PMAssignmentType,
+      actorId: user.id,
+    });
+
+    if (!result.ok) {
+      const status = result.failureClass === "validation" ? 409 : result.failureClass === "not_found" ? 404 : 500;
+      return NextResponse.json({ ok: false, error: { code: result.failureClass, message: result.error } }, { status });
+    }
+    return NextResponse.json({ ok: true, data: result.data }, { status: 201 });
+  } catch (error) {
+    if (error instanceof AccessDeniedError) {
+      if (String(error.metadata.reason) === "unauthorized") {
+        return denyResponse({ status: 401, routeId: ROUTE, message: "Unauthorized", reason: "unauthorized" });
+      }
+      return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
+    }
+    throw error;
+  }
+}

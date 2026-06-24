@@ -1,8 +1,10 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   PM_ASSIGNMENT_SELECTABLE_COLUMNS,
+  PROJECT_MANAGER_SELECTABLE_COLUMNS,
 } from "@/lib/db/database-contract";
-import type { PMAssignmentRow } from "@/lib/db/database-contract";
+import type { PMAssignmentRow, ProjectManagerRow } from "@/lib/db/database-contract";
+import { recordPMAssignedEvent, recordPMUnassignedEvent } from "@/lib/platform-events/domain-events";
 import type {
   PMRegistryResult,
   AssignProjectManagerInput,
@@ -31,6 +33,20 @@ export async function assignProjectManager(
   if (!input.projectId) return validation("projectId is required.");
 
   const supabase = await createSupabaseServerClient();
+
+  // Validate PM exists, belongs to workspace, and is active
+  const PM_COLS = PROJECT_MANAGER_SELECTABLE_COLUMNS.join(",");
+  const { data: pm } = await supabase
+    .from("project_managers")
+    .select(PM_COLS)
+    .eq("id", input.pmId)
+    .eq("workspace_id", input.workspaceId)
+    .single<ProjectManagerRow>();
+
+  if (!pm) return validation("Project Manager not found in this workspace.");
+  if (pm.status !== "active") {
+    return validation(`Cannot assign a PM with status '${pm.status}'. Only active PMs may be assigned.`);
+  }
   const { data, error } = await supabase
     .from("pm_assignments")
     .insert({
@@ -53,6 +69,16 @@ export async function assignProjectManager(
     return persistFailed("create");
   }
   if (!data) return persistFailed("create");
+  if (input.actorId) {
+    void recordPMAssignedEvent({
+      workspaceId: input.workspaceId,
+      projectId: input.projectId,
+      pmId: input.pmId,
+      assignmentId: data.id,
+      assignmentType: input.assignmentType,
+      actorId: input.actorId,
+    });
+  }
   return { ok: true, data };
 }
 
@@ -87,6 +113,16 @@ export async function unassignProjectManager(
     .single<PMAssignmentRow>();
 
   if (error || !data) return persistFailed("remove");
+  if (input.actorId) {
+    void recordPMUnassignedEvent({
+      workspaceId: input.workspaceId,
+      projectId: input.projectId,
+      pmId: input.pmId,
+      assignmentId: data.id,
+      assignmentType: input.assignmentType,
+      actorId: input.actorId,
+    });
+  }
   return { ok: true, data };
 }
 

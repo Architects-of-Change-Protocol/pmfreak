@@ -335,6 +335,14 @@ export type DecisionOutcomeEngineEventType =
   | "OPERATIONAL_RECOMMENDATION_EVOLUTION_UPDATED"
   | "OPERATIONAL_DECISION_OUTCOME_LINEAGE_GENERATED";
 
+// PM Registry
+export type PMRegistryEventType =
+  | "PROJECT_MANAGER_REGISTERED"
+  | "PROJECT_MANAGER_UPDATED"
+  | "PROJECT_MANAGER_ASSIGNED"
+  | "PROJECT_MANAGER_UNASSIGNED"
+  | "PROJECT_MANAGER_PROFILE_UPDATED";
+
 // Union of all event types
 export type PlatformEventType =
   | ProjectEventType
@@ -365,7 +373,8 @@ export type PlatformEventType =
   | ExecutionProjectionEventType
   | ProjectOSEventType
   | OperationalCommandCenterEventType
-  | DecisionOutcomeEngineEventType;
+  | DecisionOutcomeEngineEventType
+  | PMRegistryEventType;
 
 // ─── Row type (matches platform_events table) ─────────────────────────────────
 
