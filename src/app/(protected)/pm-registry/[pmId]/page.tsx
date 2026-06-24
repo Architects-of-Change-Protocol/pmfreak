@@ -28,6 +28,47 @@ type Assignment = {
   removed_at: string | null;
 };
 
+type AssignmentCapacityPayload = {
+  active_assignment_count: number;
+  counted_assignment_count: number;
+  observer_assignment_count: number;
+  active_projects_limit: number;
+  assignment_capacity_utilization: number;
+  assignment_capacity_status: string;
+  assignment_overload_risk: string;
+  recommendations: Array<{ type: string; severity: string; message: string }>;
+};
+
+type CapacitySnapshot = {
+  id: string;
+  capacity_status: string;
+  burn_risk: string;
+  utilization_percentage: number;
+  recommended_action: string;
+  generated_at: string;
+  snapshot_payload: {
+    active_projects_limit: number;
+    assignment_capacity?: AssignmentCapacityPayload;
+  };
+};
+
+const CAPACITY_STATUS_STYLES: Record<string, string> = {
+  underutilized: "bg-sky-500/20 text-sky-300 border-sky-500/30",
+  healthy:       "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+  near_capacity: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+  at_capacity:   "bg-orange-500/20 text-orange-300 border-orange-500/30",
+  overloaded:    "bg-red-500/20 text-red-300 border-red-500/30",
+  busy:          "bg-amber-500/20 text-amber-300 border-amber-500/30",
+  critical:      "bg-red-500/20 text-red-300 border-red-500/30",
+};
+const RISK_STYLES: Record<string, string> = {
+  none:     "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
+  low:      "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+  medium:   "bg-amber-500/20 text-amber-300 border-amber-500/30",
+  high:     "bg-orange-500/20 text-orange-300 border-orange-500/30",
+  critical: "bg-red-500/20 text-red-300 border-red-500/30",
+};
+
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
   inactive: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
@@ -114,6 +155,10 @@ export default function PMDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEdit, setShowEdit] = useState(false);
+  const [capacitySnapshot, setCapacitySnapshot] = useState<CapacitySnapshot | null>(null);
+  const [capacityLoading, setCapacityLoading] = useState(false);
+  const [capacityError, setCapacityError] = useState<string | null>(null);
+  const [generatingCapacity, setGeneratingCapacity] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -143,9 +188,45 @@ export default function PMDetailPage() {
     }
   }, [pmId]);
 
+  const fetchCapacity = useCallback(async () => {
+    if (!pmId) return;
+    setCapacityLoading(true);
+    setCapacityError(null);
+    try {
+      const res = await fetch(`/api/pm-capacity/${pmId}`);
+      const json = await res.json() as { ok: boolean; data?: { latest: CapacitySnapshot | null }; error?: { message: string } };
+      if (json.ok) {
+        setCapacitySnapshot(json.data?.latest ?? null);
+      }
+    } catch {
+      setCapacityError("Could not load capacity snapshot.");
+    } finally {
+      setCapacityLoading(false);
+    }
+  }, [pmId]);
+
+  async function generateCapacity() {
+    if (!pmId) return;
+    setGeneratingCapacity(true);
+    setCapacityError(null);
+    try {
+      const res = await fetch(`/api/pm-capacity/${pmId}/snapshot`, { method: "POST" });
+      const json = await res.json() as { ok: boolean; error?: { message: string } };
+      if (!json.ok) {
+        setCapacityError(json.error?.message ?? "Failed to generate capacity snapshot.");
+      } else {
+        await fetchCapacity();
+      }
+    } catch {
+      setCapacityError("Network error. Please try again.");
+    } finally {
+      setGeneratingCapacity(false);
+    }
+  }
+
   // fetchData is stable for the lifetime of pmId — calling it here is intentional
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void fetchData(); }, [fetchData]);
+  useEffect(() => { void fetchData(); void fetchCapacity(); }, [fetchData, fetchCapacity]);
 
   if (loading) {
     return (
@@ -248,6 +329,97 @@ export default function PMDetailPage() {
               </ul>
             </div>
           )}
+
+          {/* Capacity Snapshot */}
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="text-sm font-semibold text-white">Capacity Snapshot</h2>
+                {capacitySnapshot && (
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Last generated: {new Date(capacitySnapshot.generated_at).toLocaleString()}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={generateCapacity}
+                disabled={generatingCapacity || capacityLoading}
+                className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+              >
+                {generatingCapacity ? "Generating…" : "Generate PM capacity snapshot"}
+              </button>
+            </div>
+            {capacityError && (
+              <p className="mb-3 text-xs text-red-400">{capacityError}</p>
+            )}
+            {capacityLoading ? (
+              <p className="text-sm text-zinc-400">Loading…</p>
+            ) : !capacitySnapshot ? (
+              <p className="text-sm text-zinc-400">No capacity snapshot has been generated for this Project Manager yet.</p>
+            ) : (() => {
+              const ac = capacitySnapshot.snapshot_payload?.assignment_capacity;
+              const capacityStatus = ac?.assignment_capacity_status ?? capacitySnapshot.capacity_status;
+              const overloadRisk   = ac?.assignment_overload_risk ?? capacitySnapshot.burn_risk;
+              const utilization    = typeof ac?.assignment_capacity_utilization === "number"
+                ? (ac.assignment_capacity_utilization * 100).toFixed(1) + "%"
+                : capacitySnapshot.utilization_percentage.toFixed(1) + "%";
+              const recommendation = ac?.recommendations?.[0]?.message ?? capacitySnapshot.recommended_action;
+              const isAlert = capacityStatus === "at_capacity" || capacityStatus === "overloaded";
+              const isWarning = capacityStatus === "near_capacity";
+              return (
+                <>
+                  {isAlert && (
+                    <div className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                      This PM is {capacityStatus.replace(/_/g, " ")}. Review assignments before adding new projects.
+                    </div>
+                  )}
+                  {isWarning && (
+                    <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                      This PM is approaching capacity. Monitor before adding new workload-counting assignments.
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Active project limit</p>
+                      <p className="mt-1 text-sm font-medium text-white">{ac?.active_projects_limit ?? capacitySnapshot.snapshot_payload?.active_projects_limit ?? "—"}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Counted assignments</p>
+                      <p className="mt-1 text-sm font-medium text-white">{ac?.counted_assignment_count ?? "—"}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Observer assignments</p>
+                      <p className="mt-1 text-sm font-medium text-white">{ac?.observer_assignment_count ?? "—"}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Utilization</p>
+                      <p className="mt-1 text-sm font-medium text-white">{utilization}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Capacity status</p>
+                      <div className="mt-1">
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${CAPACITY_STATUS_STYLES[capacityStatus] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30"}`}>
+                          {capacityStatus.replace(/_/g, " ")}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Overload risk</p>
+                      <div className="mt-1">
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${RISK_STYLES[overloadRisk] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30"}`}>
+                          {overloadRisk}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="col-span-2 sm:col-span-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Recommendation</p>
+                      <p className="mt-1 text-sm text-zinc-300">{recommendation}</p>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
         </div>
       </section>
     </>

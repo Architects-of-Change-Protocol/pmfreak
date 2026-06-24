@@ -4,6 +4,7 @@ import {
 } from "@/lib/db/database-contract";
 import type { PMProfileRow } from "@/lib/db/database-contract";
 import { recordPMProfileUpdatedEvent } from "@/lib/platform-events/domain-events";
+import { generatePMCapacitySnapshot } from "@/lib/pm-capacity/capacity-registry";
 import type {
   PMRegistryResult,
   GetProjectManagerProfileInput,
@@ -81,6 +82,15 @@ export async function upsertPMProfile(
   if (input.actorId) {
     void recordPMProfileUpdatedEvent({ workspaceId: input.workspaceId, pmId: input.pmId, actorId: input.actorId });
   }
+  // Regenerate capacity snapshot when active_projects_limit is explicitly set —
+  // the limit is the denominator of assignment capacity utilization.
+  if (input.activeProjectsLimit !== undefined) {
+    void generatePMCapacitySnapshot({
+      workspaceId: input.workspaceId,
+      pmId: input.pmId,
+      actorId: input.actorId,
+    });
+  }
   return { ok: true, data };
 }
 
@@ -129,5 +139,17 @@ export async function updatePMProfile(
     .single<PMProfileRow>();
 
   if (error || !data) return persistFailed("update");
+  // Regenerate capacity snapshot only when active_projects_limit changed —
+  // it is the denominator of assignment capacity utilization.
+  const limitChanged =
+    input.activeProjectsLimit !== undefined &&
+    input.activeProjectsLimit !== existing.data.active_projects_limit;
+  if (limitChanged) {
+    void generatePMCapacitySnapshot({
+      workspaceId: input.workspaceId,
+      pmId: input.pmId,
+      actorId: input.actorId,
+    });
+  }
   return { ok: true, data };
 }

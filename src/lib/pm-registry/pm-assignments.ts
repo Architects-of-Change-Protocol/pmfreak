@@ -6,6 +6,7 @@ import {
 } from "@/lib/db/database-contract";
 import type { PMAssignmentRow, PMProfileRow, ProjectManagerRow } from "@/lib/db/database-contract";
 import { recordPMAssignedEvent, recordPMUnassignedEvent } from "@/lib/platform-events/domain-events";
+import { generatePMCapacitySnapshot } from "@/lib/pm-capacity/capacity-registry";
 import type {
   PMRegistryResult,
   AssignProjectManagerInput,
@@ -121,6 +122,13 @@ export async function assignProjectManager(
       actorId: input.actorId,
     });
   }
+  // Non-blocking capacity refresh: regenerate snapshot to reflect new assignment.
+  // Does not block or fail the assignment if snapshot generation fails.
+  void generatePMCapacitySnapshot({
+    workspaceId: input.workspaceId,
+    pmId: input.pmId,
+    actorId: input.actorId,
+  });
   return { ok: true, data };
 }
 
@@ -165,6 +173,12 @@ export async function unassignProjectManager(
       actorId: input.actorId,
     });
   }
+  // Non-blocking capacity refresh: regenerate snapshot to reflect removed assignment.
+  void generatePMCapacitySnapshot({
+    workspaceId: input.workspaceId,
+    pmId: input.pmId,
+    actorId: input.actorId,
+  });
   return { ok: true, data };
 }
 

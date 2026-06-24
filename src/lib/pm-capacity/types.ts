@@ -24,6 +24,10 @@ export type PMCapacityResult<T> =
 
 export type PMCapacityEventType =
   | "PM_CAPACITY_SNAPSHOT_GENERATED"
+  | "PM_WORKSPACE_CAPACITY_SNAPSHOTS_GENERATED"
+  | "PM_CAPACITY_NEAR_LIMIT"
+  | "PM_CAPACITY_AT_LIMIT"
+  | "PM_CAPACITY_OVERLOADED"
   | "PM_CAPACITY_CALCULATED"
   | "PM_LOAD_CALCULATED"
   | "PM_UTILIZATION_CALCULATED"
@@ -131,6 +135,11 @@ export type GeneratePMCapacitySnapshotInput = {
   actorId?: string;
 };
 
+export type GenerateWorkspacePMCapacitySnapshotsInput = {
+  workspaceId: string;
+  actorId?: string;
+};
+
 export type GetPMCapacitySnapshotInput = {
   workspaceId: string;
   snapshotId: string;
@@ -142,6 +151,68 @@ export type ListPMCapacitySnapshotsInput = {
   status?: PMCapacityStatus;
   risk?: PMBurnRisk;
   limit?: number;
+};
+
+export type ListLatestPMCapacitySnapshotsInput = {
+  workspaceId: string;
+};
+
+export type ListOverloadedProjectManagersInput = {
+  workspaceId: string;
+};
+
+// Assignment-based capacity status (stored in snapshot_payload; distinct from multi-domain capacity_status)
+export type AssignmentCapacityStatus =
+  | "underutilized"
+  | "healthy"
+  | "near_capacity"
+  | "at_capacity"
+  | "overloaded";
+
+export type AssignmentOverloadRisk = "low" | "medium" | "high" | "critical";
+
+export type AssignmentBreakdown = {
+  primary: number;
+  secondary: number;
+  program: number;
+  observer: number;
+};
+
+export type AssignmentCapacityRecommendation = {
+  type: string;
+  severity: "low" | "medium" | "high" | "critical";
+  message: string;
+};
+
+export type AssignmentCapacityEvidence = {
+  profile: {
+    pm_profile_id: string | null;
+    active_projects_limit: number;
+  };
+  assignments: Array<{
+    assignment_id: string;
+    project_id: string;
+    assignment_type: string;
+    assigned_at: string;
+  }>;
+  counting_rule: {
+    counted_assignment_types: string[];
+    excluded_assignment_types: string[];
+  };
+};
+
+// Enriched payload stored in snapshot_payload.assignment_capacity
+export type AssignmentCapacityPayload = {
+  active_assignment_count: number;
+  counted_assignment_count: number;
+  observer_assignment_count: number;
+  active_projects_limit: number;
+  assignment_capacity_utilization: number;
+  assignment_capacity_status: AssignmentCapacityStatus;
+  assignment_overload_risk: AssignmentOverloadRisk;
+  assignment_breakdown: AssignmentBreakdown;
+  recommendations: AssignmentCapacityRecommendation[];
+  evidence: AssignmentCapacityEvidence;
 };
 
 export type GeneratePMCapacityProfileInput = {
