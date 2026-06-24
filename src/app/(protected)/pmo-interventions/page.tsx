@@ -221,8 +221,6 @@ export default function PMOInterventionsPage() {
   }, [filterStatus, filterPriority, filterActionType]);
 
   const fetchActions = useCallback(async () => {
-    setLoading(true);
-    setError(null);
     try {
       const { filterStatus: s, filterPriority: p, filterActionType: a } = filtersRef.current;
       const params = new URLSearchParams();
@@ -233,6 +231,7 @@ export default function PMOInterventionsPage() {
       const json = await res.json();
       if (json.ok) {
         setActions(json.data);
+        setError(null);
       } else {
         setError(json.error?.message ?? "Failed to load actions.");
       }
