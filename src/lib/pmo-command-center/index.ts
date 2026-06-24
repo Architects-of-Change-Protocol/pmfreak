@@ -47,3 +47,23 @@ export type {
 } from "./types";
 
 export type { PMOCommandCenterExplanation } from "./explain";
+
+// ─── PM Dossier Read Aggregation ──────────────────────────────────────────────
+export { getPMOCommandCenter } from "./pmo-command-center";
+
+export type {
+  PMOOperationalStatus,
+  PMOExecutiveSummary,
+  PMOPMCounts,
+  PMOPMRef,
+  PMOCapacityOverview,
+  PMOPerformanceOverview,
+  PMOEvidenceConfidenceOverview,
+  PMOAttentionQueues,
+  PMOAttentionItem,
+  PMORecommendation,
+  PMODossierRow,
+  PMOEventTimelineItem,
+  PMOCommandCenterView,
+  GetPMOCommandCenterViewInput,
+} from "./types";
