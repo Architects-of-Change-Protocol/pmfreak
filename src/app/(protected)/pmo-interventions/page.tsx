@@ -216,8 +216,6 @@ export default function PMOInterventionsPage() {
   const [filterActionType, setFilterActionType] = useState<string>("");
 
   const fetchActions = useCallback(async () => {
-    setLoading(true);
-    setError(null);
     try {
       const params = new URLSearchParams();
       if (filterStatus) params.set("status", filterStatus);
@@ -237,7 +235,11 @@ export default function PMOInterventionsPage() {
     }
   }, [filterStatus, filterPriority, filterActionType]);
 
-  useEffect(() => { fetchActions(); }, [fetchActions]);
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    void fetchActions();
+  }, [fetchActions]);
 
   async function handleGenerate() {
     setGenerating(true);
