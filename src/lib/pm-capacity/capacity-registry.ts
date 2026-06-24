@@ -21,8 +21,17 @@ import { generateCapacityRecommendations } from "./engines/recommendation-engine
 import type {
   PMCapacityResult,
   GeneratePMCapacitySnapshotInput,
+  GenerateWorkspacePMCapacitySnapshotsInput,
   GetPMCapacitySnapshotInput,
   ListPMCapacitySnapshotsInput,
+  ListLatestPMCapacitySnapshotsInput,
+  ListOverloadedProjectManagersInput,
+  AssignmentCapacityStatus,
+  AssignmentOverloadRisk,
+  AssignmentCapacityRecommendation,
+  AssignmentCapacityEvidence,
+  AssignmentBreakdown,
+  AssignmentCapacityPayload,
 } from "./types";
 
 // ─── Column selectors ─────────────────────────────────────────────────────────
@@ -46,6 +55,91 @@ function notFound<T>(resource = "Resource"): PMCapacityResult<T> {
 }
 function persistFailed<T>(action: string): PMCapacityResult<T> {
   return { ok: false, error: `Unable to ${action}.`, failureClass: "persistence_failed" };
+}
+
+// ─── Assignment-capacity helpers ─────────────────────────────────────────────
+
+const COUNTED_ASSIGNMENT_TYPES = ["primary", "secondary", "program"] as const;
+const EXCLUDED_ASSIGNMENT_TYPES = ["observer"] as const;
+
+function deriveAssignmentCapacityStatus(utilization: number): AssignmentCapacityStatus {
+  if (utilization > 1.0)        return "overloaded";
+  if (utilization === 1.0)      return "at_capacity";
+  if (utilization >= 0.75)      return "near_capacity";
+  if (utilization >= 0.40)      return "healthy";
+  return "underutilized";
+}
+
+function deriveAssignmentOverloadRisk(utilization: number): AssignmentOverloadRisk {
+  if (utilization > 1.0)   return "critical";
+  if (utilization === 1.0) return "high";
+  if (utilization >= 0.75) return "medium";
+  return "low";
+}
+
+function generateAssignmentRecommendations(
+  status: AssignmentCapacityStatus
+): AssignmentCapacityRecommendation[] {
+  switch (status) {
+    case "underutilized":
+      return [{ type: "available_capacity", severity: "low", message: "PM has available capacity and may be considered for additional ownership." }];
+    case "healthy":
+      return [{ type: "maintain_load", severity: "low", message: "PM load is within healthy operating range." }];
+    case "near_capacity":
+      return [{ type: "monitor_capacity", severity: "medium", message: "PM is approaching capacity. Review before assigning additional projects." }];
+    case "at_capacity":
+      return [{ type: "hold_new_assignments", severity: "high", message: "PM is at configured capacity. Avoid additional workload-counting assignments." }];
+    case "overloaded":
+      return [{ type: "rebalance_load", severity: "critical", message: "PM exceeds configured capacity. Rebalance assignments or increase capacity with explicit approval." }];
+  }
+}
+
+function buildAssignmentCapacityPayload(
+  assignments: Array<{ id: string; project_id: string; assignment_type: string; assigned_at: string }>,
+  activeProjectsLimit: number,
+  pmProfileId: string | null
+): AssignmentCapacityPayload {
+  const breakdown: AssignmentBreakdown = { primary: 0, secondary: 0, program: 0, observer: 0 };
+  for (const a of assignments) {
+    if (a.assignment_type === "primary")   breakdown.primary++;
+    else if (a.assignment_type === "secondary") breakdown.secondary++;
+    else if (a.assignment_type === "program")   breakdown.program++;
+    else if (a.assignment_type === "observer")  breakdown.observer++;
+  }
+
+  const countedCount  = breakdown.primary + breakdown.secondary + breakdown.program;
+  const observerCount = breakdown.observer;
+  const activeCount   = assignments.length;
+  const utilization   = activeProjectsLimit > 0 ? countedCount / activeProjectsLimit : 0;
+  const status        = deriveAssignmentCapacityStatus(utilization);
+  const risk          = deriveAssignmentOverloadRisk(utilization);
+
+  const evidence: AssignmentCapacityEvidence = {
+    profile: { pm_profile_id: pmProfileId, active_projects_limit: activeProjectsLimit },
+    assignments: assignments.map((a) => ({
+      assignment_id:   a.id,
+      project_id:      a.project_id,
+      assignment_type: a.assignment_type,
+      assigned_at:     a.assigned_at,
+    })),
+    counting_rule: {
+      counted_assignment_types:  [...COUNTED_ASSIGNMENT_TYPES],
+      excluded_assignment_types: [...EXCLUDED_ASSIGNMENT_TYPES],
+    },
+  };
+
+  return {
+    active_assignment_count:          activeCount,
+    counted_assignment_count:         countedCount,
+    observer_assignment_count:        observerCount,
+    active_projects_limit:            activeProjectsLimit,
+    assignment_capacity_utilization:  utilization,
+    assignment_capacity_status:       status,
+    assignment_overload_risk:         risk,
+    assignment_breakdown:             breakdown,
+    recommendations:                  generateAssignmentRecommendations(status),
+    evidence,
+  };
 }
 
 // ─── generatePMCapacitySnapshot ──────────────────────────────────────────────
@@ -211,6 +305,14 @@ export async function generatePMCapacitySnapshot(
     burnRisk,
   });
 
+  // ─── Assignment-capacity payload ─────────────────────────────────────────
+
+  const assignmentCapacity = buildAssignmentCapacityPayload(
+    assignmentList as Array<{ id: string; project_id: string; assignment_type: string; assigned_at: string }>,
+    activeProjectsLimit,
+    profile?.id ?? null
+  );
+
   // ─── Persist snapshot ────────────────────────────────────────────────────
 
   const snapshotPayload = {
@@ -230,6 +332,8 @@ export async function generatePMCapacitySnapshot(
     attention_allocation_score: attentionAllocationScore,
     performance_snapshot_id: perfSnap?.id ?? null,
     recommendation_reason: recommendation.reason,
+    // Assignment-based capacity (counting rule: primary+secondary+program count, observer does not)
+    assignment_capacity: assignmentCapacity,
   };
 
   const { data: snapshot, error: snapError } = await supabase
@@ -337,15 +441,23 @@ export async function generatePMCapacitySnapshot(
     rawReferenceTable: "pm_capacity_snapshots",
     rawReferenceId:    snapshot.id,
     eventPayload: {
-      pm_id:                  input.pmId,
-      snapshot_id:            snapshot.id,
-      capacity_score:         capacityScore,
-      load_score:             loadScore,
-      utilization_percentage: utilizationPercentage,
-      burn_risk:              burnRisk,
-      capacity_status:        capacityStatus,
-      recommended_action:     recommendation.action,
-      project_count:          projectCount,
+      pm_id:                           input.pmId,
+      snapshot_id:                     snapshot.id,
+      capacity_score:                  capacityScore,
+      load_score:                      loadScore,
+      utilization_percentage:          utilizationPercentage,
+      burn_risk:                       burnRisk,
+      capacity_status:                 capacityStatus,
+      recommended_action:              recommendation.action,
+      project_count:                   projectCount,
+      active_projects_limit:           activeProjectsLimit,
+      counted_assignment_count:        assignmentCapacity.counted_assignment_count,
+      observer_assignment_count:       assignmentCapacity.observer_assignment_count,
+      assignment_capacity_utilization: assignmentCapacity.assignment_capacity_utilization,
+      assignment_capacity_status:      assignmentCapacity.assignment_capacity_status,
+      assignment_overload_risk:        assignmentCapacity.assignment_overload_risk,
+      generated_at:                    snapshot.generated_at,
+      source:                          "pm_capacity",
     },
   });
 
@@ -428,4 +540,147 @@ export async function listPMCapacitySnapshots(
   const { data, error } = await query.returns<PMCapacitySnapshotRow[]>();
   if (error) return persistFailed("list capacity snapshots");
   return { ok: true, data: data ?? [] };
+}
+
+// ─── listLatestPMCapacitySnapshots ────────────────────────────────────────────
+// Returns one (latest) snapshot per PM for a workspace.
+
+export async function listLatestPMCapacitySnapshots(
+  input: ListLatestPMCapacitySnapshotsInput
+): Promise<PMCapacityResult<PMCapacitySnapshotRow[]>> {
+  if (!validUuid(input.workspaceId)) return validation("workspaceId must be a valid UUID.");
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("pm_capacity_snapshots")
+    .select(SNAPSHOT_COLS)
+    .eq("workspace_id", input.workspaceId)
+    .order("generated_at", { ascending: false })
+    .returns<PMCapacitySnapshotRow[]>();
+
+  if (error) return persistFailed("list latest capacity snapshots");
+
+  // Deduplicate: keep most recent snapshot per pm_id (results already ordered desc)
+  const seen = new Set<string>();
+  const latest: PMCapacitySnapshotRow[] = [];
+  for (const row of (data ?? [])) {
+    if (!seen.has(row.pm_id)) {
+      seen.add(row.pm_id);
+      latest.push(row);
+    }
+  }
+
+  return { ok: true, data: latest };
+}
+
+// ─── listOverloadedProjectManagers ───────────────────────────────────────────
+// Returns latest snapshots where capacity_status is overloaded/critical or
+// burn_risk is high/critical.
+
+export async function listOverloadedProjectManagers(
+  input: ListOverloadedProjectManagersInput
+): Promise<PMCapacityResult<PMCapacitySnapshotRow[]>> {
+  if (!validUuid(input.workspaceId)) return validation("workspaceId must be a valid UUID.");
+
+  const latestResult = await listLatestPMCapacitySnapshots({ workspaceId: input.workspaceId });
+  if (!latestResult.ok) return latestResult;
+
+  const overloaded = latestResult.data.filter(
+    (s) =>
+      s.capacity_status === "overloaded" ||
+      s.capacity_status === "critical" ||
+      s.burn_risk === "high" ||
+      s.burn_risk === "critical"
+  );
+
+  return { ok: true, data: overloaded };
+}
+
+// ─── generateWorkspacePMCapacitySnapshots ─────────────────────────────────────
+// Generates one capacity snapshot per active PM in the workspace.
+
+export async function generateWorkspacePMCapacitySnapshots(
+  input: GenerateWorkspacePMCapacitySnapshotsInput
+): Promise<PMCapacityResult<{
+  generated: PMCapacitySnapshotRow[];
+  totalPMs: number;
+  successCount: number;
+  failureCount: number;
+}>> {
+  if (!validUuid(input.workspaceId)) return validation("workspaceId must be a valid UUID.");
+
+  const supabase = await createSupabaseServerClient();
+
+  const { data: pms, error: pmError } = await supabase
+    .from("project_managers")
+    .select("id")
+    .eq("workspace_id", input.workspaceId)
+    .eq("status", "active");
+
+  if (pmError) return persistFailed("list project managers for workspace snapshot generation");
+
+  const pmList = pms ?? [];
+  const generated: PMCapacitySnapshotRow[] = [];
+  let failureCount = 0;
+
+  for (const pm of pmList) {
+    const result = await generatePMCapacitySnapshot({
+      workspaceId: input.workspaceId,
+      pmId: pm.id,
+      actorId: input.actorId,
+    });
+    if (result.ok) {
+      generated.push(result.data);
+    } else {
+      failureCount++;
+    }
+  }
+
+  const successCount = generated.length;
+
+  if (successCount > 0) {
+    const statuses = generated.map((s) => s.capacity_status);
+    const healthyCount      = statuses.filter((s) => s === "healthy").length;
+    const nearCapacityCount = statuses.filter((s) => s === "busy").length;
+    const atCapacityCount   = statuses.filter((s) => s === "overloaded").length;
+    const overloadedCount   = statuses.filter((s) => s === "critical").length;
+    const avgUtil           = generated.reduce((sum, s) => sum + Number(s.utilization_percentage), 0) / successCount;
+
+    await createPlatformEvent({
+      workspaceId:       input.workspaceId,
+      projectId:         null,
+      actorId:           input.actorId ?? null,
+      actorType:         input.actorId ? "user" : "system",
+      eventType:         "PM_WORKSPACE_CAPACITY_SNAPSHOTS_GENERATED",
+      eventCategory:     "governance",
+      source:            input.actorId ? "user_action" : "system",
+      correlationId:     null,
+      causationId:       null,
+      rawReferenceTable: "pm_capacity_snapshots",
+      rawReferenceId:    null,
+      eventPayload: {
+        workspace_id:             input.workspaceId,
+        actor_user_id:            input.actorId ?? null,
+        generated_snapshot_count: successCount,
+        total_pm_count:           pmList.length,
+        healthy_count:            healthyCount,
+        near_capacity_count:      nearCapacityCount,
+        at_capacity_count:        atCapacityCount,
+        overloaded_count:         overloadedCount,
+        average_utilization:      Math.round(avgUtil * 100) / 100,
+        generated_at:             new Date().toISOString(),
+        source:                   "pm_capacity",
+      },
+    });
+  }
+
+  return {
+    ok: true,
+    data: {
+      generated,
+      totalPMs:     pmList.length,
+      successCount,
+      failureCount,
+    },
+  };
 }

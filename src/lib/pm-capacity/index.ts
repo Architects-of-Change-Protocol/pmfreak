@@ -15,8 +15,17 @@ export type {
   DetectPMOverloadInput,
   GenerateCapacityRecommendationsInput,
   GeneratePMCapacitySnapshotInput,
+  GenerateWorkspacePMCapacitySnapshotsInput,
   GetPMCapacitySnapshotInput,
   ListPMCapacitySnapshotsInput,
+  ListLatestPMCapacitySnapshotsInput,
+  ListOverloadedProjectManagersInput,
+  AssignmentCapacityStatus,
+  AssignmentOverloadRisk,
+  AssignmentCapacityRecommendation,
+  AssignmentCapacityEvidence,
+  AssignmentBreakdown,
+  AssignmentCapacityPayload,
   GeneratePMCapacityProfileInput,
   ComparePMCapacityInput,
   GetPMCapacityLineageInput,
@@ -44,8 +53,11 @@ export type { CapacityRecommendation }      from "./engines/recommendation-engin
 // ─── Capacity Registry ────────────────────────────────────────────────────────
 export {
   generatePMCapacitySnapshot,
+  generateWorkspacePMCapacitySnapshots,
   getPMCapacitySnapshot,
   listPMCapacitySnapshots,
+  listLatestPMCapacitySnapshots,
+  listOverloadedProjectManagers,
 } from "./capacity-registry";
 
 // ─── Capacity Profile ─────────────────────────────────────────────────────────
