@@ -4731,4 +4731,112 @@ export const PM_CAPACITY_EVIDENCE_SELECTABLE_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof PMCapacityEvidenceRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// Governance Compliance Types
+// Source: 20260717000000_pmo_governance_compliance_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GovernanceComplianceStatus = "compliant" | "warning" | "critical";
+export type GovernanceComplianceDomain = "constitution" | "authority" | "ratification" | "decision" | "execution" | "learning";
+export type GovernanceGapSeverity = "low" | "medium" | "high" | "critical";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// governance_compliance_snapshots
+// Source: 20260717000000_pmo_governance_compliance_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GovernanceComplianceSnapshotRow = {
+  id: string;                              // uuid PK
+  workspace_id: string;                    // uuid references workspaces
+  pm_id: string;                           // uuid references project_managers
+  constitution_score: number;              // numeric(7,2) 0-100
+  authority_score: number;                 // numeric(7,2) 0-100
+  ratification_score: number;              // numeric(7,2) 0-100
+  decision_score: number;                  // numeric(7,2) 0-100
+  execution_score: number;                 // numeric(7,2) 0-100
+  learning_score: number;                  // numeric(7,2) 0-100
+  overall_score: number;                   // numeric(7,2) 0-100
+  compliance_status: GovernanceComplianceStatus; // text not null
+  snapshot_payload: Record<string, unknown>; // jsonb
+  generated_at: string;                    // timestamptz
+  created_at: string;                      // timestamptz
+  updated_at: string;                      // timestamptz
+};
+
+export const GOVERNANCE_COMPLIANCE_SNAPSHOT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "pm_id",
+  "constitution_score",
+  "authority_score",
+  "ratification_score",
+  "decision_score",
+  "execution_score",
+  "learning_score",
+  "overall_score",
+  "compliance_status",
+  "snapshot_payload",
+  "generated_at",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof GovernanceComplianceSnapshotRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// governance_compliance_gaps
+// Source: 20260717000000_pmo_governance_compliance_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GovernanceComplianceGapRow = {
+  id: string;                              // uuid PK
+  workspace_id: string;                    // uuid references workspaces
+  snapshot_id: string;                     // uuid references governance_compliance_snapshots
+  domain: GovernanceComplianceDomain;      // text not null
+  gap_type: string;                        // text not null
+  severity: GovernanceGapSeverity;         // text not null
+  description: string;                     // text not null
+  evidence_count: number;                  // integer >= 0
+  detected_at: string;                     // timestamptz
+  created_at: string;                      // timestamptz
+};
+
+export const GOVERNANCE_COMPLIANCE_GAP_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "snapshot_id",
+  "domain",
+  "gap_type",
+  "severity",
+  "description",
+  "evidence_count",
+  "detected_at",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof GovernanceComplianceGapRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// governance_compliance_evidence
+// Source: 20260717000000_pmo_governance_compliance_engine.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GovernanceComplianceEvidenceRow = {
+  id: string;                              // uuid PK
+  workspace_id: string;                    // uuid references workspaces
+  snapshot_id: string;                     // uuid references governance_compliance_snapshots
+  source_entity_type: string;              // text not null
+  source_entity_id: string;               // uuid not null
+  evidence_type: string;                   // text not null
+  contribution_weight: number;             // numeric(5,4) 0-1
+  created_at: string;                      // timestamptz
+};
+
+export const GOVERNANCE_COMPLIANCE_EVIDENCE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "snapshot_id",
+  "source_entity_type",
+  "source_entity_id",
+  "evidence_type",
+  "contribution_weight",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof GovernanceComplianceEvidenceRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine" as const;
