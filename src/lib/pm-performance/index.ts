@@ -17,6 +17,10 @@ export type {
   GeneratePMPerformanceSnapshotInput,
   GetPMPerformanceSnapshotInput,
   ListPMPerformanceSnapshotsInput,
+  GenerateWorkspacePMPerformanceSnapshotsInput,
+  GetLatestPMPerformanceSnapshotInput,
+  ListLatestPMPerformanceSnapshotsInput,
+  ListAtRiskPMPerformanceSnapshotsInput,
   GeneratePMScorecardInput,
   ComparePMPerformanceInput,
   GetPMPerformanceLineageInput,
@@ -44,8 +48,12 @@ export { classifyPMPerformanceStatus }   from "./engines/status-classification";
 // ─── Performance Registry ─────────────────────────────────────────────────────
 export {
   generatePMPerformanceSnapshot,
+  generateWorkspacePMPerformanceSnapshots,
   getPMPerformanceSnapshot,
+  getLatestPMPerformanceSnapshot,
   listPMPerformanceSnapshots,
+  listLatestPMPerformanceSnapshots,
+  listAtRiskPMPerformanceSnapshots,
 } from "./performance-registry";
 
 // ─── Scorecard ────────────────────────────────────────────────────────────────

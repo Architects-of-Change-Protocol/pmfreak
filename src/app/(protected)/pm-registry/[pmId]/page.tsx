@@ -28,6 +28,36 @@ type Assignment = {
   removed_at: string | null;
 };
 
+type PerformanceSnapshot = {
+  id: string;
+  overall_score: number;
+  governance_score: number;
+  execution_score: number;
+  prediction_accuracy_score: number;
+  decision_effectiveness_score: number;
+  portfolio_health_score: number;
+  performance_status: string;
+  generated_at: string;
+  snapshot_payload: {
+    pm_name: string;
+    assigned_project_count: number;
+    os_snapshot_count: number;
+    capacity_context?: {
+      capacity_status: string;
+      burn_risk: string;
+      assignment_capacity?: { assignment_capacity_status?: string; assignment_overload_risk?: string } | null;
+    } | null;
+  };
+};
+
+const PERF_STATUS_STYLES: Record<string, string> = {
+  excellent: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+  strong:    "bg-teal-500/20 text-teal-300 border-teal-500/30",
+  stable:    "bg-sky-500/20 text-sky-300 border-sky-500/30",
+  warning:   "bg-amber-500/20 text-amber-300 border-amber-500/30",
+  critical:  "bg-red-500/20 text-red-300 border-red-500/30",
+};
+
 type AssignmentCapacityPayload = {
   active_assignment_count: number;
   counted_assignment_count: number;
@@ -159,6 +189,10 @@ export default function PMDetailPage() {
   const [capacityLoading, setCapacityLoading] = useState(false);
   const [capacityError, setCapacityError] = useState<string | null>(null);
   const [generatingCapacity, setGeneratingCapacity] = useState(false);
+  const [performanceSnapshot, setPerformanceSnapshot] = useState<PerformanceSnapshot | null>(null);
+  const [performanceLoading, setPerformanceLoading] = useState(false);
+  const [performanceError, setPerformanceError] = useState<string | null>(null);
+  const [generatingPerformance, setGeneratingPerformance] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -224,9 +258,45 @@ export default function PMDetailPage() {
     }
   }
 
-  // fetchData is stable for the lifetime of pmId — calling it here is intentional
+  const fetchPerformance = useCallback(async () => {
+    if (!pmId) return;
+    setPerformanceLoading(true);
+    setPerformanceError(null);
+    try {
+      const res = await fetch(`/api/pm-performance/${pmId}`);
+      const json = await res.json() as { ok: boolean; data?: { latest: PerformanceSnapshot | null }; error?: { message: string } };
+      if (json.ok) {
+        setPerformanceSnapshot(json.data?.latest ?? null);
+      }
+    } catch {
+      setPerformanceError("Could not load performance snapshot.");
+    } finally {
+      setPerformanceLoading(false);
+    }
+  }, [pmId]);
+
+  async function generatePerformance() {
+    if (!pmId) return;
+    setGeneratingPerformance(true);
+    setPerformanceError(null);
+    try {
+      const res = await fetch(`/api/pm-performance/${pmId}/snapshot`, { method: "POST" });
+      const json = await res.json() as { ok: boolean; error?: { message: string } };
+      if (!json.ok) {
+        setPerformanceError(json.error?.message ?? "Failed to generate performance snapshot.");
+      } else {
+        await fetchPerformance();
+      }
+    } catch {
+      setPerformanceError("Network error. Please try again.");
+    } finally {
+      setGeneratingPerformance(false);
+    }
+  }
+
+  // fetchData/fetchCapacity/fetchPerformance are stable for the lifetime of pmId — calling them here is intentional
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void fetchData(); void fetchCapacity(); }, [fetchData, fetchCapacity]);
+  useEffect(() => { void fetchData(); void fetchCapacity(); void fetchPerformance(); }, [fetchData, fetchCapacity, fetchPerformance]);
 
   if (loading) {
     return (
@@ -420,6 +490,87 @@ export default function PMDetailPage() {
               );
             })()}
           </div>
+          {/* Performance Snapshot */}
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="text-sm font-semibold text-white">Performance Snapshot</h2>
+                {performanceSnapshot && (
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Last generated: {new Date(performanceSnapshot.generated_at).toLocaleString()}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={generatePerformance}
+                disabled={generatingPerformance || performanceLoading}
+                className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+              >
+                {generatingPerformance ? "Generating…" : "Generate PM performance snapshot"}
+              </button>
+            </div>
+            {performanceError && (
+              <p className="mb-3 text-xs text-red-400">{performanceError}</p>
+            )}
+            {performanceLoading ? (
+              <p className="text-sm text-zinc-400">Loading…</p>
+            ) : !performanceSnapshot ? (
+              <p className="text-sm text-zinc-400">No performance snapshot has been generated for this Project Manager yet.</p>
+            ) : (() => {
+              const s = performanceSnapshot;
+              const isAlert = s.performance_status === "critical" || s.performance_status === "warning";
+              const statusCls = PERF_STATUS_STYLES[s.performance_status] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30";
+              const cc = s.snapshot_payload?.capacity_context;
+              const capStatus = cc?.assignment_capacity?.assignment_capacity_status ?? cc?.capacity_status ?? null;
+              const domains = [
+                { label: "Governance",   value: s.governance_score },
+                { label: "Execution",    value: s.execution_score },
+                { label: "Prediction",   value: s.prediction_accuracy_score },
+                { label: "Decisions",    value: s.decision_effectiveness_score },
+                { label: "Portfolio",    value: s.portfolio_health_score },
+              ];
+              return (
+                <>
+                  {isAlert && (
+                    <div className={`mb-3 rounded-xl border px-3 py-2 text-xs ${s.performance_status === "critical" ? "border-red-500/30 bg-red-500/10 text-red-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}>
+                      PM performance is <strong>{s.performance_status}</strong>. PMO review recommended.
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Overall score</p>
+                      <p className="mt-1 text-xl font-semibold text-white">{Number(s.overall_score).toFixed(1)}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Status</p>
+                      <div className="mt-1">
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusCls}`}>
+                          {s.performance_status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-zinc-500">Assigned projects</p>
+                      <p className="mt-1 text-sm font-medium text-white">{s.snapshot_payload?.assigned_project_count ?? "—"}</p>
+                    </div>
+                    {capStatus && (
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <p className="text-xs text-zinc-500">Capacity context</p>
+                        <p className="mt-1 text-sm font-medium text-zinc-300">{capStatus.replace(/_/g, " ")}</p>
+                      </div>
+                    )}
+                    {domains.map(({ label, value }) => (
+                      <div key={label} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <p className="text-xs text-zinc-500">{label}</p>
+                        <p className="mt-1 text-sm font-medium text-white">{Number(value).toFixed(1)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+
         </div>
       </section>
     </>

@@ -22,8 +22,12 @@ import { classifyPMPerformanceStatus } from "./engines/status-classification";
 import type {
   PMPerformanceResult,
   GeneratePMPerformanceSnapshotInput,
+  GenerateWorkspacePMPerformanceSnapshotsInput,
   GetPMPerformanceSnapshotInput,
+  GetLatestPMPerformanceSnapshotInput,
   ListPMPerformanceSnapshotsInput,
+  ListLatestPMPerformanceSnapshotsInput,
+  ListAtRiskPMPerformanceSnapshotsInput,
   PMPerformanceStatus,
 } from "./types";
 
@@ -133,7 +137,28 @@ export async function generatePMPerformanceSnapshot(
       t.status !== "completed" && t.due_date !== null && t.due_date < now
   ).length;
 
-  // 6. Execution realities (prediction accuracy)
+  // 6. Read latest PM Capacity snapshot (read-only context — never mutated here)
+  const { data: latestCapacitySnap } = await supabase
+    .from("pm_capacity_snapshots")
+    .select("id,capacity_status,burn_risk,utilization_percentage,snapshot_payload,generated_at")
+    .eq("pm_id", input.pmId)
+    .eq("workspace_id", input.workspaceId)
+    .order("generated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const capacityContext = latestCapacitySnap
+    ? {
+        capacity_snapshot_id: latestCapacitySnap.id,
+        capacity_status:      latestCapacitySnap.capacity_status,
+        burn_risk:            latestCapacitySnap.burn_risk,
+        utilization_percentage: latestCapacitySnap.utilization_percentage,
+        generated_at:         latestCapacitySnap.generated_at,
+        assignment_capacity:  (latestCapacitySnap.snapshot_payload as Record<string, unknown>)?.assignment_capacity ?? null,
+      }
+    : null;
+
+  // 7. Execution realities (prediction accuracy)
   const { data: realities } = await supabase
     .from("execution_realities")
     .select("id,confidence_score")
@@ -142,7 +167,7 @@ export async function generatePMPerformanceSnapshot(
 
   const realityList = realities ?? [];
 
-  // 7. Decision outcomes (decision effectiveness)
+  // 8. Decision outcomes (decision effectiveness)
   const { data: outcomes } = await supabase
     .from("operational_decision_outcomes")
     .select("id,effectiveness_score,outcome_status")
@@ -219,6 +244,7 @@ export async function generatePMPerformanceSnapshot(
       decision: decisionEffectivenessScore,
       portfolio: portfolioHealthScore,
     },
+    capacity_context: capacityContext,
   };
 
   const { data: snapshot, error: snapError } = await supabase
@@ -388,4 +414,149 @@ export async function listPMPerformanceSnapshots(
   const { data, error } = await query.returns<PMPerformanceSnapshotRow[]>();
   if (error) return persistFailed("list performance snapshots");
   return { ok: true, data: data ?? [] };
+}
+
+// ─── getLatestPMPerformanceSnapshot ──────────────────────────────────────────
+
+export async function getLatestPMPerformanceSnapshot(
+  input: GetLatestPMPerformanceSnapshotInput
+): Promise<PMPerformanceResult<PMPerformanceSnapshotRow | null>> {
+  if (!validUuid(input.workspaceId)) return validation("workspaceId must be a valid UUID.");
+  if (!validUuid(input.pmId))        return validation("pmId must be a valid UUID.");
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("pm_performance_snapshots")
+    .select(SNAPSHOT_COLS)
+    .eq("workspace_id", input.workspaceId)
+    .eq("pm_id", input.pmId)
+    .order("generated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<PMPerformanceSnapshotRow>();
+
+  if (error) return persistFailed("get latest performance snapshot");
+  return { ok: true, data: data ?? null };
+}
+
+// ─── listLatestPMPerformanceSnapshots ────────────────────────────────────────
+
+export async function listLatestPMPerformanceSnapshots(
+  input: ListLatestPMPerformanceSnapshotsInput
+): Promise<PMPerformanceResult<PMPerformanceSnapshotRow[]>> {
+  if (!validUuid(input.workspaceId)) return validation("workspaceId must be a valid UUID.");
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("pm_performance_snapshots")
+    .select(SNAPSHOT_COLS)
+    .eq("workspace_id", input.workspaceId)
+    .order("generated_at", { ascending: false })
+    .returns<PMPerformanceSnapshotRow[]>();
+
+  if (error) return persistFailed("list latest performance snapshots");
+
+  // Deduplicate to latest per PM
+  const seen = new Set<string>();
+  const latest: PMPerformanceSnapshotRow[] = [];
+  for (const snap of (data ?? [])) {
+    if (!seen.has(snap.pm_id)) {
+      seen.add(snap.pm_id);
+      latest.push(snap);
+    }
+  }
+  return { ok: true, data: latest };
+}
+
+// ─── listAtRiskPMPerformanceSnapshots ────────────────────────────────────────
+
+export async function listAtRiskPMPerformanceSnapshots(
+  input: ListAtRiskPMPerformanceSnapshotsInput
+): Promise<PMPerformanceResult<PMPerformanceSnapshotRow[]>> {
+  if (!validUuid(input.workspaceId)) return validation("workspaceId must be a valid UUID.");
+
+  // Get latest per PM first, then filter to warning/critical
+  const latestResult = await listLatestPMPerformanceSnapshots(input);
+  if (!latestResult.ok) return latestResult;
+
+  const atRisk = latestResult.data.filter(
+    (s) => s.performance_status === "warning" || s.performance_status === "critical"
+  );
+  return { ok: true, data: atRisk };
+}
+
+// ─── generateWorkspacePMPerformanceSnapshots ──────────────────────────────────
+
+export async function generateWorkspacePMPerformanceSnapshots(
+  input: GenerateWorkspacePMPerformanceSnapshotsInput
+): Promise<PMPerformanceResult<{ generated: PMPerformanceSnapshotRow[]; skipped: number; total_pm_count: number }>> {
+  if (!validUuid(input.workspaceId)) return validation("workspaceId must be a valid UUID.");
+
+  const supabase = await createSupabaseServerClient();
+
+  // Get all active PMs in workspace
+  const { data: pms, error: pmsError } = await supabase
+    .from("project_managers")
+    .select("id")
+    .eq("workspace_id", input.workspaceId)
+    .eq("status", "active");
+
+  if (pmsError) return persistFailed("list project managers for workspace snapshot generation");
+
+  const pmList = pms ?? [];
+  const generated: PMPerformanceSnapshotRow[] = [];
+  let skipped = 0;
+
+  for (const pm of pmList) {
+    const result = await generatePMPerformanceSnapshot({
+      workspaceId: input.workspaceId,
+      pmId:        pm.id,
+      actorId:     input.actorId,
+    });
+    if (result.ok) {
+      generated.push(result.data);
+    } else if (result.failureClass === "validation") {
+      // PM has no assignments — skip silently
+      skipped++;
+    }
+    // Other failures (persistence) are skipped with count
+    else {
+      skipped++;
+    }
+  }
+
+  // Emit workspace-level event if any snapshots were generated
+  if (generated.length > 0) {
+    const scores = generated.map((s) => Number(s.overall_score));
+    const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+
+    await createPlatformEvent({
+      workspaceId:       input.workspaceId,
+      projectId:         null,
+      actorId:           input.actorId ?? null,
+      actorType:         input.actorId ? "user" : "system",
+      eventType:         "PM_WORKSPACE_PERFORMANCE_SNAPSHOTS_GENERATED",
+      eventCategory:     "governance",
+      source:            input.actorId ? "user_action" : "system",
+      correlationId:     null,
+      causationId:       null,
+      rawReferenceTable: "pm_performance_snapshots",
+      rawReferenceId:    null,
+      eventPayload: {
+        workspace_id:             input.workspaceId,
+        actor_user_id:            input.actorId ?? null,
+        generated_snapshot_count: generated.length,
+        skipped_count:            skipped,
+        total_pm_count:           pmList.length,
+        average_performance_score: Math.round(avgScore * 10) / 10,
+        excellent_count: generated.filter((s) => s.performance_status === "excellent").length,
+        strong_count:    generated.filter((s) => s.performance_status === "strong").length,
+        stable_count:    generated.filter((s) => s.performance_status === "stable").length,
+        warning_count:   generated.filter((s) => s.performance_status === "warning").length,
+        critical_count:  generated.filter((s) => s.performance_status === "critical").length,
+        source:          "pm_performance",
+      },
+    });
+  }
+
+  return { ok: true, data: { generated, skipped, total_pm_count: pmList.length } };
 }
