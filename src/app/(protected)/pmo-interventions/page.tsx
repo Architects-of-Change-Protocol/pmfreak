@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import type {
   PMOInterventionAction,
@@ -215,12 +215,20 @@ export default function PMOInterventionsPage() {
   const [filterPriority, setFilterPriority] = useState<string>("");
   const [filterActionType, setFilterActionType] = useState<string>("");
 
+  const filtersRef = useRef({ filterStatus, filterPriority, filterActionType });
+  useEffect(() => {
+    filtersRef.current = { filterStatus, filterPriority, filterActionType };
+  }, [filterStatus, filterPriority, filterActionType]);
+
   const fetchActions = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
+      const { filterStatus: s, filterPriority: p, filterActionType: a } = filtersRef.current;
       const params = new URLSearchParams();
-      if (filterStatus) params.set("status", filterStatus);
-      if (filterPriority) params.set("priority", filterPriority);
-      if (filterActionType) params.set("actionType", filterActionType);
+      if (s) params.set("status", s);
+      if (p) params.set("priority", p);
+      if (a) params.set("actionType", a);
       const res = await fetch(`/api/pmo-interventions?${params.toString()}`);
       const json = await res.json();
       if (json.ok) {
@@ -233,13 +241,11 @@ export default function PMOInterventionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterStatus, filterPriority, filterActionType]);
+  }, []);
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
     void fetchActions();
-  }, [fetchActions]);
+  }, [fetchActions, filterStatus, filterPriority, filterActionType]);
 
   async function handleGenerate() {
     setGenerating(true);
@@ -267,7 +273,7 @@ export default function PMOInterventionsPage() {
       const res = await fetch(`/api/pmo-interventions/${actionId}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, decisionReason: reason }),
+        body: JSON.stringify(status === "completed" ? { status, completionNotes: reason } : { status, decisionReason: reason }),
       });
       const json = await res.json();
       if (json.ok) {
