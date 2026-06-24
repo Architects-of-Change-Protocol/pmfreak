@@ -18,7 +18,7 @@ PMO Governance Compliance Snapshot
          ↓ violations[]
 generatePMOInterventionActions()
          ↓ dedup + map
-PMO Intervention Actions (in-memory store)
+PMO Intervention Actions (Supabase: pmo_intervention_actions)
          ↓ human review
 updatePMOInterventionActionStatus()
          ↓ platform events
@@ -132,54 +132,15 @@ Sections:
 - **Action controls**: Approve/Reject/Dismiss (proposed); Start/Cancel (approved); Complete/Cancel (in_progress)
 - **Empty state**: guidance to generate actions
 
-## Persistence note
+## Persistence
 
-This module uses an **in-memory store**. The repository does not contain a Prisma schema. To add database persistence, add a `pmo_intervention_actions` table with the following schema:
+Actions are persisted to the **`pmo_intervention_actions`** Supabase table (migration: `supabase/migrations/20260719000000_pmo_intervention_actions.sql`). Actions survive server restarts. The DB contract type and selectable columns are declared in `src/lib/db/database-contract.ts` (`PMOInterventionActionRow`, `PMO_INTERVENTION_ACTION_SELECTABLE_COLUMNS`).
 
-```sql
-CREATE TABLE pmo_intervention_actions (
-  id TEXT PRIMARY KEY,
-  workspace_id TEXT NOT NULL,
-  source_type TEXT NOT NULL,
-  source_id TEXT,
-  source_snapshot_id TEXT,
-  source_violation_id TEXT,
-  source_recommendation_id TEXT,
-  action_type TEXT NOT NULL,
-  action_title TEXT NOT NULL,
-  action_description TEXT NOT NULL,
-  priority TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'proposed',
-  target_type TEXT,
-  target_id TEXT,
-  target_name TEXT,
-  pm_id TEXT,
-  project_id TEXT,
-  evidence JSONB,
-  recommendation TEXT,
-  requires_approval BOOLEAN NOT NULL DEFAULT TRUE,
-  approval_status TEXT NOT NULL DEFAULT 'pending',
-  approved_by TEXT,
-  approved_at TIMESTAMPTZ,
-  rejected_by TEXT,
-  rejected_at TIMESTAMPTZ,
-  rejection_reason TEXT,
-  completed_by TEXT,
-  completed_at TIMESTAMPTZ,
-  completion_notes TEXT,
-  dismissed_by TEXT,
-  dismissed_at TIMESTAMPTZ,
-  dismissal_reason TEXT,
-  decision_reason TEXT,
-  created_by TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_pmo_intervention_workspace ON pmo_intervention_actions(workspace_id);
-CREATE INDEX idx_pmo_intervention_workspace_status ON pmo_intervention_actions(workspace_id, status);
-CREATE INDEX idx_pmo_intervention_workspace_priority ON pmo_intervention_actions(workspace_id, priority);
-```
+Key persistence behaviours:
+- **Generate**: existing open actions are queried first to build a dedup index; new actions are `INSERT`ed one per violation; events only emit after successful insert.
+- **Dedup**: open actions (`proposed`, `approved`, `in_progress`) are deduplicated by `(workspace_id, source_type, violation_id, action_type, target_type, target_id)`.
+- **Status update**: current row is fetched, transition validated, then `UPDATE`ed; event only emits after successful update.
+- **List / Get**: standard Supabase `SELECT` with workspace scoping and optional filters.
 
 ## Constraints
 
