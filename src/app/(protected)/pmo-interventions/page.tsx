@@ -396,7 +396,7 @@ export default function PMOInterventionsPage() {
       ) : actions.length === 0 ? (
         <div className="rounded-xl border border-white/10 bg-white/5 p-12 text-center">
           <p className="text-zinc-400 text-sm">No intervention actions found.</p>
-          <p className="text-zinc-500 text-xs mt-2">Use "Generate Actions" to derive actions from governance violations.</p>
+          <p className="text-zinc-500 text-xs mt-2">Use &ldquo;Generate Actions&rdquo; to derive actions from governance violations.</p>
         </div>
       ) : (
         <div className="space-y-8">

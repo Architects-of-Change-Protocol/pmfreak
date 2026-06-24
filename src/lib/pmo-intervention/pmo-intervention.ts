@@ -243,7 +243,7 @@ export async function generatePMOInterventionActions(
 
   const existing = existingRows ?? [];
   const openKeys = new Set<string>();
-  let existingOpenCount = existing.length;
+  const existingOpenCount = existing.length;
 
   for (const row of existing) {
     openKeys.add(
