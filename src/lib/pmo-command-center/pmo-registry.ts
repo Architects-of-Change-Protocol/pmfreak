@@ -144,9 +144,9 @@ export async function generatePMOSnapshot(
   let warningCapacityCount  = 0;
   let healthyCount          = 0;
   let totalGovernanceDebt   = 0;
-  let totalHotspots         = 0;
+  const totalHotspots       = 0;
   let totalGapCount         = 0;
-  let escalationCount       = 0;
+  const escalationCount     = 0;
 
   for (const pm of pmList) {
     // Performance
