@@ -706,6 +706,8 @@ export default function PMDetailPage() {
     }
   }, [pmId]);
 
+  // fetchDossier is stable for the lifetime of pmId — calling it here is intentional
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void fetchDossier(); }, [fetchDossier]);
 
   async function generateCapacity() {
