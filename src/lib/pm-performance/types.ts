@@ -37,7 +37,22 @@ export type PMPerformanceEventType =
   | "PM_PERFORMANCE_COMPARED"
   | "PM_PERFORMANCE_LINEAGE_GENERATED";
 
+// ─── Performance Risk ─────────────────────────────────────────────────────────
+
+export type PMPerformanceRisk = "low" | "medium" | "high" | "critical";
+
+// ─── Evidence Confidence (re-exported from evidence-confidence.ts) ────────────
+
+export type { ConfidenceLevel, ScoreInterpretation, EvidenceConfidence, EvidenceSourceAvailability } from "./evidence-confidence";
+export { calculateEvidenceConfidence, deriveConfidenceRecommendations, EVIDENCE_TOTAL_SOURCE_COUNT } from "./evidence-confidence";
+
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+export const PM_PERFORMANCE_RISK_THRESHOLDS = {
+  low:    75,
+  medium: 60,
+  high:   45,
+} as const;
 
 export const PM_PERFORMANCE_WEIGHTS = {
   governance: 0.20,

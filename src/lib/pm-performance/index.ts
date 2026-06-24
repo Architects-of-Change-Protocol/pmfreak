@@ -8,6 +8,7 @@ export type {
   PMPerformanceMetricStatus,
   PMPerformanceResult,
   PMPerformanceEventType,
+  PMPerformanceRisk,
   GovernanceScoreInput,
   ExecutionScoreInput,
   PredictionAccuracyInput,
@@ -27,13 +28,21 @@ export type {
   PMScorecard,
   PMPerformanceComparison,
   PMPerformanceLineage,
+  ConfidenceLevel,
+  ScoreInterpretation,
+  EvidenceConfidence,
+  EvidenceSourceAvailability,
 } from "./types";
 
 export {
   PM_PERFORMANCE_WEIGHTS,
   PM_PERFORMANCE_STATUS_THRESHOLDS,
+  PM_PERFORMANCE_RISK_THRESHOLDS,
   PM_PERFORMANCE_STATUSES,
   PM_PERFORMANCE_DOMAINS,
+  calculateEvidenceConfidence,
+  deriveConfidenceRecommendations,
+  EVIDENCE_TOTAL_SOURCE_COUNT,
 } from "./types";
 
 // ─── Score Engines ────────────────────────────────────────────────────────────

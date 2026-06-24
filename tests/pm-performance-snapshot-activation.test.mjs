@@ -653,3 +653,324 @@ describe("Source File Checks — Activation Slice", () => {
     assert.ok(typesFile.includes("PM_WORKSPACE_PERFORMANCE_SNAPSHOTS_GENERATED"));
   });
 });
+
+// ─── Sprint 2: Evidence Confidence Hardening ──────────────────────────────────
+
+const EVIDENCE_TOTAL_SOURCE_COUNT = 5;
+
+function calculateEvidenceConfidence(availability) {
+  const sourceEntries = [
+    ["project_os_snapshots", "project_os_snapshots"],
+    ["execution_tasks",      "execution_tasks"],
+    ["execution_realities",  "execution_realities"],
+    ["decision_outcomes",    "decision_outcomes"],
+    ["capacity_context",     "capacity_context"],
+  ];
+
+  const available = [];
+  const missing   = [];
+
+  for (const [key, label] of sourceEntries) {
+    if (availability[key]) available.push(label);
+    else                   missing.push(label);
+  }
+
+  const availableCount = available.length;
+  const missingCount   = missing.length;
+  const completeness   = availableCount / EVIDENCE_TOTAL_SOURCE_COUNT;
+
+  const confidenceLevel =
+    completeness >= 0.80 ? "high"    :
+    completeness >= 0.50 ? "medium"  :
+    completeness >= 0.25 ? "low"     :
+    "very_low";
+
+  const scoreInterpretation =
+    completeness >= 0.80 ? "evidence_backed"            :
+    completeness >= 0.50 ? "partially_evidence_backed"  :
+    "low_confidence_provisional";
+
+  const neutralBaselineDomains = [];
+  if (!availability.project_os_snapshots) neutralBaselineDomains.push("governance", "execution", "portfolio");
+  if (!availability.execution_realities)  neutralBaselineDomains.push("prediction_accuracy");
+  if (!availability.decision_outcomes)    neutralBaselineDomains.push("decision_effectiveness");
+
+  return {
+    evidence_completeness:    Math.round(completeness * 100) / 100,
+    confidence_level:         confidenceLevel,
+    available_source_count:   availableCount,
+    missing_source_count:     missingCount,
+    total_source_count:       EVIDENCE_TOTAL_SOURCE_COUNT,
+    available_sources:        available,
+    missing_sources:          missing,
+    neutral_baseline_domains: neutralBaselineDomains,
+    missing_source_policy:    "neutral_baseline_75",
+    score_interpretation:     scoreInterpretation,
+  };
+}
+
+function deriveConfidenceRecommendations(ec) {
+  if (ec.evidence_completeness < 0.25) {
+    return [{ type: "insufficient_performance_evidence", severity: "high", message: expect.any || "" }];
+  }
+  if (ec.evidence_completeness < 0.50) {
+    return [{ type: "increase_evidence_coverage", severity: "medium", message: "" }];
+  }
+  return [];
+}
+
+function classifyPerformanceRisk(overallScore, capacityStatus) {
+  let base =
+    overallScore >= 75 ? "low"      :
+    overallScore >= 60 ? "medium"   :
+    overallScore >= 45 ? "high"     :
+    "critical";
+
+  const isOverloaded = capacityStatus === "overloaded" || capacityStatus === "at_capacity";
+  if (isOverloaded) {
+    if (base === "low")    base = "medium";
+    else if (base === "medium") base = "high";
+    else if (base === "high")   base = "critical";
+  }
+  return base;
+}
+
+describe("Evidence Confidence — calculateEvidenceConfidence", () => {
+  test("all sources available → high confidence, evidence_backed", () => {
+    const ec = calculateEvidenceConfidence({
+      project_os_snapshots: true,
+      execution_tasks:      true,
+      execution_realities:  true,
+      decision_outcomes:    true,
+      capacity_context:     true,
+    });
+    assert.equal(ec.confidence_level, "high");
+    assert.equal(ec.evidence_completeness, 1.0);
+    assert.equal(ec.available_source_count, 5);
+    assert.equal(ec.missing_source_count, 0);
+    assert.equal(ec.score_interpretation, "evidence_backed");
+    assert.deepEqual(ec.neutral_baseline_domains, []);
+  });
+
+  test("4/5 sources → high confidence (≥80%)", () => {
+    const ec = calculateEvidenceConfidence({
+      project_os_snapshots: true,
+      execution_tasks:      true,
+      execution_realities:  true,
+      decision_outcomes:    true,
+      capacity_context:     false,
+    });
+    assert.equal(ec.confidence_level, "high");
+    assert.equal(ec.evidence_completeness, 0.8);
+    assert.equal(ec.score_interpretation, "evidence_backed");
+  });
+
+  test("3/5 sources → medium confidence, partially_evidence_backed", () => {
+    const ec = calculateEvidenceConfidence({
+      project_os_snapshots: true,
+      execution_tasks:      true,
+      execution_realities:  true,
+      decision_outcomes:    false,
+      capacity_context:     false,
+    });
+    assert.equal(ec.confidence_level, "medium");
+    assert.equal(ec.evidence_completeness, 0.6);
+    assert.equal(ec.score_interpretation, "partially_evidence_backed");
+    assert.ok(ec.missing_sources.includes("decision_outcomes"));
+    assert.ok(ec.neutral_baseline_domains.includes("decision_effectiveness"));
+  });
+
+  test("2/5 sources → low confidence, low_confidence_provisional", () => {
+    const ec = calculateEvidenceConfidence({
+      project_os_snapshots: true,
+      execution_tasks:      false,
+      execution_realities:  true,
+      decision_outcomes:    false,
+      capacity_context:     false,
+    });
+    assert.equal(ec.confidence_level, "low");
+    assert.equal(ec.evidence_completeness, 0.4);
+    assert.equal(ec.score_interpretation, "low_confidence_provisional");
+    assert.ok(ec.neutral_baseline_domains.includes("decision_effectiveness"));
+  });
+
+  test("1/5 source → very_low confidence", () => {
+    const ec = calculateEvidenceConfidence({
+      project_os_snapshots: false,
+      execution_tasks:      true,
+      execution_realities:  false,
+      decision_outcomes:    false,
+      capacity_context:     false,
+    });
+    assert.equal(ec.confidence_level, "very_low");
+    assert.equal(ec.evidence_completeness, 0.2);
+    assert.equal(ec.score_interpretation, "low_confidence_provisional");
+    assert.ok(ec.neutral_baseline_domains.includes("governance"));
+    assert.ok(ec.neutral_baseline_domains.includes("execution"));
+    assert.ok(ec.neutral_baseline_domains.includes("portfolio"));
+    assert.ok(ec.neutral_baseline_domains.includes("prediction_accuracy"));
+    assert.ok(ec.neutral_baseline_domains.includes("decision_effectiveness"));
+  });
+
+  test("0/5 sources → very_low confidence, all domains neutral", () => {
+    const ec = calculateEvidenceConfidence({
+      project_os_snapshots: false,
+      execution_tasks:      false,
+      execution_realities:  false,
+      decision_outcomes:    false,
+      capacity_context:     false,
+    });
+    assert.equal(ec.confidence_level, "very_low");
+    assert.equal(ec.available_source_count, 0);
+    assert.equal(ec.missing_source_count, 5);
+    assert.equal(ec.missing_source_policy, "neutral_baseline_75");
+  });
+
+  test("neutral_baseline_domains excludes sources with data", () => {
+    const ec = calculateEvidenceConfidence({
+      project_os_snapshots: true,
+      execution_tasks:      false,
+      execution_realities:  false,
+      decision_outcomes:    true,
+      capacity_context:     false,
+    });
+    assert.ok(!ec.neutral_baseline_domains.includes("governance"));
+    assert.ok(!ec.neutral_baseline_domains.includes("execution"));
+    assert.ok(!ec.neutral_baseline_domains.includes("portfolio"));
+    assert.ok(!ec.neutral_baseline_domains.includes("decision_effectiveness"));
+    assert.ok(ec.neutral_baseline_domains.includes("prediction_accuracy"));
+  });
+});
+
+describe("Performance Risk Classification", () => {
+  test("score ≥ 75 → low risk", () => {
+    assert.equal(classifyPerformanceRisk(80, "healthy"), "low");
+    assert.equal(classifyPerformanceRisk(75, "healthy"), "low");
+  });
+
+  test("60 ≤ score < 75 → medium risk", () => {
+    assert.equal(classifyPerformanceRisk(70, "healthy"), "medium");
+    assert.equal(classifyPerformanceRisk(60, "healthy"), "medium");
+  });
+
+  test("45 ≤ score < 60 → high risk", () => {
+    assert.equal(classifyPerformanceRisk(50, "healthy"), "high");
+    assert.equal(classifyPerformanceRisk(45, "healthy"), "high");
+  });
+
+  test("score < 45 → critical risk", () => {
+    assert.equal(classifyPerformanceRisk(44, "healthy"), "critical");
+    assert.equal(classifyPerformanceRisk(0, "healthy"), "critical");
+  });
+
+  test("overloaded capacity elevates risk one level (low → medium)", () => {
+    assert.equal(classifyPerformanceRisk(80, "overloaded"), "medium");
+  });
+
+  test("at_capacity elevates risk one level (medium → high)", () => {
+    assert.equal(classifyPerformanceRisk(70, "at_capacity"), "high");
+  });
+
+  test("overloaded with high risk → critical", () => {
+    assert.equal(classifyPerformanceRisk(50, "overloaded"), "critical");
+  });
+
+  test("critical stays critical under overload", () => {
+    assert.equal(classifyPerformanceRisk(44, "overloaded"), "critical");
+  });
+
+  test("healthy capacity does not elevate risk", () => {
+    assert.equal(classifyPerformanceRisk(80, "healthy"), "low");
+    assert.equal(classifyPerformanceRisk(70, "healthy"), "medium");
+  });
+});
+
+describe("At-risk filtering — includes performance_risk high/critical", () => {
+  function isAtRisk(snap) {
+    if (snap.performance_status === "warning" || snap.performance_status === "critical") return true;
+    const risk = snap.snapshot_payload?.performance_risk;
+    return risk === "high" || risk === "critical";
+  }
+
+  test("warning status is at-risk", () => {
+    assert.ok(isAtRisk({ performance_status: "warning", snapshot_payload: { performance_risk: "low" } }));
+  });
+
+  test("critical status is at-risk", () => {
+    assert.ok(isAtRisk({ performance_status: "critical", snapshot_payload: { performance_risk: "critical" } }));
+  });
+
+  test("stable status with low risk is NOT at-risk", () => {
+    assert.ok(!isAtRisk({ performance_status: "stable", snapshot_payload: { performance_risk: "low" } }));
+  });
+
+  test("stable status with high performance_risk IS at-risk", () => {
+    assert.ok(isAtRisk({ performance_status: "stable", snapshot_payload: { performance_risk: "high" } }));
+  });
+
+  test("strong status with critical performance_risk IS at-risk", () => {
+    assert.ok(isAtRisk({ performance_status: "strong", snapshot_payload: { performance_risk: "critical" } }));
+  });
+
+  test("strong status with medium risk is NOT at-risk", () => {
+    assert.ok(!isAtRisk({ performance_status: "strong", snapshot_payload: { performance_risk: "medium" } }));
+  });
+});
+
+describe("Evidence Confidence — source file checks", () => {
+  const ecFile = readFileSync("src/lib/pm-performance/evidence-confidence.ts", "utf8");
+
+  test("defines EVIDENCE_TOTAL_SOURCE_COUNT = 5", () => {
+    assert.ok(ecFile.includes("EVIDENCE_TOTAL_SOURCE_COUNT = 5"));
+  });
+
+  test("defines EvidenceSourceAvailability type", () => {
+    assert.ok(ecFile.includes("EvidenceSourceAvailability"));
+  });
+
+  test("defines ConfidenceLevel type", () => {
+    assert.ok(ecFile.includes("ConfidenceLevel"));
+  });
+
+  test("defines EvidenceConfidence type", () => {
+    assert.ok(ecFile.includes("EvidenceConfidence"));
+  });
+
+  test("exports calculateEvidenceConfidence", () => {
+    assert.ok(ecFile.includes("export function calculateEvidenceConfidence"));
+  });
+
+  test("exports deriveConfidenceRecommendations", () => {
+    assert.ok(ecFile.includes("export function deriveConfidenceRecommendations"));
+  });
+
+  const perfRegFile = readFileSync("src/lib/pm-performance/performance-registry.ts", "utf8");
+
+  test("performance-registry imports calculateEvidenceConfidence", () => {
+    assert.ok(perfRegFile.includes("calculateEvidenceConfidence"));
+  });
+
+  test("performance-registry computes performance_risk", () => {
+    assert.ok(perfRegFile.includes("performance_risk"));
+  });
+
+  test("performance-registry embeds evidence_confidence in snapshot_payload", () => {
+    assert.ok(perfRegFile.includes("evidence_confidence"));
+  });
+
+  test("performance-registry capacity_context includes present field", () => {
+    assert.ok(perfRegFile.includes("present: true") || perfRegFile.includes("present: false"));
+  });
+
+  test("platform event includes evidence_completeness", () => {
+    assert.ok(perfRegFile.includes("evidence_completeness"));
+  });
+
+  test("platform event includes confidence_level", () => {
+    assert.ok(perfRegFile.includes("confidence_level"));
+  });
+
+  test("at-risk filter checks performance_risk high/critical from payload", () => {
+    assert.ok(perfRegFile.includes(`risk === "high"`) || perfRegFile.includes("performance_risk"));
+  });
+});

@@ -18,9 +18,11 @@ import { calculatePMDecisionEffectiveness } from "./engines/decision-effectivene
 import { calculatePMPortfolioHealth, CRITICAL_PROJECT_THRESHOLD } from "./engines/portfolio-health";
 import { calculatePMOverallPerformance } from "./engines/overall-performance";
 import { classifyPMPerformanceStatus } from "./engines/status-classification";
+import { calculateEvidenceConfidence, deriveConfidenceRecommendations } from "./evidence-confidence";
 
 import type {
   PMPerformanceResult,
+  PMPerformanceRisk,
   GeneratePMPerformanceSnapshotInput,
   GenerateWorkspacePMPerformanceSnapshotsInput,
   GetPMPerformanceSnapshotInput,
@@ -224,7 +226,41 @@ export async function generatePMPerformanceSnapshot(
 
   const performanceStatus = classifyPMPerformanceStatus(overallScore);
 
+  // ─── Evidence confidence ─────────────────────────────────────────────────
+
+  const evidenceAvailability = {
+    project_os_snapshots: osSnapshots.length > 0,
+    execution_tasks:      tasks.length > 0,
+    execution_realities:  realityList.length > 0,
+    decision_outcomes:    outcomeList.length > 0,
+    capacity_context:     latestCapacitySnap !== null,
+  };
+  const evidenceConfidence = calculateEvidenceConfidence(evidenceAvailability);
+  const confidenceRecommendations = deriveConfidenceRecommendations(evidenceConfidence);
+
+  // ─── Performance risk ────────────────────────────────────────────────────
+
+  let baseRisk: PMPerformanceRisk =
+    overallScore >= 75 ? "low"      :
+    overallScore >= 60 ? "medium"   :
+    overallScore >= 45 ? "high"     :
+    "critical";
+
+  // Capacity overload elevates risk one level
+  const capacityStatus = (capacityContext as { capacity_status?: string } | null)?.capacity_status ?? null;
+  const isOverloaded = capacityStatus === "overloaded" || capacityStatus === "at_capacity";
+  if (isOverloaded) {
+    if (baseRisk === "low")    baseRisk = "medium";
+    else if (baseRisk === "medium") baseRisk = "high";
+    else if (baseRisk === "high")   baseRisk = "critical";
+  }
+  const performanceRisk: PMPerformanceRisk = baseRisk;
+
   // ─── Persist snapshot ────────────────────────────────────────────────────
+
+  const capacityContextWithPresence = latestCapacitySnap
+    ? { ...capacityContext, present: true as const, source: "pm_capacity" as const }
+    : { present: false as const, source: "pm_capacity" as const };
 
   const snapshotPayload = {
     pm_name: pm.display_name,
@@ -244,7 +280,11 @@ export async function generatePMPerformanceSnapshot(
       decision: decisionEffectivenessScore,
       portfolio: portfolioHealthScore,
     },
-    capacity_context: capacityContext,
+    performance_risk: performanceRisk,
+    evidence_confidence: evidenceConfidence,
+    score_interpretation: evidenceConfidence.score_interpretation,
+    confidence_recommendations: confidenceRecommendations,
+    capacity_context: capacityContextWithPresence,
   };
 
   const { data: snapshot, error: snapError } = await supabase
@@ -353,11 +393,16 @@ export async function generatePMPerformanceSnapshot(
     rawReferenceTable: "pm_performance_snapshots",
     rawReferenceId:    snapshot.id,
     eventPayload: {
-      pm_id:          input.pmId,
-      snapshot_id:    snapshot.id,
-      overall_score:  overallScore,
-      status:         performanceStatus,
-      project_count:  projectIds.length,
+      pm_id:                  input.pmId,
+      snapshot_id:            snapshot.id,
+      overall_score:          overallScore,
+      status:                 performanceStatus,
+      performance_risk:       performanceRisk,
+      project_count:          projectIds.length,
+      evidence_completeness:  evidenceConfidence.evidence_completeness,
+      confidence_level:       evidenceConfidence.confidence_level,
+      score_interpretation:   evidenceConfidence.score_interpretation,
+      missing_source_count:   evidenceConfidence.missing_source_count,
     },
   });
 
@@ -478,9 +523,12 @@ export async function listAtRiskPMPerformanceSnapshots(
   const latestResult = await listLatestPMPerformanceSnapshots(input);
   if (!latestResult.ok) return latestResult;
 
-  const atRisk = latestResult.data.filter(
-    (s) => s.performance_status === "warning" || s.performance_status === "critical"
-  );
+  const atRisk = latestResult.data.filter((s) => {
+    if (s.performance_status === "warning" || s.performance_status === "critical") return true;
+    const payload = s.snapshot_payload as Record<string, unknown> | null;
+    const risk = payload?.performance_risk as string | undefined;
+    return risk === "high" || risk === "critical";
+  });
   return { ok: true, data: atRisk };
 }
 

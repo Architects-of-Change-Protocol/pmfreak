@@ -42,6 +42,17 @@ type PerformanceSnapshot = {
     pm_name: string;
     assigned_project_count: number;
     os_snapshot_count: number;
+    performance_risk?: "low" | "medium" | "high" | "critical";
+    evidence_confidence?: {
+      evidence_completeness:    number;
+      confidence_level:         "high" | "medium" | "low" | "very_low";
+      available_source_count:   number;
+      missing_source_count:     number;
+      total_source_count:       number;
+      score_interpretation:     string;
+      neutral_baseline_domains: string[];
+      missing_sources:          string[];
+    };
     capacity_context?: {
       capacity_status: string;
       burn_risk: string;
@@ -565,7 +576,59 @@ export default function PMDetailPage() {
                         <p className="mt-1 text-sm font-medium text-white">{Number(value).toFixed(1)}</p>
                       </div>
                     ))}
+                    {s.snapshot_payload?.performance_risk && (
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <p className="text-xs text-zinc-500">Performance risk</p>
+                        <p className={`mt-1 text-sm font-medium ${
+                          s.snapshot_payload.performance_risk === "critical" ? "text-red-300" :
+                          s.snapshot_payload.performance_risk === "high"     ? "text-orange-300" :
+                          s.snapshot_payload.performance_risk === "medium"   ? "text-amber-300" :
+                          "text-emerald-300"
+                        }`}>{s.snapshot_payload.performance_risk}</p>
+                      </div>
+                    )}
                   </div>
+                  {s.snapshot_payload?.evidence_confidence && (() => {
+                    const ec = s.snapshot_payload.evidence_confidence;
+                    const confidenceColor =
+                      ec.confidence_level === "high"     ? "text-emerald-300" :
+                      ec.confidence_level === "medium"   ? "text-sky-300" :
+                      ec.confidence_level === "low"      ? "text-amber-300" :
+                      "text-red-300";
+                    return (
+                      <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                        <p className="text-xs text-zinc-500 mb-2">Evidence confidence</p>
+                        <div className="flex flex-wrap gap-4 text-xs">
+                          <span>
+                            <span className="text-zinc-500">Completeness </span>
+                            <span className={confidenceColor}>{Math.round(ec.evidence_completeness * 100)}%</span>
+                          </span>
+                          <span>
+                            <span className="text-zinc-500">Confidence </span>
+                            <span className={confidenceColor}>{ec.confidence_level.replace(/_/g, " ")}</span>
+                          </span>
+                          <span>
+                            <span className="text-zinc-500">Sources </span>
+                            <span className="text-white">{ec.available_source_count}/{ec.total_source_count}</span>
+                          </span>
+                          <span>
+                            <span className="text-zinc-500">Interpretation </span>
+                            <span className="text-zinc-300">{ec.score_interpretation.replace(/_/g, " ")}</span>
+                          </span>
+                        </div>
+                        {ec.missing_sources.length > 0 && (
+                          <p className="mt-1 text-xs text-zinc-500">
+                            Missing: {ec.missing_sources.join(", ")}
+                          </p>
+                        )}
+                        {ec.neutral_baseline_domains.length > 0 && (
+                          <p className="mt-0.5 text-xs text-zinc-500">
+                            Neutral baseline (75) applied to: {ec.neutral_baseline_domains.join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </>
               );
             })()}

@@ -17,6 +17,17 @@ type CapacityContext = {
   } | null;
 } | null;
 
+type EvidenceConfidence = {
+  evidence_completeness:    number;
+  confidence_level:         "high" | "medium" | "low" | "very_low";
+  available_source_count:   number;
+  missing_source_count:     number;
+  total_source_count:       number;
+  score_interpretation:     "evidence_backed" | "partially_evidence_backed" | "low_confidence_provisional";
+  neutral_baseline_domains: string[];
+  missing_sources:          string[];
+};
+
 type PerformanceSnapshot = {
   id: string;
   pm_id: string;
@@ -35,6 +46,8 @@ type PerformanceSnapshot = {
     os_snapshot_count: number;
     domain_scores: Record<string, number>;
     capacity_context: CapacityContext;
+    performance_risk?: "low" | "medium" | "high" | "critical";
+    evidence_confidence?: EvidenceConfidence;
   };
 };
 
@@ -52,6 +65,20 @@ const STATUS_LABELS: Record<string, string> = {
   stable:    "Stable",
   warning:   "Warning",
   critical:  "Critical",
+};
+
+const CONFIDENCE_STYLES: Record<string, string> = {
+  high:     "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+  medium:   "bg-sky-500/20 text-sky-300 border-sky-500/30",
+  low:      "bg-amber-500/20 text-amber-300 border-amber-500/30",
+  very_low: "bg-red-500/20 text-red-300 border-red-500/30",
+};
+
+const RISK_STYLES: Record<string, string> = {
+  low:      "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+  medium:   "bg-amber-500/20 text-amber-300 border-amber-500/30",
+  high:     "bg-orange-500/20 text-orange-300 border-orange-500/30",
+  critical: "bg-red-500/20 text-red-300 border-red-500/30",
 };
 
 const CAPACITY_STATUS_STYLES: Record<string, string> = {
@@ -274,6 +301,8 @@ export default function PMPerformancePage() {
                   <th className="px-4 py-3 text-xs font-medium text-zinc-400">Assigned</th>
                   <th className="px-4 py-3 text-xs font-medium text-zinc-400">Overall score</th>
                   <th className="px-4 py-3 text-xs font-medium text-zinc-400">Status</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Risk</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Evidence</th>
                   <th className="px-4 py-3 text-xs font-medium text-zinc-400">Capacity</th>
                   <th className="px-4 py-3 text-xs font-medium text-zinc-400">Recommendation</th>
                   <th className="px-4 py-3 text-xs font-medium text-zinc-400">Generated</th>
@@ -307,6 +336,25 @@ export default function PMPerformancePage() {
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge value={s.performance_status} styles={STATUS_STYLES} labels={STATUS_LABELS} />
+                      </td>
+                      <td className="px-4 py-3">
+                        {s.snapshot_payload?.performance_risk ? (
+                          <StatusBadge value={s.snapshot_payload.performance_risk} styles={RISK_STYLES} />
+                        ) : (
+                          <span className="text-xs text-zinc-500">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {s.snapshot_payload?.evidence_confidence ? (
+                          <span
+                            title={`${s.snapshot_payload.evidence_confidence.available_source_count}/${s.snapshot_payload.evidence_confidence.total_source_count} sources · ${s.snapshot_payload.evidence_confidence.score_interpretation.replace(/_/g, " ")}`}
+                            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${CONFIDENCE_STYLES[s.snapshot_payload.evidence_confidence.confidence_level] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30"}`}
+                          >
+                            {s.snapshot_payload.evidence_confidence.confidence_level.replace(/_/g, " ")}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-zinc-500">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {capStatus ? (
