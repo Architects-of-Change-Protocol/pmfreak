@@ -239,9 +239,9 @@ export default function PMOInterventionsPage() {
     }
   }, []);
 
-  useEffect(() => {
-    void fetchActions();
-  }, [fetchActions]);
+  // fetchActions is stable (useCallback with [] deps) — calling it here is intentional
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void fetchActions(); }, [fetchActions]);
 
   function applyFilterStatus(val: string) {
     filtersRef.current.filterStatus = val;
