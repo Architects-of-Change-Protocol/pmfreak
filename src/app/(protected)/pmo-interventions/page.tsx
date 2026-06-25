@@ -215,10 +215,7 @@ export default function PMOInterventionsPage() {
   const [filterPriority, setFilterPriority] = useState<string>("");
   const [filterActionType, setFilterActionType] = useState<string>("");
 
-  const filtersRef = useRef({ filterStatus, filterPriority, filterActionType });
-  useEffect(() => {
-    filtersRef.current = { filterStatus, filterPriority, filterActionType };
-  }, [filterStatus, filterPriority, filterActionType]);
+  const filtersRef = useRef({ filterStatus: "", filterPriority: "", filterActionType: "" });
 
   const fetchActions = useCallback(async () => {
     try {
@@ -244,7 +241,25 @@ export default function PMOInterventionsPage() {
 
   useEffect(() => {
     void fetchActions();
-  }, [fetchActions, filterStatus, filterPriority, filterActionType]);
+  }, [fetchActions]);
+
+  function applyFilterStatus(val: string) {
+    filtersRef.current.filterStatus = val;
+    setFilterStatus(val);
+    void fetchActions();
+  }
+
+  function applyFilterPriority(val: string) {
+    filtersRef.current.filterPriority = val;
+    setFilterPriority(val);
+    void fetchActions();
+  }
+
+  function applyFilterActionType(val: string) {
+    filtersRef.current.filterActionType = val;
+    setFilterActionType(val);
+    void fetchActions();
+  }
 
   async function handleGenerate() {
     setGenerating(true);
@@ -362,7 +377,7 @@ export default function PMOInterventionsPage() {
       <div className="flex flex-wrap gap-3">
         <select
           value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
+          onChange={(e) => applyFilterStatus(e.target.value)}
           className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 focus:outline-none"
         >
           <option value="">All Statuses</option>
@@ -372,7 +387,7 @@ export default function PMOInterventionsPage() {
         </select>
         <select
           value={filterPriority}
-          onChange={(e) => setFilterPriority(e.target.value)}
+          onChange={(e) => applyFilterPriority(e.target.value)}
           className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 focus:outline-none"
         >
           <option value="">All Priorities</option>
@@ -382,7 +397,7 @@ export default function PMOInterventionsPage() {
         </select>
         <select
           value={filterActionType}
-          onChange={(e) => setFilterActionType(e.target.value)}
+          onChange={(e) => applyFilterActionType(e.target.value)}
           className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 focus:outline-none"
         >
           <option value="">All Action Types</option>
