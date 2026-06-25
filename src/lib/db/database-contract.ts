@@ -4950,4 +4950,87 @@ export const PMO_RECOMMENDATION_SELECTABLE_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof PMORecommendationRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// pmo_intervention_actions
+// Source: 20260719000000_pmo_intervention_actions.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PMOInterventionActionRow = {
+  id: string;                              // uuid PK
+  workspace_id: string;                    // uuid references workspaces
+  source_type: string;                     // text not null
+  source_id: string | null;               // text
+  source_snapshot_id: string | null;      // text
+  source_violation_id: string | null;     // text
+  source_recommendation_id: string | null; // text
+  action_type: string;                     // text not null
+  action_title: string;                    // text not null
+  action_description: string;             // text not null
+  priority: string;                        // text not null
+  status: string;                          // text not null default 'proposed'
+  target_type: string | null;             // text
+  target_id: string | null;               // text
+  target_name: string | null;             // text
+  pm_id: string | null;                   // text
+  project_id: string | null;              // text
+  evidence: Record<string, unknown> | null; // jsonb
+  recommendation: Record<string, unknown> | null; // jsonb
+  requires_approval: boolean;              // boolean not null default true
+  approval_status: string;                 // text not null default 'pending'
+  approved_by: string | null;             // text
+  approved_at: string | null;             // timestamptz
+  rejected_by: string | null;             // text
+  rejected_at: string | null;             // timestamptz
+  rejection_reason: string | null;        // text
+  completed_by: string | null;            // text
+  completed_at: string | null;            // timestamptz
+  completion_notes: string | null;        // text
+  dismissed_by: string | null;            // text
+  dismissed_at: string | null;            // timestamptz
+  dismissal_reason: string | null;        // text
+  decision_reason: string | null;         // text
+  created_by: string | null;              // text
+  created_at: string;                      // timestamptz
+  updated_at: string;                      // timestamptz
+};
+
+export const PMO_INTERVENTION_ACTION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "source_type",
+  "source_id",
+  "source_snapshot_id",
+  "source_violation_id",
+  "source_recommendation_id",
+  "action_type",
+  "action_title",
+  "action_description",
+  "priority",
+  "status",
+  "target_type",
+  "target_id",
+  "target_name",
+  "pm_id",
+  "project_id",
+  "evidence",
+  "recommendation",
+  "requires_approval",
+  "approval_status",
+  "approved_by",
+  "approved_at",
+  "rejected_by",
+  "rejected_at",
+  "rejection_reason",
+  "completed_by",
+  "completed_at",
+  "completion_notes",
+  "dismissed_by",
+  "dismissed_at",
+  "dismissal_reason",
+  "decision_reason",
+  "created_by",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof PMOInterventionActionRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop" as const;
