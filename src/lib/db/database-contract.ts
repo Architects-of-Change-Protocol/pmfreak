@@ -5033,4 +5033,106 @@ export const PMO_INTERVENTION_ACTION_SELECTABLE_COLUMNS = [
   "updated_at",
 ] as const satisfies ReadonlyArray<keyof PMOInterventionActionRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// pmo_executive_reports
+// Source: 20260725000000_pmo_executive_reporting.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PMOExecutiveReportRow = {
+  id: string;                                  // uuid PK
+  workspace_id: string;                        // uuid references workspaces
+  report_type: string;                         // text not null
+  report_period_start: string | null;          // timestamptz
+  report_period_end: string | null;            // timestamptz
+  generated_at: string;                        // timestamptz not null default now()
+  generated_by: string | null;                // text
+  executive_status: string;                    // text not null
+  executive_risk: string;                      // text not null
+  report_title: string | null;                // text
+  executive_summary: Record<string, unknown> | null;  // jsonb
+  key_metrics: Record<string, unknown> | null;        // jsonb
+  sections: unknown[] | null;                  // jsonb
+  source_refs: Record<string, unknown> | null; // jsonb
+  report_payload: Record<string, unknown> | null;     // jsonb
+  archived_at: string | null;                 // timestamptz
+  created_at: string;                          // timestamptz
+  updated_at: string;                          // timestamptz
+};
+
+export const PMO_EXECUTIVE_REPORT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "report_type",
+  "report_period_start",
+  "report_period_end",
+  "generated_at",
+  "generated_by",
+  "executive_status",
+  "executive_risk",
+  "report_title",
+  "executive_summary",
+  "key_metrics",
+  "sections",
+  "source_refs",
+  "report_payload",
+  "archived_at",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof PMOExecutiveReportRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// pmo_alert_payloads
+// Source: 20260725000000_pmo_executive_reporting.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PMOAlertPayloadRow = {
+  id: string;                                  // uuid PK
+  workspace_id: string;                        // uuid references workspaces
+  alert_type: string;                          // text not null
+  severity: string;                            // text not null
+  status: string;                              // text not null default 'new'
+  title: string;                               // text not null
+  message: string;                             // text not null
+  target_type: string | null;                 // text
+  target_id: string | null;                   // text
+  pm_id: string | null;                       // text
+  project_id: string | null;                  // text
+  source_type: string | null;                 // text
+  source_id: string | null;                   // text
+  source_ref: Record<string, unknown> | null; // jsonb
+  payload: Record<string, unknown> | null;    // jsonb
+  recommended_action: string | null;          // text
+  created_by: string | null;                  // text
+  created_at: string;                          // timestamptz
+  reviewed_by: string | null;                 // text
+  reviewed_at: string | null;                 // timestamptz
+  archived_at: string | null;                 // timestamptz
+  updated_at: string;                          // timestamptz
+};
+
+export const PMO_ALERT_PAYLOAD_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "alert_type",
+  "severity",
+  "status",
+  "title",
+  "message",
+  "target_type",
+  "target_id",
+  "pm_id",
+  "project_id",
+  "source_type",
+  "source_id",
+  "source_ref",
+  "payload",
+  "recommended_action",
+  "created_by",
+  "created_at",
+  "reviewed_by",
+  "reviewed_at",
+  "archived_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof PMOAlertPayloadRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting" as const;
