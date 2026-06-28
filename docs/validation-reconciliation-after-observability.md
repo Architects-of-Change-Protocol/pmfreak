@@ -143,3 +143,14 @@ Results:
 - The requested remote/source branch `claude/agent-foundation-layer-ssjcq5` was not present locally, and no remote was configured, so the reconciliation branch was created from the local latest feature branch `work` at `c726ad1`.
 - The latest reported commit `b9ad772` was not present in this checkout.
 - Build completed successfully but emitted a non-failing Turbopack NFT trace warning.
+
+## Remote and Branch Alignment
+
+- Local branch validated: `claude/pmfreak-remote-branch-align-k47wcd`
+- Local HEAD: `22bc0da` (fix: reconcile validation cleanup after observability sprint (#428))
+- Remote configured: `origin`
+- Remote URL: `https://github.com/Architects-of-Change-Protocol/pmfreak`
+- Remote branches inspected: `origin/claude/pmfreak-remote-branch-align-k47wcd` (already tracking)
+- Push result: branch already tracking remote; pushed after documentation update
+- PR result: no PR created (not requested)
+- Final source branch for future PMFreak work: `claude/pmfreak-remote-branch-align-k47wcd`
