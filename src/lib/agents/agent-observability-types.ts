@@ -10,7 +10,8 @@ export type AgentAuditEventCategory =
   | "governance"
   | "reporting"
   | "security"
-  | "system";
+  | "system"
+  | "execution";
 
 export type AgentAuditEventType =
   | "agent_registered"
@@ -37,7 +38,21 @@ export type AgentAuditEventType =
   | "access_denied"
   | "policy_denied"
   | "sensitive_payload_rejected"
-  | "audit_export_created";
+  | "audit_export_created"
+  | "execution_request_created"
+  | "execution_request_updated"
+  | "execution_preflight_started"
+  | "execution_preflight_passed"
+  | "execution_preflight_failed"
+  | "execution_blocked"
+  | "execution_pending_approval"
+  | "execution_approved"
+  | "execution_ready"
+  | "execution_dry_run_completed"
+  | "execution_draft_completed"
+  | "execution_cancelled"
+  | "execution_expired"
+  | "execution_failed";
 
 export type AgentAuditSeverity =
   | "info"
@@ -60,6 +75,7 @@ export type AgentAuditSourceType =
   | "agent_tool_registry"
   | "agent_tool_approval"
   | "agent_memory_context"
+  | "agent_execution_runtime"
   | "pmo_governance"
   | "pmo_command_center"
   | "executive_reporting"

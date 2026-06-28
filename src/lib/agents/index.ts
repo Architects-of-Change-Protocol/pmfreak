@@ -211,3 +211,66 @@ export {
   recordToolRequestAuditEvent,
   recordMemoryAuditEvent,
 } from "./agent-observability-service";
+
+// ─── Agent Execution Request Runtime ──────────────────────────────────────────
+
+export type {
+  AgentExecutionMode,
+  AgentExecutionState,
+  AgentExecutionRiskLevel,
+  AgentExecutionScopeType,
+  AgentExecutionSourceType,
+  AgentExecutionEventType,
+  AgentExecutionPreflightStatus,
+  AgentExecutionRequestRecord,
+  AgentExecutionEventRecord,
+  CreateAgentExecutionRequestInput,
+  AgentExecutionListFilters,
+  AgentExecutionPreflightResult,
+  AgentExecutionTransitionInput,
+  CompleteAgentExecutionInput,
+  FailAgentExecutionInput,
+} from "./agent-execution-types";
+
+export {
+  validateAgentExecutionMode,
+  validateAgentExecutionState,
+  validateAgentExecutionRiskLevel,
+  validateAgentExecutionScopeType,
+  validateAgentExecutionSourceType,
+  validateAgentExecutionEventType,
+  validateAgentExecutionPreflightStatus,
+  assertExecutionPayloadSerializable,
+  redactExecutionPayload,
+  normalizeCreateAgentExecutionRequestInput,
+} from "./agent-execution-validation";
+
+export {
+  canTransitionAgentExecutionState,
+  getAllowedAgentExecutionTransitions,
+  assertAgentExecutionTransition,
+} from "./agent-execution-state-machine";
+
+export {
+  createAgentExecutionRequest,
+  getAgentExecutionRequestById,
+  listAgentExecutionRequests,
+  updateAgentExecutionRequestState,
+  updateAgentExecutionPreflightResult,
+  completeAgentExecutionRequest,
+  failAgentExecutionRequest,
+  recordAgentExecutionEvent,
+  listAgentExecutionEvents,
+} from "./agent-execution-registry";
+
+export {
+  createGovernedAgentExecutionRequest,
+  runAgentExecutionPreflight,
+  approveAgentExecutionRequest,
+  markAgentExecutionReady,
+  completeDryRunExecution,
+  completeDraftOnlyExecution,
+  cancelAgentExecutionRequest,
+  expireAgentExecutionRequest,
+  failAgentExecution,
+} from "./agent-execution-service";

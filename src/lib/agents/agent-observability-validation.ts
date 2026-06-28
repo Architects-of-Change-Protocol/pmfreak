@@ -16,7 +16,7 @@ import type {
 
 const AUDIT_EVENT_CATEGORIES: AgentAuditEventCategory[] = [
   "agent", "tool", "approval", "memory", "context",
-  "decision", "governance", "reporting", "security", "system",
+  "decision", "governance", "reporting", "security", "system", "execution",
 ];
 
 const AUDIT_EVENT_TYPES: AgentAuditEventType[] = [
@@ -29,6 +29,11 @@ const AUDIT_EVENT_TYPES: AgentAuditEventType[] = [
   "decision_recorded", "recommendation_recorded", "classification_recorded",
   "governance_event_recorded", "report_generated",
   "access_denied", "policy_denied", "sensitive_payload_rejected", "audit_export_created",
+  "execution_request_created", "execution_request_updated",
+  "execution_preflight_started", "execution_preflight_passed", "execution_preflight_failed",
+  "execution_blocked", "execution_pending_approval", "execution_approved",
+  "execution_ready", "execution_dry_run_completed", "execution_draft_completed",
+  "execution_cancelled", "execution_expired", "execution_failed",
 ];
 
 const AUDIT_SEVERITIES: AgentAuditSeverity[] = ["info", "notice", "warning", "high", "critical"];
@@ -39,7 +44,7 @@ const AUDIT_OUTCOMES: AgentAuditOutcome[] = [
 
 const AUDIT_SOURCE_TYPES: AgentAuditSourceType[] = [
   "agent_specification", "agent_tool_registry", "agent_tool_approval",
-  "agent_memory_context", "pmo_governance", "pmo_command_center",
+  "agent_memory_context", "agent_execution_runtime", "pmo_governance", "pmo_command_center",
   "executive_reporting", "system", "api",
 ];
 
