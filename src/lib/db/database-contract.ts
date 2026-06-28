@@ -5220,4 +5220,116 @@ export const AGENT_TOOL_ASSIGNMENT_SELECTABLE_COLUMNS = [
   "removed_at",
 ] as const satisfies ReadonlyArray<keyof AgentToolAssignmentRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_tool_requests
+// Source: 20260727000000_agent_permission_approval_layer.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentToolRequestStatusDb =
+  | "pending" | "approved" | "rejected" | "cancelled" | "expired";
+
+export type AgentToolRequestRow = {
+  id: string;                          // uuid
+  workspace_id: string;                // uuid references workspaces
+  agent_id: string;                    // text not null
+  agent_type: string;                  // text not null
+  tool_id: string;                     // uuid references agent_tools
+  tool_key: string;                    // text not null
+  status: AgentToolRequestStatusDb;    // text not null default 'pending'
+  request_reason: string | null;       // text
+  request_context_json: string;        // text not null default '{}'
+  requested_by: string | null;         // text
+  requested_at: string;                // timestamptz
+  expires_at: string | null;           // timestamptz
+  resolved_at: string | null;          // timestamptz
+  created_at: string;                  // timestamptz
+  updated_at: string;                  // timestamptz
+};
+
+export const AGENT_TOOL_REQUEST_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "agent_id",
+  "agent_type",
+  "tool_id",
+  "tool_key",
+  "status",
+  "request_reason",
+  "request_context_json",
+  "requested_by",
+  "requested_at",
+  "expires_at",
+  "resolved_at",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentToolRequestRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_tool_approvals
+// Source: 20260727000000_agent_permission_approval_layer.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentToolApprovalDecisionDb = "approved" | "rejected";
+
+export type AgentToolApprovalRow = {
+  id: string;                                // uuid
+  request_id: string;                        // uuid references agent_tool_requests
+  workspace_id: string;                      // uuid references workspaces
+  decision: AgentToolApprovalDecisionDb;     // text not null
+  decided_by: string;                        // text not null
+  decision_note: string | null;              // text
+  decided_at: string;                        // timestamptz
+  revoked_at: string | null;                 // timestamptz
+  revoked_by: string | null;                 // text
+  revocation_note: string | null;            // text
+  created_at: string;                        // timestamptz
+  updated_at: string;                        // timestamptz
+};
+
+export const AGENT_TOOL_APPROVAL_SELECTABLE_COLUMNS = [
+  "id",
+  "request_id",
+  "workspace_id",
+  "decision",
+  "decided_by",
+  "decision_note",
+  "decided_at",
+  "revoked_at",
+  "revoked_by",
+  "revocation_note",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentToolApprovalRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_tool_approval_events
+// Source: 20260727000000_agent_permission_approval_layer.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentToolApprovalEventTypeDb =
+  | "request_created" | "request_approved" | "request_rejected"
+  | "request_cancelled" | "request_expired" | "approval_revoked";
+
+export type AgentToolApprovalEventRow = {
+  id: string;                                    // uuid
+  request_id: string;                            // uuid references agent_tool_requests
+  workspace_id: string;                          // uuid references workspaces
+  event_type: AgentToolApprovalEventTypeDb;      // text not null
+  actor: string | null;                          // text
+  note: string | null;                           // text
+  metadata_json: string;                         // text not null default '{}'
+  created_at: string;                            // timestamptz
+};
+
+export const AGENT_TOOL_APPROVAL_EVENT_SELECTABLE_COLUMNS = [
+  "id",
+  "request_id",
+  "workspace_id",
+  "event_type",
+  "actor",
+  "note",
+  "metadata_json",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof AgentToolApprovalEventRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer" as const;
