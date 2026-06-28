@@ -150,3 +150,64 @@ export {
   revokeMemory,
   archiveMemory,
 } from "./agent-memory-service";
+
+// ─── Agent Observability & Audit Trail ────────────────────────────────────────
+
+export type {
+  AgentAuditEventCategory,
+  AgentAuditEventType,
+  AgentAuditSeverity,
+  AgentAuditOutcome,
+  AgentAuditSourceType,
+  AgentAuditScopeType,
+  AgentDecisionType,
+  AgentDecisionStatus,
+  AgentAuditExportFormat,
+  AgentAuditEventRecord,
+  AgentDecisionEventRecord,
+  AgentAuditExportRecord,
+  CreateAgentAuditEventInput,
+  CreateAgentDecisionEventInput,
+  AgentAuditListFilters,
+  AgentTimelineEntry,
+  CreateAgentAuditExportInput,
+} from "./agent-observability-types";
+
+export {
+  validateAgentAuditEventCategory,
+  validateAgentAuditEventType,
+  validateAgentAuditSeverity,
+  validateAgentAuditOutcome,
+  validateAgentAuditSourceType,
+  validateAgentAuditScopeType,
+  validateAgentDecisionType,
+  validateAgentDecisionStatus,
+  validateAgentAuditExportFormat,
+  assertAuditPayloadSerializable,
+  redactAuditPayload,
+  normalizeCreateAgentAuditEventInput,
+  normalizeCreateAgentDecisionEventInput,
+} from "./agent-observability-validation";
+
+export {
+  createAgentAuditEvent,
+  getAgentAuditEventById,
+  listAgentAuditEvents,
+  createAgentDecisionEvent,
+  getAgentDecisionEventById,
+  listAgentDecisionEvents,
+  updateAgentDecisionStatus,
+  createAgentAuditExport,
+  getAgentAuditExportById,
+  listAgentAuditExports,
+} from "./agent-observability-registry";
+
+export {
+  recordAgentAuditEvent,
+  recordAgentDecision,
+  getAgentTimeline,
+  getWorkspaceAgentAuditSummary,
+  exportAgentAuditTrail,
+  recordToolRequestAuditEvent,
+  recordMemoryAuditEvent,
+} from "./agent-observability-service";
