@@ -1,5 +1,5 @@
 // ─── Agent Tool Execution Adapter Layer — Tests ───────────────────────────────
-// Sprint: Fucker 2
+// Sprint: Agent Tool Execution Adapter Layer
 // These tests run without Supabase / a live database.
 
 import { test, describe } from "node:test";

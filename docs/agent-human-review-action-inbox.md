@@ -1,12 +1,12 @@
 # Agent Human Review & Action Inbox
 
-**Sprint: Fucker 4**
+**Sprint: Human Review & Action Inbox**
 
-This layer provides a structured human review workflow for AI agent execution outputs. It sits on top of Fucker 3 (Agent Execution Results & Evidence) and allows humans to review, decide on, and convert AI-generated results into actionable drafts.
+This layer provides a structured human review workflow for AI agent execution outputs. It sits on top of the Agent Execution Results & Evidence Layer and allows humans to review, decide on, and convert AI-generated results into actionable drafts.
 
 ## Architecture
 
-All stores are **in-memory** (no Supabase). The same pattern as Fucker 1-3.
+All stores are **in-memory** (no Supabase). The same pattern as preceding implementation layers.
 
 ### Layer files
 

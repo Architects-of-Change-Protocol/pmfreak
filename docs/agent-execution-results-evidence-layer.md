@@ -1,6 +1,6 @@
 # Agent Execution Results & Evidence Layer
 
-Sprint: Fucker 3
+Sprint: Agent Execution Results & Evidence Layer
 
 ## Overview
 
