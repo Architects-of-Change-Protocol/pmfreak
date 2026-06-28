@@ -52,7 +52,14 @@ export type AgentAuditEventType =
   | "execution_draft_completed"
   | "execution_cancelled"
   | "execution_expired"
-  | "execution_failed";
+  | "execution_failed"
+  | "adapter_eligibility_checked"
+  | "adapter_execution_created"
+  | "adapter_execution_started"
+  | "adapter_execution_succeeded"
+  | "adapter_execution_failed"
+  | "adapter_execution_refused"
+  | "adapter_execution_cancelled";
 
 export type AgentAuditSeverity =
   | "info"
@@ -80,7 +87,8 @@ export type AgentAuditSourceType =
   | "pmo_command_center"
   | "executive_reporting"
   | "system"
-  | "api";
+  | "api"
+  | "agent_tool_adapter_layer";
 
 export type AgentAuditScopeType =
   | "workspace"

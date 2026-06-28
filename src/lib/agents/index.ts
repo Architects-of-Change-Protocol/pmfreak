@@ -274,3 +274,55 @@ export {
   expireAgentExecutionRequest,
   failAgentExecution,
 } from "./agent-execution-service";
+
+// ─── Agent Tool Execution Adapter Layer ───────────────────────────────────────
+
+export type {
+  AgentToolAdapterExecutionMode,
+  AgentToolAdapterStatus,
+  AgentToolAdapterExecutionStatus,
+  AgentToolAdapterOutputType,
+  AgentToolAdapterRiskPolicy,
+  AgentToolAdapterSideEffectPolicy,
+  AgentToolAdapterDefinition,
+  AgentToolAdapterRunInput,
+  AgentToolAdapterRunResult,
+  AgentToolAdapterEligibilityResult,
+  AgentToolAdapterExecutionRecord,
+  AgentToolAdapterExecutionEventType,
+  AgentToolAdapterExecutionEventRecord,
+} from "./agent-tool-adapter-types";
+
+export {
+  validateAgentToolAdapterExecutionMode,
+  validateAgentToolAdapterStatus,
+  validateAgentToolAdapterExecutionStatus,
+  validateAgentToolAdapterOutputType,
+  validateAgentToolAdapterRiskPolicy,
+  validateAgentToolAdapterSideEffectPolicy,
+  validateAgentToolAdapterExecutionEventType,
+  normalizeAgentToolAdapterDefinition,
+  assertAdapterOutputSerializable,
+  redactAdapterPayload,
+} from "./agent-tool-adapter-validation";
+
+export {
+  getDefaultAgentToolAdapters,
+  getAgentToolAdapterByKey,
+  findAgentToolAdaptersForToolKey,
+  selectAgentToolAdapterForExecutionRequest,
+  evaluateAgentToolAdapterEligibility,
+} from "./agent-tool-adapter-registry";
+
+export {
+  createAgentToolAdapterExecution,
+  updateAgentToolAdapterExecution,
+  getAgentToolAdapterExecutionById,
+  listAgentToolAdapterExecutions,
+  recordAgentToolAdapterExecutionEvent,
+  listAgentToolAdapterExecutionEvents,
+  runAgentToolAdapter,
+  runDryRunAdapter,
+  runDraftOnlyAdapter,
+  generateAdapterOutput,
+} from "./agent-tool-adapter-service";

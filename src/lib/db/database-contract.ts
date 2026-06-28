@@ -5779,4 +5779,59 @@ export const AGENT_EXECUTION_EVENT_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof AgentExecutionEventRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime" as const;
+// agent_tool_adapter_executions
+// Source: 20260731000000_agent_tool_execution_adapter_layer.sql
+
+export type AgentToolAdapterExecutionRow = {
+  id: string;
+  workspace_id: string;
+  execution_request_id: string;
+  adapter_key: string;
+  tool_key: string;
+  execution_mode: string;
+  execution_status: string;
+  output_type: string;
+  input_snapshot_json: Record<string, unknown> | null;
+  safe_input_snapshot_json: Record<string, unknown> | null;
+  output_payload_json: Record<string, unknown> | null;
+  evidence_refs_json: unknown[];
+  warnings_json: unknown[];
+  refusal_reason: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  actor_id: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_TOOL_ADAPTER_EXECUTION_COLUMNS = [
+  "id", "workspace_id", "execution_request_id", "adapter_key", "tool_key",
+  "execution_mode", "execution_status", "output_type", "input_snapshot_json",
+  "safe_input_snapshot_json", "output_payload_json", "evidence_refs_json",
+  "warnings_json", "refusal_reason", "error_code", "error_message", "actor_id",
+  "started_at", "completed_at", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentToolAdapterExecutionRow>;
+
+// agent_tool_adapter_execution_events
+// Source: 20260731000000_agent_tool_execution_adapter_layer.sql
+
+export type AgentToolAdapterExecutionEventRow = {
+  id: string;
+  workspace_id: string;
+  adapter_execution_id: string;
+  execution_request_id: string;
+  event_type: string;
+  message: string | null;
+  event_payload_json: Record<string, unknown> | null;
+  actor_id: string | null;
+  created_at: string;
+};
+
+export const AGENT_TOOL_ADAPTER_EXECUTION_EVENT_COLUMNS = [
+  "id", "workspace_id", "adapter_execution_id", "execution_request_id",
+  "event_type", "message", "event_payload_json", "actor_id", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentToolAdapterExecutionEventRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer" as const;
