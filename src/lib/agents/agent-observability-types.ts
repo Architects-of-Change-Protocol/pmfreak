@@ -59,7 +59,18 @@ export type AgentAuditEventType =
   | "adapter_execution_succeeded"
   | "adapter_execution_failed"
   | "adapter_execution_refused"
-  | "adapter_execution_cancelled";
+  | "adapter_execution_cancelled"
+  | "result_created"
+  | "result_ready_for_review"
+  | "result_superseded"
+  | "result_archived"
+  | "result_discarded"
+  | "evidence_created"
+  | "evidence_linked"
+  | "confidence_calculated"
+  | "lineage_recorded"
+  | "retention_policy_applied"
+  | "result_export_metadata_created";
 
 export type AgentAuditSeverity =
   | "info"
@@ -88,7 +99,8 @@ export type AgentAuditSourceType =
   | "executive_reporting"
   | "system"
   | "api"
-  | "agent_tool_adapter_layer";
+  | "agent_tool_adapter_layer"
+  | "agent_execution_results_evidence_layer";
 
 export type AgentAuditScopeType =
   | "workspace"
