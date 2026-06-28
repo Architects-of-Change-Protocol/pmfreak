@@ -5332,4 +5332,188 @@ export const AGENT_TOOL_APPROVAL_EVENT_SELECTABLE_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof AgentToolApprovalEventRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_context_policies
+// Source: 20260728000000_agent_memory_context_layer.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentContextPolicyRow = {
+  id: string;                              // uuid
+  workspace_id: string;                    // uuid references workspaces
+  policy_key: string;                      // text not null
+  display_name: string;                    // text not null
+  description: string | null;             // text
+  allowed_scope_types_json: unknown;       // jsonb
+  allowed_memory_kinds_json: unknown;      // jsonb
+  max_sensitivity: string;                 // text not null
+  default_retention_policy: string;        // text not null
+  default_retention_days: number | null;  // integer
+  allow_cross_project_memory: boolean;    // boolean not null
+  allow_cross_pm_memory: boolean;         // boolean not null
+  allow_portfolio_memory: boolean;        // boolean not null
+  allow_restricted_memory: boolean;       // boolean not null
+  require_approval_for_confidential: boolean; // boolean not null
+  require_approval_for_restricted: boolean;   // boolean not null
+  hide_expired_memory: boolean;           // boolean not null
+  status: string;                          // text not null
+  created_by: string | null;              // uuid references auth.users
+  created_at: string;                      // timestamptz
+  updated_at: string;                      // timestamptz
+};
+
+export const AGENT_CONTEXT_POLICY_COLUMNS = [
+  "id",
+  "workspace_id",
+  "policy_key",
+  "display_name",
+  "description",
+  "allowed_scope_types_json",
+  "allowed_memory_kinds_json",
+  "max_sensitivity",
+  "default_retention_policy",
+  "default_retention_days",
+  "allow_cross_project_memory",
+  "allow_cross_pm_memory",
+  "allow_portfolio_memory",
+  "allow_restricted_memory",
+  "require_approval_for_confidential",
+  "require_approval_for_restricted",
+  "hide_expired_memory",
+  "status",
+  "created_by",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentContextPolicyRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_memory_records
+// Source: 20260728000000_agent_memory_context_layer.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentMemoryRecordRow = {
+  id: string;                              // uuid
+  workspace_id: string;                    // uuid references workspaces
+  agent_id: string | null;                // uuid
+  agent_type: string | null;              // text
+  scope_type: string;                      // text not null
+  scope_id: string | null;               // uuid
+  memory_kind: string;                     // text not null
+  title: string;                           // text not null
+  content: string | null;                 // text
+  summary: string | null;                 // text
+  source_type: string;                     // text not null
+  source_id: string | null;              // text
+  source_uri: string | null;             // text
+  provenance_json: unknown;               // jsonb
+  sensitivity: string;                     // text not null
+  retention_policy: string;               // text not null
+  retention_days: number | null;         // integer
+  status: string;                          // text not null
+  expires_at: string | null;             // timestamptz
+  stale_at: string | null;              // timestamptz
+  last_accessed_at: string | null;       // timestamptz
+  last_refreshed_at: string | null;      // timestamptz
+  access_count: number;                    // integer not null
+  created_by: string | null;             // uuid references auth.users
+  created_at: string;                      // timestamptz
+  updated_at: string;                      // timestamptz
+};
+
+export const AGENT_MEMORY_RECORD_COLUMNS = [
+  "id",
+  "workspace_id",
+  "agent_id",
+  "agent_type",
+  "scope_type",
+  "scope_id",
+  "memory_kind",
+  "title",
+  "content",
+  "summary",
+  "source_type",
+  "source_id",
+  "source_uri",
+  "provenance_json",
+  "sensitivity",
+  "retention_policy",
+  "retention_days",
+  "status",
+  "expires_at",
+  "stale_at",
+  "last_accessed_at",
+  "last_refreshed_at",
+  "access_count",
+  "created_by",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentMemoryRecordRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_memory_events
+// Source: 20260728000000_agent_memory_context_layer.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentMemoryEventRow = {
+  id: string;                              // uuid
+  workspace_id: string;                    // uuid references workspaces
+  memory_id: string | null;              // uuid references agent_memory_records
+  event_type: string;                      // text not null
+  actor_id: string | null;               // uuid references auth.users
+  event_payload_json: unknown;            // jsonb
+  created_at: string;                      // timestamptz
+};
+
+export const AGENT_MEMORY_EVENT_COLUMNS = [
+  "id",
+  "workspace_id",
+  "memory_id",
+  "event_type",
+  "actor_id",
+  "event_payload_json",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof AgentMemoryEventRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_context_windows
+// Source: 20260728000000_agent_memory_context_layer.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentContextWindowRow = {
+  id: string;                              // uuid
+  workspace_id: string;                    // uuid references workspaces
+  agent_id: string | null;               // uuid
+  agent_type: string | null;             // text
+  scope_type: string;                      // text not null
+  scope_id: string | null;              // uuid
+  window_key: string;                      // text not null
+  display_name: string;                    // text not null
+  description: string | null;            // text
+  allowed_memory_kinds_json: unknown;     // jsonb
+  max_sensitivity: string;                // text not null
+  retention_policy: string;               // text not null
+  status: string;                          // text not null
+  created_by: string | null;            // uuid references auth.users
+  created_at: string;                      // timestamptz
+  updated_at: string;                      // timestamptz
+};
+
+export const AGENT_CONTEXT_WINDOW_COLUMNS = [
+  "id",
+  "workspace_id",
+  "agent_id",
+  "agent_type",
+  "scope_type",
+  "scope_id",
+  "window_key",
+  "display_name",
+  "description",
+  "allowed_memory_kinds_json",
+  "max_sensitivity",
+  "retention_policy",
+  "status",
+  "created_by",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentContextWindowRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer" as const;
