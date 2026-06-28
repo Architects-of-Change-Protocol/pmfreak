@@ -5516,4 +5516,161 @@ export const AGENT_CONTEXT_WINDOW_COLUMNS = [
   "updated_at",
 ] as const satisfies ReadonlyArray<keyof AgentContextWindowRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_audit_events
+// Source: 20260729000000_agent_observability_audit_trail.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentAuditEventRow = {
+  id: string;                              // uuid
+  workspace_id: string;                    // uuid references workspaces
+  correlation_id: string | null;          // text
+  category: string;                        // text not null
+  event_type: string;                      // text not null
+  severity: string;                        // text not null
+  outcome: string;                         // text not null
+  source_type: string;                     // text not null
+  scope_type: string;                      // text not null
+  scope_id: string | null;               // uuid
+  agent_id: string | null;               // uuid
+  agent_type: string | null;             // text
+  actor_id: string | null;               // uuid references auth.users
+  project_id: string | null;             // uuid
+  pm_id: string | null;                  // uuid
+  portfolio_id: string | null;           // uuid
+  tool_key: string | null;               // text
+  tool_request_id: string | null;        // uuid
+  approval_request_id: string | null;    // uuid
+  memory_id: string | null;              // uuid
+  context_policy_id: string | null;      // uuid
+  report_id: string | null;              // uuid
+  title: string;                           // text not null
+  message: string | null;                // text
+  reason_code: string | null;            // text
+  payload_json: unknown;                  // jsonb
+  redacted_payload_json: unknown;         // jsonb
+  evidence_refs_json: unknown;            // jsonb
+  occurred_at: string;                     // timestamptz
+  created_at: string;                      // timestamptz
+};
+
+export const AGENT_AUDIT_EVENT_COLUMNS = [
+  "id",
+  "workspace_id",
+  "correlation_id",
+  "category",
+  "event_type",
+  "severity",
+  "outcome",
+  "source_type",
+  "scope_type",
+  "scope_id",
+  "agent_id",
+  "agent_type",
+  "actor_id",
+  "project_id",
+  "pm_id",
+  "portfolio_id",
+  "tool_key",
+  "tool_request_id",
+  "approval_request_id",
+  "memory_id",
+  "context_policy_id",
+  "report_id",
+  "title",
+  "message",
+  "reason_code",
+  "payload_json",
+  "redacted_payload_json",
+  "evidence_refs_json",
+  "occurred_at",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof AgentAuditEventRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_decision_events
+// Source: 20260729000000_agent_observability_audit_trail.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentDecisionEventRow = {
+  id: string;                              // uuid
+  workspace_id: string;                    // uuid references workspaces
+  audit_event_id: string | null;         // uuid references agent_audit_events
+  correlation_id: string | null;          // text
+  agent_id: string | null;               // uuid
+  agent_type: string | null;             // text
+  decision_type: string;                   // text not null
+  status: string;                          // text not null
+  scope_type: string;                      // text not null
+  scope_id: string | null;               // uuid
+  project_id: string | null;             // uuid
+  pm_id: string | null;                  // uuid
+  portfolio_id: string | null;           // uuid
+  title: string;                           // text not null
+  summary: string | null;                // text
+  rationale: string | null;              // text
+  confidence_score: number | null;       // numeric
+  risk_level: string | null;             // text
+  evidence_refs_json: unknown;            // jsonb
+  decision_payload_json: unknown;         // jsonb
+  created_by: string | null;             // uuid references auth.users
+  created_at: string;                      // timestamptz
+  updated_at: string;                      // timestamptz
+};
+
+export const AGENT_DECISION_EVENT_COLUMNS = [
+  "id",
+  "workspace_id",
+  "audit_event_id",
+  "correlation_id",
+  "agent_id",
+  "agent_type",
+  "decision_type",
+  "status",
+  "scope_type",
+  "scope_id",
+  "project_id",
+  "pm_id",
+  "portfolio_id",
+  "title",
+  "summary",
+  "rationale",
+  "confidence_score",
+  "risk_level",
+  "evidence_refs_json",
+  "decision_payload_json",
+  "created_by",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentDecisionEventRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_audit_exports
+// Source: 20260729000000_agent_observability_audit_trail.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentAuditExportRow = {
+  id: string;                              // uuid
+  workspace_id: string;                    // uuid references workspaces
+  export_format: string;                   // text not null
+  filter_payload_json: unknown;           // jsonb
+  artifact_title: string;                  // text not null
+  artifact_content: string;               // text not null
+  artifact_metadata_json: unknown;        // jsonb
+  created_by: string | null;             // uuid references auth.users
+  created_at: string;                      // timestamptz
+};
+
+export const AGENT_AUDIT_EXPORT_COLUMNS = [
+  "id",
+  "workspace_id",
+  "export_format",
+  "filter_payload_json",
+  "artifact_title",
+  "artifact_content",
+  "artifact_metadata_json",
+  "created_by",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof AgentAuditExportRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail" as const;
