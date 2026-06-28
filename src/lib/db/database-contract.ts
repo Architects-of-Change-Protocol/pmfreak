@@ -5951,4 +5951,162 @@ export const AGENT_EXECUTION_RESULT_EVENT_COLUMNS = [
   "message", "event_payload_json", "actor_id", "created_at",
 ] as const satisfies ReadonlyArray<keyof AgentExecutionResultEventRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_review_queues
+// Source: 20260802000000_agent_human_review_action_inbox.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentReviewQueueRow = {
+  id: string;
+  workspace_id: string;
+  queue_key: string;
+  queue_type: string;
+  queue_status: string;
+  name: string;
+  description: string | null;
+  default_assignee_id: string | null;
+  visibility: string;
+  metadata_json: Record<string, unknown> | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_REVIEW_QUEUE_COLUMNS = [
+  "id", "workspace_id", "queue_key", "queue_type", "queue_status", "name",
+  "description", "default_assignee_id", "visibility", "metadata_json",
+  "created_by", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentReviewQueueRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_review_items
+// Source: 20260802000000_agent_human_review_action_inbox.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentReviewItemRow = {
+  id: string;
+  workspace_id: string;
+  queue_id: string;
+  source_type: string;
+  source_id: string | null;
+  item_status: string;
+  priority: string;
+  risk_level: string;
+  title: string;
+  summary: string | null;
+  confidence_score: number;
+  assigned_to: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  due_at: string | null;
+  tags: string[];
+  payload_json: Record<string, unknown> | null;
+  safe_payload_json: Record<string, unknown> | null;
+  visibility: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_REVIEW_ITEM_COLUMNS = [
+  "id", "workspace_id", "queue_id", "source_type", "source_id", "item_status",
+  "priority", "risk_level", "title", "summary", "confidence_score", "assigned_to",
+  "reviewed_by", "reviewed_at", "due_at", "tags", "payload_json", "safe_payload_json",
+  "visibility", "created_by", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentReviewItemRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_review_assignments
+// Source: 20260802000000_agent_human_review_action_inbox.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentReviewAssignmentRow = {
+  id: string;
+  workspace_id: string;
+  review_item_id: string;
+  assigned_to: string;
+  assigned_by: string | null;
+  assignment_status: string;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_REVIEW_ASSIGNMENT_COLUMNS = [
+  "id", "workspace_id", "review_item_id", "assigned_to", "assigned_by",
+  "assignment_status", "note", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentReviewAssignmentRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_review_decisions
+// Source: 20260802000000_agent_human_review_action_inbox.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentReviewDecisionRow = {
+  id: string;
+  workspace_id: string;
+  review_item_id: string;
+  decision_type: string;
+  decided_by: string | null;
+  rationale: string | null;
+  payload_json: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export const AGENT_REVIEW_DECISION_COLUMNS = [
+  "id", "workspace_id", "review_item_id", "decision_type", "decided_by",
+  "rationale", "payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentReviewDecisionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_review_action_drafts
+// Source: 20260802000000_agent_human_review_action_inbox.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentReviewActionDraftRow = {
+  id: string;
+  workspace_id: string;
+  review_item_id: string | null;
+  draft_type: string;
+  draft_status: string;
+  title: string;
+  summary: string | null;
+  draft_payload_json: Record<string, unknown> | null;
+  safe_draft_payload_json: Record<string, unknown> | null;
+  created_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_REVIEW_ACTION_DRAFT_COLUMNS = [
+  "id", "workspace_id", "review_item_id", "draft_type", "draft_status", "title",
+  "summary", "draft_payload_json", "safe_draft_payload_json", "created_by",
+  "approved_by", "approved_at", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentReviewActionDraftRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_review_events
+// Source: 20260802000000_agent_human_review_action_inbox.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentReviewEventRow = {
+  id: string;
+  workspace_id: string;
+  review_item_id: string | null;
+  queue_id: string | null;
+  action_draft_id: string | null;
+  event_type: string;
+  actor_id: string | null;
+  payload_json: Record<string, unknown> | null;
+  occurred_at: string;
+  created_at: string;
+};
+
+export const AGENT_REVIEW_EVENT_COLUMNS = [
+  "id", "workspace_id", "review_item_id", "queue_id", "action_draft_id",
+  "event_type", "actor_id", "payload_json", "occurred_at", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentReviewEventRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox" as const;

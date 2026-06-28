@@ -70,7 +70,24 @@ export type AgentAuditEventType =
   | "confidence_calculated"
   | "lineage_recorded"
   | "retention_policy_applied"
-  | "result_export_metadata_created";
+  | "result_export_metadata_created"
+  | "review_queue_created"
+  | "review_item_created"
+  | "review_item_assigned"
+  | "review_item_opened"
+  | "review_item_decision_recorded"
+  | "review_item_accepted"
+  | "review_item_rejected"
+  | "review_item_more_evidence_requested"
+  | "review_item_archived"
+  | "review_item_escalated"
+  | "review_item_deferred"
+  | "review_item_action_drafted"
+  | "review_assignment_created"
+  | "review_assignment_completed"
+  | "action_draft_created"
+  | "action_draft_updated"
+  | "action_draft_cancelled";
 
 export type AgentAuditSeverity =
   | "info"
@@ -100,7 +117,8 @@ export type AgentAuditSourceType =
   | "system"
   | "api"
   | "agent_tool_adapter_layer"
-  | "agent_execution_results_evidence_layer";
+  | "agent_execution_results_evidence_layer"
+  | "agent_human_review_action_inbox";
 
 export type AgentAuditScopeType =
   | "workspace"
