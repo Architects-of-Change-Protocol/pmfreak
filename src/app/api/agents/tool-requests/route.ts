@@ -8,6 +8,7 @@ import {
   listAgentToolRequests,
 } from "@/lib/agents";
 import { validateCreateAgentToolRequestInput } from "@/lib/agents";
+import type { AgentToolRequestStatus } from "@/lib/agents/agent-tool-approval-types";
 
 const ROUTE = "/api/agents/tool-requests";
 
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
     const filters = {
       agentId: url.searchParams.get("agentId") ?? undefined,
       toolKey: url.searchParams.get("toolKey") ?? undefined,
-      status: (url.searchParams.get("status") as Parameters<typeof listAgentToolRequests>[1]["status"]) ?? undefined,
+      status: (url.searchParams.get("status") as AgentToolRequestStatus) ?? undefined,
       requestedBy: url.searchParams.get("requestedBy") ?? undefined,
       limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
       offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
