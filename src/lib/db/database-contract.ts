@@ -5834,4 +5834,121 @@ export const AGENT_TOOL_ADAPTER_EXECUTION_EVENT_COLUMNS = [
   "event_type", "message", "event_payload_json", "actor_id", "created_at",
 ] as const satisfies ReadonlyArray<keyof AgentToolAdapterExecutionEventRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer" as const;
+// agent_execution_results
+// Source: 20260801000000_agent_execution_results_evidence_layer.sql
+
+export type AgentExecutionResultRow = {
+  id: string;
+  workspace_id: string;
+  execution_request_id: string;
+  adapter_execution_id: string | null;
+  agent_id: string | null;
+  agent_type: string | null;
+  tool_key: string;
+  adapter_key: string | null;
+  execution_mode: string;
+  scope_type: string;
+  scope_id: string | null;
+  result_type: string;
+  result_status: string;
+  review_state: string;
+  title: string;
+  summary: string | null;
+  result_payload_json: Record<string, unknown> | null;
+  safe_result_payload_json: Record<string, unknown> | null;
+  artifact_type: string;
+  artifact_metadata_json: Record<string, unknown> | null;
+  confidence_score: number;
+  confidence_level: string;
+  confidence_reasons_json: unknown[];
+  evidence_ids_json: unknown[];
+  lineage_refs_json: unknown[];
+  retention_policy: string;
+  expires_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_EXECUTION_RESULT_COLUMNS = [
+  "id", "workspace_id", "execution_request_id", "adapter_execution_id",
+  "agent_id", "agent_type", "tool_key", "adapter_key", "execution_mode",
+  "scope_type", "scope_id", "result_type", "result_status", "review_state",
+  "title", "summary", "result_payload_json", "safe_result_payload_json",
+  "artifact_type", "artifact_metadata_json", "confidence_score", "confidence_level",
+  "confidence_reasons_json", "evidence_ids_json", "lineage_refs_json",
+  "retention_policy", "expires_at", "created_by", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionResultRow>;
+
+// agent_execution_evidence_items
+// Source: 20260801000000_agent_execution_results_evidence_layer.sql
+
+export type AgentExecutionEvidenceItemRow = {
+  id: string;
+  workspace_id: string;
+  result_id: string | null;
+  execution_request_id: string | null;
+  adapter_execution_id: string | null;
+  evidence_type: string;
+  evidence_source: string;
+  scope_type: string | null;
+  scope_id: string | null;
+  title: string;
+  summary: string | null;
+  evidence_payload_json: Record<string, unknown> | null;
+  safe_evidence_payload_json: Record<string, unknown> | null;
+  evidence_ref: string | null;
+  evidence_hash: string | null;
+  confidence_weight: number;
+  retention_policy: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_EXECUTION_EVIDENCE_ITEM_COLUMNS = [
+  "id", "workspace_id", "result_id", "execution_request_id", "adapter_execution_id",
+  "evidence_type", "evidence_source", "scope_type", "scope_id", "title", "summary",
+  "evidence_payload_json", "safe_evidence_payload_json", "evidence_ref", "evidence_hash",
+  "confidence_weight", "retention_policy", "created_by", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionEvidenceItemRow>;
+
+// agent_execution_result_lineage
+// Source: 20260801000000_agent_execution_results_evidence_layer.sql
+
+export type AgentExecutionResultLineageRow = {
+  id: string;
+  workspace_id: string;
+  result_id: string;
+  lineage_type: string;
+  lineage_ref: string;
+  lineage_payload_json: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export const AGENT_EXECUTION_RESULT_LINEAGE_COLUMNS = [
+  "id", "workspace_id", "result_id", "lineage_type", "lineage_ref",
+  "lineage_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionResultLineageRow>;
+
+// agent_execution_result_events
+// Source: 20260801000000_agent_execution_results_evidence_layer.sql
+
+export type AgentExecutionResultEventRow = {
+  id: string;
+  workspace_id: string;
+  result_id: string | null;
+  evidence_id: string | null;
+  event_type: string;
+  message: string | null;
+  event_payload_json: Record<string, unknown> | null;
+  actor_id: string | null;
+  created_at: string;
+};
+
+export const AGENT_EXECUTION_RESULT_EVENT_COLUMNS = [
+  "id", "workspace_id", "result_id", "evidence_id", "event_type",
+  "message", "event_payload_json", "actor_id", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionResultEventRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer" as const;

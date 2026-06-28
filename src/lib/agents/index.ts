@@ -326,3 +326,74 @@ export {
   runDraftOnlyAdapter,
   generateAdapterOutput,
 } from "./agent-tool-adapter-service";
+
+// ─── Agent Execution Results & Evidence Layer ─────────────────────────────────
+
+export type {
+  AgentExecutionResultType,
+  AgentExecutionResultStatus,
+  AgentExecutionEvidenceType,
+  AgentExecutionEvidenceSource,
+  AgentExecutionConfidenceLevel,
+  AgentExecutionResultReviewState,
+  AgentExecutionRetentionPolicy,
+  AgentExecutionResultArtifactType,
+  AgentExecutionResultRecord,
+  AgentExecutionEvidenceRecord,
+  AgentExecutionResultLineageRecord,
+  AgentExecutionResultEventType,
+  AgentExecutionResultEventRecord,
+  CreateAgentExecutionResultInput,
+  CreateAgentExecutionEvidenceInput,
+  AgentExecutionConfidenceResult,
+  AgentExecutionResultListFilters,
+} from "./agent-execution-result-types";
+
+export {
+  validateAgentExecutionResultType,
+  validateAgentExecutionResultStatus,
+  validateAgentExecutionEvidenceType,
+  validateAgentExecutionEvidenceSource,
+  validateAgentExecutionConfidenceLevel,
+  validateAgentExecutionResultReviewState,
+  validateAgentExecutionRetentionPolicy,
+  validateAgentExecutionResultArtifactType,
+  validateAgentExecutionResultEventType,
+  assertResultPayloadSerializable,
+  assertEvidencePayloadSerializable,
+  redactResultPayload,
+  redactEvidencePayload,
+  normalizeCreateAgentExecutionResultInput,
+  normalizeCreateAgentExecutionEvidenceInput,
+  calculateDeterministicEvidenceHash,
+  calculateExecutionConfidence,
+} from "./agent-execution-result-validation";
+
+export {
+  createAgentExecutionResult,
+  getAgentExecutionResultById,
+  listAgentExecutionResults,
+  updateAgentExecutionResultStatus,
+  createAgentExecutionEvidence,
+  getAgentExecutionEvidenceById,
+  listAgentExecutionEvidence,
+  linkEvidenceToResult,
+  recordAgentExecutionResultLineage,
+  listAgentExecutionResultLineage,
+  recordAgentExecutionResultEvent,
+  listAgentExecutionResultEvents,
+  _getResultStore,
+  _getEvidenceStore,
+  _clearResultStores,
+} from "./agent-execution-result-registry";
+
+export {
+  createResultFromAdapterExecution,
+  createResultFromPayload,
+  createEvidenceForExecutionResult,
+  calculateResultConfidence,
+  markResultReadyForReview,
+  archiveExecutionResult,
+  supersedeExecutionResult,
+  buildExecutionResultExportMetadata,
+} from "./agent-execution-result-service";
