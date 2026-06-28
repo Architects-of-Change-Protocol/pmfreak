@@ -1,5 +1,5 @@
 -- Agent Tool Execution Adapter Layer
--- Sprint: Fucker 2
+-- Sprint: Agent Tool Execution Adapter Layer
 
 create table if not exists public.agent_tool_adapter_executions (
   id uuid primary key default gen_random_uuid(),

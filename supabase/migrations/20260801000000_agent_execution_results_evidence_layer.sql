@@ -1,5 +1,5 @@
 -- Agent Execution Results & Evidence Layer
--- Sprint: Fucker 3
+-- Sprint: Agent Execution Results & Evidence Layer
 
 create table if not exists public.agent_execution_results (
   id uuid primary key default gen_random_uuid(),

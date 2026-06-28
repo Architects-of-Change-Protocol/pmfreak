@@ -1,5 +1,5 @@
 -- ─── Agent Execution Request Runtime ─────────────────────────────────────────
--- Sprint: Agent Execution Request Runtime (Fucker 1)
+-- Sprint: Agent Execution Request Runtime
 -- Purpose: Governed execution request lifecycle for agent tool calls.
 
 -- ─── agent_execution_requests ─────────────────────────────────────────────────

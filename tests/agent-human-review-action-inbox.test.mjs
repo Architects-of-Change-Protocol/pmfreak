@@ -1,5 +1,5 @@
 // ─── Agent Human Review & Action Inbox — Tests ─────────────────────────────────
-// Sprint: Fucker 4
+// Sprint: Human Review & Action Inbox
 // These tests run without Supabase / a live database.
 
 import { test, describe } from "node:test";

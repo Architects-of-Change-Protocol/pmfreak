@@ -1,6 +1,6 @@
 # Agent Tool Execution Adapter Layer
 
-**Sprint:** Fucker 2  
+**Sprint:** Agent Tool Execution Adapter Layer  
 **Status:** Production  
 **Version:** 1.0.0
 
@@ -390,9 +390,9 @@ The database schema (migration `20260731000000_agent_tool_execution_adapter_laye
 
 ---
 
-## 19. Integration with Fucker 1
+## 19. Integration with Agent Execution Request Runtime
 
-This layer depends on Fucker 1 (Agent Execution Request Runtime):
+This layer depends on the Agent Execution Request Runtime:
 - `getAgentExecutionRequestById` — loads the request
 - `completeDryRunExecution` / `completeDraftOnlyExecution` — signals completion
 - `failAgentExecution` — signals failure
@@ -517,7 +517,7 @@ All adapters support:
 
 ## 27. Related Sprints
 
-- **Fucker 1** (Agent Execution Request Runtime) — provides the request lifecycle
+- **Agent Execution Request Runtime** — provides the request lifecycle
 - **Agent Observability & Audit Trail** — provides the audit event infrastructure
 - **Agent Memory & Context Layer** — provides memory IDs referenced in evidence
 
@@ -527,4 +527,4 @@ All adapters support:
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0.0 | 2026-07-31 | Initial implementation (Fucker 2) |
+| 1.0.0 | 2026-07-31 | Initial implementation |

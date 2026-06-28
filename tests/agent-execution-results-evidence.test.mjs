@@ -1,5 +1,5 @@
 // ─── Agent Execution Results & Evidence Layer — Tests ─────────────────────────
-// Sprint: Fucker 3
+// Sprint: Agent Execution Results & Evidence Layer
 // These tests run without Supabase / a live database.
 
 import { test, describe } from "node:test";

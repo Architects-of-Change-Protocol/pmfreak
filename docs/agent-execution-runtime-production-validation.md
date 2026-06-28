@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document records the production validation gate for Fucker 1 — Agent Execution Request Runtime.
+This document records the production validation gate for the Agent Execution Request Runtime.
 It confirms that the sprint implementation is production-clean in a fully installed environment with
 the Next.js binary present.
 
@@ -22,7 +22,7 @@ the Next.js binary present.
 - Next.js binary present: yes (next@16.2.4, confirmed after `npm ci`)
 - Install command used: `npm ci`
 
-## Fucker 1 implementation presence
+## Agent Execution Request Runtime implementation presence
 
 | Component | File | Status |
 |---|---|---|
@@ -89,7 +89,7 @@ All 11 Agent Execution Runtime API routes compiled and listed:
 - `/api/agents/execution/requests/[executionRequestId]/ready`
 
 One pre-existing Turbopack warning about `next.config.ts → degraded-mode.ts` filesystem tracing —
-this is not new, not related to Fucker 1, and does not cause a build failure.
+this is not new, not related to the Agent Execution Request Runtime, and does not cause a build failure.
 
 ## Failure analysis
 
@@ -109,20 +109,20 @@ No failures. No fixes required. No code changes made during this validation gate
 
 ## Final result
 
-**Fucker 1 Production Validation Gate passed.**
+**Agent Execution Request Runtime Production Validation Gate passed.**
 
 All three required commands exited 0 in a fully installed environment with Next.js present.
 No code changes were required. The Agent Execution Request Runtime implementation is production-clean.
 
 ## Recommended next sprint
 
-**Fucker 2 — Agent Tool Execution Adapter Layer**
+**Agent Tool Execution Adapter Layer**
 
 Now that PMFreak has formal, governed execution requests with state transitions, preflight checks,
 approval readiness, and audit events, the next layer should connect approved execution requests to
 safe tool adapters.
 
-Fucker 2 should add:
+This sprint should add:
 - Adapter registry
 - Adapter interface
 - Dry-run adapters

@@ -1,5 +1,5 @@
 -- ─── Agent Human Review & Action Inbox ────────────────────────────────────────
--- Sprint: Fucker 4
+-- Sprint: Human Review & Action Inbox
 -- Creates tables for the human review and action inbox layer.
 
 -- ─── agent_review_queues ──────────────────────────────────────────────────────
