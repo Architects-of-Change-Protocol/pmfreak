@@ -110,7 +110,7 @@ export async function registerAgentTool(
     .select(COLS)
     .single();
   if (error) throw new Error(`registerAgentTool failed: ${error.message}`);
-  return rowToRecord(data as AgentToolRow);
+  return rowToRecord(data as unknown as AgentToolRow);
 }
 
 export async function upsertAgentTool(
@@ -144,7 +144,7 @@ export async function upsertAgentTool(
     .select(COLS)
     .single();
   if (error) throw new Error(`upsertAgentTool failed: ${error.message}`);
-  return rowToRecord(data as AgentToolRow);
+  return rowToRecord(data as unknown as AgentToolRow);
 }
 
 export async function getAgentToolByKey(
@@ -159,7 +159,7 @@ export async function getAgentToolByKey(
     .eq("tool_key", toolKey)
     .maybeSingle();
   if (error) throw new Error(`getAgentToolByKey failed: ${error.message}`);
-  return data ? rowToRecord(data as AgentToolRow) : null;
+  return data ? rowToRecord(data as unknown as AgentToolRow) : null;
 }
 
 export async function getAgentToolById(
@@ -174,7 +174,7 @@ export async function getAgentToolById(
     .eq("id", toolId)
     .maybeSingle();
   if (error) throw new Error(`getAgentToolById failed: ${error.message}`);
-  return data ? rowToRecord(data as AgentToolRow) : null;
+  return data ? rowToRecord(data as unknown as AgentToolRow) : null;
 }
 
 export async function listAgentTools(
@@ -214,7 +214,7 @@ export async function updateAgentToolStatus(
     .select(COLS)
     .single();
   if (error) throw new Error(`updateAgentToolStatus failed: ${error.message}`);
-  return rowToRecord(data as AgentToolRow);
+  return rowToRecord(data as unknown as AgentToolRow);
 }
 
 export async function deleteOrDeprecateAgentTool(
@@ -275,5 +275,5 @@ export async function assignToolToAgent(input: {
     .select("id,workspace_id,agent_id,tool_id,status,assigned_at,assigned_by,removed_at")
     .single();
   if (error) throw new Error(`assignToolToAgent failed: ${error.message}`);
-  return assignmentRowToRecord(data as AgentToolAssignmentRow);
+  return assignmentRowToRecord(data as unknown as AgentToolAssignmentRow);
 }
