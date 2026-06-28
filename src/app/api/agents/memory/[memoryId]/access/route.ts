@@ -6,6 +6,8 @@ import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response"
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { checkAgentMemoryAccess } from "@/lib/agents";
 
+const ROUTE = "/api/agents/memory/[memoryId]/access";
+
 export async function POST(request: Request, { params }: { params: Promise<{ memoryId: string }> }) {
   try {
     await requireAuthenticatedUser();
@@ -29,8 +31,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ mem
 
     return NextResponse.json({ ok: true, data: { access: result } });
   } catch (error) {
-    if (error instanceof AccessDeniedError) return denyFromAccessError(error);
-    console.error("[/api/agents/memory/[memoryId]/access] POST error:", error);
-    return denyResponse("Failed to check memory access.");
+    if (error instanceof AccessDeniedError) {
+      if (String(error.metadata.reason) === "unauthorized") {
+        return denyResponse({ status: 401, routeId: ROUTE, message: "Unauthorized", reason: "unauthorized" });
+      }
+      return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
+    }
+    console.error(`[${ROUTE}] POST error:`, error);
+    return NextResponse.json({ ok: false, error: { code: "INTERNAL", message: "Failed to check memory access." } }, { status: 500 });
   }
 }

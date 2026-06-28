@@ -25,13 +25,18 @@ export async function POST(request: Request) {
     const memory = await createGovernedAgentMemory({ workspaceId, ...rest });
     return NextResponse.json({ ok: true, data: { memory } }, { status: 201 });
   } catch (error) {
-    if (error instanceof AccessDeniedError) return denyFromAccessError(error);
+    if (error instanceof AccessDeniedError) {
+      if (String(error.metadata.reason) === "unauthorized") {
+        return denyResponse({ status: 401, routeId: ROUTE, message: "Unauthorized", reason: "unauthorized" });
+      }
+      return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
+    }
     const message = error instanceof Error ? error.message : "Unknown error";
     if (message.includes("denied by policy")) {
       return NextResponse.json({ ok: false, error: { code: "POLICY_DENIED", message } }, { status: 422 });
     }
     console.error(`[${ROUTE}] POST error:`, error);
-    return denyResponse(`Failed to create memory record: ${message}`);
+    return NextResponse.json({ ok: false, error: { code: "INTERNAL", message: "Failed to create memory record." } }, { status: 500 });
   }
 }
 
@@ -61,8 +66,13 @@ export async function GET(request: Request) {
     const memories = await listAgentMemories(workspaceId, filters);
     return NextResponse.json({ ok: true, data: { memories } });
   } catch (error) {
-    if (error instanceof AccessDeniedError) return denyFromAccessError(error);
+    if (error instanceof AccessDeniedError) {
+      if (String(error.metadata.reason) === "unauthorized") {
+        return denyResponse({ status: 401, routeId: ROUTE, message: "Unauthorized", reason: "unauthorized" });
+      }
+      return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
+    }
     console.error(`[${ROUTE}] GET error:`, error);
-    return denyResponse("Failed to list memory records.");
+    return NextResponse.json({ ok: false, error: { code: "INTERNAL", message: "Failed to list memory records." } }, { status: 500 });
   }
 }
