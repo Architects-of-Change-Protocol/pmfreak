@@ -167,8 +167,8 @@ export async function createAgentContextPolicy(input: CreateAgentContextPolicyIn
       policy_key: input.policyKey,
       display_name: input.displayName,
       description: input.description ?? null,
-      allowed_scope_types_json: JSON.stringify(input.allowedScopeTypes ?? []),
-      allowed_memory_kinds_json: JSON.stringify(input.allowedMemoryKinds ?? []),
+      allowed_scope_types_json: input.allowedScopeTypes ?? [],
+      allowed_memory_kinds_json: input.allowedMemoryKinds ?? [],
       max_sensitivity: input.maxSensitivity ?? "internal",
       default_retention_policy: input.defaultRetentionPolicy ?? "short_term",
       default_retention_days: input.defaultRetentionDays ?? null,
@@ -192,9 +192,40 @@ export async function createAgentContextPolicy(input: CreateAgentContextPolicyIn
 }
 
 export async function upsertAgentContextPolicy(input: CreateAgentContextPolicyInput): Promise<AgentContextPolicyRecord> {
-  const existing = await getAgentContextPolicyByKey(input.workspaceId, input.policyKey);
-  if (existing) return existing;
-  return createAgentContextPolicy(input);
+  const supabase = await createSupabaseServerClient();
+  const now = new Date().toISOString();
+  const id = randomUUID();
+
+  const { data, error } = await supabase
+    .from("agent_context_policies")
+    .upsert({
+      id,
+      workspace_id: input.workspaceId,
+      policy_key: input.policyKey,
+      display_name: input.displayName,
+      description: input.description ?? null,
+      allowed_scope_types_json: input.allowedScopeTypes ?? [],
+      allowed_memory_kinds_json: input.allowedMemoryKinds ?? [],
+      max_sensitivity: input.maxSensitivity ?? "internal",
+      default_retention_policy: input.defaultRetentionPolicy ?? "short_term",
+      default_retention_days: input.defaultRetentionDays ?? null,
+      allow_cross_project_memory: input.allowCrossProjectMemory ?? false,
+      allow_cross_pm_memory: input.allowCrossPmMemory ?? false,
+      allow_portfolio_memory: input.allowPortfolioMemory ?? true,
+      allow_restricted_memory: input.allowRestrictedMemory ?? false,
+      require_approval_for_confidential: input.requireApprovalForConfidential ?? true,
+      require_approval_for_restricted: input.requireApprovalForRestricted ?? true,
+      hide_expired_memory: input.hideExpiredMemory ?? true,
+      status: "active",
+      created_by: input.createdBy ?? null,
+      created_at: now,
+      updated_at: now,
+    }, { onConflict: "workspace_id,policy_key", ignoreDuplicates: false })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to upsert context policy: ${error.message}`);
+  return mapPolicy(data as unknown as PolicyRow);
 }
 
 export async function getAgentContextPolicyByKey(workspaceId: string, policyKey: string): Promise<AgentContextPolicyRecord | null> {

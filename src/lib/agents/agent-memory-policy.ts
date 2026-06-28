@@ -101,13 +101,8 @@ export function evaluateMemoryPolicy(input: {
     return { allowed: false, requiresApproval: true, reasonCode: "confidential_requires_approval", message: "Confidential memory requires approval per policy." };
   }
 
-  if (memory.scopeType === "project" && !policy.allowCrossProjectMemory) {
-    // Only block if there's an explicit cross-project access attempt (scope differs)
-    // Basic project memory creation is always allowed — cross-project is flagged at access time
-  }
-
-  if (memory.scopeType === "pm" && !policy.allowCrossPmMemory) {
-    // Same — cross-PM access is evaluated at retrieval, not creation
+  if (memory.scopeType === "portfolio" && !policy.allowPortfolioMemory) {
+    return { allowed: false, requiresApproval: false, reasonCode: "scope_not_allowed", message: "Portfolio-scoped memory is not permitted by this policy." };
   }
 
   return { allowed: true, requiresApproval: false, reasonCode: "allowed", message: "Memory is permitted by policy." };
