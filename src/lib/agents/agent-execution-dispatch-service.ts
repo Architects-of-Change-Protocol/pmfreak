@@ -128,7 +128,7 @@ export async function createFinalizationFromExecutionRequest(input: {
   if (executionRequest.workspaceId !== normalized.workspaceId) throw new Error("Execution request does not belong to this workspace");
 
   // Load action conversion if provided
-  let actionConversionId = normalized.actionConversionId;
+  const actionConversionId = normalized.actionConversionId;
   let actionDraftId: string | null = null;
   let reviewItemId: string | null = null;
 
@@ -716,7 +716,7 @@ export async function dispatchExecutionToAdapter(input: {
   // Attempt adapter dispatch
   let adapterExecutionId: string | null = null;
   let resultId: string | null = null;
-  let evidenceIds: string[] = [];
+  const evidenceIds: string[] = [];
   let dispatchError: string | null = null;
 
   try {
