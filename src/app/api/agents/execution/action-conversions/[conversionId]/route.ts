@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { getAgentActionConversionById } from "@/lib/agents";
 
@@ -25,6 +24,7 @@ export async function GET(
     }
     return NextResponse.json({ ok: true, data: conversion });
   } catch (err) {
-    return denyResponse(err, ROUTE, "GET");
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
   }
 }

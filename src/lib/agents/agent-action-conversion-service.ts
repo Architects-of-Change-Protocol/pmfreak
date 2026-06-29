@@ -102,9 +102,9 @@ export async function createConversionFromActionDraft(input: {
   if (!reviewItem) throw new Error("Review item not found for action draft");
 
   const acceptedStatuses = ["accepted", "action_drafted"];
-  if (!acceptedStatuses.includes(reviewItem.status)) {
+  if (!acceptedStatuses.includes(reviewItem.itemStatus)) {
     throw new Error(
-      `Review item status '${reviewItem.status}' must be accepted or action_drafted for conversion`,
+      `Review item status '${reviewItem.itemStatus}' must be accepted or action_drafted for conversion`,
     );
   }
 
@@ -128,7 +128,7 @@ export async function createConversionFromActionDraft(input: {
   const riskLevel = determineRiskLevel(actionDraft.draftType, reviewItem.riskLevel);
 
   const ownerId = input.ownerId ?? reviewItem.assignedTo ?? actionDraft.createdBy ?? null;
-  const ownerRole = input.ownerRole ?? reviewItem.assignedRole ?? null;
+  const ownerRole = input.ownerRole ?? reviewItem.assignedTo ?? null;
 
   const approvalEval = evaluateApprovalRequirement({
     riskLevel,
@@ -229,7 +229,7 @@ export async function runActionConversionPreflight(input: {
   const readinessInput = {
     actionDraftExists: !!actionDraft,
     reviewItemExists: !!reviewItem,
-    reviewItemAccepted: !!reviewItem && acceptedStatuses.includes(reviewItem.status),
+    reviewItemAccepted: !!reviewItem && acceptedStatuses.includes(reviewItem.itemStatus),
     reviewDecisionExists: decisions.length > 0,
     actionDraftConvertible: !!actionDraft && convertibleDraftStatuses.includes(actionDraft.draftStatus),
     actionDraftAlreadyConverted: actionDraft?.draftStatus === "converted",
@@ -578,6 +578,39 @@ export async function createExecutionRequestFromActionDraft(input: {
     // The conversion record is still updated to reflect intent.
   }
 
+  if (!executionRequestId) {
+    const blockedConversion = await updateAgentActionConversionStatus({
+      workspaceId: input.workspaceId,
+      conversionId: input.conversionId,
+      status: "blocked",
+      readiness: "not_ready",
+      blockingReasons: ["execution_request_creation_failed"],
+      patch: {
+        executionRequestId: null,
+        executionRequestCreationStatus: "failed",
+      },
+    });
+
+    await recordAgentActionConversionEvent({
+      workspaceId: input.workspaceId,
+      conversionId: input.conversionId,
+      actionDraftId: conversion.actionDraftId,
+      executionRequestId: null,
+      eventType: "conversion_blocked",
+      message: "Execution request creation failed; conversion is blocked and requires remediation",
+      actorId: input.actorId ?? null,
+    });
+
+    await tryAuditEvent({
+      workspaceId: input.workspaceId,
+      title: "Action conversion blocked — execution request creation failed",
+      eventType: "action_conversion_blocked",
+      actorId: input.actorId,
+    });
+
+    return blockedConversion;
+  }
+
   const updatedConversion = await updateAgentActionConversionStatus({
     workspaceId: input.workspaceId,
     conversionId: input.conversionId,
@@ -585,18 +618,18 @@ export async function createExecutionRequestFromActionDraft(input: {
     readiness: "converted",
     patch: {
       executionRequestId,
-      executionRequestCreationStatus: executionRequestId ? "created" : "failed",
+      executionRequestCreationStatus: "created",
     },
   });
 
   // Update action draft status to converted if registry supports it
   try {
     const { updateAgentReviewActionDraftStatus } = await import("./agent-review-inbox-registry");
-    await updateAgentReviewActionDraftStatus(
-      input.workspaceId,
-      conversion.actionDraftId,
-      "converted",
-    );
+    await updateAgentReviewActionDraftStatus({
+      workspaceId: input.workspaceId,
+      actionDraftId: conversion.actionDraftId,
+      draftStatus: "converted",
+    });
   } catch {
     // Safe update is best-effort if registry doesn't support this status transition
   }
@@ -607,9 +640,7 @@ export async function createExecutionRequestFromActionDraft(input: {
     actionDraftId: conversion.actionDraftId,
     executionRequestId,
     eventType: "execution_request_created",
-    message: executionRequestId
-      ? `Governed execution request created: ${executionRequestId}`
-      : "Conversion completed (execution request creation pending Supabase connection)",
+    message: `Governed execution request created: ${executionRequestId}`,
     actorId: input.actorId ?? null,
   });
 

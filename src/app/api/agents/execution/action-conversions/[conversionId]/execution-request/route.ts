@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { createExecutionRequestFromActionDraft } from "@/lib/agents";
 
@@ -22,6 +21,7 @@ export async function POST(
     const updatedConversion = await createExecutionRequestFromActionDraft({ workspaceId, conversionId, actorId: user.id });
     return NextResponse.json({ ok: true, data: updatedConversion });
   } catch (err) {
-    return denyResponse(err, ROUTE, "POST");
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
   }
 }
