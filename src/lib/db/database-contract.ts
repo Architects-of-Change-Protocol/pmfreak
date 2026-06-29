@@ -6723,4 +6723,341 @@ export const AGENT_EXECUTION_OUTCOME_EVENT_COLUMNS = [
   "message", "event_payload_json", "actor_id", "created_at",
 ] as const satisfies ReadonlyArray<keyof AgentExecutionOutcomeEventRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_learning_signals
+// Source: 20260806000000_agent_controlled_execution_learning_signals_governance_feedback_loop.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionLearningSignalRow = {
+  id: string;
+  workspace_id: string;
+  source_type: string;
+  source_id: string;
+  outcome_id: string | null;
+  review_id: string | null;
+  decision_id: string | null;
+  dispatch_attempt_id: string | null;
+  adapter_key: string | null;
+  tool_key: string | null;
+  action_type: string | null;
+  signal_type: string;
+  signal_category: string;
+  signal_value: string;
+  signal_weight: number;
+  confidence_score: number;
+  privacy_classification: string;
+  retention_class: string;
+  status: string;
+  signal_payload_json: Record<string, unknown> | null;
+  safe_signal_payload_json: Record<string, unknown> | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_EXECUTION_LEARNING_SIGNAL_COLUMNS = [
+  "id","workspace_id","source_type","source_id","outcome_id","review_id",
+  "decision_id","dispatch_attempt_id","adapter_key","tool_key","action_type",
+  "signal_type","signal_category","signal_value","signal_weight","confidence_score",
+  "privacy_classification","retention_class","status","signal_payload_json",
+  "safe_signal_payload_json","created_by","created_at","updated_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionLearningSignalRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_learning_extractions
+// Source: 20260806000000_agent_controlled_execution_learning_signals_governance_feedback_loop.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionLearningExtractionRow = {
+  id: string;
+  workspace_id: string;
+  source_type: string;
+  source_id: string;
+  status: string;
+  signals_extracted: number;
+  signals_skipped: number;
+  privacy_passed: number;
+  privacy_blocked: number;
+  blocking_reasons_json: string[];
+  warnings_json: string[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_EXECUTION_LEARNING_EXTRACTION_COLUMNS = [
+  "id","workspace_id","source_type","source_id","status","signals_extracted",
+  "signals_skipped","privacy_passed","privacy_blocked","blocking_reasons_json",
+  "warnings_json","created_by","created_at","updated_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionLearningExtractionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_learning_privacy_filters
+// Source: 20260806000000_agent_controlled_execution_learning_signals_governance_feedback_loop.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionLearningPrivacyFilterRow = {
+  id: string;
+  workspace_id: string;
+  source_type: string;
+  source_id: string;
+  candidate_signal_type: string;
+  contains_raw_payload: boolean;
+  contains_free_text: boolean;
+  contains_sensitive_key: boolean;
+  contains_customer_identifier: boolean;
+  contains_project_identifier: boolean;
+  safe_to_store: boolean;
+  redaction_applied: boolean;
+  privacy_classification: string;
+  retention_class: string;
+  filter_reasons_json: string[];
+  created_at: string;
+};
+
+export const AGENT_EXECUTION_LEARNING_PRIVACY_FILTER_COLUMNS = [
+  "id","workspace_id","source_type","source_id","candidate_signal_type",
+  "contains_raw_payload","contains_free_text","contains_sensitive_key",
+  "contains_customer_identifier","contains_project_identifier","safe_to_store",
+  "redaction_applied","privacy_classification","retention_class",
+  "filter_reasons_json","created_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionLearningPrivacyFilterRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_governance_feedback
+// Source: 20260806000000_agent_controlled_execution_learning_signals_governance_feedback_loop.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionGovernanceFeedbackRow = {
+  id: string;
+  workspace_id: string;
+  feedback_type: string;
+  feedback_category: string;
+  severity: string;
+  status: string;
+  recommendation: string;
+  confidence_score: number;
+  source_signal_ids_json: string[];
+  owner_role: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_rationale: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_EXECUTION_GOVERNANCE_FEEDBACK_COLUMNS = [
+  "id","workspace_id","feedback_type","feedback_category","severity","status",
+  "recommendation","confidence_score","source_signal_ids_json","owner_role",
+  "reviewed_by","reviewed_at","review_rationale","created_at","updated_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionGovernanceFeedbackRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_risk_calibration_signals
+// Source: 20260806000000_agent_controlled_execution_learning_signals_governance_feedback_loop.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionRiskCalibrationSignalRow = {
+  id: string;
+  workspace_id: string;
+  source_signal_id: string | null;
+  outcome_id: string | null;
+  action_type: string | null;
+  adapter_key: string | null;
+  original_risk_level: string | null;
+  observed_risk_level: string | null;
+  human_decision_type: string | null;
+  calibration_direction: string;
+  confidence_score: number;
+  created_at: string;
+};
+
+export const AGENT_EXECUTION_RISK_CALIBRATION_SIGNAL_COLUMNS = [
+  "id","workspace_id","source_signal_id","outcome_id","action_type","adapter_key",
+  "original_risk_level","observed_risk_level","human_decision_type",
+  "calibration_direction","confidence_score","created_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionRiskCalibrationSignalRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_evidence_quality_signals
+// Source: 20260806000000_agent_controlled_execution_learning_signals_governance_feedback_loop.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionEvidenceQualitySignalRow = {
+  id: string;
+  workspace_id: string;
+  source_signal_id: string | null;
+  action_type: string | null;
+  adapter_key: string | null;
+  required_evidence_type: string | null;
+  available_evidence_type: string | null;
+  missing_evidence_type: string | null;
+  evidence_completeness_level: string | null;
+  frequency: number;
+  trend_direction: string;
+  created_at: string;
+};
+
+export const AGENT_EXECUTION_EVIDENCE_QUALITY_SIGNAL_COLUMNS = [
+  "id","workspace_id","source_signal_id","action_type","adapter_key",
+  "required_evidence_type","available_evidence_type","missing_evidence_type",
+  "evidence_completeness_level","frequency","trend_direction","created_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionEvidenceQualitySignalRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_adapter_performance_signals
+// Source: 20260806000000_agent_controlled_execution_learning_signals_governance_feedback_loop.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionAdapterPerformanceSignalRow = {
+  id: string;
+  workspace_id: string;
+  adapter_key: string;
+  tool_key: string | null;
+  success_count: number;
+  failure_count: number;
+  missing_evidence_count: number;
+  correction_count: number;
+  retry_recommendation_count: number;
+  human_acceptance_count: number;
+  human_rejection_count: number;
+  low_confidence_count: number;
+  medium_confidence_count: number;
+  high_confidence_count: number;
+  trend_direction: string;
+  created_at: string;
+};
+
+export const AGENT_EXECUTION_ADAPTER_PERFORMANCE_SIGNAL_COLUMNS = [
+  "id","workspace_id","adapter_key","tool_key","success_count","failure_count",
+  "missing_evidence_count","correction_count","retry_recommendation_count",
+  "human_acceptance_count","human_rejection_count","low_confidence_count",
+  "medium_confidence_count","high_confidence_count","trend_direction","created_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionAdapterPerformanceSignalRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_review_decision_patterns
+// Source: 20260806000000_agent_controlled_execution_learning_signals_governance_feedback_loop.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionReviewDecisionPatternRow = {
+  id: string;
+  workspace_id: string;
+  decision_type: string;
+  review_requirement: string | null;
+  risk_level: string | null;
+  action_type: string | null;
+  adapter_key: string | null;
+  confidence_level: string | null;
+  evidence_completeness_level: string | null;
+  count: number;
+  trend_direction: string;
+  created_at: string;
+};
+
+export const AGENT_EXECUTION_REVIEW_DECISION_PATTERN_COLUMNS = [
+  "id","workspace_id","decision_type","review_requirement","risk_level",
+  "action_type","adapter_key","confidence_level","evidence_completeness_level",
+  "count","trend_direction","created_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionReviewDecisionPatternRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_review_routing_feedback
+// Source: 20260806000000_agent_controlled_execution_learning_signals_governance_feedback_loop.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionReviewRoutingFeedbackRow = {
+  id: string;
+  workspace_id: string;
+  assigned_role: string | null;
+  assigned_to: string | null;
+  review_priority: string | null;
+  decision_type: string | null;
+  route_effectiveness: string;
+  suggested_route_adjustment: string | null;
+  created_at: string;
+};
+
+export const AGENT_EXECUTION_REVIEW_ROUTING_FEEDBACK_COLUMNS = [
+  "id","workspace_id","assigned_role","assigned_to","review_priority",
+  "decision_type","route_effectiveness","suggested_route_adjustment","created_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionReviewRoutingFeedbackRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_workspace_learning_summaries
+// Source: 20260806000000_agent_controlled_execution_learning_signals_governance_feedback_loop.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionWorkspaceLearningSummaryRow = {
+  id: string;
+  workspace_id: string;
+  period_start: string;
+  period_end: string;
+  total_signals: number;
+  governance_feedback_count: number;
+  risk_calibration_count: number;
+  evidence_quality_count: number;
+  adapter_performance_count: number;
+  review_pattern_count: number;
+  top_signals_json: Record<string, unknown>;
+  recommendations_json: Record<string, unknown>;
+  confidence_score: number;
+  created_at: string;
+};
+
+export const AGENT_EXECUTION_WORKSPACE_LEARNING_SUMMARY_COLUMNS = [
+  "id","workspace_id","period_start","period_end","total_signals",
+  "governance_feedback_count","risk_calibration_count","evidence_quality_count",
+  "adapter_performance_count","review_pattern_count","top_signals_json",
+  "recommendations_json","confidence_score","created_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionWorkspaceLearningSummaryRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_aggregate_learning_signals
+// Source: 20260806000000_agent_controlled_execution_learning_signals_governance_feedback_loop.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionAggregateLearningSignalRow = {
+  id: string;
+  aggregate_scope: string;
+  workspace_id: string | null;
+  signal_type: string;
+  signal_category: string;
+  count: number;
+  threshold_met: boolean;
+  privacy_safe: boolean;
+  created_at: string;
+};
+
+export const AGENT_EXECUTION_AGGREGATE_LEARNING_SIGNAL_COLUMNS = [
+  "id","aggregate_scope","workspace_id","signal_type","signal_category",
+  "count","threshold_met","privacy_safe","created_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionAggregateLearningSignalRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_learning_events
+// Source: 20260806000000_agent_controlled_execution_learning_signals_governance_feedback_loop.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionLearningEventRow = {
+  id: string;
+  workspace_id: string | null;
+  signal_id: string | null;
+  extraction_id: string | null;
+  feedback_id: string | null;
+  source_type: string | null;
+  source_id: string | null;
+  event_type: string;
+  message: string | null;
+  event_payload_json: Record<string, unknown> | null;
+  actor_id: string | null;
+  created_at: string;
+};
+
+export const AGENT_EXECUTION_LEARNING_EVENT_COLUMNS = [
+  "id","workspace_id","signal_id","extraction_id","feedback_id",
+  "source_type","source_id","event_type","message","event_payload_json",
+  "actor_id","created_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionLearningEventRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop" as const;

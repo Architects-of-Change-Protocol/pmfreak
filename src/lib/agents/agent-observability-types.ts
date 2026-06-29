@@ -130,7 +130,23 @@ export type AgentAuditEventType =
   | "execution_outcome_decision_recorded"
   | "execution_outcome_failed_dispatch_triaged"
   | "execution_outcome_correction_loop_created"
-  | "execution_outcome_archived";
+  | "execution_outcome_archived"
+  | "execution_learning_signal_created"
+  | "execution_learning_signal_privacy_checked"
+  | "execution_learning_signal_privacy_passed"
+  | "execution_learning_signal_privacy_blocked"
+  | "execution_learning_extraction_started"
+  | "execution_learning_extraction_succeeded"
+  | "execution_learning_extraction_failed"
+  | "execution_governance_feedback_created"
+  | "execution_risk_calibration_signal_created"
+  | "execution_evidence_quality_signal_created"
+  | "execution_adapter_performance_signal_created"
+  | "execution_review_decision_pattern_created"
+  | "execution_review_routing_feedback_created"
+  | "execution_workspace_learning_summary_created"
+  | "execution_aggregate_signal_created"
+  | "execution_learning_signal_archived";
 
 export type AgentAuditSeverity =
   | "info"
@@ -164,7 +180,8 @@ export type AgentAuditSourceType =
   | "agent_human_review_action_inbox"
   | "agent_controlled_action_conversion_approval_bridge"
   | "agent_controlled_execution_finalization_adapter_dispatch_gate"
-  | "agent_controlled_execution_result_reconciliation_human_outcome_review";
+  | "agent_controlled_execution_result_reconciliation_human_outcome_review"
+  | "agent_controlled_execution_learning_signals_governance_feedback_loop";
 
 export type AgentAuditScopeType =
   | "workspace"
