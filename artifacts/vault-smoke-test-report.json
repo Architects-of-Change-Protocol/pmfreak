@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "generatedAt": "2026-06-29T19:43:54.858Z",
+    "generatedAt": "2026-06-29T21:06:43.640Z",
     "artifactCount": 51,
-    "elapsedMs": 46,
+    "elapsedMs": 41,
     "smokeTestVersion": "1.2.0",
     "datasetDescription": "LATAM Enterprise PM — 5 projects across 51 operational artifacts"
   },
@@ -569,7 +569,7 @@
       "projectId": "proj-gch-15992",
       "nutrientType": "escalation_signal",
       "submittedAt": "2026-04-12T09:00:00Z",
-      "freshness": 0.08,
+      "freshness": 0.07,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -578,7 +578,7 @@
       "projectId": "proj-gch-15992",
       "nutrientType": "escalation_signal",
       "submittedAt": "2026-04-12T09:00:00Z",
-      "freshness": 0.08,
+      "freshness": 0.07,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -587,7 +587,7 @@
       "projectId": "proj-gch-15992",
       "nutrientType": "escalation_signal",
       "submittedAt": "2026-04-12T09:00:00Z",
-      "freshness": 0.08,
+      "freshness": 0.07,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -596,7 +596,7 @@
       "projectId": "proj-gch-15992",
       "nutrientType": "escalation_signal",
       "submittedAt": "2026-04-12T09:00:00Z",
-      "freshness": 0.08,
+      "freshness": 0.07,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
@@ -857,7 +857,7 @@
       "projectId": "proj-muc-13098",
       "nutrientType": "escalation_signal",
       "submittedAt": "2026-05-02T09:00:00Z",
-      "freshness": 0.15,
+      "freshness": 0.14,
       "status": "decayed_actionable",
       "note": "High-severity signal decayed below 50% freshness — may need reinforcement"
     },
