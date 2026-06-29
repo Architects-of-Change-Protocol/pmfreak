@@ -99,7 +99,27 @@ export type AgentAuditEventType =
   | "action_conversion_execution_request_created"
   | "action_conversion_blocked"
   | "action_conversion_cancelled"
-  | "action_conversion_completed";
+  | "action_conversion_completed"
+  | "execution_finalization_created"
+  | "execution_dispatch_readiness_checked"
+  | "execution_dispatch_readiness_passed"
+  | "execution_dispatch_readiness_failed"
+  | "execution_dispatch_approval_verified"
+  | "execution_dispatch_final_confirmation_required"
+  | "execution_dispatch_final_confirmation_recorded"
+  | "execution_dispatch_lock_acquired"
+  | "execution_dispatch_lock_released"
+  | "execution_dispatch_idempotency_checked"
+  | "execution_dispatch_gate_created"
+  | "execution_dispatch_allowed"
+  | "execution_dispatch_blocked"
+  | "execution_dispatch_adapter_selected"
+  | "execution_dispatch_started"
+  | "execution_dispatch_succeeded"
+  | "execution_dispatch_failed"
+  | "execution_dispatch_result_reconciled"
+  | "execution_dispatch_completed"
+  | "execution_dispatch_cancelled";
 
 export type AgentAuditSeverity =
   | "info"
@@ -131,7 +151,8 @@ export type AgentAuditSourceType =
   | "agent_tool_adapter_layer"
   | "agent_execution_results_evidence_layer"
   | "agent_human_review_action_inbox"
-  | "agent_controlled_action_conversion_approval_bridge";
+  | "agent_controlled_action_conversion_approval_bridge"
+  | "agent_controlled_execution_finalization_adapter_dispatch_gate";
 
 export type AgentAuditScopeType =
   | "workspace"

@@ -6234,4 +6234,233 @@ export const AGENT_ACTION_CONVERSION_EVENT_COLUMNS = [
   "actor_id", "created_at",
 ] as const satisfies ReadonlyArray<keyof AgentActionConversionEventRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_finalizations
+// Source: 20260804000000_agent_controlled_execution_finalization_adapter_dispatch_gate.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionFinalizationRow = {
+  id: string;
+  workspace_id: string;
+  execution_request_id: string;
+  action_conversion_id: string | null;
+  action_draft_id: string | null;
+  review_item_id: string | null;
+  source_result_id: string | null;
+  source_evidence_id: string | null;
+  status: string;
+  readiness: string;
+  execution_mode: string;
+  risk_level: string;
+  selected_tool_key: string | null;
+  selected_adapter_key: string | null;
+  side_effect_mode: string;
+  confirmation_requirement: string;
+  confirmation_status: string;
+  approval_verified: boolean;
+  lock_status: string;
+  idempotency_status: string;
+  dispatch_gate_id: string | null;
+  latest_dispatch_attempt_id: string | null;
+  adapter_execution_id: string | null;
+  result_id: string | null;
+  evidence_ids_json: unknown[];
+  blocking_reasons_json: string[];
+  warnings_json: string[];
+  finalization_payload_json: Record<string, unknown> | null;
+  safe_finalization_payload_json: Record<string, unknown> | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_EXECUTION_FINALIZATION_COLUMNS = [
+  "id", "workspace_id", "execution_request_id", "action_conversion_id", "action_draft_id",
+  "review_item_id", "source_result_id", "source_evidence_id", "status", "readiness",
+  "execution_mode", "risk_level", "selected_tool_key", "selected_adapter_key", "side_effect_mode",
+  "confirmation_requirement", "confirmation_status", "approval_verified", "lock_status",
+  "idempotency_status", "dispatch_gate_id", "latest_dispatch_attempt_id", "adapter_execution_id",
+  "result_id", "evidence_ids_json", "blocking_reasons_json", "warnings_json",
+  "finalization_payload_json", "safe_finalization_payload_json",
+  "created_by", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionFinalizationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_dispatch_gates
+// Source: 20260804000000_agent_controlled_execution_finalization_adapter_dispatch_gate.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionDispatchGateRow = {
+  id: string;
+  workspace_id: string;
+  finalization_id: string;
+  execution_request_id: string;
+  status: string;
+  selected_tool_key: string | null;
+  selected_adapter_key: string | null;
+  execution_mode: string;
+  side_effect_mode: string;
+  dispatch_allowed: boolean;
+  requires_final_confirmation: boolean;
+  confirmation_status: string;
+  lock_id: string | null;
+  idempotency_id: string | null;
+  blocking_reasons_json: string[];
+  warnings_json: string[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_EXECUTION_DISPATCH_GATE_COLUMNS = [
+  "id", "workspace_id", "finalization_id", "execution_request_id", "status",
+  "selected_tool_key", "selected_adapter_key", "execution_mode", "side_effect_mode",
+  "dispatch_allowed", "requires_final_confirmation", "confirmation_status",
+  "lock_id", "idempotency_id", "blocking_reasons_json", "warnings_json",
+  "created_by", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionDispatchGateRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_dispatch_locks
+// Source: 20260804000000_agent_controlled_execution_finalization_adapter_dispatch_gate.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionDispatchLockRow = {
+  id: string;
+  workspace_id: string;
+  execution_request_id: string;
+  finalization_id: string | null;
+  lock_key: string;
+  status: string;
+  acquired_by: string | null;
+  acquired_at: string | null;
+  expires_at: string | null;
+  released_at: string | null;
+  release_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_EXECUTION_DISPATCH_LOCK_COLUMNS = [
+  "id", "workspace_id", "execution_request_id", "finalization_id", "lock_key",
+  "status", "acquired_by", "acquired_at", "expires_at", "released_at", "release_reason",
+  "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionDispatchLockRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_dispatch_idempotency
+// Source: 20260804000000_agent_controlled_execution_finalization_adapter_dispatch_gate.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionDispatchIdempotencyRow = {
+  id: string;
+  workspace_id: string;
+  execution_request_id: string;
+  finalization_id: string | null;
+  idempotency_key: string;
+  idempotency_fingerprint: string;
+  status: string;
+  first_dispatch_attempt_id: string | null;
+  latest_dispatch_attempt_id: string | null;
+  result_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_EXECUTION_DISPATCH_IDEMPOTENCY_COLUMNS = [
+  "id", "workspace_id", "execution_request_id", "finalization_id",
+  "idempotency_key", "idempotency_fingerprint", "status",
+  "first_dispatch_attempt_id", "latest_dispatch_attempt_id", "result_id",
+  "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionDispatchIdempotencyRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_dispatch_attempts
+// Source: 20260804000000_agent_controlled_execution_finalization_adapter_dispatch_gate.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionDispatchAttemptRow = {
+  id: string;
+  workspace_id: string;
+  finalization_id: string;
+  dispatch_gate_id: string | null;
+  execution_request_id: string;
+  adapter_key: string | null;
+  tool_key: string | null;
+  execution_mode: string;
+  status: string;
+  attempt_number: number;
+  started_at: string | null;
+  completed_at: string | null;
+  adapter_execution_id: string | null;
+  result_id: string | null;
+  evidence_ids_json: unknown[];
+  error_message: string | null;
+  blocking_reasons_json: string[];
+  warnings_json: string[];
+  actor_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_EXECUTION_DISPATCH_ATTEMPT_COLUMNS = [
+  "id", "workspace_id", "finalization_id", "dispatch_gate_id", "execution_request_id",
+  "adapter_key", "tool_key", "execution_mode", "status", "attempt_number",
+  "started_at", "completed_at", "adapter_execution_id", "result_id",
+  "evidence_ids_json", "error_message", "blocking_reasons_json", "warnings_json",
+  "actor_id", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionDispatchAttemptRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_final_confirmations
+// Source: 20260804000000_agent_controlled_execution_finalization_adapter_dispatch_gate.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionFinalConfirmationRow = {
+  id: string;
+  workspace_id: string;
+  finalization_id: string;
+  execution_request_id: string;
+  requirement: string;
+  status: string;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  rationale: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_EXECUTION_FINAL_CONFIRMATION_COLUMNS = [
+  "id", "workspace_id", "finalization_id", "execution_request_id",
+  "requirement", "status", "confirmed_by", "confirmed_at", "rationale",
+  "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionFinalConfirmationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_execution_dispatch_events
+// Source: 20260804000000_agent_controlled_execution_finalization_adapter_dispatch_gate.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentExecutionDispatchEventRow = {
+  id: string;
+  workspace_id: string;
+  finalization_id: string | null;
+  dispatch_gate_id: string | null;
+  dispatch_attempt_id: string | null;
+  execution_request_id: string | null;
+  adapter_execution_id: string | null;
+  result_id: string | null;
+  event_type: string;
+  message: string | null;
+  event_payload_json: Record<string, unknown> | null;
+  actor_id: string | null;
+  created_at: string;
+};
+
+export const AGENT_EXECUTION_DISPATCH_EVENT_COLUMNS = [
+  "id", "workspace_id", "finalization_id", "dispatch_gate_id", "dispatch_attempt_id",
+  "execution_request_id", "adapter_execution_id", "result_id", "event_type",
+  "message", "event_payload_json", "actor_id", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentExecutionDispatchEventRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate" as const;
