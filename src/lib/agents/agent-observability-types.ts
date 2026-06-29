@@ -119,7 +119,18 @@ export type AgentAuditEventType =
   | "execution_dispatch_failed"
   | "execution_dispatch_result_reconciled"
   | "execution_dispatch_completed"
-  | "execution_dispatch_cancelled";
+  | "execution_dispatch_cancelled"
+  | "execution_outcome_created"
+  | "execution_outcome_reconciled"
+  | "execution_outcome_evidence_completeness_scored"
+  | "execution_outcome_comparison_complete"
+  | "execution_outcome_confidence_scored"
+  | "execution_outcome_review_requirement_determined"
+  | "execution_outcome_human_review_created"
+  | "execution_outcome_decision_recorded"
+  | "execution_outcome_failed_dispatch_triaged"
+  | "execution_outcome_correction_loop_created"
+  | "execution_outcome_archived";
 
 export type AgentAuditSeverity =
   | "info"
@@ -152,7 +163,8 @@ export type AgentAuditSourceType =
   | "agent_execution_results_evidence_layer"
   | "agent_human_review_action_inbox"
   | "agent_controlled_action_conversion_approval_bridge"
-  | "agent_controlled_execution_finalization_adapter_dispatch_gate";
+  | "agent_controlled_execution_finalization_adapter_dispatch_gate"
+  | "agent_controlled_execution_result_reconciliation_human_outcome_review";
 
 export type AgentAuditScopeType =
   | "workspace"
