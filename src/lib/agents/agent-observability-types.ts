@@ -146,7 +146,16 @@ export type AgentAuditEventType =
   | "execution_review_routing_feedback_created"
   | "execution_workspace_learning_summary_created"
   | "execution_aggregate_signal_created"
-  | "execution_learning_signal_archived";
+  | "execution_learning_signal_archived"
+  | "pmo_governance_dashboard_snapshot_created"
+  | "pmo_governance_insight_card_created"
+  | "pmo_governance_feedback_reviewed"
+  | "pmo_governance_policy_proposal_created"
+  | "pmo_governance_policy_proposal_reviewed"
+  | "pmo_governance_report_export_created"
+  | "pmo_governance_report_export_downloaded"
+  | "pmo_governance_dashboard_filter_applied"
+  | "pmo_governance_dashboard_summary_viewed";
 
 export type AgentAuditSeverity =
   | "info"
@@ -181,7 +190,8 @@ export type AgentAuditSourceType =
   | "agent_controlled_action_conversion_approval_bridge"
   | "agent_controlled_execution_finalization_adapter_dispatch_gate"
   | "agent_controlled_execution_result_reconciliation_human_outcome_review"
-  | "agent_controlled_execution_learning_signals_governance_feedback_loop";
+  | "agent_controlled_execution_learning_signals_governance_feedback_loop"
+  | "agent_controlled_pmo_governance_intelligence_dashboard";
 
 export type AgentAuditScopeType =
   | "workspace"
