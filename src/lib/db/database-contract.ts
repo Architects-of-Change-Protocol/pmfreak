@@ -7060,4 +7060,247 @@ export const AGENT_EXECUTION_LEARNING_EVENT_COLUMNS = [
   "actor_id","created_at",
 ] as const satisfies ReadonlyArray<keyof AgentExecutionLearningEventRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_governance_dashboard_snapshots
+// Source: 20260807000000_agent_controlled_pmo_governance_intelligence_dashboard.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoGovernanceDashboardSnapshotRow = {
+  id: string;
+  workspace_id: string;
+  status: string;
+  total_signals: number;
+  active_signals: number;
+  governance_feedback_count: number;
+  risk_calibration_count: number;
+  evidence_quality_count: number;
+  adapter_performance_count: number;
+  review_routing_count: number;
+  feedback_queue_pending_count: number;
+  policy_proposal_draft_count: number;
+  policy_proposal_under_review_count: number;
+  report_export_count: number;
+  snapshot_meta_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_GOVERNANCE_DASHBOARD_SNAPSHOT_COLUMNS = [
+  "id","workspace_id","status","total_signals","active_signals",
+  "governance_feedback_count","risk_calibration_count","evidence_quality_count",
+  "adapter_performance_count","review_routing_count","feedback_queue_pending_count",
+  "policy_proposal_draft_count","policy_proposal_under_review_count",
+  "report_export_count","snapshot_meta_json","created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoGovernanceDashboardSnapshotRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_governance_insight_cards
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoGovernanceInsightCardRow = {
+  id: string;
+  workspace_id: string;
+  snapshot_id: string | null;
+  card_type: string;
+  severity: string;
+  status: string;
+  actionability: string;
+  trend_direction: string;
+  title: string;
+  metrics_json: Record<string, unknown>;
+  source_ids_json: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_GOVERNANCE_INSIGHT_CARD_COLUMNS = [
+  "id","workspace_id","snapshot_id","card_type","severity","status",
+  "actionability","trend_direction","title","metrics_json","source_ids_json",
+  "created_at","updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoGovernanceInsightCardRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_risk_calibration_insights
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoRiskCalibrationInsightRow = {
+  id: string;
+  workspace_id: string;
+  snapshot_id: string | null;
+  total_risk_signals: number;
+  underestimated_count: number;
+  overestimated_count: number;
+  aligned_count: number;
+  unknown_count: number;
+  trend_direction: string;
+  severity: string;
+  created_at: string;
+};
+
+export const AGENT_PMO_RISK_CALIBRATION_INSIGHT_COLUMNS = [
+  "id","workspace_id","snapshot_id","total_risk_signals","underestimated_count",
+  "overestimated_count","aligned_count","unknown_count","trend_direction","severity","created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoRiskCalibrationInsightRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_evidence_quality_insights
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoEvidenceQualityInsightRow = {
+  id: string;
+  workspace_id: string;
+  snapshot_id: string | null;
+  total_evidence_signals: number;
+  missing_count: number;
+  complete_count: number;
+  trend_direction: string;
+  severity: string;
+  created_at: string;
+};
+
+export const AGENT_PMO_EVIDENCE_QUALITY_INSIGHT_COLUMNS = [
+  "id","workspace_id","snapshot_id","total_evidence_signals","missing_count",
+  "complete_count","trend_direction","severity","created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoEvidenceQualityInsightRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_adapter_performance_insights
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoAdapterPerformanceInsightRow = {
+  id: string;
+  workspace_id: string;
+  snapshot_id: string | null;
+  adapter_key: string;
+  success_count: number;
+  failure_count: number;
+  correction_count: number;
+  trend_direction: string;
+  severity: string;
+  created_at: string;
+};
+
+export const AGENT_PMO_ADAPTER_PERFORMANCE_INSIGHT_COLUMNS = [
+  "id","workspace_id","snapshot_id","adapter_key","success_count",
+  "failure_count","correction_count","trend_direction","severity","created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoAdapterPerformanceInsightRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_review_routing_insights
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoReviewRoutingInsightRow = {
+  id: string;
+  workspace_id: string;
+  snapshot_id: string | null;
+  total_routing_signals: number;
+  effective_count: number;
+  ineffective_count: number;
+  trend_direction: string;
+  severity: string;
+  created_at: string;
+};
+
+export const AGENT_PMO_REVIEW_ROUTING_INSIGHT_COLUMNS = [
+  "id","workspace_id","snapshot_id","total_routing_signals","effective_count",
+  "ineffective_count","trend_direction","severity","created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoReviewRoutingInsightRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_governance_feedback_queue
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoGovernanceFeedbackQueueRow = {
+  id: string;
+  workspace_id: string;
+  feedback_id: string;
+  feedback_type: string;
+  feedback_category: string;
+  feedback_severity: string;
+  status: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_GOVERNANCE_FEEDBACK_QUEUE_COLUMNS = [
+  "id","workspace_id","feedback_id","feedback_type","feedback_category",
+  "feedback_severity","status","reviewed_by","reviewed_at","review_note",
+  "created_at","updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoGovernanceFeedbackQueueRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_policy_proposals
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoPolicyProposalRow = {
+  id: string;
+  workspace_id: string;
+  proposal_type: string;
+  status: string;
+  title: string;
+  rationale: string;
+  source_type: string;
+  source_ids_json: string[];
+  proposed_by: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  decision: string | null;
+  decision_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_POLICY_PROPOSAL_COLUMNS = [
+  "id","workspace_id","proposal_type","status","title","rationale",
+  "source_type","source_ids_json","proposed_by","reviewed_by","reviewed_at",
+  "decision","decision_note","created_at","updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoPolicyProposalRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_governance_report_exports
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoGovernanceReportExportRow = {
+  id: string;
+  workspace_id: string;
+  snapshot_id: string | null;
+  format: string;
+  status: string;
+  safe_report_json: Record<string, unknown> | null;
+  blocked_reasons_json: string[];
+  download_count: number;
+  requested_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_GOVERNANCE_REPORT_EXPORT_COLUMNS = [
+  "id","workspace_id","snapshot_id","format","status","safe_report_json",
+  "blocked_reasons_json","download_count","requested_by","created_at","updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoGovernanceReportExportRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_governance_dashboard_events
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoGovernanceDashboardEventRow = {
+  id: string;
+  workspace_id: string | null;
+  snapshot_id: string | null;
+  card_id: string | null;
+  proposal_id: string | null;
+  export_id: string | null;
+  event_type: string;
+  message: string | null;
+  actor_id: string | null;
+  created_at: string;
+};
+
+export const AGENT_PMO_GOVERNANCE_DASHBOARD_EVENT_COLUMNS = [
+  "id","workspace_id","snapshot_id","card_id","proposal_id","export_id",
+  "event_type","message","actor_id","created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoGovernanceDashboardEventRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop-controlled-pmo-governance-intelligence-dashboard" as const;
