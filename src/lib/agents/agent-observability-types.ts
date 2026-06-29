@@ -87,7 +87,19 @@ export type AgentAuditEventType =
   | "review_assignment_completed"
   | "action_draft_created"
   | "action_draft_updated"
-  | "action_draft_cancelled";
+  | "action_draft_cancelled"
+  | "action_conversion_created"
+  | "action_conversion_preflight_started"
+  | "action_conversion_preflight_passed"
+  | "action_conversion_preflight_failed"
+  | "action_conversion_approval_required"
+  | "action_conversion_approval_not_required"
+  | "action_conversion_approval_bridge_created"
+  | "action_conversion_approval_satisfied"
+  | "action_conversion_execution_request_created"
+  | "action_conversion_blocked"
+  | "action_conversion_cancelled"
+  | "action_conversion_completed";
 
 export type AgentAuditSeverity =
   | "info"
@@ -118,7 +130,8 @@ export type AgentAuditSourceType =
   | "api"
   | "agent_tool_adapter_layer"
   | "agent_execution_results_evidence_layer"
-  | "agent_human_review_action_inbox";
+  | "agent_human_review_action_inbox"
+  | "agent_controlled_action_conversion_approval_bridge";
 
 export type AgentAuditScopeType =
   | "workspace"

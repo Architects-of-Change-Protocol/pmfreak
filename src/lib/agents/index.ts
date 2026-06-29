@@ -483,3 +483,72 @@ export {
   listReviewQueues,
   listReviewItems,
 } from "./agent-review-inbox-service";
+
+export type {
+  AgentActionConversionStatus,
+  AgentActionConversionReadiness,
+  AgentActionConversionRiskLevel,
+  AgentActionConversionPreflightStatus,
+  AgentActionConversionPreflightCheckType,
+  AgentActionApprovalRequirement,
+  AgentActionApprovalBridgeStatus,
+  AgentActionExecutionRequestCreationStatus,
+  AgentActionConversionEventType,
+  AgentActionDraftToExecutionMapping,
+  AgentActionConversionRecord,
+  AgentActionConversionPreflightRecord,
+  AgentActionConversionPreflightCheckResult,
+  AgentActionApprovalBridgeRecord,
+  AgentActionConversionEventRecord,
+  CreateAgentActionConversionInput,
+  RunAgentActionConversionPreflightInput,
+  CreateAgentActionApprovalBridgeInput,
+  CreateExecutionRequestFromActionDraftInput,
+  AgentActionConversionListFilters,
+} from "./agent-action-conversion-types";
+
+export {
+  validateAgentActionConversionStatus,
+  validateAgentActionConversionReadiness,
+  validateAgentActionConversionRiskLevel,
+  validateAgentActionConversionPreflightStatus,
+  validateAgentActionConversionPreflightCheckType,
+  validateAgentActionApprovalRequirement,
+  validateAgentActionApprovalBridgeStatus,
+  validateAgentActionExecutionRequestCreationStatus,
+  validateAgentActionConversionEventType,
+  assertActionConversionPayloadSerializable,
+  redactActionConversionPayload,
+  normalizeCreateAgentActionConversionInput,
+  normalizeCreateAgentActionApprovalBridgeInput,
+  calculateActionConversionReadiness,
+  evaluateApprovalRequirement,
+  getActionDraftToExecutionMapping,
+} from "./agent-action-conversion-validation";
+
+export {
+  createAgentActionConversion,
+  getAgentActionConversionById,
+  getAgentActionConversionByActionDraftId,
+  listAgentActionConversions,
+  updateAgentActionConversionStatus,
+  createAgentActionConversionPreflight,
+  getLatestAgentActionConversionPreflight,
+  createAgentActionApprovalBridge,
+  getAgentActionApprovalBridgeById,
+  getAgentActionApprovalBridgeByConversionId,
+  updateAgentActionApprovalBridgeStatus,
+  recordAgentActionConversionEvent,
+  listAgentActionConversionEvents,
+  _clearActionConversionStores,
+} from "./agent-action-conversion-registry";
+
+export {
+  createConversionFromActionDraft,
+  runActionConversionPreflight,
+  evaluateActionApprovalBridge,
+  createExecutionRequestFromActionDraft,
+  cancelActionConversion,
+  markApprovalBridgeSatisfied,
+  buildActionConversionSummary,
+} from "./agent-action-conversion-service";
