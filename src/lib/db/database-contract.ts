@@ -8328,4 +8328,376 @@ export const AGENT_PMO_APPROVAL_PACK_EVENT_COLUMNS = [
   "actor_id", "created_at",
 ] as const satisfies ReadonlyArray<keyof AgentPmoApprovalPackEventRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop-controlled-pmo-governance-intelligence-dashboard-pmo-governance-proposal-review-controlled-policy-change-backlog-controlled-governance-policy-simulation-report-pmo-approval-pack-controlled-policy-implementation-planning-workspace" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_dry_run_execution_requests
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDryRunExecutionRequestRow = {
+  id: string;
+  workspace_id: string;
+  planning_workspace_id: string;
+  approval_pack_id: string | null;
+  change_request_id: string | null;
+  requested_by: string | null;
+  request_reason: string;
+  request_status: string;
+  request_version: number;
+  safe_request_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_DRY_RUN_EXECUTION_REQUEST_COLUMNS = [
+  "id", "workspace_id", "planning_workspace_id", "approval_pack_id", "change_request_id",
+  "requested_by", "request_reason", "request_status", "request_version",
+  "safe_request_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDryRunExecutionRequestRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_dry_run_preflight_validations
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDryRunPreflightValidationRow = {
+  id: string;
+  workspace_id: string;
+  dry_run_request_id: string;
+  preflight_status: string;
+  checks_total: number;
+  checks_passed: number;
+  checks_failed: number;
+  checks_blocked: number;
+  safe_preflight_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_DRY_RUN_PREFLIGHT_VALIDATION_COLUMNS = [
+  "id", "workspace_id", "dry_run_request_id", "preflight_status",
+  "checks_total", "checks_passed", "checks_failed", "checks_blocked",
+  "safe_preflight_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDryRunPreflightValidationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_dry_run_gate_approvals
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDryRunGateApprovalRow = {
+  id: string;
+  workspace_id: string;
+  dry_run_request_id: string;
+  gate_approval_status: string;
+  reviewed_by: string | null;
+  safe_approval_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_DRY_RUN_GATE_APPROVAL_COLUMNS = [
+  "id", "workspace_id", "dry_run_request_id", "gate_approval_status",
+  "reviewed_by", "safe_approval_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDryRunGateApprovalRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_dry_run_gate_decisions
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDryRunGateDecisionRow = {
+  id: string;
+  workspace_id: string;
+  gate_approval_id: string;
+  dry_run_request_id: string;
+  decision_type: string;
+  rationale: string;
+  decided_by: string | null;
+  created_at: string;
+};
+
+export const AGENT_PMO_DRY_RUN_GATE_DECISION_COLUMNS = [
+  "id", "workspace_id", "gate_approval_id", "dry_run_request_id",
+  "decision_type", "rationale", "decided_by", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDryRunGateDecisionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_dry_run_change_sets
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDryRunChangeSetRow = {
+  id: string;
+  workspace_id: string;
+  dry_run_request_id: string;
+  planning_workspace_id: string;
+  approval_pack_id: string | null;
+  change_request_id: string | null;
+  simulated_change_count: number;
+  policy_area: string | null;
+  safe_change_summary: string;
+  safe_change_set_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_DRY_RUN_CHANGE_SET_COLUMNS = [
+  "id", "workspace_id", "dry_run_request_id", "planning_workspace_id",
+  "approval_pack_id", "change_request_id", "simulated_change_count", "policy_area",
+  "safe_change_summary", "safe_change_set_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDryRunChangeSetRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_dry_run_change_set_items
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDryRunChangeSetItemRow = {
+  id: string;
+  workspace_id: string;
+  change_set_id: string;
+  dry_run_request_id: string;
+  change_type: string;
+  safe_change_summary: string;
+  safe_change_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_DRY_RUN_CHANGE_SET_ITEM_COLUMNS = [
+  "id", "workspace_id", "change_set_id", "dry_run_request_id",
+  "change_type", "safe_change_summary", "safe_change_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDryRunChangeSetItemRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_simulated_policy_versions
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoSimulatedPolicyVersionRow = {
+  id: string;
+  workspace_id: string;
+  dry_run_request_id: string;
+  change_set_id: string | null;
+  simulated_version_label: string;
+  baseline_label: string;
+  target_label: string;
+  unknown_baseline: boolean;
+  simulated_policy_payload_json: Record<string, unknown>;
+  safe_diff_payload_json: Record<string, unknown>;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_SIMULATED_POLICY_VERSION_COLUMNS = [
+  "id", "workspace_id", "dry_run_request_id", "change_set_id",
+  "simulated_version_label", "baseline_label", "target_label", "unknown_baseline",
+  "simulated_policy_payload_json", "safe_diff_payload_json", "status",
+  "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoSimulatedPolicyVersionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_dry_run_simulation_executions
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDryRunSimulationExecutionRow = {
+  id: string;
+  workspace_id: string;
+  dry_run_request_id: string;
+  preflight_validation_id: string | null;
+  gate_approval_id: string | null;
+  change_set_id: string | null;
+  simulated_policy_version_id: string | null;
+  execution_status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  safe_execution_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_DRY_RUN_SIMULATION_EXECUTION_COLUMNS = [
+  "id", "workspace_id", "dry_run_request_id", "preflight_validation_id",
+  "gate_approval_id", "change_set_id", "simulated_policy_version_id",
+  "execution_status", "started_at", "completed_at",
+  "safe_execution_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDryRunSimulationExecutionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_dry_run_simulated_impacts
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDryRunSimulatedImpactRow = {
+  id: string;
+  workspace_id: string;
+  dry_run_execution_id: string;
+  dry_run_request_id: string;
+  impact_domain: string;
+  impact_level: string;
+  impact_summary: string;
+  affected_count: number;
+  safe_impact_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_DRY_RUN_SIMULATED_IMPACT_COLUMNS = [
+  "id", "workspace_id", "dry_run_execution_id", "dry_run_request_id",
+  "impact_domain", "impact_level", "impact_summary", "affected_count",
+  "safe_impact_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDryRunSimulatedImpactRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_dry_run_evidence_packages
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDryRunEvidencePackageRow = {
+  id: string;
+  workspace_id: string;
+  dry_run_request_id: string;
+  package_status: string;
+  safe_package_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_DRY_RUN_EVIDENCE_PACKAGE_COLUMNS = [
+  "id", "workspace_id", "dry_run_request_id", "package_status",
+  "safe_package_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDryRunEvidencePackageRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_dry_run_evidence_sections
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDryRunEvidenceSectionRow = {
+  id: string;
+  workspace_id: string;
+  evidence_package_id: string;
+  dry_run_request_id: string;
+  section_type: string;
+  safe_section_content: string;
+  safe_markdown: string;
+  created_at: string;
+};
+
+export const AGENT_PMO_DRY_RUN_EVIDENCE_SECTION_COLUMNS = [
+  "id", "workspace_id", "evidence_package_id", "dry_run_request_id",
+  "section_type", "safe_section_content", "safe_markdown", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDryRunEvidenceSectionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_dry_run_blockers
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDryRunBlockerRow = {
+  id: string;
+  workspace_id: string;
+  dry_run_request_id: string;
+  blocker_type: string;
+  blocker_status: string;
+  severity: string;
+  summary: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_DRY_RUN_BLOCKER_COLUMNS = [
+  "id", "workspace_id", "dry_run_request_id", "blocker_type",
+  "blocker_status", "severity", "summary", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDryRunBlockerRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_dry_run_operator_reviews
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDryRunOperatorReviewRow = {
+  id: string;
+  workspace_id: string;
+  dry_run_request_id: string;
+  evidence_package_id: string | null;
+  review_status: string;
+  review_decision: string | null;
+  review_rationale: string | null;
+  reviewed_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_DRY_RUN_OPERATOR_REVIEW_COLUMNS = [
+  "id", "workspace_id", "dry_run_request_id", "evidence_package_id",
+  "review_status", "review_decision", "review_rationale", "reviewed_by",
+  "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDryRunOperatorReviewRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_dry_run_decisions
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDryRunDecisionRow = {
+  id: string;
+  workspace_id: string;
+  dry_run_request_id: string;
+  decision_type: string;
+  decision_status: string;
+  rationale: string;
+  decided_by: string | null;
+  created_at: string;
+};
+
+export const AGENT_PMO_DRY_RUN_DECISION_COLUMNS = [
+  "id", "workspace_id", "dry_run_request_id", "decision_type",
+  "decision_status", "rationale", "decided_by", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDryRunDecisionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_dry_run_exports
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDryRunExportRow = {
+  id: string;
+  workspace_id: string;
+  dry_run_request_id: string;
+  export_format: string;
+  export_status: string;
+  safe_export_content: string;
+  export_size_bytes: number;
+  safety_validation_passed: boolean;
+  created_by: string | null;
+  created_at: string;
+};
+
+export const AGENT_PMO_DRY_RUN_EXPORT_COLUMNS = [
+  "id", "workspace_id", "dry_run_request_id", "export_format", "export_status",
+  "safe_export_content", "export_size_bytes", "safety_validation_passed",
+  "created_by", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDryRunExportRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_dry_run_events
+// Source: 20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDryRunEventRow = {
+  id: string;
+  workspace_id: string;
+  dry_run_request_id: string | null;
+  event_type: string;
+  message: string | null;
+  safe_event_payload_json: Record<string, unknown>;
+  actor_id: string | null;
+  created_at: string;
+};
+
+export const AGENT_PMO_DRY_RUN_EVENT_COLUMNS = [
+  "id", "workspace_id", "dry_run_request_id", "event_type",
+  "message", "safe_event_payload_json", "actor_id", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDryRunEventRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop-controlled-pmo-governance-intelligence-dashboard-pmo-governance-proposal-review-controlled-policy-change-backlog-controlled-governance-policy-simulation-report-pmo-approval-pack-controlled-policy-implementation-planning-workspace-controlled-policy-implementation-gate-dry-run-change-executor" as const;
