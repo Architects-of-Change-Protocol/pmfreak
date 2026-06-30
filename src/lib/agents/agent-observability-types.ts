@@ -237,7 +237,25 @@ export type AgentAuditEventType =
   | "pmo_policy_rollback_verification_completed"
   | "pmo_post_activation_monitoring_hook_created"
   | "pmo_policy_activation_export_created"
-  | "pmo_policy_activation_request_archived";
+  | "pmo_policy_activation_request_archived"
+  | "pmo_project_handoff_request_created"
+  | "pmo_project_handoff_context_validation_created"
+  | "pmo_project_handoff_context_validation_completed"
+  | "pmo_project_handoff_gate_created"
+  | "pmo_project_handoff_gate_decision_recorded"
+  | "pmo_project_handoff_pack_created"
+  | "pmo_project_memory_snapshot_created"
+  | "pmo_project_status_snapshot_created"
+  | "pmo_project_handoff_snapshot_item_created"
+  | "pmo_project_stakeholder_context_snapshot_created"
+  | "pmo_outgoing_pm_note_recorded"
+  | "pmo_incoming_pm_acceptance_recorded"
+  | "pmo_project_assignment_pointer_updated"
+  | "pmo_project_assignment_history_recorded"
+  | "pmo_project_handoff_continuity_check_created"
+  | "pmo_project_handoff_continuity_check_completed"
+  | "pmo_project_handoff_export_created"
+  | "pmo_project_handoff_request_archived";
 
 export type AgentAuditSeverity =
   | "info"
@@ -278,7 +296,8 @@ export type AgentAuditSourceType =
   | "agent_controlled_governance_policy_simulation_report_pmo_approval_pack"
   | "agent_controlled_policy_implementation_planning_workspace"
   | "agent_controlled_policy_implementation_gate_dry_run_change_executor"
-  | "agent_controlled_policy_version_activation_rollback_gate";
+  | "agent_controlled_policy_version_activation_rollback_gate"
+  | "agent_controlled_project_intelligence_handoff";
 
 export type AgentAuditScopeType =
   | "workspace"

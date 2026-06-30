@@ -9086,4 +9086,404 @@ export const AGENT_PMO_POLICY_ACTIVATION_EVENT_COLUMNS = [
   "message", "safe_event_payload_json", "actor_id", "created_at",
 ] as const satisfies ReadonlyArray<keyof AgentPmoPolicyActivationEventRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop-controlled-pmo-governance-intelligence-dashboard-pmo-governance-proposal-review-controlled-policy-change-backlog-controlled-governance-policy-simulation-report-pmo-approval-pack-controlled-policy-implementation-planning-workspace-controlled-policy-implementation-gate-dry-run-change-executor-controlled-policy-version-activation-rollback-gate" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_project_handoff_requests
+// Source: 20260813000000_agent_controlled_project_intelligence_handoff.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoProjectHandoffRequestRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  current_pm_id: string | null;
+  incoming_pm_id: string;
+  requested_by_id: string | null;
+  handoff_reason: string;
+  handoff_urgency: string;
+  request_reason: string;
+  status: string;
+  effective_date: string | null;
+  request_version: number;
+  safe_request_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_PROJECT_HANDOFF_REQUEST_COLUMNS = [
+  "id", "workspace_id", "project_id", "current_pm_id", "incoming_pm_id",
+  "requested_by_id", "handoff_reason", "handoff_urgency", "request_reason",
+  "status", "effective_date", "request_version", "safe_request_payload_json",
+  "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoProjectHandoffRequestRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_project_context_validations
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoProjectContextValidationRow = {
+  id: string;
+  workspace_id: string;
+  handoff_request_id: string;
+  check_key: string;
+  check_label: string;
+  status: string;
+  finding: string;
+  limitation: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_PROJECT_CONTEXT_VALIDATION_COLUMNS = [
+  "id", "workspace_id", "handoff_request_id", "check_key", "check_label",
+  "status", "finding", "limitation", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoProjectContextValidationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_project_handoff_gates
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoProjectHandoffGateRow = {
+  id: string;
+  workspace_id: string;
+  handoff_request_id: string;
+  gate_status: string;
+  reviewed_by_id: string | null;
+  safe_gate_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_PROJECT_HANDOFF_GATE_COLUMNS = [
+  "id", "workspace_id", "handoff_request_id", "gate_status",
+  "reviewed_by_id", "safe_gate_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoProjectHandoffGateRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_project_handoff_gate_decisions
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoProjectHandoffGateDecisionRow = {
+  id: string;
+  workspace_id: string;
+  handoff_gate_id: string;
+  handoff_request_id: string;
+  decision: string;
+  rationale: string;
+  decided_by_id: string | null;
+  decided_at: string;
+  created_at: string;
+};
+
+export const AGENT_PMO_PROJECT_HANDOFF_GATE_DECISION_COLUMNS = [
+  "id", "workspace_id", "handoff_gate_id", "handoff_request_id",
+  "decision", "rationale", "decided_by_id", "decided_at", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoProjectHandoffGateDecisionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_project_handoff_packs
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoProjectHandoffPackRow = {
+  id: string;
+  workspace_id: string;
+  handoff_request_id: string;
+  current_pm_id: string | null;
+  incoming_pm_id: string;
+  handoff_reason: string;
+  pack_status: string;
+  executive_summary: string;
+  current_project_state: string;
+  health_summary: string;
+  schedule_summary: string;
+  delivery_summary: string;
+  financial_summary: string | null;
+  risk_summary: string;
+  blocker_summary: string;
+  open_decision_summary: string;
+  dependency_summary: string;
+  stakeholder_summary: string;
+  commitment_summary: string;
+  milestone_summary: string;
+  recommended_first_actions: string;
+  limitations: string;
+  safe_pack_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_PROJECT_HANDOFF_PACK_COLUMNS = [
+  "id", "workspace_id", "handoff_request_id", "current_pm_id", "incoming_pm_id",
+  "handoff_reason", "pack_status", "executive_summary", "current_project_state",
+  "health_summary", "schedule_summary", "delivery_summary", "financial_summary",
+  "risk_summary", "blocker_summary", "open_decision_summary", "dependency_summary",
+  "stakeholder_summary", "commitment_summary", "milestone_summary",
+  "recommended_first_actions", "limitations", "safe_pack_payload_json",
+  "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoProjectHandoffPackRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_project_memory_snapshots
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoProjectMemorySnapshotRow = {
+  id: string;
+  workspace_id: string;
+  handoff_request_id: string;
+  category: string;
+  snapshot_status: string;
+  summary: string;
+  limitation: string | null;
+  item_count: number;
+  safe_snapshot_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_PROJECT_MEMORY_SNAPSHOT_COLUMNS = [
+  "id", "workspace_id", "handoff_request_id", "category", "snapshot_status",
+  "summary", "limitation", "item_count", "safe_snapshot_payload_json",
+  "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoProjectMemorySnapshotRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_project_status_snapshots
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoProjectStatusSnapshotRow = {
+  id: string;
+  workspace_id: string;
+  handoff_request_id: string;
+  project_health: string;
+  schedule_health: string;
+  scope_health: string;
+  budget_health: string;
+  delivery_phase: string | null;
+  completion_estimate: string | null;
+  upcoming_milestone_count: number;
+  active_risk_count: number;
+  active_blocker_count: number;
+  open_decision_count: number;
+  pending_action_count: number;
+  safe_status_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_PROJECT_STATUS_SNAPSHOT_COLUMNS = [
+  "id", "workspace_id", "handoff_request_id", "project_health", "schedule_health",
+  "scope_health", "budget_health", "delivery_phase", "completion_estimate",
+  "upcoming_milestone_count", "active_risk_count", "active_blocker_count",
+  "open_decision_count", "pending_action_count", "safe_status_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoProjectStatusSnapshotRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_project_handoff_snapshot_items
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoProjectHandoffSnapshotItemRow = {
+  id: string;
+  workspace_id: string;
+  handoff_request_id: string;
+  item_type: string;
+  title: string;
+  description: string;
+  item_status: string;
+  severity: string;
+  due_date: string | null;
+  source_ref: string | null;
+  safe_item_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_PROJECT_HANDOFF_SNAPSHOT_ITEM_COLUMNS = [
+  "id", "workspace_id", "handoff_request_id", "item_type", "title",
+  "description", "item_status", "severity", "due_date", "source_ref",
+  "safe_item_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoProjectHandoffSnapshotItemRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_stakeholder_context_snapshots
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoStakeholderContextSnapshotRow = {
+  id: string;
+  workspace_id: string;
+  handoff_request_id: string;
+  stakeholder_type: string;
+  role_label: string;
+  context_summary: string;
+  stakeholder_status: string;
+  safe_context_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_STAKEHOLDER_CONTEXT_SNAPSHOT_COLUMNS = [
+  "id", "workspace_id", "handoff_request_id", "stakeholder_type", "role_label",
+  "context_summary", "stakeholder_status", "safe_context_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoStakeholderContextSnapshotRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_outgoing_pm_notes
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoOutgoingPmNoteRow = {
+  id: string;
+  workspace_id: string;
+  handoff_request_id: string;
+  note_type: string;
+  note_text: string;
+  note_status: string;
+  author_id: string | null;
+  safe_note_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_OUTGOING_PM_NOTE_COLUMNS = [
+  "id", "workspace_id", "handoff_request_id", "note_type", "note_text",
+  "note_status", "author_id", "safe_note_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoOutgoingPmNoteRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_incoming_pm_acceptances
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoIncomingPmAcceptanceRow = {
+  id: string;
+  workspace_id: string;
+  handoff_request_id: string;
+  handoff_pack_id: string | null;
+  incoming_pm_id: string;
+  decision: string;
+  rationale: string;
+  acceptance_status: string;
+  safe_acceptance_payload_json: Record<string, unknown>;
+  decided_at: string;
+  created_at: string;
+};
+
+export const AGENT_PMO_INCOMING_PM_ACCEPTANCE_COLUMNS = [
+  "id", "workspace_id", "handoff_request_id", "handoff_pack_id", "incoming_pm_id",
+  "decision", "rationale", "acceptance_status", "safe_acceptance_payload_json",
+  "decided_at", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoIncomingPmAcceptanceRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_controlled_project_assignment_pointers
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoControlledProjectAssignmentPointerRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  active_pm_id: string;
+  previous_pm_id: string | null;
+  handoff_request_id: string | null;
+  handoff_completed_by_id: string | null;
+  handoff_completed_at: string | null;
+  assignment_version: number;
+  handoff_reason: string | null;
+  safe_assignment_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_CONTROLLED_PROJECT_ASSIGNMENT_POINTER_COLUMNS = [
+  "id", "workspace_id", "project_id", "active_pm_id", "previous_pm_id",
+  "handoff_request_id", "handoff_completed_by_id", "handoff_completed_at",
+  "assignment_version", "handoff_reason", "safe_assignment_payload_json",
+  "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoControlledProjectAssignmentPointerRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_project_assignment_history
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoProjectAssignmentHistoryRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  handoff_request_id: string | null;
+  previous_pm_id: string | null;
+  new_pm_id: string;
+  assignment_reason: string;
+  assignment_source: string;
+  effective_date: string | null;
+  completed_by_id: string | null;
+  completed_at: string;
+  safe_history_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_PROJECT_ASSIGNMENT_HISTORY_COLUMNS = [
+  "id", "workspace_id", "project_id", "handoff_request_id", "previous_pm_id",
+  "new_pm_id", "assignment_reason", "assignment_source", "effective_date",
+  "completed_by_id", "completed_at", "safe_history_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoProjectAssignmentHistoryRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_handoff_continuity_checks
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoHandoffContinuityCheckRow = {
+  id: string;
+  workspace_id: string;
+  handoff_request_id: string;
+  check_type: string;
+  check_status: string;
+  rationale: string | null;
+  completed_at: string | null;
+  safe_check_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_HANDOFF_CONTINUITY_CHECK_COLUMNS = [
+  "id", "workspace_id", "handoff_request_id", "check_type", "check_status",
+  "rationale", "completed_at", "safe_check_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoHandoffContinuityCheckRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_project_handoff_exports
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoProjectHandoffExportRow = {
+  id: string;
+  workspace_id: string;
+  handoff_request_id: string;
+  export_format: string;
+  export_status: string;
+  safe_export_content: string;
+  export_size_bytes: number;
+  safety_validation_passed: boolean;
+  created_by_id: string | null;
+  created_at: string;
+};
+
+export const AGENT_PMO_PROJECT_HANDOFF_EXPORT_COLUMNS = [
+  "id", "workspace_id", "handoff_request_id", "export_format", "export_status",
+  "safe_export_content", "export_size_bytes", "safety_validation_passed",
+  "created_by_id", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoProjectHandoffExportRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_project_handoff_audit_events
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoProjectHandoffAuditEventRow = {
+  id: string;
+  workspace_id: string;
+  handoff_request_id: string | null;
+  event_type: string;
+  message: string | null;
+  safe_event_payload_json: Record<string, unknown>;
+  actor_id: string | null;
+  created_at: string;
+};
+
+export const AGENT_PMO_PROJECT_HANDOFF_AUDIT_EVENT_COLUMNS = [
+  "id", "workspace_id", "handoff_request_id", "event_type", "message",
+  "safe_event_payload_json", "actor_id", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoProjectHandoffAuditEventRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop-controlled-pmo-governance-intelligence-dashboard-pmo-governance-proposal-review-controlled-policy-change-backlog-controlled-governance-policy-simulation-report-pmo-approval-pack-controlled-policy-implementation-planning-workspace-controlled-policy-implementation-gate-dry-run-change-executor-controlled-policy-version-activation-rollback-gate-controlled-project-intelligence-handoff" as const;
