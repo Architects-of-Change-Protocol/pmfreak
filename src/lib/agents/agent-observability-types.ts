@@ -196,7 +196,25 @@ export type AgentAuditEventType =
   | "pmo_implementation_gate_prerequisite_recorded"
   | "pmo_implementation_planning_decision_recorded"
   | "pmo_implementation_planning_export_created"
-  | "pmo_implementation_planning_workspace_archived";
+  | "pmo_implementation_planning_workspace_archived"
+  | "pmo_dry_run_request_created"
+  | "pmo_dry_run_preflight_created"
+  | "pmo_dry_run_preflight_completed"
+  | "pmo_dry_run_gate_approval_created"
+  | "pmo_dry_run_gate_decision_recorded"
+  | "pmo_dry_run_change_set_created"
+  | "pmo_simulated_policy_version_created"
+  | "pmo_dry_run_execution_created"
+  | "pmo_dry_run_execution_started"
+  | "pmo_dry_run_execution_completed"
+  | "pmo_dry_run_execution_failed"
+  | "pmo_dry_run_simulated_impact_recorded"
+  | "pmo_dry_run_evidence_package_created"
+  | "pmo_dry_run_blocker_recorded"
+  | "pmo_dry_run_operator_review_recorded"
+  | "pmo_dry_run_decision_recorded"
+  | "pmo_dry_run_export_created"
+  | "pmo_dry_run_request_archived";
 
 export type AgentAuditSeverity =
   | "info"
@@ -235,7 +253,8 @@ export type AgentAuditSourceType =
   | "agent_controlled_pmo_governance_intelligence_dashboard"
   | "agent_pmo_governance_proposal_review_controlled_policy_change_backlog"
   | "agent_controlled_governance_policy_simulation_report_pmo_approval_pack"
-  | "agent_controlled_policy_implementation_planning_workspace";
+  | "agent_controlled_policy_implementation_planning_workspace"
+  | "agent_controlled_policy_implementation_gate_dry_run_change_executor";
 
 export type AgentAuditScopeType =
   | "workspace"
