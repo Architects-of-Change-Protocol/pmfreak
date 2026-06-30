@@ -7833,6 +7833,8 @@ export const AGENT_PMO_SIGNOFF_PACKET_COLUMNS = [
   "created_by", "created_at", "updated_at",
 ] as const satisfies ReadonlyArray<keyof AgentPmoSignOffPacketRow>;
 
+export type AgentPmoSignoffPacketRow = AgentPmoSignOffPacketRow;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // agent_pmo_signoff_decisions
 // Source: 20260809000000_agent_controlled_governance_policy_simulation_report_pmo_approval_pack.sql
@@ -7941,6 +7943,343 @@ export const AGENT_PMO_IMPLEMENTATION_TICKET_DRAFT_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof AgentPmoImplementationTicketDraftRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_implementation_planning_workspaces
+// Source: 20260810000000_agent_controlled_policy_implementation_planning_workspace.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoImplementationPlanningWorkspaceRow = {
+  id: string;
+  workspace_id: string;
+  approval_pack_id: string | null;
+  change_request_id: string | null;
+  signoff_packet_id: string | null;
+  implementation_ticket_draft_id: string | null;
+  planning_owner_role: string | null;
+  planning_version: number;
+  status: string;
+  title: string;
+  summary: string;
+  safe_planning_payload_json: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_IMPLEMENTATION_PLANNING_WORKSPACE_COLUMNS = [
+  "id", "workspace_id", "approval_pack_id", "change_request_id", "signoff_packet_id",
+  "implementation_ticket_draft_id", "planning_owner_role", "planning_version", "status",
+  "title", "summary", "safe_planning_payload_json", "created_by", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoImplementationPlanningWorkspaceRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_implementation_plan_drafts
+// Source: 20260810000000_agent_controlled_policy_implementation_planning_workspace.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoImplementationPlanDraftRow = {
+  id: string;
+  workspace_id: string;
+  planning_workspace_id: string;
+  approval_pack_id: string | null;
+  change_request_id: string | null;
+  plan_version: number;
+  status: string;
+  implementation_objective: string;
+  implementation_scope: string;
+  non_goals: string;
+  assumptions: string;
+  constraints: string;
+  safe_plan_payload_json: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_IMPLEMENTATION_PLAN_DRAFT_COLUMNS = [
+  "id", "workspace_id", "planning_workspace_id", "approval_pack_id", "change_request_id",
+  "plan_version", "status", "implementation_objective", "implementation_scope", "non_goals",
+  "assumptions", "constraints", "safe_plan_payload_json", "created_by", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoImplementationPlanDraftRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_implementation_task_breakdowns
+// Source: 20260810000000_agent_controlled_policy_implementation_planning_workspace.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoImplementationTaskBreakdownRow = {
+  id: string;
+  workspace_id: string;
+  planning_workspace_id: string;
+  plan_draft_id: string | null;
+  task_type: string;
+  status: string;
+  task_order: number;
+  title: string;
+  description: string;
+  owner_role: string | null;
+  blocking_reason: string | null;
+  safe_task_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_IMPLEMENTATION_TASK_BREAKDOWN_COLUMNS = [
+  "id", "workspace_id", "planning_workspace_id", "plan_draft_id", "task_type",
+  "status", "task_order", "title", "description", "owner_role", "blocking_reason",
+  "safe_task_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoImplementationTaskBreakdownRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_pre_implementation_checklists
+// Source: 20260810000000_agent_controlled_policy_implementation_planning_workspace.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoPreImplementationChecklistRow = {
+  id: string;
+  workspace_id: string;
+  planning_workspace_id: string;
+  approval_pack_id: string | null;
+  status: string;
+  total_items: number;
+  passed_items: number;
+  failed_items: number;
+  blocked_items: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_PRE_IMPLEMENTATION_CHECKLIST_COLUMNS = [
+  "id", "workspace_id", "planning_workspace_id", "approval_pack_id", "status",
+  "total_items", "passed_items", "failed_items", "blocked_items", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoPreImplementationChecklistRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_pre_implementation_checklist_items
+// Source: 20260810000000_agent_controlled_policy_implementation_planning_workspace.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoPreImplementationChecklistItemRow = {
+  id: string;
+  workspace_id: string;
+  checklist_id: string;
+  item_key: string;
+  item_label: string;
+  status: string;
+  source_record_id: string | null;
+  blocking_reason: string | null;
+  created_at: string;
+};
+
+export const AGENT_PMO_PRE_IMPLEMENTATION_CHECKLIST_ITEM_COLUMNS = [
+  "id", "workspace_id", "checklist_id", "item_key", "item_label", "status",
+  "source_record_id", "blocking_reason", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoPreImplementationChecklistItemRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_stakeholder_readiness_records
+// Source: 20260810000000_agent_controlled_policy_implementation_planning_workspace.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoStakeholderReadinessRow = {
+  id: string;
+  workspace_id: string;
+  planning_workspace_id: string;
+  stakeholder_role: string;
+  status: string;
+  rationale: string | null;
+  acknowledged_by: string | null;
+  acknowledged_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_STAKEHOLDER_READINESS_COLUMNS = [
+  "id", "workspace_id", "planning_workspace_id", "stakeholder_role", "status",
+  "rationale", "acknowledged_by", "acknowledged_at", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoStakeholderReadinessRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_change_window_plans
+// Source: 20260810000000_agent_controlled_policy_implementation_planning_workspace.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoChangeWindowPlanRow = {
+  id: string;
+  workspace_id: string;
+  planning_workspace_id: string;
+  change_request_id: string | null;
+  window_type: string;
+  status: string;
+  proposed_start_at: string | null;
+  proposed_end_at: string | null;
+  timezone: string | null;
+  business_impact_estimate: string | null;
+  operational_constraints: string | null;
+  approval_required: boolean;
+  safe_window_payload_json: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_CHANGE_WINDOW_PLAN_COLUMNS = [
+  "id", "workspace_id", "planning_workspace_id", "change_request_id", "window_type",
+  "status", "proposed_start_at", "proposed_end_at", "timezone", "business_impact_estimate",
+  "operational_constraints", "approval_required", "safe_window_payload_json",
+  "created_by", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoChangeWindowPlanRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_implementation_risks
+// Source: 20260810000000_agent_controlled_policy_implementation_planning_workspace.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoImplementationRiskRow = {
+  id: string;
+  workspace_id: string;
+  planning_workspace_id: string;
+  risk_type: string;
+  severity: string;
+  status: string;
+  risk_summary: string;
+  mitigation_summary: string | null;
+  owner_role: string | null;
+  safe_risk_payload_json: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_IMPLEMENTATION_RISK_COLUMNS = [
+  "id", "workspace_id", "planning_workspace_id", "risk_type", "severity", "status",
+  "risk_summary", "mitigation_summary", "owner_role", "safe_risk_payload_json",
+  "created_by", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoImplementationRiskRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_rollback_rehearsal_plans
+// Source: 20260810000000_agent_controlled_policy_implementation_planning_workspace.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoRollbackRehearsalPlanRow = {
+  id: string;
+  workspace_id: string;
+  planning_workspace_id: string;
+  rollback_plan_id: string | null;
+  rehearsal_type: string;
+  status: string;
+  rehearsal_summary: string;
+  verification_steps_json: string[];
+  expected_evidence_json: string[];
+  blocking_reasons_json: string[];
+  safe_rehearsal_payload_json: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_ROLLBACK_REHEARSAL_PLAN_COLUMNS = [
+  "id", "workspace_id", "planning_workspace_id", "rollback_plan_id", "rehearsal_type",
+  "status", "rehearsal_summary", "verification_steps_json", "expected_evidence_json",
+  "blocking_reasons_json", "safe_rehearsal_payload_json", "created_by", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoRollbackRehearsalPlanRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_implementation_gate_prerequisites
+// Source: 20260810000000_agent_controlled_policy_implementation_planning_workspace.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoImplementationGatePrerequisiteRow = {
+  id: string;
+  workspace_id: string;
+  planning_workspace_id: string;
+  prerequisite_type: string;
+  status: string;
+  rationale: string | null;
+  source_record_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_IMPLEMENTATION_GATE_PREREQUISITE_COLUMNS = [
+  "id", "workspace_id", "planning_workspace_id", "prerequisite_type", "status",
+  "rationale", "source_record_id", "created_by", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoImplementationGatePrerequisiteRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_implementation_planning_decisions
+// Source: 20260810000000_agent_controlled_policy_implementation_planning_workspace.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoImplementationPlanningDecisionRow = {
+  id: string;
+  workspace_id: string;
+  planning_workspace_id: string;
+  decision: string;
+  rationale: string;
+  decided_by: string | null;
+  decided_at: string;
+  created_at: string;
+};
+
+export const AGENT_PMO_IMPLEMENTATION_PLANNING_DECISION_COLUMNS = [
+  "id", "workspace_id", "planning_workspace_id", "decision", "rationale",
+  "decided_by", "decided_at", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoImplementationPlanningDecisionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_implementation_planning_exports
+// Source: 20260810000000_agent_controlled_policy_implementation_planning_workspace.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoImplementationPlanningExportRow = {
+  id: string;
+  workspace_id: string;
+  planning_workspace_id: string;
+  export_format: string;
+  status: string;
+  file_name: string;
+  content_type: string;
+  content_text: string | null;
+  content_json_safe: Record<string, unknown> | null;
+  safe_export_payload_json: Record<string, unknown>;
+  generated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_IMPLEMENTATION_PLANNING_EXPORT_COLUMNS = [
+  "id", "workspace_id", "planning_workspace_id", "export_format", "status",
+  "file_name", "content_type", "content_text", "content_json_safe",
+  "safe_export_payload_json", "generated_by", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoImplementationPlanningExportRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_implementation_planning_events
+// Source: 20260810000000_agent_controlled_policy_implementation_planning_workspace.sql
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoImplementationPlanningEventRow = {
+  id: string;
+  workspace_id: string;
+  planning_workspace_id: string | null;
+  plan_draft_id: string | null;
+  checklist_id: string | null;
+  export_id: string | null;
+  event_type: string;
+  message: string | null;
+  event_payload_json: Record<string, unknown> | null;
+  actor_id: string | null;
+  created_at: string;
+};
+
+export const AGENT_PMO_IMPLEMENTATION_PLANNING_EVENT_COLUMNS = [
+  "id", "workspace_id", "planning_workspace_id", "plan_draft_id", "checklist_id",
+  "export_id", "event_type", "message", "event_payload_json", "actor_id", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoImplementationPlanningEventRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // agent_pmo_approval_pack_exports
 // Source: 20260809000000_agent_controlled_governance_policy_simulation_report_pmo_approval_pack.sql
 // ─────────────────────────────────────────────────────────────────────────────
@@ -7989,4 +8328,4 @@ export const AGENT_PMO_APPROVAL_PACK_EVENT_COLUMNS = [
   "actor_id", "created_at",
 ] as const satisfies ReadonlyArray<keyof AgentPmoApprovalPackEventRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop-controlled-pmo-governance-intelligence-dashboard-pmo-governance-proposal-review-controlled-policy-change-backlog-controlled-governance-policy-simulation-report-pmo-approval-pack" as const;
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop-controlled-pmo-governance-intelligence-dashboard-pmo-governance-proposal-review-controlled-policy-change-backlog-controlled-governance-policy-simulation-report-pmo-approval-pack-controlled-policy-implementation-planning-workspace" as const;
