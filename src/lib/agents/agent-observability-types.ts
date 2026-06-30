@@ -167,7 +167,20 @@ export type AgentAuditEventType =
   | "pmo_policy_approval_decision_recorded"
   | "pmo_policy_rollback_plan_created"
   | "pmo_policy_implementation_readiness_evaluated"
-  | "pmo_policy_change_request_archived";
+  | "pmo_policy_change_request_archived"
+  | "pmo_implementation_planning_workspace_created"
+  | "pmo_implementation_plan_draft_created"
+  | "pmo_implementation_task_breakdown_created"
+  | "pmo_pre_implementation_checklist_created"
+  | "pmo_pre_implementation_checklist_item_recorded"
+  | "pmo_stakeholder_readiness_recorded"
+  | "pmo_change_window_plan_created"
+  | "pmo_implementation_risk_registered"
+  | "pmo_rollback_rehearsal_plan_created"
+  | "pmo_implementation_gate_prerequisite_recorded"
+  | "pmo_implementation_planning_decision_recorded"
+  | "pmo_implementation_planning_export_created"
+  | "pmo_implementation_planning_workspace_archived";
 
 export type AgentAuditSeverity =
   | "info"
@@ -204,7 +217,8 @@ export type AgentAuditSourceType =
   | "agent_controlled_execution_result_reconciliation_human_outcome_review"
   | "agent_controlled_execution_learning_signals_governance_feedback_loop"
   | "agent_controlled_pmo_governance_intelligence_dashboard"
-  | "agent_pmo_governance_proposal_review_controlled_policy_change_backlog";
+  | "agent_pmo_governance_proposal_review_controlled_policy_change_backlog"
+  | "agent_controlled_policy_implementation_planning_workspace";
 
 export type AgentAuditScopeType =
   | "workspace"
