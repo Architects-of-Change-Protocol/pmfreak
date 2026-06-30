@@ -64,6 +64,7 @@ import type {
   AgentPmoImplementationGatePrerequisiteRecord,
   AgentPmoImplementationPlanningDecisionRecord,
   AgentPmoImplementationPlanningExportRecord,
+  AgentPmoImplementationPlanningEventRecord,
   RecordAgentPmoImplementationPlanningDecisionInput,
   GenerateAgentPmoImplementationPlanningExportInput,
   AgentPmoImplementationTaskType,

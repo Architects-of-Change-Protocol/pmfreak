@@ -2,16 +2,17 @@ import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { updateAgentPmoImplementationRiskStatus } from "@/lib/agents";
 
-export async function POST(request: Request, { params }: { params: { riskId: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ riskId: string }> }) {
   try {
     void (await requireAuthenticatedUser());
+    const { riskId } = await params;
     const body = await request.json();
     const { workspaceId, status } = body;
     if (!workspaceId) {
       return NextResponse.json({ ok: false, error: { code: "MISSING_WORKSPACE", message: "workspaceId required" } }, { status: 400 });
     }
     await requireWorkspaceMember(workspaceId);
-    const updated = await updateAgentPmoImplementationRiskStatus(workspaceId, params.riskId, status);
+    const updated = await updateAgentPmoImplementationRiskStatus(workspaceId, riskId, status);
     if (!updated) {
       return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "Risk record not found" } }, { status: 404 });
     }

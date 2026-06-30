@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { archiveImplementationPlanningWorkspace } from "@/lib/agents";
 
-export async function POST(request: Request, { params }: { params: { planningWorkspaceId: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ planningWorkspaceId: string }> }) {
   try {
     const { user } = await requireAuthenticatedUser();
+    const { planningWorkspaceId } = await params;
     const body = await request.json();
     const { workspaceId, rationale } = body;
     if (!workspaceId) {
@@ -16,7 +17,7 @@ export async function POST(request: Request, { params }: { params: { planningWor
     await requireWorkspaceMember(workspaceId);
     const workspace = await archiveImplementationPlanningWorkspace({
       workspaceId,
-      planningWorkspaceId: params.planningWorkspaceId,
+      planningWorkspaceId,
       rationale,
       actorId: user.id ?? null,
     });

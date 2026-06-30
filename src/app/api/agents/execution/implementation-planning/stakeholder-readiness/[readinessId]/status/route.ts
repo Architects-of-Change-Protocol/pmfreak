@@ -2,16 +2,17 @@ import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { updateAgentPmoStakeholderReadinessStatus } from "@/lib/agents";
 
-export async function POST(request: Request, { params }: { params: { readinessId: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ readinessId: string }> }) {
   try {
     const { user } = await requireAuthenticatedUser();
+    const { readinessId } = await params;
     const body = await request.json();
     const { workspaceId, status } = body;
     if (!workspaceId) {
       return NextResponse.json({ ok: false, error: { code: "MISSING_WORKSPACE", message: "workspaceId required" } }, { status: 400 });
     }
     await requireWorkspaceMember(workspaceId);
-    const updated = await updateAgentPmoStakeholderReadinessStatus(workspaceId, params.readinessId, status, user.id ?? null);
+    const updated = await updateAgentPmoStakeholderReadinessStatus(workspaceId, readinessId, status, user.id ?? null);
     if (!updated) {
       return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "Stakeholder readiness record not found" } }, { status: 404 });
     }

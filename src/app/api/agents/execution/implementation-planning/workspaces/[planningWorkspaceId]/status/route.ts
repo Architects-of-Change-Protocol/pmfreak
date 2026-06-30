@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { updateAgentPmoImplementationPlanningWorkspaceStatus } from "@/lib/agents";
 
-export async function POST(request: Request, { params }: { params: { planningWorkspaceId: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ planningWorkspaceId: string }> }) {
   try {
     void (await requireAuthenticatedUser());
+    const { planningWorkspaceId } = await params;
     const body = await request.json();
     const { workspaceId, status } = body;
     if (!workspaceId) {
@@ -14,7 +15,7 @@ export async function POST(request: Request, { params }: { params: { planningWor
       return NextResponse.json({ ok: false, error: { code: "MISSING_STATUS", message: "status required" } }, { status: 400 });
     }
     await requireWorkspaceMember(workspaceId);
-    const updated = await updateAgentPmoImplementationPlanningWorkspaceStatus(workspaceId, params.planningWorkspaceId, status);
+    const updated = await updateAgentPmoImplementationPlanningWorkspaceStatus(workspaceId, planningWorkspaceId, status);
     if (!updated) {
       return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "Planning workspace not found" } }, { status: 404 });
     }
