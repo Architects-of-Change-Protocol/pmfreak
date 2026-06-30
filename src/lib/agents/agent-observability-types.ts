@@ -275,7 +275,26 @@ export type AgentAuditEventType =
   | "pmo_runtime_hardening_blocker_recorded"
   | "pmo_runtime_remediation_item_recorded"
   | "pmo_runtime_hardening_export_created"
-  | "pmo_runtime_hardening_run_archived";
+  | "pmo_runtime_hardening_run_archived"
+  | "beta_readiness_plan_created"
+  | "beta_workspace_readiness_recorded"
+  | "demo_data_bundle_created"
+  | "demo_data_bundle_validated"
+  | "demo_project_scenario_created"
+  | "demo_governance_scenario_created"
+  | "demo_handoff_scenario_created"
+  | "beta_onboarding_checklist_created"
+  | "beta_onboarding_checklist_item_recorded"
+  | "beta_user_readiness_recorded"
+  | "beta_invitation_readiness_recorded"
+  | "beta_admin_readiness_recorded"
+  | "tenant_readiness_validation_recorded"
+  | "beta_readiness_gate_created"
+  | "beta_readiness_decision_recorded"
+  | "beta_readiness_blocker_recorded"
+  | "beta_readiness_remediation_recorded"
+  | "beta_readiness_export_created"
+  | "beta_readiness_plan_archived";
 
 export type AgentAuditSeverity =
   | "info"
@@ -318,7 +337,8 @@ export type AgentAuditSourceType =
   | "agent_controlled_policy_implementation_gate_dry_run_change_executor"
   | "agent_controlled_policy_version_activation_rollback_gate"
   | "agent_controlled_project_intelligence_handoff"
-  | "agent_end_to_end_governance_runtime_integration_production_hardening";
+  | "agent_end_to_end_governance_runtime_integration_production_hardening"
+  | "agent_beta_onboarding_demo_data_tenant_readiness";
 
 export type AgentAuditScopeType =
   | "workspace"
