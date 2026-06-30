@@ -616,6 +616,10 @@ export async function createAgentPmoDryRunBlocker(input: {
   return record;
 }
 
+export async function getAgentPmoDryRunBlockerById(id: string): Promise<AgentPmoDryRunBlockerRecord | null> {
+  return blockerStore.get(id) ?? null;
+}
+
 export async function listAgentPmoDryRunBlockers(
   workspaceId: string,
   dryRunRequestId?: string

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
-import { updateAgentPmoDryRunExecutionRequestStatus } from "@/lib/agents";
+import { updateAgentPmoDryRunExecutionRequestStatus, getAgentPmoDryRunExecutionRequestById } from "@/lib/agents";
 
 export async function POST(request: Request, { params }: { params: Promise<{ dryRunRequestId: string }> }) {
   try {
@@ -11,6 +11,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ dry
     if (!workspaceId) return NextResponse.json({ ok: false, error: { code: "MISSING_WORKSPACE", message: "workspaceId required" } }, { status: 400 });
     if (!status) return NextResponse.json({ ok: false, error: { code: "MISSING_STATUS", message: "status required" } }, { status: 400 });
     await requireWorkspaceMember(workspaceId);
+    const existing = await getAgentPmoDryRunExecutionRequestById(dryRunRequestId);
+    if (!existing || existing.workspaceId !== workspaceId) return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "Not found" } }, { status: 404 });
     const updated = await updateAgentPmoDryRunExecutionRequestStatus(dryRunRequestId, status);
     if (!updated) return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "Not found" } }, { status: 404 });
     return NextResponse.json({ ok: true, data: updated });

@@ -1452,6 +1452,7 @@ export {
   createAgentPmoDryRunEvidenceSection,
   listAgentPmoDryRunEvidenceSections,
   createAgentPmoDryRunBlocker,
+  getAgentPmoDryRunBlockerById,
   listAgentPmoDryRunBlockers,
   updateAgentPmoDryRunBlockerStatus,
   recordAgentPmoDryRunOperatorReview,

@@ -167,10 +167,11 @@ export async function runDryRunPreflightValidation(input: {
   let failed = 0;
   let blocked = 0;
 
-  for (const [, value] of Object.entries(checks)) {
+  const blockingChecks = new Set(["planning_workspace_exists", "request_reason_provided", "workspace_id_valid"]);
+  for (const [key, value] of Object.entries(checks)) {
     if (value === true) passed++;
     else if (value === false) {
-      if (["planning_workspace_exists", "request_reason_provided", "workspace_id_valid"].includes("planning_workspace_exists") && !value) {
+      if (blockingChecks.has(key)) {
         blocked++;
       } else {
         failed++;
@@ -276,6 +277,7 @@ export async function recordDryRunGateDecision(input: RecordAgentPmoDryRunGateDe
   const approval = await getAgentPmoDryRunGateApprovalById(normalized.gateApprovalId);
   if (!approval) throw new Error("Gate approval not found");
   if (approval.workspaceId !== normalized.workspaceId) throw new Error("Workspace mismatch");
+  if (approval.dryRunRequestId !== normalized.dryRunRequestId) throw new Error("Gate approval does not belong to the specified dry-run request");
 
   const decision = await recordAgentPmoDryRunGateDecision({
     workspaceId: normalized.workspaceId,
@@ -439,8 +441,11 @@ export async function executeDryRunSimulation(input: {
 
   const preflights = await listAgentPmsDryRunPreflightValidations(input.workspaceId, input.dryRunRequestId);
   const preflight = preflights[0] ?? null;
-  if (preflight && preflight.preflightStatus !== "passed" && preflight.preflightStatus !== "waived") {
-    throw new Error(`Pre-flight must be passed or waived, current: ${preflight?.preflightStatus ?? "not found"}`);
+  if (!preflight) {
+    throw new Error("Pre-flight validation is required before executing a dry-run simulation");
+  }
+  if (preflight.preflightStatus !== "passed" && preflight.preflightStatus !== "waived") {
+    throw new Error(`Pre-flight must be passed or waived, current: ${preflight.preflightStatus}`);
   }
 
   const changeSets = await listAgentPmoDryRunChangeSets(input.workspaceId, input.dryRunRequestId);
@@ -511,6 +516,8 @@ export async function generateDryRunSimulatedImpacts(input: {
 }): Promise<AgentPmoDryRunSimulatedImpactRecord[]> {
   const execution = await getAgentPmoDryRunSimulationExecutionById(input.dryRunExecutionId);
   if (!execution) throw new Error("Dry-run simulation execution not found");
+  if (execution.workspaceId !== input.workspaceId) throw new Error("Workspace mismatch");
+  if (execution.dryRunRequestId !== input.dryRunRequestId) throw new Error("Execution does not belong to the specified dry-run request");
 
   const domains: AgentPmoDryRunImpactDomain[] = [
     "policy_behavior",
@@ -575,6 +582,7 @@ export async function assembleDryRunEvidencePackage(input: {
 }): Promise<{ package: AgentPmoDryRunEvidencePackageRecord; sections: AgentPmoDryRunEvidenceSectionRecord[] }> {
   const request = await getAgentPmoDryRunExecutionRequestById(input.dryRunRequestId);
   if (!request) throw new Error("Dry-run execution request not found");
+  if (request.workspaceId !== input.workspaceId) throw new Error("Workspace mismatch");
 
   const preflights = await listAgentPmoDryRunPreflightValidations(input.workspaceId, input.dryRunRequestId);
   const gateApprovals = await listAgentPmoDryRunGateApprovals(input.workspaceId, input.dryRunRequestId);
@@ -693,7 +701,7 @@ export async function recordDryRunBlocker(input: {
 
   if ((blocker.severity === "high" || blocker.severity === "critical") && blocker.blockerStatus === "open") {
     const request = await getAgentPmoDryRunExecutionRequestById(input.dryRunRequestId);
-    if (request && request.requestStatus !== "archived") {
+    if (request && request.workspaceId === input.workspaceId && request.requestStatus !== "archived") {
       await updateAgentPmoDryRunExecutionRequestStatus(input.dryRunRequestId, "blocked");
     }
   }
@@ -753,6 +761,10 @@ export async function recordDryRunDecision(input: RecordAgentPmoDryRunDecisionIn
     decidedBy: input.decidedBy,
   });
 
+  const dryRunRequest = await getAgentPmoDryRunExecutionRequestById(normalized.dryRunRequestId);
+  if (!dryRunRequest) throw new Error("Dry-run execution request not found");
+  if (dryRunRequest.workspaceId !== normalized.workspaceId) throw new Error("Workspace mismatch");
+
   const blockers = await listAgentPmoDryRunBlockers(normalized.workspaceId, normalized.dryRunRequestId);
   const openCriticalBlockers = blockers.filter(b => b.blockerStatus === "open" && b.severity === "critical");
 
@@ -797,6 +809,7 @@ export async function generateDryRunExport(input: GenerateAgentPmoDryRunExportIn
 
   const request = await getAgentPmoDryRunExecutionRequestById(normalized.dryRunRequestId);
   if (!request) throw new Error("Dry-run execution request not found");
+  if (request.workspaceId !== normalized.workspaceId) throw new Error("Workspace mismatch");
 
   const preflights = await listAgentPmoDryRunPreflightValidations(normalized.workspaceId, normalized.dryRunRequestId);
   const gateApprovals = await listAgentPmoDryRunGateApprovals(normalized.workspaceId, normalized.dryRunRequestId);
@@ -991,6 +1004,7 @@ export async function getDryRunGateData(workspaceId: string, dryRunRequestId: st
   summary: Awaited<ReturnType<typeof buildDryRunGateSummary>>;
 }> {
   const request = await getAgentPmoDryRunExecutionRequestById(dryRunRequestId);
+  if (!request || request.workspaceId !== workspaceId) throw new Error("Dry-run execution request not found");
   const preflightValidations = await listAgentPmoDryRunPreflightValidations(workspaceId, dryRunRequestId);
   const gateApprovals = await listAgentPmoDryRunGateApprovals(workspaceId, dryRunRequestId);
   const gateDecisions = await listAgentPmoDryRunGateDecisions(workspaceId, dryRunRequestId);

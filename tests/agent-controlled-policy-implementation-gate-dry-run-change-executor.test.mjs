@@ -776,10 +776,10 @@ test("regression: governance dashboard files still exist", () => {
 });
 
 test("regression: dry-run gate service cleanly exports", async () => {
-  const module = await import("../src/lib/agents/agent-pmo-dry-run-gate-service.ts");
-  assert.ok(typeof module.createDryRunExecutionRequestFromPlanningWorkspace === "function");
-  assert.ok(typeof module.runDryRunPreflightValidation === "function");
-  assert.ok(typeof module.executeDryRunSimulation === "function");
-  assert.ok(typeof module.assembleDryRunEvidencePackage === "function");
-  assert.ok(typeof module.buildDryRunGateSummary === "function");
+  const svcModule = await import("../src/lib/agents/agent-pmo-dry-run-gate-service.ts");
+  assert.ok(typeof svcModule.createDryRunExecutionRequestFromPlanningWorkspace === "function");
+  assert.ok(typeof svcModule.runDryRunPreflightValidation === "function");
+  assert.ok(typeof svcModule.executeDryRunSimulation === "function");
+  assert.ok(typeof svcModule.assembleDryRunEvidencePackage === "function");
+  assert.ok(typeof svcModule.buildDryRunGateSummary === "function");
 });
