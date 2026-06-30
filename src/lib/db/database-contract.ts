@@ -9961,4 +9961,418 @@ export const AGENT_PMO_RUNTIME_HARDENING_EVENT_COLUMNS = [
   "safe_event_payload_json", "actor_id", "created_at",
 ] as const satisfies ReadonlyArray<keyof AgentPmoRuntimeHardeningEventRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop-controlled-pmo-governance-intelligence-dashboard-pmo-governance-proposal-review-controlled-policy-change-backlog-controlled-governance-policy-simulation-report-pmo-approval-pack-controlled-policy-implementation-planning-workspace-controlled-policy-implementation-gate-dry-run-change-executor-controlled-policy-version-activation-rollback-gate-controlled-project-intelligence-handoff-end-to-end-governance-runtime-integration-production-hardening" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_beta_readiness_plans
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentBetaReadinessPlanRow = {
+  id: string;
+  workspace_id: string;
+  scope: string;
+  status: string;
+  title: string;
+  description: string | null;
+  triggered_by: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  blocker_count: number;
+  warning_count: number;
+  safe_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_BETA_READINESS_PLAN_COLUMNS = [
+  "id", "workspace_id", "scope", "status", "title", "description", "triggered_by",
+  "started_at", "completed_at", "blocker_count", "warning_count", "safe_payload_json",
+  "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentBetaReadinessPlanRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_beta_workspace_readiness
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentBetaWorkspaceReadinessRow = {
+  id: string;
+  workspace_id: string;
+  plan_id: string;
+  status: string;
+  checklist_passed: boolean;
+  demo_passed: boolean;
+  validation_passed: boolean;
+  safe_check_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_BETA_WORKSPACE_READINESS_COLUMNS = [
+  "id", "workspace_id", "plan_id", "status", "checklist_passed", "demo_passed",
+  "validation_passed", "safe_check_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentBetaWorkspaceReadinessRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_demo_data_bundles
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentDemoDataBundleRow = {
+  id: string;
+  workspace_id: string;
+  plan_id: string;
+  bundle_type: string;
+  status: string;
+  project_scenario_count: number;
+  governance_scenario_count: number;
+  handoff_scenario_count: number;
+  safe_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_DEMO_DATA_BUNDLE_COLUMNS = [
+  "id", "workspace_id", "plan_id", "bundle_type", "status", "project_scenario_count",
+  "governance_scenario_count", "handoff_scenario_count", "safe_payload_json",
+  "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentDemoDataBundleRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_demo_project_scenarios
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentDemoProjectScenarioRow = {
+  id: string;
+  workspace_id: string;
+  bundle_id: string;
+  scenario_type: string;
+  status: string;
+  fictional_project_name: string;
+  fictional_pm_name: string;
+  fictional_client_name: string;
+  safe_scenario_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_DEMO_PROJECT_SCENARIO_COLUMNS = [
+  "id", "workspace_id", "bundle_id", "scenario_type", "status", "fictional_project_name",
+  "fictional_pm_name", "fictional_client_name", "safe_scenario_payload_json",
+  "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentDemoProjectScenarioRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_demo_governance_scenarios
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentDemoGovernanceScenarioRow = {
+  id: string;
+  workspace_id: string;
+  bundle_id: string;
+  scenario_type: string;
+  status: string;
+  fictional_policy_title: string;
+  fictional_requestor_name: string;
+  safe_scenario_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_DEMO_GOVERNANCE_SCENARIO_COLUMNS = [
+  "id", "workspace_id", "bundle_id", "scenario_type", "status", "fictional_policy_title",
+  "fictional_requestor_name", "safe_scenario_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentDemoGovernanceScenarioRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_demo_handoff_scenarios
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentDemoHandoffScenarioRow = {
+  id: string;
+  workspace_id: string;
+  bundle_id: string;
+  scenario_type: string;
+  status: string;
+  fictional_from_pm_name: string;
+  fictional_to_pm_name: string;
+  fictional_project_name: string;
+  safe_scenario_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_DEMO_HANDOFF_SCENARIO_COLUMNS = [
+  "id", "workspace_id", "bundle_id", "scenario_type", "status", "fictional_from_pm_name",
+  "fictional_to_pm_name", "fictional_project_name", "safe_scenario_payload_json",
+  "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentDemoHandoffScenarioRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_beta_onboarding_checklists
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentBetaOnboardingChecklistRow = {
+  id: string;
+  workspace_id: string;
+  plan_id: string;
+  status: string;
+  total_items: number;
+  passed_items: number;
+  failed_items: number;
+  waived_items: number;
+  safe_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_BETA_ONBOARDING_CHECKLIST_COLUMNS = [
+  "id", "workspace_id", "plan_id", "status", "total_items", "passed_items",
+  "failed_items", "waived_items", "safe_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentBetaOnboardingChecklistRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_beta_onboarding_checklist_items
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentBetaOnboardingChecklistItemRow = {
+  id: string;
+  workspace_id: string;
+  checklist_id: string;
+  item_type: string;
+  status: string;
+  title: string;
+  notes: string | null;
+  waived_reason: string | null;
+  checked_at: string | null;
+  safe_item_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_BETA_ONBOARDING_CHECKLIST_ITEM_COLUMNS = [
+  "id", "workspace_id", "checklist_id", "item_type", "status", "title", "notes",
+  "waived_reason", "checked_at", "safe_item_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentBetaOnboardingChecklistItemRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_beta_user_readiness
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentBetaUserReadinessRow = {
+  id: string;
+  workspace_id: string;
+  plan_id: string;
+  status: string;
+  role: string;
+  fictional_user_label: string;
+  known_limitations: string[];
+  safe_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_BETA_USER_READINESS_COLUMNS = [
+  "id", "workspace_id", "plan_id", "status", "role", "fictional_user_label",
+  "known_limitations", "safe_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentBetaUserReadinessRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_beta_invitation_readiness
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentBetaInvitationReadinessRow = {
+  id: string;
+  workspace_id: string;
+  plan_id: string;
+  status: string;
+  invitation_count: number;
+  safe_invitation_template_json: Record<string, unknown>;
+  reviewed_at: string | null;
+  safe_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_BETA_INVITATION_READINESS_COLUMNS = [
+  "id", "workspace_id", "plan_id", "status", "invitation_count",
+  "safe_invitation_template_json", "reviewed_at", "safe_payload_json",
+  "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentBetaInvitationReadinessRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_beta_admin_readiness
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentBetaAdminReadinessRow = {
+  id: string;
+  workspace_id: string;
+  plan_id: string;
+  status: string;
+  workspace_isolation_verified: boolean;
+  rls_verified: boolean;
+  export_safety_verified: boolean;
+  docs_reviewed: boolean;
+  support_path_defined: boolean;
+  safe_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_BETA_ADMIN_READINESS_COLUMNS = [
+  "id", "workspace_id", "plan_id", "status", "workspace_isolation_verified",
+  "rls_verified", "export_safety_verified", "docs_reviewed", "support_path_defined",
+  "safe_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentBetaAdminReadinessRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_tenant_readiness_validations
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentTenantReadinessValidationRow = {
+  id: string;
+  workspace_id: string;
+  plan_id: string;
+  status: string;
+  check_name: string;
+  passed: boolean;
+  warnings: string[];
+  findings: string[];
+  waived_reason: string | null;
+  safe_validation_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_TENANT_READINESS_VALIDATION_COLUMNS = [
+  "id", "workspace_id", "plan_id", "status", "check_name", "passed", "warnings",
+  "findings", "waived_reason", "safe_validation_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentTenantReadinessValidationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_beta_readiness_gates
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentBetaReadinessGateRow = {
+  id: string;
+  workspace_id: string;
+  plan_id: string;
+  status: string;
+  open_blocker_count: number;
+  critical_blocker_count: number;
+  safe_gate_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_BETA_READINESS_GATE_COLUMNS = [
+  "id", "workspace_id", "plan_id", "status", "open_blocker_count", "critical_blocker_count",
+  "safe_gate_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentBetaReadinessGateRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_beta_readiness_decisions
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentBetaReadinessDecisionRow = {
+  id: string;
+  workspace_id: string;
+  gate_id: string;
+  decision_type: string;
+  rationale: string;
+  decided_by_id: string | null;
+  safe_decision_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_BETA_READINESS_DECISION_COLUMNS = [
+  "id", "workspace_id", "gate_id", "decision_type", "rationale", "decided_by_id",
+  "safe_decision_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentBetaReadinessDecisionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_beta_readiness_blockers
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentBetaReadinessBlockerRow = {
+  id: string;
+  workspace_id: string;
+  plan_id: string;
+  blocker_type: string;
+  severity: string;
+  status: string;
+  title: string;
+  description: string;
+  resolved_at: string | null;
+  safe_blocker_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_BETA_READINESS_BLOCKER_COLUMNS = [
+  "id", "workspace_id", "plan_id", "blocker_type", "severity", "status", "title",
+  "description", "resolved_at", "safe_blocker_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentBetaReadinessBlockerRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_beta_readiness_remediation_items
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentBetaReadinessRemediationItemRow = {
+  id: string;
+  workspace_id: string;
+  plan_id: string;
+  blocker_id: string | null;
+  remediation_type: string;
+  status: string;
+  title: string;
+  description: string;
+  safe_remediation_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_BETA_READINESS_REMEDIATION_ITEM_COLUMNS = [
+  "id", "workspace_id", "plan_id", "blocker_id", "remediation_type", "status",
+  "title", "description", "safe_remediation_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentBetaReadinessRemediationItemRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_beta_readiness_exports
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentBetaReadinessExportRow = {
+  id: string;
+  workspace_id: string;
+  plan_id: string;
+  export_format: string;
+  export_status: string;
+  safe_export_content: string;
+  export_size_bytes: number;
+  safety_validation_passed: boolean;
+  created_by_id: string | null;
+  created_at: string;
+};
+
+export const AGENT_BETA_READINESS_EXPORT_COLUMNS = [
+  "id", "workspace_id", "plan_id", "export_format", "export_status",
+  "safe_export_content", "export_size_bytes", "safety_validation_passed",
+  "created_by_id", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentBetaReadinessExportRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_beta_readiness_events
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentBetaReadinessEventRow = {
+  id: string;
+  workspace_id: string;
+  plan_id: string | null;
+  event_type: string;
+  message: string | null;
+  safe_event_payload_json: Record<string, unknown>;
+  actor_id: string | null;
+  created_at: string;
+};
+
+export const AGENT_BETA_READINESS_EVENT_COLUMNS = [
+  "id", "workspace_id", "plan_id", "event_type", "message",
+  "safe_event_payload_json", "actor_id", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentBetaReadinessEventRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop-controlled-pmo-governance-intelligence-dashboard-pmo-governance-proposal-review-controlled-policy-change-backlog-controlled-governance-policy-simulation-report-pmo-approval-pack-controlled-policy-implementation-planning-workspace-controlled-policy-implementation-gate-dry-run-change-executor-controlled-policy-version-activation-rollback-gate-controlled-project-intelligence-handoff-end-to-end-governance-runtime-integration-production-hardening-beta-onboarding-demo-data-tenant-readiness" as const;
