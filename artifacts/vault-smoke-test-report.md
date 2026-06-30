@@ -1,8 +1,8 @@
 # Vault Digestive System — Smoke Test Report
 
-**Generated:** 2026-06-30T16:31:29.122Z
+**Generated:** 2026-06-30T17:41:12.259Z
 **Dataset:** LATAM Enterprise PM — 5 projects across 51 operational artifacts
-**Elapsed:** 54ms
+**Elapsed:** 49ms
 
 ## 1. Digestive Overview
 
