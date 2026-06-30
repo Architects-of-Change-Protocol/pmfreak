@@ -35,6 +35,9 @@ export async function POST(request: Request) {
     if (!approvalPackId) {
       return NextResponse.json({ ok: false, error: { code: "MISSING_APPROVAL_PACK", message: "approvalPackId required" } }, { status: 400 });
     }
+    if (!summary) {
+      return NextResponse.json({ ok: false, error: { code: "MISSING_SUMMARY", message: "summary required" } }, { status: 400 });
+    }
     await requireWorkspaceMember(workspaceId);
     const workspace = await createImplementationPlanningWorkspaceFromApprovalPack({
       workspaceId,

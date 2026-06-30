@@ -12,7 +12,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ rea
       return NextResponse.json({ ok: false, error: { code: "MISSING_WORKSPACE", message: "workspaceId required" } }, { status: 400 });
     }
     await requireWorkspaceMember(workspaceId);
-    const updated = await updateAgentPmoStakeholderReadinessStatus(workspaceId, readinessId, status, user.id ?? null);
+    const acknowledgedBy = status === "acknowledged" ? (user.id ?? null) : null;
+    const updated = await updateAgentPmoStakeholderReadinessStatus(workspaceId, readinessId, status, acknowledgedBy);
     if (!updated) {
       return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "Stakeholder readiness record not found" } }, { status: 404 });
     }

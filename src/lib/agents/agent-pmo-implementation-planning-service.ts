@@ -46,7 +46,6 @@ import {
   normalizePlanningDecisionInput,
   normalizeImplementationPlanningExportInput,
   evaluatePreImplementationChecklistStatus,
-  evaluateGatePrerequisiteReadiness,
   deriveImplementationPlanningWorkspaceStatus,
   validateImplementationPlanningExportSafety,
 } from "./agent-pmo-implementation-planning-validation";
@@ -219,6 +218,11 @@ export async function createImplementationPlanDraft(input: {
     status: "created",
     createdBy: normalized.actorId ?? null,
   });
+  await updateAgentPmoImplementationPlanningWorkspaceStatus(
+    normalized.workspaceId,
+    normalized.planningWorkspaceId,
+    "planning",
+  );
   await recordAgentPmoImplementationPlanningEvent({
     workspaceId: normalized.workspaceId,
     planningWorkspaceId: normalized.planningWorkspaceId,
@@ -237,6 +241,9 @@ export async function generateImplementationTaskBreakdown(input: {
   planDraftId?: string | null;
   actorId?: string | null;
 }): Promise<AgentPmoImplementationTaskBreakdownRecord[]> {
+  const existing = await listAgentPmoImplementationTaskBreakdowns(input.workspaceId, { planningWorkspaceId: input.planningWorkspaceId });
+  if (existing.length > 0) return existing;
+
   const tasks: AgentPmoImplementationTaskBreakdownRecord[] = [];
   for (const def of TASK_DEFINITIONS) {
     const task = await createAgentPmoImplementationTaskBreakdown({
@@ -490,15 +497,12 @@ export async function evaluateImplementationGatePrerequisites(input: {
     });
   }
 
-  const readiness = evaluateGatePrerequisiteReadiness(prerequisites);
   const derivedStatus = deriveImplementationPlanningWorkspaceStatus(prerequisites);
-  if (readiness.anyBlocked || readiness.anyFailed || readiness.allSatisfied) {
-    await updateAgentPmoImplementationPlanningWorkspaceStatus(
-      input.workspaceId,
-      input.planningWorkspaceId,
-      derivedStatus,
-    );
-  }
+  await updateAgentPmoImplementationPlanningWorkspaceStatus(
+    input.workspaceId,
+    input.planningWorkspaceId,
+    derivedStatus,
+  );
 
   return prerequisites;
 }

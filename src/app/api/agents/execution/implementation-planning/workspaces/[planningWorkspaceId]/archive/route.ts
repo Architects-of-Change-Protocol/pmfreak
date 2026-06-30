@@ -21,6 +21,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ pla
       rationale,
       actorId: user.id ?? null,
     });
+    if (!workspace) {
+      return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "Planning workspace not found" } }, { status: 404 });
+    }
     return NextResponse.json({ ok: true, data: workspace });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
