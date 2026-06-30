@@ -214,7 +214,30 @@ export type AgentAuditEventType =
   | "pmo_dry_run_operator_review_recorded"
   | "pmo_dry_run_decision_recorded"
   | "pmo_dry_run_export_created"
-  | "pmo_dry_run_request_archived";
+  | "pmo_dry_run_request_archived"
+  | "pmo_policy_activation_request_created"
+  | "pmo_policy_activation_preconditions_created"
+  | "pmo_policy_activation_preconditions_completed"
+  | "pmo_policy_activation_gate_created"
+  | "pmo_policy_activation_gate_decision_recorded"
+  | "pmo_controlled_policy_version_created"
+  | "pmo_active_policy_pointer_updated"
+  | "pmo_policy_activation_execution_created"
+  | "pmo_policy_activation_execution_started"
+  | "pmo_policy_activation_execution_completed"
+  | "pmo_policy_activation_execution_failed"
+  | "pmo_policy_rollback_request_created"
+  | "pmo_policy_rollback_gate_created"
+  | "pmo_policy_rollback_gate_decision_recorded"
+  | "pmo_policy_rollback_execution_created"
+  | "pmo_policy_rollback_execution_started"
+  | "pmo_policy_rollback_execution_completed"
+  | "pmo_policy_rollback_execution_failed"
+  | "pmo_policy_rollback_verification_created"
+  | "pmo_policy_rollback_verification_completed"
+  | "pmo_post_activation_monitoring_hook_created"
+  | "pmo_policy_activation_export_created"
+  | "pmo_policy_activation_request_archived";
 
 export type AgentAuditSeverity =
   | "info"
@@ -254,7 +277,8 @@ export type AgentAuditSourceType =
   | "agent_pmo_governance_proposal_review_controlled_policy_change_backlog"
   | "agent_controlled_governance_policy_simulation_report_pmo_approval_pack"
   | "agent_controlled_policy_implementation_planning_workspace"
-  | "agent_controlled_policy_implementation_gate_dry_run_change_executor";
+  | "agent_controlled_policy_implementation_gate_dry_run_change_executor"
+  | "agent_controlled_policy_version_activation_rollback_gate";
 
 export type AgentAuditScopeType =
   | "workspace"
