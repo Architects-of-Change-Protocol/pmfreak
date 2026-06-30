@@ -34,19 +34,19 @@ ALTER TABLE agent_pmo_project_handoff_requests ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_handoff_requests"
   ON agent_pmo_project_handoff_requests FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_handoff_requests"
   ON agent_pmo_project_handoff_requests FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_handoff_requests"
   ON agent_pmo_project_handoff_requests FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Context Validations ──────────────────────────────────────────────────────
@@ -71,19 +71,19 @@ ALTER TABLE agent_pmo_project_context_validations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_context_validations"
   ON agent_pmo_project_context_validations FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_context_validations"
   ON agent_pmo_project_context_validations FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_context_validations"
   ON agent_pmo_project_context_validations FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Handoff Gates ────────────────────────────────────────────────────────────
@@ -107,19 +107,19 @@ ALTER TABLE agent_pmo_project_handoff_gates ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_handoff_gates"
   ON agent_pmo_project_handoff_gates FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_handoff_gates"
   ON agent_pmo_project_handoff_gates FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_handoff_gates"
   ON agent_pmo_project_handoff_gates FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Gate Decisions ───────────────────────────────────────────────────────────
@@ -143,13 +143,13 @@ ALTER TABLE agent_pmo_project_handoff_gate_decisions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_gate_decisions"
   ON agent_pmo_project_handoff_gate_decisions FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_gate_decisions"
   ON agent_pmo_project_handoff_gate_decisions FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Handoff Packs ────────────────────────────────────────────────────────────
@@ -189,19 +189,19 @@ ALTER TABLE agent_pmo_project_handoff_packs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_handoff_packs"
   ON agent_pmo_project_handoff_packs FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_handoff_packs"
   ON agent_pmo_project_handoff_packs FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_handoff_packs"
   ON agent_pmo_project_handoff_packs FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Memory Snapshots ─────────────────────────────────────────────────────────
@@ -227,19 +227,19 @@ ALTER TABLE agent_pmo_project_memory_snapshots ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_memory_snapshots"
   ON agent_pmo_project_memory_snapshots FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_memory_snapshots"
   ON agent_pmo_project_memory_snapshots FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_memory_snapshots"
   ON agent_pmo_project_memory_snapshots FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Status Snapshots ─────────────────────────────────────────────────────────
@@ -270,13 +270,13 @@ ALTER TABLE agent_pmo_project_status_snapshots ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_status_snapshots"
   ON agent_pmo_project_status_snapshots FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_status_snapshots"
   ON agent_pmo_project_status_snapshots FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Snapshot Items ───────────────────────────────────────────────────────────
@@ -305,19 +305,19 @@ ALTER TABLE agent_pmo_project_handoff_snapshot_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_snapshot_items"
   ON agent_pmo_project_handoff_snapshot_items FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_snapshot_items"
   ON agent_pmo_project_handoff_snapshot_items FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_snapshot_items"
   ON agent_pmo_project_handoff_snapshot_items FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Stakeholder Context ──────────────────────────────────────────────────────
@@ -341,13 +341,13 @@ ALTER TABLE agent_pmo_stakeholder_context_snapshots ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_stakeholder_context"
   ON agent_pmo_stakeholder_context_snapshots FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_stakeholder_context"
   ON agent_pmo_stakeholder_context_snapshots FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Outgoing PM Notes ────────────────────────────────────────────────────────
@@ -372,19 +372,19 @@ ALTER TABLE agent_pmo_outgoing_pm_notes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_outgoing_notes"
   ON agent_pmo_outgoing_pm_notes FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_outgoing_notes"
   ON agent_pmo_outgoing_pm_notes FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_outgoing_notes"
   ON agent_pmo_outgoing_pm_notes FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Incoming PM Acceptances ──────────────────────────────────────────────────
@@ -410,13 +410,13 @@ ALTER TABLE agent_pmo_incoming_pm_acceptances ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_incoming_acceptances"
   ON agent_pmo_incoming_pm_acceptances FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_incoming_acceptances"
   ON agent_pmo_incoming_pm_acceptances FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Controlled Project Assignment Pointers ───────────────────────────────────
@@ -448,19 +448,19 @@ ALTER TABLE agent_pmo_controlled_project_assignment_pointers ENABLE ROW LEVEL SE
 CREATE POLICY "workspace_member_read_assignment_pointers"
   ON agent_pmo_controlled_project_assignment_pointers FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_assignment_pointers"
   ON agent_pmo_controlled_project_assignment_pointers FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_assignment_pointers"
   ON agent_pmo_controlled_project_assignment_pointers FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Assignment History ───────────────────────────────────────────────────────
@@ -490,13 +490,13 @@ ALTER TABLE agent_pmo_project_assignment_history ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_assignment_history"
   ON agent_pmo_project_assignment_history FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_assignment_history"
   ON agent_pmo_project_assignment_history FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Continuity Checks ────────────────────────────────────────────────────────
@@ -522,19 +522,19 @@ ALTER TABLE agent_pmo_handoff_continuity_checks ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_continuity_checks"
   ON agent_pmo_handoff_continuity_checks FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_continuity_checks"
   ON agent_pmo_handoff_continuity_checks FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_continuity_checks"
   ON agent_pmo_handoff_continuity_checks FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Exports ──────────────────────────────────────────────────────────────────
@@ -559,13 +559,13 @@ ALTER TABLE agent_pmo_project_handoff_exports ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_handoff_exports"
   ON agent_pmo_project_handoff_exports FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_handoff_exports"
   ON agent_pmo_project_handoff_exports FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Audit Events ─────────────────────────────────────────────────────────────
@@ -590,11 +590,11 @@ ALTER TABLE agent_pmo_project_handoff_audit_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_handoff_audit_events"
   ON agent_pmo_project_handoff_audit_events FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_handoff_audit_events"
   ON agent_pmo_project_handoff_audit_events FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
   ));

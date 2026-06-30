@@ -328,6 +328,10 @@ export async function listAgentPmoProjectHandoffSnapshotItems(
   );
 }
 
+export async function getAgentPmoProjectHandoffSnapshotItemById(id: string): Promise<AgentPmoProjectHandoffSnapshotItemRecord | null> {
+  return snapshotItemStore.find((r) => r.id === id) ?? null;
+}
+
 export async function updateAgentPmoProjectHandoffSnapshotItemStatus(
   id: string,
   itemStatus: AgentPmoProjectHandoffSnapshotItemStatus,
@@ -388,6 +392,10 @@ export async function listAgentPmoOutgoingPmNotes(
       r.workspaceId === workspaceId &&
       (handoffRequestId === undefined || r.handoffRequestId === handoffRequestId),
   );
+}
+
+export async function getAgentPmoOutgoingPmNoteById(id: string): Promise<AgentPmoOutgoingPmNoteRecord | null> {
+  return outgoingPmNoteStore.find((r) => r.id === id) ?? null;
 }
 
 export async function updateAgentPmoOutgoingPmNoteStatus(

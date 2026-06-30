@@ -307,6 +307,7 @@ export async function recordProjectHandoffGateDecision(
   const gate = await getAgentPmoProjectHandoffGateById(input.handoffGateId);
   if (!gate) throw new Error(`Handoff gate not found: ${input.handoffGateId}`);
   if (gate.workspaceId !== input.workspaceId) throw new Error("Workspace scope mismatch");
+  if (gate.handoffRequestId !== input.handoffRequestId) throw new Error("Gate does not belong to the supplied handoff request");
 
   const decisionRecord = await recordAgentPmoProjectHandoffGateDecision({
     workspaceId: input.workspaceId,
@@ -513,10 +514,20 @@ export async function createProjectHandoffSnapshotItems(
   if (!request) throw new Error(`Handoff request not found: ${handoffRequestId}`);
   if (request.workspaceId !== workspaceId) throw new Error("Workspace scope mismatch");
 
+  const VALID_ITEM_TYPES: import("./agent-pmo-project-handoff-types").AgentPmoProjectHandoffSnapshotItemType[] = [
+    "risk", "blocker", "open_decision", "dependency", "commitment", "milestone",
+    "action_item", "stakeholder_issue", "commercial_item", "technical_item", "governance_item",
+  ];
+  const VALID_SEVERITIES: import("./agent-pmo-project-handoff-types").AgentPmoProjectHandoffSnapshotItemSeverity[] = [
+    "low", "medium", "high", "critical", "unknown",
+  ];
+
   const inputItems = items ?? [];
   const created: AgentPmoProjectHandoffSnapshotItemRecord[] = [];
 
   for (const item of inputItems) {
+    if (!VALID_ITEM_TYPES.includes(item.itemType)) throw new Error(`Invalid itemType: ${item.itemType}`);
+    if (item.severity && !VALID_SEVERITIES.includes(item.severity)) throw new Error(`Invalid severity: ${item.severity}`);
     const record = await createAgentPmoProjectHandoffSnapshotItem({
       workspaceId,
       handoffRequestId,
@@ -634,18 +645,31 @@ export async function recordIncomingPmAcceptance(
   if (!request) throw new Error(`Handoff request not found: ${input.handoffRequestId}`);
   if (request.workspaceId !== input.workspaceId) throw new Error("Workspace scope mismatch");
 
+  const TERMINAL_STATES = ["archived", "handoff_completed", "continuity_monitoring", "blocked"];
+  if (TERMINAL_STATES.includes(request.status)) {
+    throw new Error(`Cannot record acceptance on a ${request.status} handoff request`);
+  }
+
+  if (input.incomingPmId !== request.incomingPmId) {
+    throw new Error("Acceptance incomingPmId does not match the designated incoming PM on the handoff request");
+  }
+
   const packs = await listAgentPmoProjectHandoffPacks(input.workspaceId, input.handoffRequestId);
   if (packs.length === 0) throw new Error("Handoff pack must exist before incoming PM acceptance can be recorded");
 
-  const latestPack = packs[packs.length - 1];
+  const resolvedPackId = input.handoffPackId ?? packs[packs.length - 1].id;
+  if (!packs.some((p) => p.id === resolvedPackId)) {
+    throw new Error("Supplied handoffPackId does not belong to this handoff request");
+  }
+
   const acceptance = await recordAgentPmoIncomingPmAcceptance({
     workspaceId: input.workspaceId,
     handoffRequestId: input.handoffRequestId,
-    handoffPackId: input.handoffPackId ?? latestPack.id,
+    handoffPackId: resolvedPackId,
     incomingPmId: input.incomingPmId,
     decision: input.decision,
     rationale: input.rationale,
-    acceptanceStatus: input.decision === "accept_handoff" ? "accepted" : input.decision === "reject_handoff" ? "rejected" : input.decision === "block_handoff" ? "blocked" : "archived",
+    acceptanceStatus: input.decision === "accept_handoff" ? "accepted" : input.decision === "reject_handoff" ? "rejected" : input.decision === "block_handoff" ? "blocked" : input.decision === "request_changes" ? "changes_requested" : "archived",
     safeAcceptancePayload: redactProjectHandoffPayload({ decision: input.decision }),
     decidedAt: now(),
   });
@@ -870,7 +894,7 @@ export async function generateProjectHandoffExport(
   const exportData = {
     exportType: "controlled_project_intelligence_handoff",
     nonGoals: [
-      "This export does NOT include raw payloads, secrets, tokens, or credentials",
+      "This export does NOT include raw payloads, sensitive data, tokens, or access keys",
       "This export does NOT represent external communications, tickets, or calendar events",
       "This export does NOT trigger any external side effects",
       "This export does NOT delete or move project memory",
@@ -906,7 +930,7 @@ export async function generateProjectHandoffExport(
     ? JSON.stringify(exportData, null, 2)
     : input.exportFormat === "csv"
     ? `handoff_request_id,status,handoff_reason,urgency,project_id\n${request.id},${request.status},${request.handoffReason},${request.handoffUrgency},${request.projectId}`
-    : `# Controlled Project Intelligence Handoff Export\n\n## Handoff Request\n- ID: ${request.id}\n- Project: ${request.projectId}\n- Status: ${request.status}\n- Reason: ${request.handoffReason}\n- Urgency: ${request.handoffUrgency}\n\n## Summary\n- PMO Gates: ${gates.length}\n- Handoff Packs: ${packs.length}\n- Memory Snapshots: ${memorySnapshots.length}\n- Snapshot Items: ${snapshotItems.length}\n- Continuity Checks: ${continuityChecks.length} (${continuityChecks.filter((c) => c.checkStatus === "pending").length} pending)\n\n## Non-Goals\nThis export does not include secrets, raw payloads, or private contact data.\nNo external side effects were triggered during export generation.\n`;
+    : `# Controlled Project Intelligence Handoff Export\n\n## Handoff Request\n- ID: ${request.id}\n- Project: ${request.projectId}\n- Status: ${request.status}\n- Reason: ${request.handoffReason}\n- Urgency: ${request.handoffUrgency}\n\n## Summary\n- PMO Gates: ${gates.length}\n- Handoff Packs: ${packs.length}\n- Memory Snapshots: ${memorySnapshots.length}\n- Snapshot Items: ${snapshotItems.length}\n- Continuity Checks: ${continuityChecks.length} (${continuityChecks.filter((c) => c.checkStatus === "pending").length} pending)\n\n## Non-Goals\nThis export does not include sensitive data, raw payloads, or private contact data.\nNo external side effects were triggered during export generation.\n`;
 
   const safetyCheck = validateProjectHandoffExportSafety(content);
   if (!safetyCheck.safe) {
@@ -1044,7 +1068,9 @@ export async function getProjectHandoffData(workspaceId: string, handoffRequestI
     listAgentPmoProjectHandoffExports(workspaceId, handoffRequestId),
   ]);
 
-  const projectId = request?.projectId;
+  if (!request || request.workspaceId !== workspaceId) throw new Error("Handoff request not found");
+
+  const projectId = request.projectId;
   const [pointers, history] = await Promise.all([
     listAgentPmoControlledProjectAssignmentPointers(workspaceId),
     projectId ? listAgentPmoProjectAssignmentHistory(workspaceId, projectId) : Promise.resolve([]),
