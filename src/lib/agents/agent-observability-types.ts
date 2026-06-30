@@ -255,7 +255,27 @@ export type AgentAuditEventType =
   | "pmo_project_handoff_continuity_check_created"
   | "pmo_project_handoff_continuity_check_completed"
   | "pmo_project_handoff_export_created"
-  | "pmo_project_handoff_request_archived";
+  | "pmo_project_handoff_request_archived"
+  | "pmo_runtime_hardening_run_created"
+  | "pmo_runtime_hardening_run_started"
+  | "pmo_runtime_hardening_run_completed"
+  | "pmo_layer_integration_audit_recorded"
+  | "pmo_route_contract_audit_recorded"
+  | "pmo_database_contract_audit_recorded"
+  | "pmo_rls_policy_audit_recorded"
+  | "pmo_workspace_isolation_check_recorded"
+  | "pmo_observability_coverage_check_recorded"
+  | "pmo_export_safety_check_recorded"
+  | "pmo_idempotency_check_recorded"
+  | "pmo_error_handling_check_recorded"
+  | "pmo_ui_dashboard_integration_check_recorded"
+  | "pmo_ci_smoke_check_recorded"
+  | "pmo_production_readiness_gate_created"
+  | "pmo_production_readiness_decision_recorded"
+  | "pmo_runtime_hardening_blocker_recorded"
+  | "pmo_runtime_remediation_item_recorded"
+  | "pmo_runtime_hardening_export_created"
+  | "pmo_runtime_hardening_run_archived";
 
 export type AgentAuditSeverity =
   | "info"
@@ -297,7 +317,8 @@ export type AgentAuditSourceType =
   | "agent_controlled_policy_implementation_planning_workspace"
   | "agent_controlled_policy_implementation_gate_dry_run_change_executor"
   | "agent_controlled_policy_version_activation_rollback_gate"
-  | "agent_controlled_project_intelligence_handoff";
+  | "agent_controlled_project_intelligence_handoff"
+  | "agent_end_to_end_governance_runtime_integration_production_hardening";
 
 export type AgentAuditScopeType =
   | "workspace"

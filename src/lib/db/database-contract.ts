@@ -9486,4 +9486,479 @@ export const AGENT_PMO_PROJECT_HANDOFF_AUDIT_EVENT_COLUMNS = [
   "safe_event_payload_json", "actor_id", "created_at",
 ] as const satisfies ReadonlyArray<keyof AgentPmoProjectHandoffAuditEventRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop-controlled-pmo-governance-intelligence-dashboard-pmo-governance-proposal-review-controlled-policy-change-backlog-controlled-governance-policy-simulation-report-pmo-approval-pack-controlled-policy-implementation-planning-workspace-controlled-policy-implementation-gate-dry-run-change-executor-controlled-policy-version-activation-rollback-gate-controlled-project-intelligence-handoff" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_runtime_hardening_runs
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoRuntimeHardeningRunRow = {
+  id: string;
+  workspace_id: string;
+  scope: string;
+  status: string;
+  triggered_by: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  layers_audited: string[];
+  blocker_count: number;
+  warning_count: number;
+  passed_check_count: number;
+  failed_check_count: number;
+  safe_run_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_RUNTIME_HARDENING_RUN_COLUMNS = [
+  "id", "workspace_id", "scope", "status", "triggered_by", "started_at",
+  "completed_at", "layers_audited", "blocker_count", "warning_count",
+  "passed_check_count", "failed_check_count", "safe_run_payload_json",
+  "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoRuntimeHardeningRunRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_layer_integration_audits
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoLayerIntegrationAuditRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string;
+  layer: string;
+  type_file_exists: boolean;
+  validation_file_exists: boolean | null;
+  registry_file_exists: boolean | null;
+  service_file_exists: boolean | null;
+  docs_exist: boolean;
+  tests_exist: boolean;
+  migration_exists: boolean | null;
+  api_routes_exist: boolean | null;
+  exports_exist: boolean;
+  passed: boolean;
+  warnings: string[];
+  findings: string[];
+  safe_audit_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_LAYER_INTEGRATION_AUDIT_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "layer", "type_file_exists",
+  "validation_file_exists", "registry_file_exists", "service_file_exists",
+  "docs_exist", "tests_exist", "migration_exists", "api_routes_exist",
+  "exports_exist", "passed", "warnings", "findings", "safe_audit_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoLayerIntegrationAuditRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_route_contract_audits
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoRouteContractAuditRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string;
+  route_path: string;
+  route_exists: boolean;
+  exported_methods: string[];
+  dynamic_params_follow_convention: boolean;
+  request_parsing_is_safe: boolean;
+  responses_are_deterministic: boolean;
+  errors_are_sanitized: boolean;
+  passed: boolean;
+  warnings: string[];
+  findings: string[];
+  safe_audit_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_ROUTE_CONTRACT_AUDIT_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "route_path", "route_exists",
+  "exported_methods", "dynamic_params_follow_convention", "request_parsing_is_safe",
+  "responses_are_deterministic", "errors_are_sanitized", "passed", "warnings",
+  "findings", "safe_audit_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoRouteContractAuditRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_database_contract_audits
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoDatabaseContractAuditRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string;
+  table_name: string;
+  migration_exists: boolean;
+  row_type_exists: boolean;
+  column_constants_exist: boolean;
+  contract_version_includes: boolean;
+  indexes_exist: boolean;
+  created_at_convention: boolean;
+  updated_at_convention: boolean;
+  passed: boolean;
+  warnings: string[];
+  findings: string[];
+  safe_audit_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_DATABASE_CONTRACT_AUDIT_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "table_name", "migration_exists",
+  "row_type_exists", "column_constants_exist", "contract_version_includes",
+  "indexes_exist", "created_at_convention", "updated_at_convention", "passed",
+  "warnings", "findings", "safe_audit_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoDatabaseContractAuditRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_rls_policy_audits
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoRlsPolicyAuditRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string;
+  table_name: string;
+  rls_enabled: boolean;
+  workspace_scoped_read_exists: boolean;
+  write_policies_exist: boolean;
+  no_public_access: boolean;
+  no_broad_using_true: boolean;
+  passed: boolean;
+  warnings: string[];
+  findings: string[];
+  safe_audit_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_RLS_POLICY_AUDIT_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "table_name", "rls_enabled",
+  "workspace_scoped_read_exists", "write_policies_exist", "no_public_access",
+  "no_broad_using_true", "passed", "warnings", "findings", "safe_audit_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoRlsPolicyAuditRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_workspace_isolation_checks
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoWorkspaceIsolationCheckRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string;
+  check_target: string;
+  workspace_id_required: boolean;
+  list_functions_filter_by_workspace: boolean;
+  get_functions_verify_workspace: boolean;
+  api_routes_require_workspace_id: boolean;
+  no_cross_workspace_leakage: boolean;
+  passed: boolean;
+  warnings: string[];
+  findings: string[];
+  safe_check_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_WORKSPACE_ISOLATION_CHECK_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "check_target", "workspace_id_required",
+  "list_functions_filter_by_workspace", "get_functions_verify_workspace",
+  "api_routes_require_workspace_id", "no_cross_workspace_leakage", "passed",
+  "warnings", "findings", "safe_check_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoWorkspaceIsolationCheckRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_observability_coverage_checks
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoObservabilityCoverageCheckRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string;
+  source_types_exist: boolean;
+  event_types_exist: boolean;
+  category_is_governance: boolean;
+  no_circular_imports: boolean;
+  no_unsafe_payload: boolean;
+  passed: boolean;
+  warnings: string[];
+  findings: string[];
+  safe_check_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_OBSERVABILITY_COVERAGE_CHECK_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "source_types_exist", "event_types_exist",
+  "category_is_governance", "no_circular_imports", "no_unsafe_payload", "passed",
+  "warnings", "findings", "safe_check_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoObservabilityCoverageCheckRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_export_safety_checks
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoExportSafetyCheckRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string;
+  export_target: string;
+  raw_payloads_excluded: boolean;
+  secrets_excluded: boolean;
+  tokens_excluded: boolean;
+  credentials_excluded: boolean;
+  stack_traces_excluded: boolean;
+  unnecessary_personal_data_excluded: boolean;
+  non_goals_included: boolean;
+  passed: boolean;
+  warnings: string[];
+  findings: string[];
+  safe_check_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_EXPORT_SAFETY_CHECK_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "export_target", "raw_payloads_excluded",
+  "secrets_excluded", "tokens_excluded", "credentials_excluded", "stack_traces_excluded",
+  "unnecessary_personal_data_excluded", "non_goals_included", "passed", "warnings",
+  "findings", "safe_check_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoExportSafetyCheckRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_idempotency_checks
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoIdempotencyCheckRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string;
+  check_target: string;
+  append_only_decisions_preserved: boolean;
+  pointer_updates_preserve_previous: boolean;
+  completion_requires_correct_status: boolean;
+  activation_requires_approved_gate: boolean;
+  rollback_requires_approved_gate: boolean;
+  exports_regeneratable: boolean;
+  archive_does_not_hard_delete: boolean;
+  passed: boolean;
+  warnings: string[];
+  findings: string[];
+  safe_check_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_IDEMPOTENCY_CHECK_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "check_target", "append_only_decisions_preserved",
+  "pointer_updates_preserve_previous", "completion_requires_correct_status",
+  "activation_requires_approved_gate", "rollback_requires_approved_gate",
+  "exports_regeneratable", "archive_does_not_hard_delete", "passed", "warnings",
+  "findings", "safe_check_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoIdempotencyCheckRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_error_handling_checks
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoErrorHandlingCheckRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string;
+  check_target: string;
+  route_errors_sanitized: boolean;
+  service_errors_do_not_leak_payloads: boolean;
+  validation_errors_are_clear: boolean;
+  missing_records_return_safe_messages: boolean;
+  stack_traces_not_returned_from_api: boolean;
+  passed: boolean;
+  warnings: string[];
+  findings: string[];
+  safe_check_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_ERROR_HANDLING_CHECK_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "check_target", "route_errors_sanitized",
+  "service_errors_do_not_leak_payloads", "validation_errors_are_clear",
+  "missing_records_return_safe_messages", "stack_traces_not_returned_from_api",
+  "passed", "warnings", "findings", "safe_check_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoErrorHandlingCheckRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_ui_dashboard_integration_checks
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoUiDashboardIntegrationCheckRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string;
+  dashboard_routes_exist: boolean;
+  command_center_page_builds: boolean;
+  no_uncontrolled_action_buttons: boolean;
+  no_prohibited_labels: boolean;
+  passed: boolean;
+  warnings: string[];
+  findings: string[];
+  safe_check_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_UI_DASHBOARD_INTEGRATION_CHECK_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "dashboard_routes_exist",
+  "command_center_page_builds", "no_uncontrolled_action_buttons", "no_prohibited_labels",
+  "passed", "warnings", "findings", "safe_check_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoUiDashboardIntegrationCheckRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_ci_smoke_checks
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoCiSmokeCheckRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string;
+  typecheck_result: string;
+  test_result: string;
+  build_result: string;
+  hardening_test_result: string;
+  terminology_result: string;
+  prohibited_behavior_result: string;
+  safe_smoke_summary: string;
+  passed: boolean;
+  safe_check_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_CI_SMOKE_CHECK_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "typecheck_result", "test_result",
+  "build_result", "hardening_test_result", "terminology_result", "prohibited_behavior_result",
+  "safe_smoke_summary", "passed", "safe_check_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoCiSmokeCheckRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_production_readiness_gates
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoProductionReadinessGateRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string;
+  status: string;
+  open_blocker_count: number;
+  critical_blocker_count: number;
+  safe_gate_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_PRODUCTION_READINESS_GATE_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "status", "open_blocker_count",
+  "critical_blocker_count", "safe_gate_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoProductionReadinessGateRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_production_readiness_decisions
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoProductionReadinessDecisionRow = {
+  id: string;
+  workspace_id: string;
+  gate_id: string;
+  decision_type: string;
+  rationale: string;
+  decided_by_id: string | null;
+  safe_decision_payload_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export const AGENT_PMO_PRODUCTION_READINESS_DECISION_COLUMNS = [
+  "id", "workspace_id", "gate_id", "decision_type", "rationale", "decided_by_id",
+  "safe_decision_payload_json", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoProductionReadinessDecisionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_runtime_hardening_blockers
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoRuntimeHardeningBlockerRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string;
+  blocker_type: string;
+  severity: string;
+  status: string;
+  title: string;
+  description: string;
+  affected_layer: string | null;
+  affected_file: string | null;
+  resolved_at: string | null;
+  safe_blocker_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_RUNTIME_HARDENING_BLOCKER_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "blocker_type", "severity", "status",
+  "title", "description", "affected_layer", "affected_file", "resolved_at",
+  "safe_blocker_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoRuntimeHardeningBlockerRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_runtime_remediation_items
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoRuntimeRemediationItemRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string;
+  blocker_id: string | null;
+  remediation_type: string;
+  status: string;
+  title: string;
+  description: string;
+  safe_remediation_payload_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export const AGENT_PMO_RUNTIME_REMEDIATION_ITEM_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "blocker_id", "remediation_type",
+  "status", "title", "description", "safe_remediation_payload_json", "created_at", "updated_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoRuntimeRemediationItemRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_runtime_hardening_exports
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoRuntimeHardeningExportRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string;
+  export_format: string;
+  export_status: string;
+  safe_export_content: string;
+  export_size_bytes: number;
+  safety_validation_passed: boolean;
+  created_by_id: string | null;
+  created_at: string;
+};
+
+export const AGENT_PMO_RUNTIME_HARDENING_EXPORT_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "export_format", "export_status",
+  "safe_export_content", "export_size_bytes", "safety_validation_passed",
+  "created_by_id", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoRuntimeHardeningExportRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// agent_pmo_runtime_hardening_events
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AgentPmoRuntimeHardeningEventRow = {
+  id: string;
+  workspace_id: string;
+  hardening_run_id: string | null;
+  event_type: string;
+  message: string | null;
+  safe_event_payload_json: Record<string, unknown>;
+  actor_id: string | null;
+  created_at: string;
+};
+
+export const AGENT_PMO_RUNTIME_HARDENING_EVENT_COLUMNS = [
+  "id", "workspace_id", "hardening_run_id", "event_type", "message",
+  "safe_event_payload_json", "actor_id", "created_at",
+] as const satisfies ReadonlyArray<keyof AgentPmoRuntimeHardeningEventRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop-controlled-pmo-governance-intelligence-dashboard-pmo-governance-proposal-review-controlled-policy-change-backlog-controlled-governance-policy-simulation-report-pmo-approval-pack-controlled-policy-implementation-planning-workspace-controlled-policy-implementation-gate-dry-run-change-executor-controlled-policy-version-activation-rollback-gate-controlled-project-intelligence-handoff-end-to-end-governance-runtime-integration-production-hardening" as const;
