@@ -9,7 +9,7 @@ const storage = fs.readFileSync("src/lib/vault/intake/storage.ts", "utf8");
 const pipeline = fs.readFileSync("src/lib/vault/intake/pipeline.ts", "utf8");
 const extraction = fs.readFileSync("src/lib/vault/intake/signal-extraction.ts", "utf8");
 const route = fs.readFileSync("src/app/api/vault/intake/route.ts", "utf8");
-const commandCenter = fs.readFileSync("src/features/command-center/command-center-client.tsx", "utf8");
+const vaultIntakePanel = fs.readFileSync("src/features/command-center/vault-intake-panel.tsx", "utf8");
 
 const runtimeProbe = String.raw`
 import assert from "node:assert/strict";
@@ -155,8 +155,9 @@ test("executive synthesis update trigger is invoked and UI/API are wired", () =>
   assert.match(storage, /triggerExecutiveSynthesisUpdate/);
   assert.match(storage, /operational_memory_records/);
   assert.match(route, /ingestVaultDocument/);
-  assert.match(commandCenter, /Vault Intake Panel/);
-  assert.match(commandCenter, /Analyze Notes/);
+  assert.match(vaultIntakePanel, /Add project notes/);
+  assert.match(vaultIntakePanel, /Analyze notes/i);
+  assert.match(vaultIntakePanel, /postVaultIntake/);
 });
 
 test("source enums include all canonical source types", () => {

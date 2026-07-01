@@ -185,14 +185,15 @@ export default async function CommandCenterPage({
   const initialBrief = await loadLatestOperationalGovernanceBrief(resolution.project!.id, supabase);
 
   return (
-    <div className="space-y-4">
-      <WorkspaceContextBanner lens="Execution Coordination Lens" />
+    <div>
       <CommandCenterClient
+        key={resolution.project!.id}
         firstRun={fromOnboarding}
         projectId={resolution.project!.id}
         projectName={resolution.project!.name}
         workspaceId={workspace.workspaceId}
         projects={projectList}
+        companyName={user.companyName}
         role={user.role}
         onboardingCompleted={user.onboardingCompleted}
         planTier={subscription.plan}

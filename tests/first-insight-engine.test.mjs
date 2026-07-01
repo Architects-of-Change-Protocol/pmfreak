@@ -10,6 +10,7 @@ const store = readFileSync(join(ROOT, "src/lib/projects/first-insight/operationa
 const orchestrator = readFileSync(join(ROOT, "src/lib/projects/first-insight/operational-governance-brief-orchestrator.ts"), "utf8");
 const commandCenterPage = readFileSync(join(ROOT, "src/app/(protected)/command-center/page.tsx"), "utf8");
 const commandCenterClient = readFileSync(join(ROOT, "src/features/command-center/command-center-client.tsx"), "utf8");
+const commandCenterLayout = readFileSync(join(ROOT, "src/features/command-center/command-center-layout.tsx"), "utf8");
 const saveProject = readFileSync(join(ROOT, "src/lib/projects/save-project-onboarding.ts"), "utf8");
 
 function assertEngineHasRisk(domain, expectedTitleFragment) {
@@ -64,7 +65,7 @@ test("persistence failure fallback", () => {
   assert.match(store, /if \(error\) return \{ ok: false, error: error\.message \}/);
   assert.match(saveProject, /briefStatus = "generation_failed"/);
   assert.match(saveProject, /project\.create\.brief_generation_failed/);
-  assert.match(commandCenterClient, /Project created\. Initial governance brief could not be generated yet\./);
+  assert.match(commandCenterClient, /Project created\. We couldn&apos;t generate the first governance brief yet\./);
   assert.match(commandCenterClient, /Retry brief generation/);
 });
 
@@ -72,7 +73,8 @@ test("command center hydration", () => {
   assert.match(commandCenterPage, /loadLatestOperationalGovernanceBrief/);
   assert.match(commandCenterPage, /initialBrief=\{initialBrief\}/);
   assert.match(commandCenterClient, /initialBrief\?: OperationalGovernanceBrief \| null/);
-  assert.match(commandCenterClient, /Based on your PMO and project setup, I detected the following execution signals/);
+  assert.match(commandCenterLayout, /I can help you review changes, spot risks, prepare updates, create tasks, or generate a project brief\./);
+  assert.match(commandCenterLayout, /deriveNeedsYou/);
 });
 
 test("no project rollback if brief fails", () => {

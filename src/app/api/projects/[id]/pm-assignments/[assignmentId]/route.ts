@@ -9,14 +9,14 @@ import { unassignProjectManager } from "@/lib/pm-registry";
 import type { PMAssignmentType } from "@/lib/pm-registry";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const ROUTE = "/api/projects/[projectId]/pm-assignments/[assignmentId]";
+const ROUTE = "/api/projects/[id]/pm-assignments/[assignmentId]";
 
-type Props = { params: Promise<{ projectId: string; assignmentId: string }> };
+type Props = { params: Promise<{ id: string; assignmentId: string }> };
 
 export async function DELETE(_request: NextRequest, { params }: Props) {
   try {
     const { user } = await requireAuthenticatedUser();
-    const { projectId, assignmentId } = await params;
+    const { id: projectId, assignmentId } = await params;
     const workspaces = await getUserWorkspaces(user.id);
     const workspaceId = workspaces[0]?.id;
     if (!workspaceId) {
