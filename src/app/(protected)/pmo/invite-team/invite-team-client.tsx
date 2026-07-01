@@ -230,7 +230,7 @@ export function InviteTeamClient({ pmoName }: { pmoName: string }) {
             : "No valid invites to send.",
       });
       setTimeout(
-        () => router.push(`/workspace?onboarded=1&invited=${res.savedCount ?? 0}`),
+        () => router.push(`/command-center?from=onboarding&invited=${res.savedCount ?? 0}`),
         res.savedCount > 0 ? 1600 : 400
       );
     } else {
@@ -307,14 +307,14 @@ export function InviteTeamClient({ pmoName }: { pmoName: string }) {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => router.push("/workspace?onboarded=1&invited=0")}
+            onClick={() => router.push("/command-center?from=onboarding&invited=0")}
             className="rounded-xl border border-white/[0.09] px-4 py-2.5 text-sm text-zinc-500 transition hover:border-white/[0.18] hover:text-zinc-200"
           >
             Skip for now
           </button>
           <button
             type="button"
-            onClick={() => router.push("/workspace?onboarded=1&invited=0")}
+            onClick={() => router.push("/command-center?from=onboarding&invited=0")}
             className="rounded-xl border border-indigo-300/20 bg-indigo-400/[0.06] px-4 py-2.5 text-sm text-indigo-300 transition hover:bg-indigo-400/[0.12]"
           >
             Continue to Command Center

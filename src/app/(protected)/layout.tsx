@@ -15,8 +15,8 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   const continuity = await assertRuntimeAuthContinuity();
   if (!continuity.ok) {
     const headersList = await headers();
-    const currentPath = headersList.get("x-pathname") ?? "/workspace";
-    const nextParam = isSafeContinuationRoute(currentPath) ? currentPath : "/workspace";
+    const currentPath = headersList.get("x-pathname") ?? "/command-center";
+    const nextParam = isSafeContinuationRoute(currentPath) ? currentPath : "/command-center";
     const decision = resolvePostAuthDestination({ isAuthenticated: false, onboardingCompleted: false });
     console.log("[protected-layout] continuity check failed, redirecting to login. path:", currentPath, "issues:", continuity.issues);
     redirect(`${decision.destination}?next=${encodeURIComponent(nextParam)}`);
@@ -51,7 +51,8 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     const headersList = await headers();
     const currentPath = headersList.get("x-pathname") ?? "";
     if (currentPath.startsWith("/command-center") || currentPath.startsWith("/workspace/setup")) {
-      return <div className="min-h-screen bg-[#FCFBF9] px-3 py-4 md:px-5 md:py-6">{children}</div>;
+      const shellMarker = currentPath.startsWith("/workspace/setup") ? "pmfreak-light-workspace-setup" : "pmfreak-light-command-center";
+      return <div data-shell={shellMarker} className="min-h-screen bg-[#FCFBF9] px-3 py-4 md:px-5 md:py-6">{children}</div>;
     }
     return <div className="min-h-screen bg-slate-950 text-slate-100"><main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-10">{children}</main></div>;
   }
@@ -59,7 +60,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   const headersList = await headers();
   const currentPath = headersList.get("x-pathname") ?? "";
   if (currentPath.startsWith("/workspace/setup")) {
-    return <div className="min-h-screen bg-[#FCFBF9] px-3 py-4 md:px-5 md:py-6">{children}</div>;
+    return <div data-shell="pmfreak-light-workspace-setup" className="min-h-screen bg-[#FCFBF9] px-3 py-4 md:px-5 md:py-6">{children}</div>;
   }
 
   return <OperationalShell user={{ fullName: user.fullName, role: user.role, companyName: user.companyName }}>{children}</OperationalShell>;

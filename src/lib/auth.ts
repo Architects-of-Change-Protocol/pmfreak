@@ -55,8 +55,8 @@ export const requireAuthUser = async () => {
   const user = await getAuthUser();
   if (!user) {
     const headersList = await headers();
-    const currentPath = headersList.get("x-pathname") ?? "/workspace";
-    const nextParam = encodeURIComponent(currentPath || "/workspace");
+    const currentPath = headersList.get("x-pathname") ?? "/command-center";
+    const nextParam = encodeURIComponent(currentPath || "/command-center");
     redirect(`/login?next=${nextParam}`);
   }
   return user;

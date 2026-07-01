@@ -16,7 +16,7 @@ async function uploadDocumentsToCopilot(files: File[], projectId: string) {
 
 export default function CopilotPage() {
   useEffect(() => {
-    redirect("/workspace");
+    redirect("/command-center");
   }, []);
   void uploadDocumentsToCopilot;
   return null;

@@ -11,6 +11,7 @@ export function CommandCenterEmptyState({
   return (
     <div
       data-build="command-center-light-v2-empty"
+      data-shell="pmfreak-light-command-center"
       className="overflow-hidden rounded-[28px] border border-slate-200 bg-[#FCFBF9] shadow-[0_40px_90px_-60px_rgba(15,23,42,0.35)]"
     >
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white/70 px-4 py-3 sm:px-5">

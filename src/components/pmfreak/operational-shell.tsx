@@ -833,11 +833,12 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
   // dark operational chrome rendered below. The setup/onboarding flow leads directly
   // into that experience, so it uses the same light shell rather than the old chrome.
   if (pathname.startsWith("/command-center") || pathname.startsWith("/workspace/setup")) {
-    return <div className="min-h-screen bg-[#FCFBF9] px-3 py-4 md:px-5 md:py-6">{children}</div>;
+    const shellMarker = pathname.startsWith("/workspace/setup") ? "pmfreak-light-workspace-setup" : "pmfreak-light-command-center";
+    return <div data-shell={shellMarker} className="min-h-screen bg-[#FCFBF9] px-3 py-4 md:px-5 md:py-6">{children}</div>;
   }
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-100">
+    <div data-shell="pmfreak-legacy-operational-shell" className="min-h-screen bg-[#020617] text-slate-100">
       <div className="mx-auto flex w-full max-w-[1540px] gap-4 px-3 py-4 md:gap-6 md:px-5 md:py-6">
 
         {/* ── Left rail ── */}

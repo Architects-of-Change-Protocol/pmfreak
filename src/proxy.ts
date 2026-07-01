@@ -19,6 +19,7 @@ import {
 // Protected routes     → unauthenticated → /login?next=<path>
 // Setup/onboarding     → authenticated + complete → /command-center
 // Workspace routes     → incomplete onboarding → getOnboardingRedirect(state)
+// /workspace            → always → /command-center (legacy shell quarantined)
 // Active               → passthrough
 // trial_blocked        → /trial-inactive  (via getOnboardingRedirect)
 // API routes           → passthrough (handled by route handlers)
@@ -37,7 +38,7 @@ export async function proxy(request: NextRequest) {
 
   // Debug routes blocked in production
   if (isInternalDebugRoute(pathname) && process.env.NODE_ENV === "production") {
-    return NextResponse.redirect(new URL("/workspace", request.url));
+    return NextResponse.redirect(new URL("/command-center", request.url));
   }
 
   // Unauthenticated access to protected route → /login?next=<path>
@@ -66,7 +67,7 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL(decision.destination, request.url));
     }
 
-    // Completed onboarding user on setup route → /workspace
+    // Completed onboarding user on setup route → /command-center
     if (isSetupRoute(pathname) && onboardingCompleted) {
       return NextResponse.redirect(new URL("/command-center", request.url));
     }
@@ -78,6 +79,12 @@ export async function proxy(request: NextRequest) {
       if (dest !== pathname) {
         return NextResponse.redirect(new URL(dest, request.url));
       }
+    }
+
+    // Quarantine the legacy dark /workspace shell — always bounce authenticated
+    // users to the premium light Command Center instead of rendering it.
+    if (pathname === "/workspace") {
+      return NextResponse.redirect(new URL("/command-center", request.url));
     }
   }
 

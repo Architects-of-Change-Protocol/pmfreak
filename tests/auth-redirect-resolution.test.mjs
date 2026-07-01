@@ -15,9 +15,9 @@ test('authenticated + safe next uses requested route', () => {
   assert.match(resolver, /reason: "requested-route"/);
 });
 
-test('/workspace is real content route and does not redirect to /projects', () => {
-  assert.match(workspacePage, /WorkspaceShell/);
-  assert.doesNotMatch(workspacePage, /redirect\("\/projects"\)/);
+test('/workspace is quarantined and redirects to /command-center, not the legacy shell', () => {
+  assert.match(workspacePage, /redirect\("\/command-center"\)/);
+  assert.doesNotMatch(workspacePage, /WorkspaceShell/);
 });
 
 test('/workspace/setup renders setup flow and does not redirect to /getting-started', () => {
@@ -41,9 +41,16 @@ test('proxy enforces setup access for onboarding incomplete users', () => {
   assert.match(proxy, /getOnboardingRedirect\(onboardingState\)/);
 });
 
-test('proxy redirects onboarding-complete users away from setup routes', () => {
+test('proxy redirects onboarding-complete users away from setup routes to /command-center', () => {
   assert.match(proxy, /isSetupRoute\(pathname\) && onboardingCompleted/);
-  assert.match(proxy, /new URL\("\/workspace", request\.url\)/);
+  const setupBlock = proxy.slice(proxy.indexOf('isSetupRoute(pathname) && onboardingCompleted'));
+  assert.match(setupBlock.slice(0, 200), /new URL\("\/command-center", request\.url\)/);
+});
+
+test('proxy quarantines the legacy /workspace shell to /command-center', () => {
+  assert.match(proxy, /pathname === "\/workspace"/);
+  const workspaceBlock = proxy.slice(proxy.indexOf('pathname === "/workspace"'));
+  assert.match(workspaceBlock.slice(0, 200), /new URL\("\/command-center", request\.url\)/);
 });
 
 test('no circular redirect chains between setup and legacy routes', () => {

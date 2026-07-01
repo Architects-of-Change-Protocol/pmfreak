@@ -197,6 +197,7 @@ export function CommandCenterLayout({
   return (
     <div
       data-build="command-center-light-v2"
+      data-shell="pmfreak-light-command-center"
       className="overflow-hidden rounded-[28px] border border-slate-200 bg-[#FCFBF9] shadow-[0_40px_90px_-60px_rgba(15,23,42,0.35)]"
     >
       <ProjectTopBar project={selectedProject} onOpenProjects={() => setLeftOpen(true)} onOpenAgents={() => setRightOpen(true)} />
