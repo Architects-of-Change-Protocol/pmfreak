@@ -22,6 +22,9 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     redirect(`${decision.destination}?next=${encodeURIComponent(nextParam)}`);
   }
 
+  const currentPath = (await headers()).get("x-pathname") ?? "";
+  const isCommandCenterRoute = currentPath.startsWith("/command-center");
+
   const user = await requireAuthUser();
   let resolvedWorkspace = await resolveCanonicalWorkspace(user.id);
   console.log("[protected-layout] workspace resolution status:", resolvedWorkspace.status, "workspaceId:", resolvedWorkspace.workspaceId ?? "(none)");
@@ -48,12 +51,17 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   }
 
   if (!isOnboardingComplete(onboardingState)) {
-    const headersList = await headers();
-    const currentPath = headersList.get("x-pathname") ?? "";
-    if (currentPath.startsWith("/command-center")) {
+    if (isCommandCenterRoute) {
       return <div className="min-h-screen bg-[#FCFBF9] px-3 py-4 md:px-5 md:py-6">{children}</div>;
     }
     return <div className="min-h-screen bg-slate-950 text-slate-100"><main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-10">{children}</main></div>;
+  }
+
+  // The Command Center owns its own premium light shell (top bar, project sidebar,
+  // command feed, agent dock). Route around OperationalShell entirely here so its
+  // legacy project/discovery/actions/tasks/schedule/portfolio effects never mount.
+  if (isCommandCenterRoute) {
+    return <div className="min-h-screen bg-[#FCFBF9] px-3 py-4 md:px-5 md:py-6">{children}</div>;
   }
 
   return <OperationalShell user={{ fullName: user.fullName, role: user.role, companyName: user.companyName }}>{children}</OperationalShell>;

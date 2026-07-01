@@ -19,8 +19,8 @@ export function CommandCenterEmptyState({
         </div>
       </header>
 
-      <div className="grid gap-0 lg:grid-cols-[280px_1fr_320px]">
-        <aside className="hidden shrink-0 space-y-3 border-r border-slate-200 bg-white/60 p-4 lg:block">
+      <div className="grid gap-0 xl:grid-cols-[280px_1fr_320px]">
+        <aside className="hidden shrink-0 space-y-3 border-r border-slate-200 bg-white/60 p-4 xl:block">
           <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Get started</p>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
