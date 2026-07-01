@@ -52,5 +52,5 @@ export async function activateContextAction(formData: FormData) {
     redirect(`/command-center?error=${encodeURIComponent(error?.message ?? "Unable to activate context")}`);
   }
 
-  redirect(`/projects/${data.id}`);
+  redirect(`/command-center?projectId=${data.id}&from=onboarding`);
 }
