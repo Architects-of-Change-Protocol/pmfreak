@@ -1,12 +1,12 @@
 import Link from "next/link";
 
 const capabilityPills = [
-  "AI Boundary Control",
-  "Operational Memory",
-  "Organizational Learning",
-  "Enterprise Isolation",
-  "Secure AI Workspace",
-  "Audit Trails",
+  "Decisions",
+  "Risks",
+  "Commitments",
+  "Approvals",
+  "Clear Record",
+  "Secure Workspace",
 ];
 
 const tools = [
@@ -21,19 +21,19 @@ const tools = [
 const leakageLabels = [
   "stakeholder escalations",
   "delivery risks",
-  "budget overruns",
+  "commitments",
   "internal decisions",
   "meeting notes",
   "lessons learned",
-  "project patterns",
+  "approvals",
   "timeline drift",
-  "recurring incident",
+  "recurring incidents",
 ];
 
 const metrics = [
-  ["Pattern Recognition", 85],
-  ["Memory Synthesis", 72],
-  ["Risk Detection", 68],
+  ["Decisions Tracked", 85],
+  ["Context Organized", 72],
+  ["Risks Detected", 68],
 ] as const;
 
 const memoryNodes = [
@@ -78,17 +78,28 @@ export function HeroSection() {
 
       <div className="relative grid gap-8 xl:grid-cols-[1fr_1.22fr] xl:items-center">
         <div className="max-w-2xl">
-          <h1 className="text-4xl font-black leading-tight text-white md:text-6xl">
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#ff5fae]">
+            Project knowledge, protected.
+          </p>
+          <h1 className="mt-3 text-4xl font-black leading-tight text-white md:text-6xl">
             Stop leaking project intelligence.
           </h1>
           <p className="mt-5 text-base leading-relaxed text-zinc-300 md:text-lg">
-            Your teams are already using AI. PMFreak keeps your operational knowledge
-            inside controlled boundaries while transforming operational activity into
-            organizational memory.
+            Your projects already know more than your tools can show.
+          </p>
+          <p className="mt-4 text-base leading-relaxed text-zinc-300 md:text-lg">
+            Every decision, risk, blocker, commitment, approval, and lesson learned
+            is part of your company&rsquo;s knowledge. But too much of it gets lost
+            across emails, meetings, spreadsheets, chats, and uncontrolled AI tools.
+          </p>
+          <p className="mt-4 text-base leading-relaxed text-zinc-300 md:text-lg">
+            PMFreak helps teams keep project knowledge organized, protected, and
+            actionable &mdash; so everyone can understand what happened, what
+            matters now, and what should happen next.
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/signup" className="rounded-full bg-[#ff0b8a] px-6 py-3 text-sm font-bold text-white shadow-[0_0_20px_rgba(255,11,138,0.55)] transition hover:bg-[#e10079]">Start Free</Link>
+            <Link href="/signup" className="rounded-full bg-[#ff0b8a] px-6 py-3 text-sm font-bold text-white shadow-[0_0_20px_rgba(255,11,138,0.55)] transition hover:bg-[#e10079]">Request Founder Access</Link>
             <Link href="/command-center" className="rounded-full border border-white/25 bg-black/30 px-6 py-3 text-sm font-bold text-white transition hover:bg-white/10">Open Command Center</Link>
           </div>
 

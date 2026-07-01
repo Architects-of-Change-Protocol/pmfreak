@@ -14,7 +14,8 @@ type FooterColumn = {
 };
 
 export const metadata: Metadata = {
-  description: "Operational cognition infrastructure for modern project delivery.",
+  description:
+    "PMFreak helps companies keep, protect, and use what they learn from every project.",
 };
 
 const operationalRealities = [
@@ -24,7 +25,7 @@ const operationalRealities = [
       "Critical issues often sit across chats, docs, and meetings before reaching decision makers.",
   },
   {
-    title: "Status can look green while recovery work is already overdue",
+    title: "Status can look green while real work is already at risk",
     description:
       "Teams often discover delivery problems only after momentum has already been lost.",
   },
@@ -36,45 +37,93 @@ const operationalRealities = [
   {
     title: "Leadership gets decision-ready context too late",
     description:
-      "Scattered updates make it difficult to walk into meetings with clear operational awareness.",
+      "Scattered updates make it difficult to walk into meetings with clear, current context.",
+  },
+  {
+    title: "Sensitive project knowledge leaks into uncontrolled AI tools",
+    description:
+      "Without a safe place to work, teams paste confidential context into tools no one is tracking.",
   },
 ] as const;
 
 const operationalFlowSteps = [
   {
     step: "01",
-    title: "Define operational conditions",
-    text: "Set your PMO, project, governance, escalation, stakeholder, and delivery conditions before AI starts interpreting work.",
+    title: "Connect the project context",
+    text: "Bring together the updates, decisions, risks, and signals that matter.",
   },
   {
     step: "02",
-    title: "Capture operational signal",
-    text: "Collect fragmented signals from meetings, updates, chats, blockers, risks, decisions, and delivery activity.",
+    title: "Build project memory",
+    text: "PMFreak keeps track of what happened, who committed to what, and what still needs attention.",
   },
   {
     step: "03",
-    title: "Synthesize",
-    text: "Specialized AI agents classify, correlate, and transform scattered updates into operational awareness.",
+    title: "Spot what needs action",
+    text: "Risks, blockers, overdue commitments, and weak signals are surfaced before they become escalations.",
   },
   {
     step: "04",
-    title: "Remember",
-    text: "Build persistent organizational memory across projects and teams while keeping better control over data leakage.",
+    title: "Prepare the next step",
+    text: "PMFreak helps draft updates, actions, and recommendations based on the project context.",
   },
   {
     step: "05",
-    title: "Act",
-    text: "Walk into meetings with clear priorities, stakeholder awareness, escalation context, and next actions.",
+    title: "Keep control",
+    text: "Sensitive actions are routed for human approval, and important decisions are recorded.",
   },
 ] as const;
 
-const comparisonRows = [
-  ["Passive dashboards", "Clear next actions"],
-  ["Reactive follow-up", "Early risk warning"],
-  ["Status-only reporting", "Decision-ready updates"],
-  ["Scattered project context", "Shared project memory"],
-  ["Last-minute surprises", "Prepared meetings"],
+const solutionCapabilities = [
+  {
+    title: "Remember decisions",
+    description: "Keep a record of what was decided, when, and why.",
+  },
+  {
+    title: "Track risks",
+    description: "Surface what's threatening delivery before it becomes a surprise.",
+  },
+  {
+    title: "Capture commitments",
+    description: "Know who committed to what, and whether it's still on track.",
+  },
+  {
+    title: "Prepare next actions",
+    description: "Get ready-to-review drafts for updates and next steps.",
+  },
+  {
+    title: "Route sensitive actions for approval",
+    description: "Nothing sensitive happens without a human in the loop.",
+  },
+  {
+    title: "Keep a clear record of what happened",
+    description: "Build a project history your team can trust and reuse.",
+  },
 ] as const;
+
+const traditionalToolPoints = [
+  "Track tasks and dates",
+  "Depend on manual updates",
+  "Show status after the fact",
+  "Lose context across projects",
+] as const;
+
+const genericAiToolPoints = [
+  "Summarize what you paste in",
+  "Depend on prompts",
+  "Scatter sensitive context",
+  "Do not understand your project history",
+] as const;
+
+const pmfreakPoints = [
+  "Keeps project knowledge organized",
+  "Spots risks and commitments",
+  "Prepares next actions",
+  "Routes sensitive actions for approval",
+  "Creates a clear record your team can trust",
+] as const;
+
+
 
 const footerColumns = [
   {
@@ -125,15 +174,59 @@ function OperationalRealitySection() {
   return (
     <section className={`${lightSectionClass} p-7 md:p-9`}>
       <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#ff008c]">
-        <span id="intelligence" className="block scroll-mt-[140px]"></span>Operational reality
+        <span id="intelligence" className="block scroll-mt-[140px]"></span>The problem
       </p>
 
       <h2 className="mt-3 text-3xl font-black text-zinc-950 md:text-4xl">
-        The hidden cost of scattered project intelligence
+        The hidden cost of scattered project knowledge
       </h2>
+
+      <p className="mt-3 max-w-3xl text-sm leading-relaxed text-zinc-600 md:text-base">
+        Projects don&rsquo;t only create tasks. They create decisions, context,
+        risks, commitments, lessons, and evidence. When that knowledge is
+        scattered across tools and people, teams move slower, leaders see
+        problems too late, and every new project starts from scratch.
+      </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         {operationalRealities.map((item) => (
+          <article
+            key={item.title}
+            className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5"
+          >
+            <h3 className="text-base font-black text-zinc-950 md:text-lg">
+              {item.title}
+            </h3>
+
+            <p className="mt-2 text-sm leading-relaxed text-zinc-700">
+              {item.description}
+            </p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SolutionSection() {
+  return (
+    <section className={`${lightSectionClass} p-7 md:p-9`}>
+      <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#ff008c]">
+        The solution
+      </p>
+
+      <h2 className="mt-3 text-3xl font-black text-zinc-950 md:text-4xl">
+        Keep what your projects already know.
+      </h2>
+
+      <p className="mt-3 max-w-3xl text-sm leading-relaxed text-zinc-600 md:text-base">
+        PMFreak helps your team build a shared memory of each project &mdash;
+        decisions, risks, blockers, approvals, commitments, and next steps
+        &mdash; while keeping sensitive context inside controlled boundaries.
+      </p>
+
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {solutionCapabilities.map((item) => (
           <article
             key={item.title}
             className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5"
@@ -160,11 +253,11 @@ function OperationalFlowSection() {
       </p>
 
       <h2 className="mt-3 text-3xl font-black text-zinc-950 md:text-4xl">
-        From scattered updates to operational clarity.
+        From scattered updates to a clear next step.
       </h2>
 
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-zinc-600 md:text-base">
-        PMFreak turns everyday project signals into governed intelligence, persistent memory, and decision-ready action.
+        PMFreak turns everyday project updates into organized knowledge, clear priorities, and next steps you can trust.
       </p>
 
       <div className="relative mt-7 overflow-hidden rounded-3xl border border-zinc-200 bg-gradient-to-b from-white via-zinc-50 to-white p-4 shadow-[0_25px_70px_rgba(10,10,10,0.08)] md:p-7">
@@ -192,13 +285,13 @@ function OperationalFlowSection() {
 
           <div className="grid gap-4 lg:grid-cols-[1.1fr_1.45fr_1.1fr]">
             <article className="rounded-2xl border border-fuchsia-200 bg-white/85 p-4 backdrop-blur">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-fuchsia-600">01 • Conditions</p>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-fuchsia-600">01 • Context</p>
               <h3 className="mt-2 text-base font-black text-zinc-950">{operationalFlowSteps[0].title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-zinc-700">{operationalFlowSteps[0].text}</p>
               <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold text-zinc-600">
-                <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1">PMO rules</span>
-                <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1">Governance</span>
-                <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1">Escalation logic</span>
+                <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1">Updates</span>
+                <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1">Decisions</span>
+                <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1">Risks & signals</span>
               </div>
             </article>
 
@@ -208,17 +301,17 @@ function OperationalFlowSection() {
               <div className="core-orbit pointer-events-none absolute left-1/2 top-1/2 h-48 w-48 -translate-x-1/2 -translate-y-1/2 rounded-full border border-fuchsia-300/35" />
               <div className="core-orbit core-orbit-slow pointer-events-none absolute left-1/2 top-1/2 h-60 w-60 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-300/25" />
               <div className="absolute left-1/2 top-0 h-16 w-px -translate-x-1/2 bg-gradient-to-b from-fuchsia-300/60 to-transparent" />
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-700">03 • Synthesis</p>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-700">03 • Action Signals</p>
               <h3 className="mt-2 text-lg font-black text-zinc-950">{operationalFlowSteps[2].title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-zinc-700">{operationalFlowSteps[2].text}</p>
               <div className="relative mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
                 <div className="pointer-events-none absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 animate-pulse rounded-full bg-fuchsia-200/40 blur-2xl" />
                 <div className="core-blink pointer-events-none absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-zinc-950/80" />
-                <p className="relative text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">PMFreak AI Agents · Operational Intelligence Core</p>
+                <p className="relative text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">PMFreak · Surfacing what needs attention</p>
                 <div className="relative mt-3 grid grid-cols-2 gap-2 text-xs font-semibold text-zinc-700">
-                  <span className="rounded-xl border border-zinc-200 bg-white px-3 py-2">Classify</span>
-                  <span className="rounded-xl border border-zinc-200 bg-white px-3 py-2">Correlate</span>
-                  <span className="rounded-xl border border-zinc-200 bg-white px-3 py-2">Prioritize</span>
+                  <span className="rounded-xl border border-zinc-200 bg-white px-3 py-2">Risks</span>
+                  <span className="rounded-xl border border-zinc-200 bg-white px-3 py-2">Blockers</span>
+                  <span className="rounded-xl border border-zinc-200 bg-white px-3 py-2">Overdue</span>
                   <span className="rounded-xl border border-zinc-200 bg-white px-3 py-2">Escalate</span>
                 </div>
               </div>
@@ -228,32 +321,32 @@ function OperationalFlowSection() {
               </div>
               <div className="mt-4 flex items-center gap-2 text-xs text-zinc-600">
                 <span className="inline-block h-2.5 w-2.5 animate-ping rounded-full bg-fuchsia-500" />
-                Continuously synthesizing operational awareness
+                Always watching for what needs attention
               </div>
             </article>
 
             <article className="rounded-2xl border border-cyan-200 bg-white/90 p-4">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-700">05 • Action</p>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-700">05 • Keep Control</p>
               <h3 className="mt-2 text-base font-black text-zinc-950">{operationalFlowSteps[4].title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-zinc-700">{operationalFlowSteps[4].text}</p>
               <div className="mt-4 space-y-2 text-xs font-medium text-zinc-700">
-                <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">Meeting priorities</div>
-                <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">Stakeholder context</div>
-                <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">Next best actions</div>
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">Sensitive actions await approval</div>
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">Decisions recorded automatically</div>
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">Clear audit trail maintained</div>
               </div>
             </article>
           </div>
 
           <div className="relative mt-4 grid gap-4 lg:grid-cols-[1.1fr_1.45fr_1.1fr]">
             <article className="rounded-2xl border border-zinc-200 bg-white p-4">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-700">02 • Signals</p>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-700">02 • Memory</p>
               <h3 className="mt-2 text-base font-black text-zinc-950">{operationalFlowSteps[1].title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-zinc-700">{operationalFlowSteps[1].text}</p>
               <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold text-zinc-600">
-                <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1">Meetings</span>
-                <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1">Risks</span>
-                <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1">Blockers</span>
                 <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1">Decisions</span>
+                <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1">Commitments</span>
+                <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1">Owners</span>
+                <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1">Status</span>
               </div>
             </article>
             <div className="hidden items-center justify-center lg:flex">
@@ -261,13 +354,13 @@ function OperationalFlowSection() {
             </div>
             <article className="relative rounded-2xl border border-zinc-200 bg-white p-4 lg:row-span-2">
               <div className="pointer-events-none absolute inset-0 rounded-2xl bg-[linear-gradient(130deg,rgba(236,72,153,0.05),rgba(34,211,238,0.06))]" />
-              <p className="relative text-xs font-black uppercase tracking-[0.18em] text-fuchsia-600">04 • Memory</p>
+              <p className="relative text-xs font-black uppercase tracking-[0.18em] text-fuchsia-600">04 • Next Step</p>
               <h3 className="relative mt-2 text-base font-black text-zinc-950">{operationalFlowSteps[3].title}</h3>
               <p className="relative mt-2 text-sm leading-relaxed text-zinc-700">{operationalFlowSteps[3].text}</p>
               <div className="relative mt-4 space-y-2 text-xs text-zinc-700">
-                <div className="rounded-xl border border-zinc-200 bg-white/80 px-3 py-2">Q2 Steering committee escalation context retained</div>
-                <div className="rounded-xl border border-zinc-200 bg-white/80 px-3 py-2">Delivery dependency history linked across teams</div>
-                <div className="rounded-xl border border-zinc-200 bg-white/80 px-3 py-2">Stakeholder decision patterns available for reuse</div>
+                <div className="rounded-xl border border-zinc-200 bg-white/80 px-3 py-2">Draft update ready for review</div>
+                <div className="rounded-xl border border-zinc-200 bg-white/80 px-3 py-2">Recommended action for a blocked task</div>
+                <div className="rounded-xl border border-zinc-200 bg-white/80 px-3 py-2">Suggested owner for an overdue commitment</div>
               </div>
               <svg viewBox="0 0 320 86" className="mt-3 hidden w-full lg:block" fill="none" aria-hidden>
                 <path d="M8 65 C58 28 110 70 160 38 C210 8 252 42 310 20" className="memory-mesh" />
@@ -359,22 +452,24 @@ function GovernanceSection() {
       </p>
 
       <h2 className="mt-3 text-3xl font-black text-white md:text-4xl">
-        Governed intelligence, not scattered AI.
+        Use AI without losing control.
       </h2>
 
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-zinc-300 md:text-base">
-        PMFreak keeps operational reasoning inside structured project boundaries,
-        helping teams build reusable intelligence without scattering sensitive
-        context across disconnected tools.
+        PMFreak helps teams use AI around project work without scattering
+        sensitive context or letting important actions happen without review.
+        Your team gets speed, memory, and clarity &mdash; with boundaries.
       </p>
 
       <div className="mt-10 grid gap-8 lg:grid-cols-[0.85fr_1fr] lg:items-center">
         <div>
           <ul className="space-y-3">
             {[
-              "Controlled project boundaries",
-              "Audit-ready operational history",
-              "Persistent organizational memory",
+              "Keep project context in controlled spaces",
+              "Route sensitive actions for approval",
+              "Preserve a clear history of decisions and changes",
+              "Reduce copy-paste into uncontrolled AI tools",
+              "Help teams reuse what they learn",
             ].map((point) => (
               <li
                 key={point}
@@ -387,7 +482,7 @@ function GovernanceSection() {
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-900 via-zinc-950 to-zinc-900 p-5">
-          <svg viewBox="0 0 580 320" className="h-full w-full" role="img" aria-label="Governance boundary filtering project signals into operational memory while leakage is blocked">
+          <svg viewBox="0 0 580 320" className="h-full w-full" role="img" aria-label="Controlled boundary filtering project signals into project memory while leakage is blocked">
             <defs>
               <linearGradient id="flowLine" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="rgba(34,211,238,0.2)" />
@@ -395,9 +490,9 @@ function GovernanceSection() {
               </linearGradient>
             </defs>
             <text x="18" y="38" fill="rgba(161,161,170,0.9)" fontSize="13" fontWeight="700">Project signals</text>
-            <text x="216" y="40" fill="rgba(244,244,245,0.95)" fontSize="13" fontWeight="700">Governance boundary</text>
-            <text x="430" y="40" fill="rgba(244,244,245,0.95)" fontSize="13" fontWeight="700">Operational memory</text>
-            <text x="392" y="278" fill="rgba(244,114,182,0.95)" fontSize="12" fontWeight="700">Uncontrolled leakage reduced</text>
+            <text x="216" y="40" fill="rgba(244,244,245,0.95)" fontSize="13" fontWeight="700">Controlled boundary</text>
+            <text x="430" y="40" fill="rgba(244,244,245,0.95)" fontSize="13" fontWeight="700">Project memory</text>
+            <text x="392" y="278" fill="rgba(244,114,182,0.95)" fontSize="12" fontWeight="700">Leakage blocked</text>
 
             <rect x="210" y="58" width="168" height="180" rx="20" fill="rgba(39,39,42,0.62)" stroke="rgba(34,211,238,0.42)" strokeWidth="1.2" />
             <circle cx="110" cy="108" r="8" fill="rgba(34,211,238,0.92)" />
@@ -427,43 +522,72 @@ function ComparisonSection() {
   return (
     <section className={`${lightSectionClass} p-7 md:p-10`}>
       <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#ff008c]">
-        PMFreak vs Traditional PM Tools
+        How PMFreak is different
       </p>
       <h2 className="mt-3 text-3xl font-black text-zinc-950 md:text-4xl">
-        From passive reporting to active operational awareness.
+        Not another AI project management tool.
       </h2>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
+      <p className="mt-3 max-w-3xl text-sm leading-relaxed text-zinc-600 md:text-base">
+        Traditional tools track work. Generic AI tools generate suggestions.
+        PMFreak helps your team protect project knowledge, understand what
+        changed, and take the right next step without losing control.
+      </p>
+
+      <div className="mt-8 grid gap-4 md:grid-cols-3 md:items-stretch">
         <article className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6">
           <h3 className="text-xs font-black uppercase tracking-[0.18em] text-zinc-500">
             Traditional PM tools
           </h3>
           <ul className="mt-4 space-y-3 text-sm font-medium text-zinc-600">
-            {comparisonRows.map(([legacy]) => (
-              <li key={legacy}>{legacy}</li>
+            {traditionalToolPoints.map((point) => (
+              <li key={point}>{point}</li>
             ))}
           </ul>
         </article>
 
-        <div className="hidden md:flex items-center justify-center px-2">
-          <div className="h-full w-px bg-gradient-to-b from-transparent via-[#ff008c]/40 to-transparent" />
-          <span className="mx-3 rounded-full border border-[#ff008c]/20 bg-[#ff008c]/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-[#b20062]">
-            Shift
-          </span>
-          <div className="h-full w-px bg-gradient-to-b from-transparent via-cyan-400/40 to-transparent" />
-        </div>
+        <article className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6">
+          <h3 className="text-xs font-black uppercase tracking-[0.18em] text-zinc-500">
+            Generic AI tools
+          </h3>
+          <ul className="mt-4 space-y-3 text-sm font-medium text-zinc-600">
+            {genericAiToolPoints.map((point) => (
+              <li key={point}>{point}</li>
+            ))}
+          </ul>
+        </article>
 
         <article className="rounded-2xl border border-zinc-900 bg-zinc-950 p-6 shadow-[0_20px_80px_rgba(15,23,42,0.18)]">
           <h3 className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
             PMFreak
           </h3>
           <ul className="mt-4 space-y-3 text-sm font-semibold text-white">
-            {comparisonRows.map(([, modern]) => (
-              <li key={modern}>{modern}</li>
+            {pmfreakPoints.map((point) => (
+              <li key={point}>{point}</li>
             ))}
           </ul>
         </article>
       </div>
+    </section>
+  );
+}
+
+function PoweredByAocSection() {
+  return (
+    <section className={`${lightSectionClass} p-7 md:p-9`}>
+      <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#ff008c]">
+        Built on AOC
+      </p>
+
+      <h2 className="mt-3 text-2xl font-black text-zinc-950 md:text-3xl">
+        Built on AOC
+      </h2>
+
+      <p className="mt-3 max-w-3xl text-sm leading-relaxed text-zinc-600 md:text-base">
+        PMFreak is the first product built on AOC Protocol and AOC Enterprise
+        &mdash; the governance foundation behind how project knowledge,
+        AI-assisted actions, approvals, and audit-ready records are managed.
+      </p>
     </section>
   );
 }
@@ -476,17 +600,18 @@ function FinalCtaSection() {
       </p>
 
       <h2 className="mt-3 text-3xl font-black text-white md:text-4xl">
-        Build operational memory before problems become escalations.
+        Stop losing what your projects already know.
       </h2>
 
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-zinc-300 md:text-base">
-        PMFreak helps teams turn scattered operational activity into structured
-        awareness, clearer action, and reusable organizational intelligence.
+        PMFreak helps your team turn scattered project work into organized
+        knowledge, safer AI-assisted action, and a project history people can
+        actually use.
       </p>
 
       <div className="mt-7 flex flex-wrap gap-3">
         <Link href="/signup" className={primaryCtaClass}>
-          Start Free
+          Request Founder Access
         </Link>
 
         <Link href="/command-center" className={secondaryCtaClass}>
@@ -533,7 +658,7 @@ function LandingFooter() {
         <p className="text-sm font-semibold text-white">PMFreak</p>
 
         <p className="mt-1 text-xs text-zinc-400">
-          Operational cognition infrastructure for modern project delivery.
+          PMFreak helps teams keep, protect, and use what they learn from every project.
         </p>
 
         <p className="mt-3 text-xs text-zinc-500">
@@ -555,11 +680,15 @@ export default function Home() {
 
           <OperationalRealitySection />
 
+          <SolutionSection />
+
           <OperationalFlowSection />
+
+          <ComparisonSection />
 
           <GovernanceSection />
 
-          <ComparisonSection />
+          <PoweredByAocSection />
 
           <FinalCtaSection />
 
