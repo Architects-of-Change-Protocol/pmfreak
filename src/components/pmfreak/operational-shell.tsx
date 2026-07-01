@@ -828,6 +828,13 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
   };
   const discoveryConfidence = Math.round(Number(discoverySummary?.confidence_score ?? 0));
 
+  // The Command Center owns its own premium light shell (top bar, project sidebar,
+  // command feed, agent dock) — it must not be visually dominated by the legacy
+  // dark operational chrome rendered below.
+  if (pathname.startsWith("/command-center")) {
+    return <div className="min-h-screen bg-[#FCFBF9] px-3 py-4 md:px-5 md:py-6">{children}</div>;
+  }
+
   return (
     <div className="min-h-screen bg-[#020617] text-slate-100">
       <div className="mx-auto flex w-full max-w-[1540px] gap-4 px-3 py-4 md:gap-6 md:px-5 md:py-6">
