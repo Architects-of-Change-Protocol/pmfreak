@@ -1,5 +1,9 @@
 import { GettingStartedFlow } from "@/components/pmfreak/activation/getting-started-flow";
 
 export default function WorkspaceSetupPage() {
-  return <GettingStartedFlow />;
+  return (
+    <div data-shell="pmfreak-light-workspace-setup">
+      <GettingStartedFlow />
+    </div>
+  );
 }

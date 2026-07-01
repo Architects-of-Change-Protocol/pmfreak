@@ -13,7 +13,7 @@ export function getOnboardingRedirect(state: OnboardingState): string {
     case "needs_project":
       return "/projects/new";
     case "active":
-      return "/workspace";
+      return "/command-center";
     case "trial_blocked":
       return "/trial-inactive";
   }

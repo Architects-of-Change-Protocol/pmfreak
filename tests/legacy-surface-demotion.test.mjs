@@ -26,8 +26,8 @@ test('navigation labels use lens semantics', () => {
   assert.doesNotMatch(nav, /Command Center", href: "\/command-center"/);
 });
 
-test('post-auth default remains workspace', () => {
-  assert.ok(authResolver.includes('return { destination: "/workspace", reason: "workspace-default" };'));
+test('post-auth default is command-center, not the legacy workspace shell', () => {
+  assert.ok(authResolver.includes('return { destination: "/command-center", reason: "command-center-default" };'));
 });
 
 test('explicitly requested legacy route remains allowed continuation', () => {

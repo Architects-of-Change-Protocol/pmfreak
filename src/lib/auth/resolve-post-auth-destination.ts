@@ -20,7 +20,7 @@ export type PostAuthContext = {
 
 export type PostAuthDecision = {
   destination: string;
-  reason: "requested-route" | "onboarding-required" | "workspace-default" | "unauthenticated";
+  reason: "requested-route" | "onboarding-required" | "command-center-default" | "unauthenticated";
 };
 
 export function resolvePostAuthDestination(context: PostAuthContext): PostAuthDecision {
@@ -47,5 +47,5 @@ export function resolvePostAuthDestination(context: PostAuthContext): PostAuthDe
     return { destination: context.requestedRoute, reason: "requested-route" };
   }
 
-  return { destination: "/workspace", reason: "workspace-default" };
+  return { destination: "/command-center", reason: "command-center-default" };
 }

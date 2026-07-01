@@ -16,10 +16,11 @@ test("workspace no longer exposes open copilot CTA", () => {
   assert.doesNotMatch(workspaceShell, /Open Copilot/);
 });
 
-test("copilot route is compatibility redirect to canonical workspace", () => {
-  assert.match(copilotPage, /redirect\("\/workspace"\)/);
+test("copilot route is compatibility redirect to canonical command center", () => {
+  assert.match(copilotPage, /redirect\("\/command-center"\)/);
 });
 
-test("workspace remains canonical protected landing surface", () => {
-  assert.match(workspacePage, /WorkspaceShell/);
+test("legacy /workspace shell is quarantined and redirects to /command-center", () => {
+  assert.match(workspacePage, /redirect\("\/command-center"\)/);
+  assert.doesNotMatch(workspacePage, /WorkspaceShell/);
 });
