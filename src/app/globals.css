@@ -199,3 +199,13 @@ html {
   50% { opacity: 0.55; }
   100% { stroke-dashoffset: -28; opacity: 0.18; }
 }
+
+@keyframes shimmerMove {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(340%); }
+}
+
+@keyframes progressMove {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(140%); }
+}
