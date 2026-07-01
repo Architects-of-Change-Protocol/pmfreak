@@ -14,6 +14,7 @@ const briefTypes = fs.readFileSync("src/lib/projects/first-insight/operational-g
 const briefEngine = fs.readFileSync("src/lib/projects/first-insight/operational-governance-brief-engine.ts", "utf8");
 const briefOrchestrator = fs.readFileSync("src/lib/projects/first-insight/operational-governance-brief-orchestrator.ts", "utf8");
 const commandCenter = fs.readFileSync("src/features/command-center/command-center-client.tsx", "utf8");
+const vaultIntakePanel = fs.readFileSync("src/features/command-center/vault-intake-panel.tsx", "utf8");
 
 const runtimeProbe = String.raw`
 import assert from "node:assert/strict";
@@ -234,8 +235,10 @@ test("first insight includes DetectedRaidOverview", () => {
   assert.match(briefOrchestrator, /raid_items/);
 });
 
-test("Command Center renders RAID Snapshot", () => {
-  assert.match(commandCenter, /RAID Snapshot/);
-  assert.match(commandCenter, /Risk created:/);
+test("Command Center surfaces RAID signals detected from vault intake", () => {
+  assert.match(vaultIntakePanel, /raidSnapshot/);
+  assert.match(vaultIntakePanel, /risk\$\{risks === 1 \? "" : "s"\}/);
+  assert.match(vaultIntakePanel, /issue\$\{issues === 1 \? "" : "s"\}/);
   assert.match(commandCenter, /void retryBrief\(\)/);
+  assert.match(commandCenter, /onEvidenceAdded/);
 });

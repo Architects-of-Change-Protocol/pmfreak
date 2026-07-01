@@ -1,11 +1,17 @@
 import type { MemoryItem, RepositoryItem } from "./types";
 import { REPOSITORY_ICONS } from "./icons";
+import { PreviewTag } from "./status-badge";
 
-export function ProjectRepository({ items }: { items: RepositoryItem[] }) {
+export function ProjectRepository({ items, preview = false }: { items: RepositoryItem[]; preview?: boolean }) {
   return (
     <div>
-      <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Project Repository</p>
-      <p className="mt-1 px-1 text-[11px] leading-relaxed text-slate-400">Everything the project knows lives here.</p>
+      <div className="flex items-center justify-between gap-2 px-1">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Project Repository</p>
+        {preview && <PreviewTag />}
+      </div>
+      <p className="mt-1 px-1 text-[11px] leading-relaxed text-slate-400">
+        {preview ? "Example of what shows up here once notes are added." : "Everything the project knows lives here."}
+      </p>
       <ul className="mt-2 space-y-0.5">
         {items.map((item) => {
           const Icon = REPOSITORY_ICONS[item.icon];

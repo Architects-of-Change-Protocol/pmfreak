@@ -1,10 +1,26 @@
 import type { NeedsYouItem } from "./types";
-import { StatusBadge } from "./status-badge";
+import { PreviewTag, StatusBadge } from "./status-badge";
 
-export function NeedsYouQueue({ items, onSelect }: { items: NeedsYouItem[]; onSelect: (item: NeedsYouItem) => void }) {
+export function NeedsYouQueue({
+  items,
+  onSelect,
+  preview = false,
+}: {
+  items: NeedsYouItem[];
+  onSelect: (item: NeedsYouItem) => void;
+  preview?: boolean;
+}) {
   return (
     <div>
-      <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Needs You</p>
+      <div className="flex items-center justify-between gap-2 px-1">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Needs You</p>
+        {preview && <PreviewTag />}
+      </div>
+      {items.length === 0 && !preview && (
+        <p className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-400">
+          Nothing needs your attention right now.
+        </p>
+      )}
       <ul className="mt-2 space-y-1.5">
         {items.map((item) => (
           <li key={item.id}>

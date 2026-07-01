@@ -44,3 +44,12 @@ export function StatusDot({ tone, pulse = false }: { tone: StatusTone; pulse?: b
 export function toneStyles(tone: StatusTone) {
   return TONE_STYLES[tone];
 }
+
+/** Marks a section as showing illustrative example content rather than real project data. */
+export function PreviewTag() {
+  return (
+    <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-violet-600">
+      Example
+    </span>
+  );
+}

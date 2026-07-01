@@ -115,9 +115,12 @@ export function CommandCenterClient({
       )}
       <CommandCenterLayout
         workspaceName={companyName ?? "Demo PMO"}
+        workspaceId={workspaceId}
         projects={projectListItems}
         activeProjectId={projectId}
+        hasBrief={brief !== null}
         onSelectProject={(id) => router.push(`/command-center?projectId=${encodeURIComponent(id)}`)}
+        onEvidenceAdded={() => { void retryBrief(); }}
       />
     </div>
   );

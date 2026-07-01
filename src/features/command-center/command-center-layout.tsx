@@ -3,16 +3,43 @@
 import { useMemo, useState } from "react";
 import type { Agent, ChatMessage, DrawerContent, NeedsYouItem, ProjectListItem } from "./types";
 import { DEMO_AGENTS, DEMO_CHAT, DEMO_MEMORY, DEMO_NEEDS_YOU, DEMO_REPOSITORY } from "./demo-data";
+import { deriveAgents, deriveNeedsYou, deriveRepository, postOperationalFlow, useOperationalFlow } from "./operational-data";
+import type { DecisionStatus } from "./operational-data";
 import { ProjectSidebar } from "./project-sidebar";
 import { ProjectTopBar } from "./project-top-bar";
 import { CommandFeed } from "./command-feed";
 import { NeedsYouQueue } from "./needs-you-queue";
 import { AgentDock } from "./agent-dock";
 import { DetailDrawer } from "./detail-drawer";
+import { VaultIntakePanel } from "./vault-intake-panel";
 import { CloseIcon } from "./icons";
 
 function nextId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function buildRealMessages(project: ProjectListItem, needsYou: NeedsYouItem[]): ChatMessage[] {
+  const welcome: ChatMessage = {
+    id: "welcome",
+    role: "assistant",
+    content: `${project.fullName} is ready. I can help you review changes, spot risks, prepare updates, create tasks, or generate a project brief.`,
+  };
+  const topItems = needsYou.slice(0, 3).map((item) => item.title);
+  if (topItems.length === 0) {
+    return [welcome];
+  }
+  return [
+    welcome,
+    {
+      id: "summary",
+      role: "assistant",
+      content:
+        topItems.length === 1
+          ? "One thing needs your attention right now."
+          : `${topItems.length} things need your attention right now.`,
+      structuredList: topItems,
+    },
+  ];
 }
 
 function MobileOverlay({ open, onClose, side, children }: { open: boolean; onClose: () => void; side: "left" | "right"; children: React.ReactNode }) {
@@ -37,17 +64,26 @@ function MobileOverlay({ open, onClose, side, children }: { open: boolean; onClo
 
 export function CommandCenterLayout({
   workspaceName,
+  workspaceId,
   projects,
   activeProjectId,
+  hasBrief = false,
   onSelectProject,
+  onEvidenceAdded,
 }: {
   workspaceName: string;
+  /** Real workspace id, used to load/record project evidence and decisions. */
+  workspaceId: string;
   projects: ProjectListItem[];
   activeProjectId?: string;
+  /** Whether a governance brief already exists for the active project (drives the Executive Briefing agent card). */
+  hasBrief?: boolean;
   /** Called when the user picks a different project. Use this to navigate so the new
    *  project's server-scoped data (governance brief, etc.) is actually loaded — selecting
    *  a project only updates local UI state otherwise. */
   onSelectProject?: (id: string) => void;
+  /** Called after new project evidence is added (e.g. to refresh the governance brief). */
+  onEvidenceAdded?: () => void;
 }) {
   const [selectedProjectId, setSelectedProjectId] = useState(activeProjectId ?? projects[0]?.id ?? "");
 
@@ -55,29 +91,78 @@ export function CommandCenterLayout({
     setSelectedProjectId(id);
     onSelectProject?.(id);
   };
-  const [messages, setMessages] = useState<ChatMessage[]>(DEMO_CHAT);
-  const [drawerContent, setDrawerContent] = useState<DrawerContent | null>(null);
-  const [leftOpen, setLeftOpen] = useState(false);
-  const [rightOpen, setRightOpen] = useState(false);
 
   const selectedProject = useMemo(
     () => projects.find((p) => p.id === selectedProjectId) ?? projects[0],
     [projects, selectedProjectId]
   );
 
+  const { data: flowData, mutate: mutateFlow } = useOperationalFlow(workspaceId, selectedProject?.id ?? "");
+  const hasRealData = Boolean(flowData && flowData.evidence.length > 0);
+
+  const [messages, setMessages] = useState<ChatMessage[]>(DEMO_CHAT);
+  const [isPreviewChat, setIsPreviewChat] = useState(true);
+  const [userInteracted, setUserInteracted] = useState(false);
+  // Tracks whether the chat has been seeded from the first real operational-flow load for this
+  // mount (a fresh mount — and fresh seeding — happens automatically whenever the active project
+  // changes, since the page keys CommandCenterClient by projectId).
+  const [seededFromFlowData, setSeededFromFlowData] = useState<typeof flowData>(undefined);
+
+  if (!userInteracted && seededFromFlowData === undefined && flowData !== undefined && selectedProject) {
+    setSeededFromFlowData(flowData);
+    if (hasRealData) {
+      setMessages(buildRealMessages(selectedProject, deriveNeedsYou(flowData, () => {})));
+      setIsPreviewChat(false);
+    } else {
+      setIsPreviewChat(true);
+    }
+  }
+
+  const [drawerContent, setDrawerContent] = useState<DrawerContent | null>(null);
+  const [leftOpen, setLeftOpen] = useState(false);
+  const [rightOpen, setRightOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+
+  const handleDecide = async (recommendationId: string, status: DecisionStatus, authorityRequired: string) => {
+    const decisionStatus = status === "deferred" ? "escalated" : status;
+    try {
+      await postOperationalFlow(workspaceId, selectedProject?.id ?? "", {
+        operation: "record_decision",
+        recommendationId,
+        decisionStatus,
+        decision: `Recommendation ${status} by an authorized reviewer.`,
+        rationale: `Decision recorded from Command Center. Authority: ${authorityRequired}.`,
+      });
+      await mutateFlow();
+      setDrawerContent(null);
+    } catch {
+      // Leave the drawer open so the user can retry.
+    }
+  };
+
+  const needsYouReal = useMemo(() => deriveNeedsYou(flowData, handleDecide), [flowData]); // eslint-disable-line react-hooks/exhaustive-deps
+  const repositoryReal = useMemo(() => deriveRepository(flowData), [flowData]);
+  const agentsReal = useMemo(() => deriveAgents(flowData, hasBrief), [flowData, hasBrief]);
+
+  const needsYouItems = hasRealData ? needsYouReal : DEMO_NEEDS_YOU;
+  const repositoryItems = hasRealData ? repositoryReal : DEMO_REPOSITORY;
+  const agentItems = hasRealData ? agentsReal : DEMO_AGENTS;
+
   const handleSendMessage = (text: string) => {
+    setUserInteracted(true);
     setMessages((current) => [
       ...current,
       { id: nextId("user"), role: "user", content: text },
       {
         id: nextId("assistant"),
         role: "assistant",
-        content: "Thanks — I'm still learning to answer that in this preview. Try one of the suggested prompts below.",
+        content: "Thanks — I'm still learning to answer open-ended questions like that. Try one of the suggested prompts below.",
       },
     ]);
   };
 
   const handleActionClick = (action: string) => {
+    setUserInteracted(true);
     setMessages((current) => [
       ...current,
       {
@@ -100,6 +185,13 @@ export function CommandCenterLayout({
   const handleNeedsYouSelect = (item: NeedsYouItem) => setDrawerContent(item.drawer);
   const handleAgentSelect = (agent: Agent) => setDrawerContent(agent.drawer);
 
+  const handleIntakeComplete = (summary: string) => {
+    setUserInteracted(true);
+    setMessages((current) => [...current, { id: nextId("assistant"), role: "assistant", content: summary }]);
+    void mutateFlow();
+    onEvidenceAdded?.();
+  };
+
   if (!selectedProject) return null;
 
   return (
@@ -113,23 +205,38 @@ export function CommandCenterLayout({
             projects={projects}
             selectedProjectId={selectedProject.id}
             onSelectProject={handleSelectProject}
-            repository={DEMO_REPOSITORY}
+            repository={repositoryItems}
             memory={DEMO_MEMORY}
+            repositoryPreview={!hasRealData}
           />
         </aside>
 
-        <main className="min-w-0 flex-1">
-          <CommandFeed
-            messages={messages}
-            onSendMessage={handleSendMessage}
-            onSourceClick={handleSourceClick}
-            onActionClick={handleActionClick}
-          />
+        <main className="flex min-w-0 flex-1 flex-col">
+          {notesOpen && (
+            <div className="border-b border-slate-200 p-4">
+              <VaultIntakePanel
+                workspaceId={workspaceId}
+                projectId={selectedProject.id}
+                onClose={() => setNotesOpen(false)}
+                onIntakeComplete={handleIntakeComplete}
+              />
+            </div>
+          )}
+          <div className="min-h-0 flex-1">
+            <CommandFeed
+              messages={messages}
+              onSendMessage={handleSendMessage}
+              onSourceClick={handleSourceClick}
+              onActionClick={handleActionClick}
+              onOpenNotes={() => setNotesOpen((v) => !v)}
+              preview={isPreviewChat}
+            />
+          </div>
         </main>
 
         <aside className="hidden w-[320px] shrink-0 space-y-6 overflow-y-auto border-l border-slate-200 bg-white/60 p-4 xl:block">
-          <NeedsYouQueue items={DEMO_NEEDS_YOU} onSelect={handleNeedsYouSelect} />
-          <AgentDock agents={DEMO_AGENTS} onSelect={handleAgentSelect} />
+          <NeedsYouQueue items={needsYouItems} onSelect={handleNeedsYouSelect} preview={!hasRealData} />
+          <AgentDock agents={agentItems} onSelect={handleAgentSelect} preview={!hasRealData} />
         </aside>
       </div>
 
@@ -142,15 +249,16 @@ export function CommandCenterLayout({
             handleSelectProject(id);
             setLeftOpen(false);
           }}
-          repository={DEMO_REPOSITORY}
+          repository={repositoryItems}
           memory={DEMO_MEMORY}
+          repositoryPreview={!hasRealData}
         />
       </MobileOverlay>
 
       <MobileOverlay open={rightOpen} onClose={() => setRightOpen(false)} side="right">
         <div className="space-y-6 overflow-y-auto p-4">
-          <NeedsYouQueue items={DEMO_NEEDS_YOU} onSelect={handleNeedsYouSelect} />
-          <AgentDock agents={DEMO_AGENTS} onSelect={handleAgentSelect} />
+          <NeedsYouQueue items={needsYouItems} onSelect={handleNeedsYouSelect} preview={!hasRealData} />
+          <AgentDock agents={agentItems} onSelect={handleAgentSelect} preview={!hasRealData} />
         </div>
       </MobileOverlay>
 

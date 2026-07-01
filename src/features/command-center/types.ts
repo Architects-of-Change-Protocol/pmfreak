@@ -29,11 +29,21 @@ export type MemoryItem = {
   label: string;
 };
 
+export type DrawerAction = {
+  label: string;
+  onClick: () => void | Promise<void>;
+  disabled?: boolean;
+};
+
 export type DrawerContent = {
   title: string;
   why: string;
   evidence: string[];
   nextStep: string;
+  /** Real actions (e.g. Accept/Reject/Defer a recommendation). Falls back to static example buttons when omitted. */
+  actions?: DrawerAction[];
+  /** e.g. "Requires an authorized decision-maker for: ..." shown below the actions. */
+  note?: string;
 };
 
 export type NeedsYouItem = {
@@ -41,6 +51,8 @@ export type NeedsYouItem = {
   title: string;
   badge: ToneBadge;
   drawer: DrawerContent;
+  /** Present when this item is backed by a real operational-flow recommendation awaiting a decision. */
+  recommendationId?: string;
 };
 
 export type AgentActivity = "pulsing" | "shimmer" | "progress" | "idle";

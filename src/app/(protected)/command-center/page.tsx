@@ -187,6 +187,7 @@ export default async function CommandCenterPage({
   return (
     <div>
       <CommandCenterClient
+        key={resolution.project!.id}
         firstRun={fromOnboarding}
         projectId={resolution.project!.id}
         projectName={resolution.project!.name}

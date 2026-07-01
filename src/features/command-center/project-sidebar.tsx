@@ -12,6 +12,7 @@ export function ProjectSidebar({
   onSelectProject,
   repository,
   memory,
+  repositoryPreview = false,
 }: {
   workspaceName: string;
   projects: ProjectListItem[];
@@ -19,6 +20,7 @@ export function ProjectSidebar({
   onSelectProject: (id: string) => void;
   repository: RepositoryItem[];
   memory: MemoryItem[];
+  repositoryPreview?: boolean;
 }) {
   const [memoryOpen, setMemoryOpen] = useState(false);
 
@@ -65,7 +67,7 @@ export function ProjectSidebar({
         </ul>
       </nav>
 
-      <ProjectRepository items={repository} />
+      <ProjectRepository items={repository} preview={repositoryPreview} />
       <ProjectMemory items={memory} open={memoryOpen} onToggle={() => setMemoryOpen((v) => !v)} />
     </div>
   );

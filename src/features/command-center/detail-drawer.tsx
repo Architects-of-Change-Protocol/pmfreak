@@ -1,7 +1,14 @@
 "use client";
 
-import type { DrawerContent } from "./types";
+import type { DrawerAction, DrawerContent } from "./types";
 import { CloseIcon } from "./icons";
+
+const DEFAULT_ACTIONS: DrawerAction[] = [
+  { label: "Draft update", onClick: () => {} },
+  { label: "Create task", onClick: () => {} },
+  { label: "Mark reviewed", onClick: () => {} },
+  { label: "Ask agent", onClick: () => {} },
+];
 
 export function DetailDrawer({ content, onClose }: { content: DrawerContent | null; onClose: () => void }) {
   const open = content !== null;
@@ -55,31 +62,23 @@ export function DetailDrawer({ content, onClose }: { content: DrawerContent | nu
             </div>
 
             <div className="mt-auto flex flex-wrap gap-2 pt-6">
-              <button
-                type="button"
-                className="rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-50"
-              >
-                Draft update
-              </button>
-              <button
-                type="button"
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-              >
-                Create task
-              </button>
-              <button
-                type="button"
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-              >
-                Mark reviewed
-              </button>
-              <button
-                type="button"
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-              >
-                Ask agent
-              </button>
+              {(content.actions ?? DEFAULT_ACTIONS).map((action, i) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  onClick={action.onClick}
+                  disabled={action.disabled}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    i === 0
+                      ? "border-rose-200 bg-rose-50/60 text-rose-700 hover:bg-rose-50"
+                      : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {action.label}
+                </button>
+              ))}
             </div>
+            {content.note && <p className="mt-3 text-[11px] text-amber-700">{content.note}</p>}
             <p className="mt-3 text-[11px] text-slate-400">Sensitive actions are routed for approval.</p>
           </div>
         )}

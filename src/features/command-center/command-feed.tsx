@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ChatMessage } from "./types";
-import { SendIcon } from "./icons";
+import { AttachmentIcon, SendIcon } from "./icons";
 import { SUGGESTED_PROMPTS } from "./demo-data";
 
 function AssistantBubble({
@@ -79,11 +79,15 @@ export function CommandFeed({
   onSendMessage,
   onSourceClick,
   onActionClick,
+  onOpenNotes,
+  preview = false,
 }: {
   messages: ChatMessage[];
   onSendMessage: (text: string) => void;
   onSourceClick: (source: string) => void;
   onActionClick: (action: string) => void;
+  onOpenNotes?: () => void;
+  preview?: boolean;
 }) {
   const [draft, setDraft] = useState("");
 
@@ -97,6 +101,11 @@ export function CommandFeed({
   return (
     <div className="flex h-full min-w-0 flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
+        {preview && (
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-violet-200 bg-violet-50/60 px-3 py-2 text-xs text-violet-700">
+            <span>This is an example conversation. Paste your first notes to make it real.</span>
+          </div>
+        )}
         {messages.map((message) =>
           message.role === "assistant" ? (
             <AssistantBubble key={message.id} message={message} onSourceClick={onSourceClick} onActionClick={onActionClick} />
@@ -110,6 +119,17 @@ export function CommandFeed({
 
       <div className="border-t border-slate-200 bg-white/70 px-4 py-3.5 sm:px-6">
         <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-[0_2px_10px_rgba(15,23,42,0.04)] transition focus-within:border-sky-300 focus-within:ring-2 focus-within:ring-sky-100">
+          {onOpenNotes && (
+            <button
+              type="button"
+              onClick={onOpenNotes}
+              aria-label="Add project notes"
+              title="Add project notes"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            >
+              <AttachmentIcon className="h-4 w-4" />
+            </button>
+          )}
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
