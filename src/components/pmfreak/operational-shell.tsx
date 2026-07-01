@@ -830,8 +830,9 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
 
   // The Command Center owns its own premium light shell (top bar, project sidebar,
   // command feed, agent dock) — it must not be visually dominated by the legacy
-  // dark operational chrome rendered below.
-  if (pathname.startsWith("/command-center")) {
+  // dark operational chrome rendered below. The setup/onboarding flow leads directly
+  // into that experience, so it uses the same light shell rather than the old chrome.
+  if (pathname.startsWith("/command-center") || pathname.startsWith("/workspace/setup")) {
     return <div className="min-h-screen bg-[#FCFBF9] px-3 py-4 md:px-5 md:py-6">{children}</div>;
   }
 
