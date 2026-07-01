@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ProjectListItem } from "./types";
 import { StatusBadge } from "./status-badge";
 import { MenuIcon, ReportIcon, ShareIcon, UploadIcon } from "./icons";
@@ -16,7 +17,7 @@ export function ProjectTopBar({
   const warnings = project.badges.find((b) => b.tone === "danger")?.label;
   const tasks = project.badges.find((b) => b.tone === "task")?.label;
   const approvals = project.badges.find((b) => b.tone === "approval")?.label;
-  const healthLabel = project.healthy ? "Healthy" : warnings ? "At Risk" : "On Track";
+  const healthLabel = project.healthy ? "Healthy" : warnings ? "At Risk" : project.hasIntelligence ? "On Track" : "Monitoring";
   const healthTone = project.healthy ? "success" : warnings ? "danger" : "info";
 
   return (
@@ -45,12 +46,12 @@ export function ProjectTopBar({
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5">
-        <button
-          type="button"
+        <Link
+          href={`/upload?projectId=${encodeURIComponent(project.id)}`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
         >
           <UploadIcon className="h-3.5 w-3.5" /> Upload
-        </button>
+        </Link>
         <button
           type="button"
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"

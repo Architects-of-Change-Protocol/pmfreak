@@ -39,12 +39,22 @@ export function CommandCenterLayout({
   workspaceName,
   projects,
   activeProjectId,
+  onSelectProject,
 }: {
   workspaceName: string;
   projects: ProjectListItem[];
   activeProjectId?: string;
+  /** Called when the user picks a different project. Use this to navigate so the new
+   *  project's server-scoped data (governance brief, etc.) is actually loaded — selecting
+   *  a project only updates local UI state otherwise. */
+  onSelectProject?: (id: string) => void;
 }) {
   const [selectedProjectId, setSelectedProjectId] = useState(activeProjectId ?? projects[0]?.id ?? "");
+
+  const handleSelectProject = (id: string) => {
+    setSelectedProjectId(id);
+    onSelectProject?.(id);
+  };
   const [messages, setMessages] = useState<ChatMessage[]>(DEMO_CHAT);
   const [drawerContent, setDrawerContent] = useState<DrawerContent | null>(null);
   const [leftOpen, setLeftOpen] = useState(false);
@@ -102,7 +112,7 @@ export function CommandCenterLayout({
             workspaceName={workspaceName}
             projects={projects}
             selectedProjectId={selectedProject.id}
-            onSelectProject={setSelectedProjectId}
+            onSelectProject={handleSelectProject}
             repository={DEMO_REPOSITORY}
             memory={DEMO_MEMORY}
           />
@@ -129,7 +139,7 @@ export function CommandCenterLayout({
           projects={projects}
           selectedProjectId={selectedProject.id}
           onSelectProject={(id) => {
-            setSelectedProjectId(id);
+            handleSelectProject(id);
             setLeftOpen(false);
           }}
           repository={DEMO_REPOSITORY}

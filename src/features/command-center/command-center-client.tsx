@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { OperationalGovernanceBrief } from "@/lib/projects/first-insight";
 import { CommandCenterLayout } from "./command-center-layout";
 import type { ProjectListItem, ToneBadge } from "./types";
@@ -39,16 +40,19 @@ function buildProjectListItem(project: UserProject, brief: OperationalGovernance
     name: project.name,
     fullName: project.name,
     badges,
-    healthy: badges.length === 0,
+    hasIntelligence: brief !== null,
+    healthy: brief !== null && badges.length === 0,
   };
 }
 
 export function CommandCenterClient({
   projectId,
   projectName,
+  workspaceId,
   projects,
   companyName,
   initialBrief,
+  briefGenerationFailed = false,
 }: {
   firstRun?: boolean;
   projectId: string;
@@ -65,12 +69,56 @@ export function CommandCenterClient({
   initialBrief?: OperationalGovernanceBrief | null;
   briefGenerationFailed?: boolean;
 }) {
+  const router = useRouter();
+  const [brief, setBrief] = useState(initialBrief ?? null);
+  const [briefFailed, setBriefFailed] = useState(briefGenerationFailed && !initialBrief);
+  const [retryingBrief, setRetryingBrief] = useState(false);
+
   const projectListItems = useMemo(() => {
     const source = projects.length > 0 ? projects : [{ id: projectId, name: projectName }];
-    return source.map((project) => buildProjectListItem(project, project.id === projectId ? initialBrief ?? null : null));
-  }, [projects, projectId, projectName, initialBrief]);
+    return source.map((project) => buildProjectListItem(project, project.id === projectId ? brief : null));
+  }, [projects, projectId, projectName, brief]);
+
+  const retryBrief = async () => {
+    setRetryingBrief(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/operational-governance-brief`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId }),
+      });
+      if (!response.ok) throw new Error("retry_failed");
+      const payload = await response.json();
+      setBrief(payload.brief ?? null);
+      setBriefFailed(!payload.brief);
+    } catch {
+      setBriefFailed(true);
+    } finally {
+      setRetryingBrief(false);
+    }
+  };
 
   return (
-    <CommandCenterLayout workspaceName={companyName ?? "Demo PMO"} projects={projectListItems} activeProjectId={projectId} />
+    <div>
+      {briefFailed && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3">
+          <p className="text-sm text-amber-900">Project created. We couldn&apos;t generate the first governance brief yet.</p>
+          <button
+            type="button"
+            onClick={retryBrief}
+            disabled={retryingBrief}
+            className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 transition hover:bg-amber-50 disabled:opacity-50"
+          >
+            {retryingBrief ? "Retrying..." : "Retry brief generation"}
+          </button>
+        </div>
+      )}
+      <CommandCenterLayout
+        workspaceName={companyName ?? "Demo PMO"}
+        projects={projectListItems}
+        activeProjectId={projectId}
+        onSelectProject={(id) => router.push(`/command-center?projectId=${encodeURIComponent(id)}`)}
+      />
+    </div>
   );
 }

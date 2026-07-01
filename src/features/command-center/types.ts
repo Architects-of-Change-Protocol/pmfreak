@@ -11,7 +11,10 @@ export type ProjectListItem = {
   name: string;
   fullName: string;
   badges: ToneBadge[];
+  /** True only once real project intelligence (a governance brief) has been evaluated and found no issues. */
   healthy?: boolean;
+  /** Whether a governance brief has been evaluated for this project yet. False means "unknown", not "healthy". */
+  hasIntelligence?: boolean;
 };
 
 export type RepositoryItem = {
