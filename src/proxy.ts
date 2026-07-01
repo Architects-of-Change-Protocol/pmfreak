@@ -17,7 +17,7 @@ import {
 // Public routes        → passthrough (no auth required)
 // Auth routes          → redirect authenticated users away; accept ?next param
 // Protected routes     → unauthenticated → /login?next=<path>
-// Setup/onboarding     → authenticated + complete → /workspace
+// Setup/onboarding     → authenticated + complete → /command-center
 // Workspace routes     → incomplete onboarding → getOnboardingRedirect(state)
 // Active               → passthrough
 // trial_blocked        → /trial-inactive  (via getOnboardingRedirect)
@@ -68,7 +68,7 @@ export async function proxy(request: NextRequest) {
 
     // Completed onboarding user on setup route → /workspace
     if (isSetupRoute(pathname) && onboardingCompleted) {
-      return NextResponse.redirect(new URL("/workspace", request.url));
+      return NextResponse.redirect(new URL("/command-center", request.url));
     }
 
     // Incomplete onboarding on workspace route → state-specific redirect

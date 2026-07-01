@@ -21,9 +21,9 @@ export function ActivationProgress({
 }) {
   return (
     <div className="space-y-4">
-      <div className="relative h-0.5 overflow-hidden rounded-full bg-white/10">
+      <div className="relative h-0.5 overflow-hidden rounded-full bg-slate-200">
         <div
-          className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-indigo-500 via-violet-400 to-cyan-400 transition-all duration-500"
+          className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-sky-500 via-sky-400 to-cyan-400 transition-all duration-500"
           style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}
         />
       </div>
@@ -39,23 +39,23 @@ export function ActivationProgress({
               onClick={() => onStepClick(s.id)}
               className={`rounded-xl border px-2 py-2.5 text-left transition-all duration-300 ${
                 isActive
-                  ? "border-indigo-400/50 bg-indigo-400/12"
+                  ? "border-sky-300 bg-sky-50"
                   : isDone
-                    ? "border-white/10 bg-white/[0.04] opacity-60 hover:opacity-80"
-                    : "border-white/5 bg-white/[0.02] opacity-40"
+                    ? "border-slate-200 bg-slate-50 opacity-70 hover:opacity-90"
+                    : "border-slate-200 bg-slate-50/60 opacity-50"
               }`}
             >
               <p
                 className={`text-[10px] font-semibold uppercase tracking-[0.16em] ${
-                  isActive ? "text-indigo-300" : isDone ? "text-slate-400" : "text-slate-600"
+                  isActive ? "text-sky-600" : isDone ? "text-slate-500" : "text-slate-400"
                 }`}
               >
                 {isDone ? "✓" : `0${s.id}`}
               </p>
-              <p className={`mt-0.5 text-xs font-medium ${isActive ? "text-slate-100" : "text-slate-400"}`}>
+              <p className={`mt-0.5 text-xs font-medium ${isActive ? "text-slate-900" : "text-slate-500"}`}>
                 {s.label}
               </p>
-              <p className={`text-[10px] ${isActive ? "text-slate-400" : "text-slate-600"}`}>{s.sublabel}</p>
+              <p className={`text-[10px] ${isActive ? "text-slate-500" : "text-slate-400"}`}>{s.sublabel}</p>
             </button>
           );
         })}

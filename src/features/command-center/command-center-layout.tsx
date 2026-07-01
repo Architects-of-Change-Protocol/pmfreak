@@ -195,7 +195,10 @@ export function CommandCenterLayout({
   if (!selectedProject) return null;
 
   return (
-    <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-[#FCFBF9] shadow-[0_40px_90px_-60px_rgba(15,23,42,0.35)]">
+    <div
+      data-build="command-center-light-v2"
+      className="overflow-hidden rounded-[28px] border border-slate-200 bg-[#FCFBF9] shadow-[0_40px_90px_-60px_rgba(15,23,42,0.35)]"
+    >
       <ProjectTopBar project={selectedProject} onOpenProjects={() => setLeftOpen(true)} onOpenAgents={() => setRightOpen(true)} />
 
       <div className="flex min-h-[600px] xl:h-[calc(100vh-190px)]">

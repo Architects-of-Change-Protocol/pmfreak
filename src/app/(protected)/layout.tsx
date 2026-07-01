@@ -50,10 +50,16 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   if (!isOnboardingComplete(onboardingState)) {
     const headersList = await headers();
     const currentPath = headersList.get("x-pathname") ?? "";
-    if (currentPath.startsWith("/command-center")) {
+    if (currentPath.startsWith("/command-center") || currentPath.startsWith("/workspace/setup")) {
       return <div className="min-h-screen bg-[#FCFBF9] px-3 py-4 md:px-5 md:py-6">{children}</div>;
     }
     return <div className="min-h-screen bg-slate-950 text-slate-100"><main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-10">{children}</main></div>;
+  }
+
+  const headersList = await headers();
+  const currentPath = headersList.get("x-pathname") ?? "";
+  if (currentPath.startsWith("/workspace/setup")) {
+    return <div className="min-h-screen bg-[#FCFBF9] px-3 py-4 md:px-5 md:py-6">{children}</div>;
   }
 
   return <OperationalShell user={{ fullName: user.fullName, role: user.role, companyName: user.companyName }}>{children}</OperationalShell>;

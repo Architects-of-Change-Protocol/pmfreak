@@ -152,13 +152,13 @@ function FieldInput({
 }) {
   return (
     <label className={`block space-y-1.5 ${span2 ? "md:col-span-2" : ""}`}>
-      <span className="text-xs font-medium text-slate-300">{label}</span>
-      {hint && <span className="block text-[11px] text-slate-500">{hint}</span>}
+      <span className="text-xs font-medium text-slate-600">{label}</span>
+      {hint && <span className="block text-[11px] text-slate-400">{hint}</span>}
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 outline-none transition-colors focus:border-indigo-400/50 focus:bg-indigo-400/[0.05]"
+        className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-sky-300 focus:bg-white focus:ring-2 focus:ring-sky-100"
       />
     </label>
   );
@@ -179,29 +179,29 @@ function StorageCard({
       onClick={() => onSelect(option.id)}
       className={`group relative w-full overflow-hidden rounded-2xl border p-5 text-left transition-all duration-300 ${
         selected
-          ? "border-indigo-400/60 bg-indigo-400/10 shadow-[0_12px_36px_-16px_rgba(99,102,241,0.5)]"
-          : "border-white/10 bg-white/[0.03] hover:border-indigo-400/30 hover:bg-indigo-400/[0.05]"
+          ? "border-sky-300 bg-sky-50 shadow-[0_12px_36px_-16px_rgba(56,189,248,0.35)]"
+          : "border-slate-200 bg-white hover:border-sky-200 hover:bg-sky-50/40"
       }`}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_90%_0%,rgba(99,102,241,0.1),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_90%_0%,rgba(56,189,248,0.06),transparent_55%)]" />
       <div className="relative space-y-2">
         <div className="flex items-start justify-between gap-3">
-          <p className="text-sm font-semibold text-slate-100">{option.title}</p>
+          <p className="text-sm font-semibold text-slate-900">{option.title}</p>
           {option.badge && (
             <span
               className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${
                 option.badge === "Recommended"
-                  ? "border-indigo-400/60 bg-indigo-400/15 text-indigo-200"
-                  : "border-violet-400/50 bg-violet-400/12 text-violet-200"
+                  ? "border-sky-200 bg-sky-100 text-sky-700"
+                  : "border-violet-200 bg-violet-50 text-violet-700"
               }`}
             >
               {option.badge}
             </span>
           )}
         </div>
-        <p className="text-xs leading-relaxed text-slate-400">{option.description}</p>
-        {option.note && <p className="text-xs font-medium text-slate-300">{option.note}</p>}
-        <p className="pt-1 text-[11px] text-slate-500">
+        <p className="text-xs leading-relaxed text-slate-500">{option.description}</p>
+        {option.note && <p className="text-xs font-medium text-slate-600">{option.note}</p>}
+        <p className="pt-1 text-[11px] text-slate-400">
           {selected ? "Selected for activation" : "Select storage strategy"}
         </p>
       </div>
@@ -342,19 +342,19 @@ export function GettingStartedFlow() {
         <main className="relative flex min-h-[calc(100vh-6rem)] flex-col items-center justify-center px-4 py-16">
           {/* Ambient background glow */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute left-1/2 top-1/3 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-500/8 blur-3xl" />
-            <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/6 blur-2xl" />
+            <div className="absolute left-1/2 top-1/3 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-200/25 blur-3xl" />
+            <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-rose-100/25 blur-2xl" />
           </div>
 
           <div className="relative w-full max-w-2xl space-y-10 text-center">
             {/* Signal badge */}
             <div className="flex justify-center">
-              <span className="inline-flex items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-400/10 px-4 py-1.5">
+              <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-1.5">
                 <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-60" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-60" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500" />
                 </span>
-                <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-indigo-300">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-sky-700">
                   PMFreak Activation
                 </span>
               </span>
@@ -362,24 +362,24 @@ export function GettingStartedFlow() {
 
             {/* Primary heading */}
             <div className="space-y-4">
-              <h1 className="text-4xl font-semibold leading-tight tracking-tight text-slate-100 sm:text-5xl">
+              <h1 className="text-4xl font-semibold leading-tight tracking-tight text-slate-900 sm:text-5xl">
                 Activate your first
                 <br />
-                <span className="bg-gradient-to-r from-indigo-300 via-violet-300 to-cyan-300 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-sky-500 via-sky-600 to-cyan-500 bg-clip-text text-transparent">
                   operational context
                 </span>
               </h1>
-              <p className="mx-auto max-w-lg text-base leading-relaxed text-slate-400">
+              <p className="mx-auto max-w-lg text-base leading-relaxed text-slate-500">
                 PMFreak needs one real initiative to begin sensing execution risk, stakeholder dynamics,
                 meeting debt, and follow-up pressure.
               </p>
             </div>
 
             {/* AI hint */}
-            <div className="mx-auto max-w-sm rounded-xl border border-indigo-400/15 bg-indigo-400/[0.06] px-4 py-3">
+            <div className="mx-auto max-w-sm rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
               <div className="flex items-start gap-2">
-                <span className="mt-px shrink-0 text-[9px] font-bold uppercase tracking-widest text-indigo-400">AI</span>
-                <p className="text-[11px] leading-relaxed text-indigo-200/80">
+                <span className="mt-px shrink-0 text-[9px] font-bold uppercase tracking-widest text-sky-600">AI</span>
+                <p className="text-[11px] leading-relaxed text-sky-800/90">
                   Operational risk telemetry becomes more accurate as context is ingested. This takes
                   under 3 minutes.
                 </p>
@@ -391,7 +391,7 @@ export function GettingStartedFlow() {
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="group relative overflow-hidden rounded-2xl border border-indigo-400/50 bg-indigo-500/20 px-8 py-3.5 text-sm font-semibold text-slate-100 shadow-[0_0_40px_-12px_rgba(99,102,241,0.5)] transition-all hover:bg-indigo-500/30 hover:shadow-[0_0_50px_-10px_rgba(99,102,241,0.6)]"
+                className="group relative overflow-hidden rounded-2xl bg-slate-900 px-8 py-3.5 text-sm font-semibold text-white shadow-[0_10px_30px_-12px_rgba(15,23,42,0.6)] transition-all hover:bg-slate-800"
               >
                 <span className="relative">Begin Activation</span>
               </button>
@@ -399,14 +399,14 @@ export function GettingStartedFlow() {
                 type="button"
                 onClick={() => submit(true)}
                 disabled={submitting}
-                className="rounded-2xl border border-white/10 px-6 py-3.5 text-sm text-slate-400 transition hover:border-white/20 hover:text-slate-300 disabled:opacity-40"
+                className="rounded-2xl border border-slate-200 px-6 py-3.5 text-sm text-slate-500 transition hover:border-slate-300 hover:text-slate-700 disabled:opacity-40"
               >
                 {submitting ? "Loading..." : "Explore PMFreak demo"}
               </button>
             </div>
 
             {submitError && (
-              <p className="rounded-xl border border-rose-400/25 bg-rose-400/[0.06] px-4 py-2.5 text-xs text-rose-300">
+              <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs text-rose-700">
                 {submitError}
               </p>
             )}
@@ -419,7 +419,7 @@ export function GettingStartedFlow() {
                 "Meeting debt tracking",
                 "Follow-up pressure",
               ].map((item) => (
-                <div key={item} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 text-center">
+                <div key={item} className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5 text-center">
                   <p className="text-[11px] text-slate-500">{item}</p>
                 </div>
               ))}
@@ -435,14 +435,14 @@ export function GettingStartedFlow() {
       {activating && <AIActivationTransition onComplete={handleTransitionComplete} />}
       <main className="space-y-6 pb-16">
         {/* Header */}
-        <header className="relative overflow-hidden rounded-3xl border border-white/8 bg-gradient-to-r from-white/[0.04] to-indigo-400/[0.04] p-6">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(99,102,241,0.08),transparent_60%)]" />
+        <header className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(56,189,248,0.06),transparent_60%)]" />
           <div className="relative flex items-start justify-between gap-4">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-indigo-400">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-sky-600">
                 Operational Intelligence Activation
               </p>
-              <h1 className="mt-2 text-2xl font-semibold text-slate-100">
+              <h1 className="mt-2 text-2xl font-semibold text-slate-900">
                 {step === 1 && "Workspace context"}
                 {step === 2 && "Operational initiative"}
                 {step === 3 && "Governance layer"}
@@ -460,7 +460,7 @@ export function GettingStartedFlow() {
             <button
               type="button"
               onClick={() => setStep(0)}
-              className="shrink-0 rounded-xl border border-white/10 px-3 py-1.5 text-xs text-slate-500 transition hover:text-slate-300"
+              className="shrink-0 rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-500 transition hover:text-slate-700"
             >
               ← Back to start
             </button>
@@ -468,18 +468,18 @@ export function GettingStartedFlow() {
         </header>
 
         {/* Progress */}
-        <div className="rounded-3xl border border-white/8 bg-white/[0.03] p-5">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5">
           <ActivationProgress currentStep={step} onStepClick={(s) => setStep(s as StepId)} />
         </div>
 
         {/* Step content */}
-        <section className="rounded-3xl border border-white/8 bg-white/[0.03] p-6">
+        <section className="rounded-3xl border border-slate-200 bg-white p-6">
           {step === 1 && (
             <div className="space-y-6">
-              <div className="rounded-xl border border-indigo-400/15 bg-indigo-400/[0.05] px-4 py-3">
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
                 <div className="flex gap-2">
-                  <span className="mt-px shrink-0 text-[9px] font-bold uppercase tracking-widest text-indigo-400">AI</span>
-                  <p className="text-[11px] leading-relaxed text-indigo-200/80">
+                  <span className="mt-px shrink-0 text-[9px] font-bold uppercase tracking-widest text-sky-600">AI</span>
+                  <p className="text-[11px] leading-relaxed text-sky-800/90">
                     PMFreak will use this context to calibrate escalation sensitivity, team health baselines, and
                     portfolio risk weighting across your workspace.
                   </p>
@@ -502,10 +502,10 @@ export function GettingStartedFlow() {
 
           {step === 2 && (
             <div className="space-y-6">
-              <div className="rounded-xl border border-indigo-400/15 bg-indigo-400/[0.05] px-4 py-3">
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
                 <div className="flex gap-2">
-                  <span className="mt-px shrink-0 text-[9px] font-bold uppercase tracking-widest text-indigo-400">AI</span>
-                  <p className="text-[11px] leading-relaxed text-indigo-200/80">
+                  <span className="mt-px shrink-0 text-[9px] font-bold uppercase tracking-widest text-sky-600">AI</span>
+                  <p className="text-[11px] leading-relaxed text-sky-800/90">
                     PMFreak will begin sensing stakeholder confidence drift once this initiative context is
                     active. The more you share, the more precise the risk signal.
                   </p>
@@ -529,20 +529,20 @@ export function GettingStartedFlow() {
           {step === 3 && (
             <div className="space-y-7">
               <div className="space-y-2">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-indigo-300">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-sky-600">
                   Project governance layer
                 </p>
-                <h2 className="text-xl font-semibold text-slate-100">
+                <h2 className="text-xl font-semibold text-slate-900">
                   Where does your project intelligence live?
                 </h2>
-                <p className="text-sm leading-relaxed text-slate-400">
+                <p className="text-sm leading-relaxed text-slate-500">
                   PMFreak was designed so organizations retain full ownership of their operational memory.
                   Project context, stakeholder dynamics, decisions, and institutional knowledge stay
                   under your control.
                 </p>
               </div>
 
-              <blockquote className="rounded-xl border-l-4 border-indigo-400/60 bg-indigo-400/[0.06] px-5 py-4 text-sm italic text-slate-300">
+              <blockquote className="rounded-xl border-l-4 border-sky-300 bg-sky-50 px-5 py-4 text-sm italic text-slate-600">
                 &quot;Your project memory should stay with your team — not scattered across disconnected tools.&quot;
               </blockquote>
 
@@ -557,25 +557,25 @@ export function GettingStartedFlow() {
                 ))}
               </div>
 
-              <p className="text-[11px] text-slate-600">Powered by AOC Protocol — auditable, encrypted, governance-native.</p>
+              <p className="text-[11px] text-slate-400">Powered by AOC Protocol — auditable, encrypted, governance-native.</p>
             </div>
           )}
 
           {step === 4 && (
             <div className="space-y-4">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-indigo-300">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-sky-600">
                   Intelligence templates
                 </p>
-                <p className="mt-1 text-sm text-slate-400">
+                <p className="mt-1 text-sm text-slate-500">
                   These templates seed PMFreak&apos;s intelligence domains. Edit them to match your initiative&apos;s reality.
                   Each template is a live signal source once activated.
                 </p>
               </div>
-              <div className="rounded-xl border border-indigo-400/15 bg-indigo-400/[0.05] px-4 py-3">
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
                 <div className="flex gap-2">
-                  <span className="mt-px shrink-0 text-[9px] font-bold uppercase tracking-widest text-indigo-400">AI</span>
-                  <p className="text-[11px] leading-relaxed text-indigo-200/80">
+                  <span className="mt-px shrink-0 text-[9px] font-bold uppercase tracking-widest text-sky-600">AI</span>
+                  <p className="text-[11px] leading-relaxed text-sky-800/90">
                     Template completeness directly influences detection accuracy. Even partial context
                     improves PMFreak&apos;s ability to sense emerging risk.
                   </p>
@@ -585,7 +585,7 @@ export function GettingStartedFlow() {
                 {rows.map((row, index) => (
                   <div
                     key={row.domain}
-                    className="rounded-2xl border border-white/8 bg-white/[0.03] p-4 transition hover:border-white/15"
+                    className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 transition hover:border-slate-300"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <input
@@ -597,9 +597,9 @@ export function GettingStartedFlow() {
                             return next;
                           });
                         }}
-                        className="bg-transparent text-sm font-semibold text-slate-200 outline-none placeholder-slate-600"
+                        className="bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder-slate-400"
                       />
-                      <span className="shrink-0 rounded-full border border-indigo-400/20 bg-indigo-400/[0.08] px-2 py-0.5 text-[9px] uppercase tracking-widest text-indigo-400">
+                      <span className="shrink-0 rounded-full border border-sky-200 bg-sky-100 px-2 py-0.5 text-[9px] uppercase tracking-widest text-sky-700">
                         {row.domain.split("_")[0]}
                       </span>
                     </div>
@@ -613,9 +613,9 @@ export function GettingStartedFlow() {
                         });
                       }}
                       rows={2}
-                      className="mt-3 w-full rounded-lg border border-white/8 bg-slate-900/60 p-3 text-xs text-slate-300 outline-none transition focus:border-indigo-400/30 focus:bg-indigo-400/[0.03]"
+                      className="mt-3 w-full rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
                     />
-                    <p className="mt-2 text-[11px] text-slate-600">{row.why}</p>
+                    <p className="mt-2 text-[11px] text-slate-400">{row.why}</p>
                   </div>
                 ))}
               </div>
@@ -625,18 +625,18 @@ export function GettingStartedFlow() {
           {step === 5 && (
             <div className="space-y-6">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-indigo-300">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-sky-600">
                   Pre-activation review
                 </p>
-                <p className="mt-1 text-sm text-slate-400">
+                <p className="mt-1 text-sm text-slate-500">
                   PMFreak will begin monitoring this initiative immediately after activation.
                 </p>
               </div>
 
               <div className="grid gap-4 lg:grid-cols-2">
                 {/* Context summary */}
-                <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5 space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Activation parameters</p>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Activation parameters</p>
                   <div className="space-y-2 text-sm">
                     {[
                       ["Workspace", form.companyName || "—"],
@@ -647,16 +647,16 @@ export function GettingStartedFlow() {
                       ["Storage", storageOptions.find((s) => s.id === form.storageStrategy)?.title ?? "—"],
                     ].map(([k, v]) => (
                       <div key={k} className="flex items-start justify-between gap-4">
-                        <span className="text-slate-500">{k}</span>
-                        <span className="text-right font-medium text-slate-200">{v}</span>
+                        <span className="text-slate-400">{k}</span>
+                        <span className="text-right font-medium text-slate-800">{v}</span>
                       </div>
                     ))}
                   </div>
                 </div>
 
                 {/* Readiness metrics */}
-                <div className="rounded-2xl border border-indigo-400/20 bg-indigo-400/[0.05] p-5 space-y-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-300">Activation readiness</p>
+                <div className="rounded-2xl border border-sky-200 bg-sky-50 p-5 space-y-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">Activation readiness</p>
                   <div className="space-y-3">
                     {[
                       { label: "Overall readiness", value: readiness.readinessScore },
@@ -666,12 +666,12 @@ export function GettingStartedFlow() {
                     ].map(({ label, value }) => (
                       <div key={label}>
                         <div className="mb-1 flex items-center justify-between">
-                          <span className="text-xs text-slate-400">{label}</span>
-                          <span className="text-xs font-semibold text-indigo-300">{value}%</span>
+                          <span className="text-xs text-slate-500">{label}</span>
+                          <span className="text-xs font-semibold text-sky-700">{value}%</span>
                         </div>
-                        <div className="h-1 overflow-hidden rounded-full bg-white/10">
+                        <div className="h-1 overflow-hidden rounded-full bg-white">
                           <div
-                            className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-700"
+                            className="h-full rounded-full bg-gradient-to-r from-sky-500 to-cyan-400 transition-all duration-700"
                             style={{ width: `${value}%` }}
                           />
                         </div>
@@ -682,15 +682,15 @@ export function GettingStartedFlow() {
               </div>
 
               {/* Intelligence signals */}
-              <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                   Intelligence domains
                 </p>
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {completion.map((item) => (
-                    <div key={item.domain} className="rounded-lg border border-white/8 p-3">
-                      <p className="text-xs font-medium text-slate-300">{item.title}</p>
-                      <p className="mt-1 text-[11px] text-slate-500">
+                    <div key={item.domain} className="rounded-lg border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-medium text-slate-700">{item.title}</p>
+                      <p className="mt-1 text-[11px] text-slate-400">
                         {item.completionScore}% complete · {item.confidence}% confidence
                       </p>
                     </div>
@@ -704,7 +704,7 @@ export function GettingStartedFlow() {
                   type="button"
                   onClick={() => submit(false)}
                   disabled={submitting}
-                  className="rounded-2xl border border-indigo-400/50 bg-indigo-500/20 px-7 py-3 text-sm font-semibold text-slate-100 shadow-[0_0_30px_-10px_rgba(99,102,241,0.5)] transition hover:bg-indigo-500/30 disabled:opacity-50"
+                  className="rounded-2xl bg-slate-900 px-7 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_-12px_rgba(15,23,42,0.6)] transition hover:bg-slate-800 disabled:opacity-50"
                 >
                   {submitting ? "Preparing activation..." : "Activate PMFreak"}
                 </button>
@@ -712,13 +712,13 @@ export function GettingStartedFlow() {
                   type="button"
                   onClick={() => submit(true)}
                   disabled={submitting}
-                  className="rounded-2xl border border-white/15 px-5 py-3 text-sm text-slate-400 transition hover:border-white/25 hover:text-slate-300 disabled:opacity-40"
+                  className="rounded-2xl border border-slate-200 px-5 py-3 text-sm text-slate-500 transition hover:border-slate-300 hover:text-slate-700 disabled:opacity-40"
                 >
                   Load demo project
                 </button>
               </div>
               {submitError && (
-                <p className="rounded-xl border border-rose-400/25 bg-rose-400/[0.06] px-4 py-2.5 text-xs text-rose-300">
+                <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs text-rose-700">
                   {submitError}
                 </p>
               )}
@@ -732,18 +732,18 @@ export function GettingStartedFlow() {
                 type="button"
                 onClick={() => setStep((prev) => Math.max(1, prev - 1) as StepId)}
                 disabled={step === 1}
-                className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-400 transition hover:border-white/20 hover:text-slate-300 disabled:opacity-30"
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-500 transition hover:border-slate-300 hover:text-slate-700 disabled:opacity-30"
               >
                 Back
               </button>
               <button
                 type="button"
                 onClick={() => setStep((prev) => Math.min(5, prev + 1) as StepId)}
-                className="rounded-xl border border-indigo-400/40 bg-indigo-400/10 px-5 py-2 text-sm font-medium text-slate-200 transition hover:bg-indigo-400/15"
+                className="rounded-xl border border-sky-200 bg-sky-50 px-5 py-2 text-sm font-medium text-sky-700 transition hover:bg-sky-100"
               >
                 Continue →
               </button>
-              <span className="text-xs text-slate-600">Step {step} of 5</span>
+              <span className="text-xs text-slate-400">Step {step} of 5</span>
             </div>
           )}
           {step === 5 && (
@@ -751,7 +751,7 @@ export function GettingStartedFlow() {
               <button
                 type="button"
                 onClick={() => setStep(4)}
-                className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-500 transition hover:text-slate-300"
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-400 transition hover:text-slate-700"
               >
                 ← Back
               </button>
