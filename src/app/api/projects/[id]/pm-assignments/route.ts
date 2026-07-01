@@ -13,14 +13,14 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { PROJECT_MANAGER_SELECTABLE_COLUMNS } from "@/lib/db/database-contract";
 import type { ProjectManagerRow } from "@/lib/db/database-contract";
 
-const ROUTE = "/api/projects/[projectId]/pm-assignments";
+const ROUTE = "/api/projects/[id]/pm-assignments";
 
-type Props = { params: Promise<{ projectId: string }> };
+type Props = { params: Promise<{ id: string }> };
 
 export async function GET(_request: NextRequest, { params }: Props) {
   try {
     const { user } = await requireAuthenticatedUser();
-    const { projectId } = await params;
+    const { id: projectId } = await params;
     const workspaces = await getUserWorkspaces(user.id);
     const workspaceId = workspaces[0]?.id;
     if (!workspaceId) {
@@ -84,7 +84,7 @@ export async function GET(_request: NextRequest, { params }: Props) {
 export async function POST(request: NextRequest, { params }: Props) {
   try {
     const { user } = await requireAuthenticatedUser();
-    const { projectId } = await params;
+    const { id: projectId } = await params;
     const workspaces = await getUserWorkspaces(user.id);
     const workspaceId = workspaces[0]?.id;
     if (!workspaceId) {
