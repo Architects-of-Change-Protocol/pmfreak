@@ -17,6 +17,7 @@ import {
   AGENT_META,
 } from "@/lib/pmo/pmo-tenant-types";
 import { savePmoTenant } from "@/lib/pmo/save-pmo-tenant";
+import { COMMAND_CENTER_TYPES } from "@/lib/command-center/command-center-types";
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
@@ -73,7 +74,7 @@ const DEFAULT_CONTEXT: ContextSeed = {
 // ─── Stepper config ────────────────────────────────────────────────────────────
 
 const STEPS = [
-  { id: 1, label: "PMO Identity", short: "Identity" },
+  { id: 1, label: "Command Center Identity", short: "Identity" },
   { id: 2, label: "Data Sovereignty", short: "Vault" },
   { id: 3, label: "Governance", short: "Governance" },
   { id: 4, label: "Agent Activation", short: "Agents" },
@@ -107,9 +108,9 @@ type WizardState = {
 function validate(step: number, d: WizardState): string[] {
   const errs: string[] = [];
   if (step === 1) {
-    if (!d.identity.pmoName.trim()) errs.push("PMO name is required.");
+    if (!d.identity.pmoName.trim()) errs.push("Command Center name is required.");
     if (!d.identity.organizationName.trim()) errs.push("Organization name is required.");
-    if (!d.identity.pmoType) errs.push("PMO type is required.");
+    if (!d.identity.pmoType) errs.push("Command Center type is required.");
     if (!d.identity.operatingModel) errs.push("Operating model is required.");
   }
   if (step === 3) {
@@ -147,14 +148,11 @@ function StepIdentity({
   data: PmoTenantIdentity;
   onChange: (field: keyof PmoTenantIdentity, value: string) => void;
 }) {
-  const PMO_TYPES = [
-    { value: "enterprise-pmo", label: "Enterprise PMO", desc: "Cross-portfolio governance at scale" },
-    { value: "delivery-pmo", label: "Delivery PMO", desc: "Execution-focused delivery oversight" },
-    { value: "technology-pmo", label: "Technology PMO", desc: "Engineering and product delivery" },
-    { value: "consulting-pmo", label: "Consulting PMO", desc: "Client-facing engagement governance" },
-    { value: "portfolio-governance-office", label: "Portfolio Governance Office", desc: "Investment and initiative arbitration" },
-    { value: "transformation-office", label: "Transformation Office", desc: "Change programs and enterprise transformation" },
-  ];
+  const PMO_TYPES = COMMAND_CENTER_TYPES.map((meta) => ({
+    value: meta.type,
+    label: meta.label,
+    desc: meta.description,
+  }));
 
   const MODELS = [
     { value: "centralized", label: "Centralized", desc: "Single command, unified standards" },
@@ -165,13 +163,13 @@ function StepIdentity({
   return (
     <div className="space-y-7">
       <StepIntro
-        title="Identify your PMO"
-        description="This becomes the identity layer PMFreak uses to calibrate governance agents, communication tone, and executive reporting."
+        title="Identify your Command Center"
+        description="This becomes the governance identity PMFreak uses to calibrate agents, communication tone, and executive reporting."
       />
 
       <div className="grid gap-5 sm:grid-cols-2">
         <label className={label}>
-          PMO Name <span className="text-pink-400 normal-case">*</span>
+          Command Center Name <span className="text-pink-400 normal-case">*</span>
           <input
             className={input}
             placeholder="Enterprise Delivery Office"
@@ -191,7 +189,7 @@ function StepIdentity({
       </div>
 
       <div>
-        <SectionLabel>PMO Type *</SectionLabel>
+        <SectionLabel>Command Center Type *</SectionLabel>
         <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           {PMO_TYPES.map((t) => (
             <button
@@ -484,7 +482,7 @@ function StepAgents({
     <div className="space-y-7">
       <StepIntro
         title="Agent Activation Profile"
-        description="Select which governance agents activate when your PMO goes live. Core agents are recommended by default. Advanced agents can be enabled now or later."
+        description="Select which governance agents activate when your Command Center goes live. Core agents are recommended by default. Advanced agents can be enabled now or later."
       />
 
       <div>
@@ -530,8 +528,8 @@ function StepContext({
   return (
     <div className="space-y-7">
       <StepIntro
-        title="Seed the PMO brain"
-        description="This context initializes your PMO's operational memory. Agents use it to calibrate reasoning, prioritize signals, and personalize their first responses."
+        title="Seed the Command Center"
+        description="This context initializes your Command Center's operational memory. Agents use it to calibrate reasoning, prioritize signals, and personalize their first responses."
       />
 
       <label className={label}>
@@ -539,7 +537,7 @@ function StepContext({
         <textarea
           className={`${input} resize-none`}
           rows={3}
-          placeholder="What is the primary mission or outcome this PMO exists to deliver?"
+          placeholder="What is the primary mission or outcome this Command Center exists to deliver?"
           value={data.strategicObjective}
           onChange={(e) => onChange("strategicObjective", e.target.value)}
         />
@@ -569,11 +567,11 @@ function StepContext({
       </div>
 
       <label className={label}>
-        How does success look for this PMO?
+        How does success look for this Command Center?
         <textarea
           className={`${input} resize-none`}
           rows={3}
-          placeholder="Describe the outcomes, metrics, or states that would mark this PMO as successful."
+          placeholder="Describe the outcomes, metrics, or states that would mark this Command Center as successful."
           value={data.successDefinition}
           onChange={(e) => onChange("successDefinition", e.target.value)}
         />
@@ -602,15 +600,15 @@ function StepReview({
   return (
     <div className="space-y-5">
       <StepIntro
-        title="Activate PMFreak Brain"
-        description="Review your governance configuration. Once activated, PMFreak will initialize all selected agents and direct you to your workspace."
+        title="Activate your Command Center"
+        description="Review your governance configuration. Once activated, PMFreak will initialize all selected agents and direct you to your Command Center."
       />
 
       <div className="rounded-2xl border border-white/[0.07] bg-black/30 p-5">
-        <p className="mb-3 text-[10px] uppercase tracking-[0.24em] text-indigo-300/60">PMO Identity</p>
+        <p className="mb-3 text-[10px] uppercase tracking-[0.24em] text-indigo-300/60">Command Center Identity</p>
         <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
           {[
-            ["PMO Name", state.identity.pmoName],
+            ["Command Center Name", state.identity.pmoName],
             ["Organization", state.identity.organizationName],
             ["Type", humanize(state.identity.pmoType)],
             ["Operating Model", humanize(state.identity.operatingModel)],
@@ -691,10 +689,10 @@ function StepReview({
         {creating ? (
           <span className="flex items-center justify-center gap-2.5">
             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-cyan-400" />
-            Initializing PMO Brain…
+            Initializing Command Center…
           </span>
         ) : (
-          "Activate PMFreak Brain →"
+          "Activate Command Center →"
         )}
       </button>
     </div>
@@ -927,7 +925,7 @@ export function CreatePmoWizard() {
           <p className="mb-0.5 text-[10px] uppercase tracking-[0.18em] text-red-400/70">
             {createErrorClass === "fatal_failure" ? "Fatal failure" : "Recoverable failure"}
           </p>
-          <p className="mb-1 text-sm font-semibold text-red-300">PMO activation failed</p>
+          <p className="mb-1 text-sm font-semibold text-red-300">Command Center activation failed</p>
           <p className="text-sm text-red-200/80">{createError}</p>
           <div className="mt-3 flex gap-2.5">
             {createErrorClass === "fatal_failure" ? (

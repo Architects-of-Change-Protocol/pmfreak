@@ -166,7 +166,7 @@ test("wizard handleCreate does NOT write localStorage on failure", () => {
 
 test("wizard shows blocking error banner when persistence fails", () => {
   assert.match(wizard, /createError/, "createError state must exist");
-  assert.match(wizard, /PMO activation failed/, "blocking error title must be rendered");
+  assert.match(wizard, /Command Center activation failed/, "blocking error title must be rendered");
 });
 
 test("wizard sets creating=false and returns early on failure", () => {
