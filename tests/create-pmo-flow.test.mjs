@@ -239,3 +239,46 @@ test("workspace-shell Brain Activated message is gated on pmoContext.found", () 
     "Brain Activated must only display when pmoContext.found is true"
   );
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTRACT 11: Command Center route polish
+// ─────────────────────────────────────────────────────────────────────────────
+
+const createCommandCenterPage = readFileSync(
+  join(ROOT, "src/app/(protected)/create-command-center/page.tsx"),
+  "utf8"
+);
+const createPmoPage = readFileSync(join(ROOT, "src/app/(protected)/create-pmo/page.tsx"), "utf8");
+const continuationRoutes = readFileSync(join(ROOT, "src/lib/auth/validate-continuation-route.ts"), "utf8");
+const routePolicyRegistry = readFileSync(join(ROOT, "src/lib/auth/route-policy-registry.ts"), "utf8");
+const navigationHierarchy = readFileSync(join(ROOT, "src/lib/workspace/navigation-hierarchy.ts"), "utf8");
+const gettingStartedFlow = readFileSync(join(ROOT, "src/components/pmfreak/activation/getting-started-flow.tsx"), "utf8");
+const commandCenterTypes = readFileSync(join(ROOT, "src/lib/command-center/command-center-types.ts"), "utf8");
+
+test("/create-command-center renders the existing Command Center creation wizard", () => {
+  assert.match(createCommandCenterPage, /CreatePmoWizard/, "preferred route must reuse the existing wizard");
+  assert.match(createCommandCenterPage, /Create your Command Center/, "preferred route must use generic Command Center copy");
+});
+
+test("/create-pmo remains backward compatible by redirecting to /create-command-center", () => {
+  assert.match(createPmoPage, /redirect\("\/create-command-center"\)/, "legacy route must redirect to preferred route");
+  assert.doesNotMatch(createPmoPage, /CreatePmoWizard/, "legacy route must not import or render the wizard");
+  assert.doesNotMatch(createPmoPage, /return\s*\(/, "legacy route must not return JSX before redirecting");
+});
+
+test("auth and route policies allow both preferred and legacy creation routes", () => {
+  assert.match(continuationRoutes, /"\/create-command-center"/, "continuation validation must allow preferred route");
+  assert.match(continuationRoutes, /"\/create-pmo"/, "continuation validation must preserve legacy route");
+  assert.match(routePolicyRegistry, /"\/create-command-center"/, "route policy must include preferred route");
+  assert.match(routePolicyRegistry, /"\/create-pmo"/, "route policy must preserve legacy route");
+});
+
+test("user-facing Command Center CTAs use the preferred route", () => {
+  assert.match(navigationHierarchy, /href: "\/create-command-center"/, "navigation CTA must use preferred route");
+  assert.doesNotMatch(navigationHierarchy, /Create PMO|href: "\/create-pmo"/, "navigation must not send users to legacy route");
+  assert.match(gettingStartedFlow, /router\.push\("\/create-command-center"\)/, "empty state CTA must use preferred route");
+});
+
+test("Company PMO remains available as a Command Center type", () => {
+  assert.match(commandCenterTypes, /label: "Company PMO"/, "Company PMO type label must remain available");
+});

@@ -55,7 +55,7 @@ decisions. That row has `command_center_type = NULL`.
 **A workspace with `command_center_type IS NULL` is treated as "no Command
 Center exists yet"** for first-launch UX and gating purposes
 (`src/lib/auth/resolve-onboarding-state.ts` — `needs_pmo_setup`). Creating a
-Command Center (`/create-pmo`, `src/lib/pmo/save-pmo-tenant.ts`) promotes this
+Command Center (`/create-command-center`, preferred; `/create-pmo`, legacy backward-compatible redirect; `src/lib/pmo/save-pmo-tenant.ts`) promotes this
 same row in place: it sets `name`, `command_center_type`, `owner_type`,
 `data_owner`, and `source_context` rather than creating an orphaned second
 workspace. Additional Command Centers (future consultant/client-portfolio use
@@ -86,10 +86,15 @@ typing/governance metadata to the container itself.
   **Create Command Center** action, and a disabled **Create Project** action
   with the required tooltip copy. No demo content or sample prompts are
   shown.
-- `/create-pmo` (`src/app/(protected)/create-pmo/page.tsx`,
-  `src/components/pmfreak/pmo/create-pmo-wizard.tsx`) is the Command Center
-  creation flow. Step 1 asks for the Command Center type using the five
-  official types from `COMMAND_CENTER_TYPES`.
+- `/create-command-center` (`src/app/(protected)/create-command-center/page.tsx`,
+  `src/components/pmfreak/pmo/create-pmo-wizard.tsx`) is the preferred
+  user-facing Command Center creation flow. `/create-pmo`
+  (`src/app/(protected)/create-pmo/page.tsx`) remains a legacy,
+  backward-compatible redirect to the preferred route. Step 1 asks for the
+  Command Center type using the five official types from
+  `COMMAND_CENTER_TYPES`. Product/UI language should say **Command Center**
+  for the governance container while the technical persistence model remains
+  `workspaces` and `workspace_id` remains the canonical database foreign key.
 - `src/components/pmfreak/workspace/command-center-context-banner.tsx` renders
   the "You are working inside: [Name]" indicator plus the type label and the
   company-owned vs. independent contextual notice

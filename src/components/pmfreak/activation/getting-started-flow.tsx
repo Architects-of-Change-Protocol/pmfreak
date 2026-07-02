@@ -353,7 +353,7 @@ export function GettingStartedFlow() {
             <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <button
                 type="button"
-                onClick={() => router.push("/create-pmo")}
+                onClick={() => router.push("/create-command-center")}
                 className="group relative overflow-hidden rounded-2xl bg-slate-900 px-8 py-3.5 text-sm font-semibold text-white shadow-[0_10px_30px_-12px_rgba(15,23,42,0.6)] transition-all hover:bg-slate-800"
               >
                 <span className="relative">Create Command Center</span>

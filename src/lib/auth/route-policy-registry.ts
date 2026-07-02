@@ -20,6 +20,7 @@ const WORKSPACE_CORE_ROUTES = [
   "/projects",
   "/upload",
   "/accept-invite",
+  "/create-command-center",
   "/create-pmo",
 ] as const;
 const WORKSPACE_CONTEXTUAL_ROUTES = [
