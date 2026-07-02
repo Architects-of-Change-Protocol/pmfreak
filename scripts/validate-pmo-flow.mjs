@@ -7,7 +7,7 @@
 
 function isSafeContinuationRoute(route) {
   const BLOCKED_PREFIXES = ["/login", "/signup", "/auth", "/debug", "/api", "/_next"];
-  const ALLOWED_PREFIXES = ["/workspace", "/projects", "/dashboard", "/portfolio", "/upload", "/command-center", "/create-pmo"];
+  const ALLOWED_PREFIXES = ["/workspace", "/projects", "/dashboard", "/portfolio", "/upload", "/command-center", "/create-command-center", "/create-pmo"];
 
   if (typeof route !== "string") return false;
   if (/[\r\n\t]/.test(route)) return false;
@@ -26,12 +26,14 @@ function isSafeContinuationRoute(route) {
 }
 
 const continuationTests = [
+  ["/create-command-center", true],
   ["/create-pmo", true],
   ["/workspace", true],
   ["//evil.com", false],
   ["/login", false],
   ["/api/anything", false],
   ["https://evil.com", false],
+  ["/create-command-center?ref=x", true],
   ["/create-pmo?ref=x", true],
   ["/create-pmo\n", false],
 ];
