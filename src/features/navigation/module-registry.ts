@@ -80,8 +80,8 @@ export const PM_MODULES: PMModule[] = [
   },
   {
     href: "/command-center",
-    label: "Command Center",
-    shortLabel: "Command",
+    label: "Project Brief",
+    shortLabel: "Brief",
     description:
       "Coordinate interventions and escalation response for high-severity conditions.",
     status: "Live",
@@ -143,6 +143,6 @@ export const OPERATIONAL_FLOW = [
   "Memory",
   "Executive View",
   "Change Detection",
-  "Command Center",
+  "Project Brief",
   "Follow-ups",
 ] as const;

@@ -18,8 +18,9 @@ export function CommandCenterEmptyState({
         <div>
           <h1 className="text-base font-semibold tracking-tight text-slate-900">No project selected</h1>
           <p className="mt-1 text-xs text-slate-400">
-            Create or import your first project to activate PMFreak&apos;s operational intelligence.
+            Create your first project inside this Command Center to activate PMFreak&apos;s operational intelligence.
           </p>
+          <p className="mt-1 text-xs text-slate-400">Agents are waiting for project data.</p>
         </div>
       </header>
 

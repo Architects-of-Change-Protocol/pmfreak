@@ -334,75 +334,42 @@ export function GettingStartedFlow() {
     router.push(dest);
   }, [router]);
 
-  // Step 0: Welcome / Activation Entry
+  // Step 0: Clean first-launch empty state — no Command Center exists yet.
   if (step === 0) {
     return (
       <>
         {activating && <AIActivationTransition onComplete={handleTransitionComplete} />}
         <main className="relative flex min-h-[calc(100vh-6rem)] flex-col items-center justify-center px-4 py-16">
-          {/* Ambient background glow */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute left-1/2 top-1/3 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-200/25 blur-3xl" />
-            <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-rose-100/25 blur-2xl" />
-          </div>
-
-          <div className="relative w-full max-w-2xl space-y-10 text-center">
-            {/* Signal badge */}
-            <div className="flex justify-center">
-              <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-1.5">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-60" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500" />
-                </span>
-                <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-sky-700">
-                  PMFreak Activation
-                </span>
-              </span>
-            </div>
-
-            {/* Primary heading */}
+          <div className="relative w-full max-w-xl space-y-8 text-center">
             <div className="space-y-4">
               <h1 className="text-4xl font-semibold leading-tight tracking-tight text-slate-900 sm:text-5xl">
-                Activate your first
-                <br />
-                <span className="bg-gradient-to-r from-sky-500 via-sky-600 to-cyan-500 bg-clip-text text-transparent">
-                  operational context
-                </span>
+                Start building your command center
               </h1>
-              <p className="mx-auto max-w-lg text-base leading-relaxed text-slate-500">
-                PMFreak needs one real initiative to begin sensing execution risk, stakeholder dynamics,
-                meeting debt, and follow-up pressure.
+              <p className="mx-auto max-w-md text-base leading-relaxed text-slate-500">
+                Create a governance space to align your projects, priorities, and agents.
               </p>
             </div>
 
-            {/* AI hint */}
-            <div className="mx-auto max-w-sm rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
-              <div className="flex items-start gap-2">
-                <span className="mt-px shrink-0 text-[9px] font-bold uppercase tracking-widest text-sky-600">AI</span>
-                <p className="text-[11px] leading-relaxed text-sky-800/90">
-                  Operational risk telemetry becomes more accurate as context is ingested. This takes
-                  under 3 minutes.
-                </p>
-              </div>
-            </div>
-
-            {/* CTAs */}
             <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <button
                 type="button"
-                onClick={() => setStep(1)}
+                onClick={() => router.push("/create-pmo")}
                 className="group relative overflow-hidden rounded-2xl bg-slate-900 px-8 py-3.5 text-sm font-semibold text-white shadow-[0_10px_30px_-12px_rgba(15,23,42,0.6)] transition-all hover:bg-slate-800"
               >
-                <span className="relative">Begin Activation</span>
+                <span className="relative">Create Command Center</span>
               </button>
-              <button
-                type="button"
-                onClick={() => submit(true)}
-                disabled={submitting}
-                className="rounded-2xl border border-slate-200 px-6 py-3.5 text-sm text-slate-500 transition hover:border-slate-300 hover:text-slate-700 disabled:opacity-40"
-              >
-                {submitting ? "Loading..." : "Explore PMFreak demo"}
-              </button>
+              <span className="group relative">
+                <button
+                  type="button"
+                  disabled
+                  className="cursor-not-allowed rounded-2xl border border-slate-200 px-6 py-3.5 text-sm text-slate-400 opacity-60"
+                >
+                  Create Project
+                </button>
+                <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-64 -translate-x-1/2 rounded-lg border border-slate-200 bg-slate-900 px-3 py-2 text-[11px] leading-relaxed text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                  Create a Command Center first to give your projects governance, objectives, and agent context.
+                </span>
+              </span>
             </div>
 
             {submitError && (
@@ -411,19 +378,7 @@ export function GettingStartedFlow() {
               </p>
             )}
 
-            {/* What activates */}
-            <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-4">
-              {[
-                "Execution risk sensing",
-                "Stakeholder dynamics",
-                "Meeting debt tracking",
-                "Follow-up pressure",
-              ].map((item) => (
-                <div key={item} className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5 text-center">
-                  <p className="text-[11px] text-slate-500">{item}</p>
-                </div>
-              ))}
-            </div>
+            <p className="text-xs text-slate-400">Agents are sleeping until your Command Center is ready.</p>
           </div>
         </main>
       </>
@@ -707,14 +662,6 @@ export function GettingStartedFlow() {
                   className="rounded-2xl bg-slate-900 px-7 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_-12px_rgba(15,23,42,0.6)] transition hover:bg-slate-800 disabled:opacity-50"
                 >
                   {submitting ? "Preparing activation..." : "Activate PMFreak"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => submit(true)}
-                  disabled={submitting}
-                  className="rounded-2xl border border-slate-200 px-5 py-3 text-sm text-slate-500 transition hover:border-slate-300 hover:text-slate-700 disabled:opacity-40"
-                >
-                  Load demo project
                 </button>
               </div>
               {submitError && (

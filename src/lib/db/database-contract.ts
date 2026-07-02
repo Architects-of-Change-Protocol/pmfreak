@@ -14,9 +14,25 @@
 // workspaces
 // Source: 20260512160000_workspace_authorization_rewrite.sql
 //         20260601000000_schema_contract_hardening.sql (status column)
+//         20260702000000_command_center_governance_foundation.sql (Command Center governance columns)
+//
+// A workspace row IS a Command Center: `command_center_type` NULL means the
+// workspace was auto-bootstrapped on first login but the user has not yet
+// configured a real Command Center (see ensureUserWorkspace / resolve-onboarding-state).
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type WorkspaceStatus = "active" | "archived" | "deleted";
+
+export type CommandCenterType =
+  | "company_pmo"
+  | "team_portfolio"
+  | "independent"
+  | "client_portfolio"
+  | "improvement_program";
+
+export type OwnerType = "personal" | "company" | "team" | "client" | "program";
+export type VisibilityScope = "user" | "command_center" | "organization" | "client" | "public";
+export type ConfidentialityLevel = "public" | "internal" | "confidential" | "restricted";
 
 export type WorkspaceRow = {
   id: string;              // uuid
@@ -24,6 +40,13 @@ export type WorkspaceRow = {
   created_by_user_id: string | null; // uuid references auth.users
   status: WorkspaceStatus; // text not null default 'active' (added 20260601)
   created_at: string;      // timestamptz
+  command_center_type: CommandCenterType | null; // text, nullable (added 20260702)
+  owner_type: OwnerType | null;                  // text, nullable (added 20260702)
+  data_owner: string | null;                     // uuid references auth.users (added 20260702)
+  visibility_scope: VisibilityScope;              // text not null default 'command_center' (added 20260702)
+  confidentiality_level: ConfidentialityLevel;    // text not null default 'internal' (added 20260702)
+  governance_policy_id: string | null;            // uuid, nullable (added 20260702)
+  source_context: string | null;                  // text, nullable (added 20260702)
 };
 
 export const WORKSPACE_SELECTABLE_COLUMNS = [
@@ -32,6 +55,13 @@ export const WORKSPACE_SELECTABLE_COLUMNS = [
   "created_by_user_id",
   "status",
   "created_at",
+  "command_center_type",
+  "owner_type",
+  "data_owner",
+  "visibility_scope",
+  "confidentiality_level",
+  "governance_policy_id",
+  "source_context",
 ] as const satisfies ReadonlyArray<keyof WorkspaceRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -7,6 +7,11 @@ import { runDashboardConsumptionRuntime } from "@/lib/dashboard/consumption";
 import { runDashboardActionCenter } from "@/lib/dashboard/action-center";
 import { ExecutiveDashboardActionCenter } from "@/components/dashboard/action-center";
 import { WorkspaceContextBanner } from "@/components/pmfreak/workspace/workspace-context-banner";
+import { CommandCenterContextBanner } from "@/components/pmfreak/workspace/command-center-context-banner";
+import { resolveCanonicalWorkspace } from "@/lib/workspaces/canonical-workspace-resolver";
+import { getCommandCenterById } from "@/lib/workspaces";
+import { agentIdleCopy } from "@/lib/command-center/agent-idle-copy";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 
 export default async function DashboardPage({
   searchParams,
@@ -25,6 +30,31 @@ export default async function DashboardPage({
   const withProjectScope = (href: string) =>
     currentProjectId ? `${href}?projectId=${currentProjectId}` : href;
 
+  const workspaceResolution = user ? await resolveCanonicalWorkspace(user.id) : null;
+  const commandCenter = workspaceResolution?.workspaceId
+    ? await getCommandCenterById(workspaceResolution.workspaceId)
+    : null;
+
+  let hasProject = false;
+  if (workspaceResolution?.workspaceId) {
+    const supabase = createSupabaseServiceRoleClient({
+      routeId: "dashboard.page",
+      operation: "select",
+      reason: "agent_idle_state_check",
+      workspaceId: workspaceResolution.workspaceId,
+      systemActor: "system",
+      actorUserId: user?.id,
+    });
+    const { data: projects } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("workspace_id", workspaceResolution.workspaceId)
+      .limit(1);
+    hasProject = Boolean(projects?.length);
+  }
+
+  const idleCopy = agentIdleCopy(Boolean(commandCenter), hasProject);
+
   return (
     <>
       <FirstUserTelemetryEvent eventType="first_workspace_loaded" />
@@ -38,7 +68,19 @@ export default async function DashboardPage({
           { label: "Next Action", value: currentProjectId ? "Ready" : "Select scope" },
         ]}
       >
-        <WorkspaceContextBanner lens="Summary" />
+        {commandCenter ? (
+          <CommandCenterContextBanner
+            name={commandCenter.name}
+            commandCenterType={commandCenter.commandCenterType}
+            ownerType={commandCenter.ownerType}
+            variant="dark"
+          />
+        ) : (
+          <WorkspaceContextBanner lens="Summary" />
+        )}
+        {idleCopy && (
+          <p className="text-xs text-slate-500">{idleCopy}</p>
+        )}
         <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">Summary</p>
           <p className="mt-2 text-sm text-slate-200">Capture signal, preserve memory, execute next action.</p>
@@ -51,7 +93,7 @@ export default async function DashboardPage({
             ["Input Hub", "Capture meeting notes, blockers, dependencies, and escalations so PMFreak can reason with real signal.", "/input-hub"],
             ["Executive", "Instantly see what deserves leadership attention and how to communicate it with confidence.", "/executive"],
             ["Follow-up", "Convert guidance into accountable actions and close execution loops.", "/follow-up-dashboard"],
-            ["Command Center", "Focus the team on the highest instability before it turns into executive fire drills.", "/command-center"],
+            ["Project Brief", "Focus the team on the highest instability before it turns into executive fire drills.", "/command-center"],
           ].map(([title, text, href]) => (
             <Link key={title} href={withProjectScope(href as string)} className="rounded-2xl border border-white/10 bg-white/20 p-4 hover:border-cyan-300/40">
               <h3 className="font-semibold">{title}</h3>

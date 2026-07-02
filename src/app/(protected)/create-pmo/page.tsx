@@ -12,11 +12,12 @@ export default function CreatePmoPage() {
         <header className="mb-10">
           <p className="text-[10px] uppercase tracking-[0.35em] text-cyan-400/60">PMFreak · AOC Protocol</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">
-            Initialize PMO Brain
+            Create your Command Center
           </h1>
           <p className="mt-2.5 max-w-2xl text-sm leading-relaxed text-zinc-500">
-            Configure the governance context that powers your AI PMO agents. This becomes the operating
-            skeleton PMFreak reasons from — every recommendation, escalation, and synthesis traces back here.
+            Create a governance space to align your projects, priorities, and agents. This becomes the
+            operating skeleton PMFreak reasons from — every recommendation, escalation, and synthesis
+            traces back here.
           </p>
         </header>
 

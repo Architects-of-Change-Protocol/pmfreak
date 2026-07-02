@@ -5,6 +5,7 @@ import { resolveCanonicalWorkspace } from "@/lib/workspaces/canonical-workspace-
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import type { PmoTenant } from "./pmo-tenant-types";
 import { validatePmoTenantPayload } from "./pmo-tenant-validate";
+import { defaultOwnerTypeFor, type CommandCenterType } from "@/lib/command-center/command-center-types";
 
 // Explicit three-state contract — callers must handle all three.
 export type PmoTenantSaveResult =
@@ -95,6 +96,29 @@ export async function savePmoTenant(tenant: PmoTenant): Promise<PmoTenantSaveRes
 
     // Track that the upsert landed so we can roll back on subsequent failure.
     upsertedWorkspaceId = resolution.workspaceId;
+
+    // Promote the auto-bootstrapped workspace into a fully typed Command Center:
+    // this is the transition from "no Command Center exists yet" to a real one.
+    const commandCenterType = tenant.identity.pmoType as CommandCenterType;
+    const { error: workspaceUpdateError } = await supabaseClient
+      .from("workspaces")
+      .update({
+        name: tenant.identity.pmoName,
+        command_center_type: commandCenterType,
+        owner_type: defaultOwnerTypeFor(commandCenterType),
+        data_owner: user.id,
+        source_context: tenant.contextSeed.strategicObjective || null,
+      })
+      .eq("id", resolution.workspaceId);
+
+    if (workspaceUpdateError) {
+      emit("warn", "pmo.create.workspace_metadata_warn", {
+        correlationId,
+        userId,
+        workspaceId,
+        error: workspaceUpdateError.message,
+      });
+    }
 
     emit("info", "pmo.create.persisted", {
       correlationId,

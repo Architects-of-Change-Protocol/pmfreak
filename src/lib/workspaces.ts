@@ -1,10 +1,65 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
+import type { CommandCenterType, OwnerType } from "@/lib/command-center/command-center-types";
 
 export type WorkspaceRow = {
   id: string;
   name: string;
 };
+
+export type CommandCenterRow = {
+  id: string;
+  name: string;
+  commandCenterType: CommandCenterType | null;
+  ownerType: OwnerType | null;
+};
+
+/**
+ * A workspace only counts as a real, user-configured Command Center once it
+ * has a command_center_type. Workspaces without one are auto-bootstrap rows
+ * (see ensureUserWorkspace) that the user has not yet turned into a Command
+ * Center — first-launch UX treats those as "no Command Center exists yet".
+ */
+export async function getCommandCenterById(workspaceId: string): Promise<CommandCenterRow | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("workspaces")
+    .select("id, name, command_center_type, owner_type")
+    .eq("id", workspaceId)
+    .maybeSingle<{ id: string; name: string; command_center_type: CommandCenterType | null; owner_type: OwnerType | null }>();
+
+  if (!data) return null;
+  return { id: data.id, name: data.name, commandCenterType: data.command_center_type, ownerType: data.owner_type };
+}
+
+export async function getUserCommandCenters(userId: string): Promise<CommandCenterRow[]> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data: memberships } = await supabase
+    .from("workspace_memberships")
+    .select("workspace_id")
+    .eq("user_id", userId);
+
+  const workspaceIds = (memberships ?? []).map((m: { workspace_id: string }) => m.workspace_id);
+  if (workspaceIds.length === 0) return [];
+
+  type Row = { id: string; name: string; command_center_type: CommandCenterType | null; owner_type: OwnerType | null };
+
+  const { data: workspaceRows } = await supabase
+    .from("workspaces")
+    .select("id, name, command_center_type, owner_type")
+    .in("id", workspaceIds)
+    .returns<Row[]>();
+
+  return (workspaceRows ?? [])
+    .filter((w) => w.command_center_type !== null)
+    .map((w) => ({
+      id: w.id,
+      name: w.name,
+      commandCenterType: w.command_center_type,
+      ownerType: w.owner_type,
+    }));
+}
 
 export type WorkspaceContext = {
   workspaceId: string;

@@ -1,3 +1,5 @@
+import type { CommandCenterType } from "@/lib/command-center/command-center-types";
+
 export type VaultProvider = "pmfreak-cloud" | "dedicated-enterprise" | "local-sovereign";
 
 export type VaultConfig = {
@@ -35,14 +37,6 @@ export type ApprovalGovernance = "lightweight" | "structured" | "multi-layer-exe
 
 export type OperatingModel = "centralized" | "federated" | "hybrid";
 
-export type PmoTypeV2 =
-  | "enterprise-pmo"
-  | "delivery-pmo"
-  | "technology-pmo"
-  | "consulting-pmo"
-  | "portfolio-governance-office"
-  | "transformation-office";
-
 export type DeliveryChallenge =
   | "scope-ambiguity"
   | "stakeholder-misalignment"
@@ -62,7 +56,7 @@ export type GovernanceProfile = {
 export type PmoTenantIdentity = {
   pmoName: string;
   organizationName: string;
-  pmoType: PmoTypeV2 | "";
+  pmoType: CommandCenterType | "";
   operatingModel: OperatingModel | "";
 };
 
