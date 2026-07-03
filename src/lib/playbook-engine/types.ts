@@ -69,6 +69,19 @@ export type PlaybookFactCheck = {
   value?: boolean | number;
 };
 
+/**
+ * A concrete, governed action a rule may propose once fired. `action` is a stable
+ * machine-readable identifier (e.g. "generate_project_constitution_draft") consumed by
+ * downstream sprints (Recommendation Engine, Communications Playbook, etc.). Suggesting
+ * an action never executes it — execution and approval remain outside the Rules Engine.
+ */
+export type PlaybookSuggestedAction = {
+  action: string;
+  description: string;
+  /** Whether a human must approve before this action's effects take hold. */
+  approvalRequired: boolean;
+};
+
 export type PlaybookRule = {
   id: string;
   scope: PlaybookRuleScope;
@@ -81,6 +94,8 @@ export type PlaybookRule = {
   evidenceFacts: PlaybookFactKey[];
   /** Spanish-language template consumed by the Recommendation Engine (Sprint 3). */
   recommendationTemplate: string;
+  /** Optional structured actions the rule proposes once fired. Never invented for other statuses. */
+  suggestedActions?: PlaybookSuggestedAction[];
 };
 
 export type PlaybookPhase = {
@@ -118,4 +133,6 @@ export type PlaybookRuleEvaluation = {
   evidenceMissing: PlaybookFactKey[];
   /** Populated only when status === "fired"; never invented for other statuses. */
   recommendationTemplate: string | null;
+  /** Populated only when status === "fired"; never invented for other statuses. */
+  suggestedActions: PlaybookSuggestedAction[] | null;
 };

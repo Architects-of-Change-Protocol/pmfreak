@@ -66,6 +66,7 @@ export function evaluatePlaybookRule(rule: PlaybookRule, context: ProjectContext
       evidenceUsed,
       evidenceMissing: Array.from(new Set([...evidenceMissing, ...missingConditionFacts.map((c) => c.fact)])),
       recommendationTemplate: null,
+      suggestedActions: null,
     };
   }
 
@@ -84,6 +85,7 @@ export function evaluatePlaybookRule(rule: PlaybookRule, context: ProjectContext
     evidenceUsed: evidenceUsed.filter((e) => conditionFacts.has(e.fact) || rule.evidenceFacts.includes(e.fact)),
     evidenceMissing,
     recommendationTemplate: allConditionsMet ? rule.recommendationTemplate : null,
+    suggestedActions: allConditionsMet ? rule.suggestedActions ?? [] : null,
   };
 }
 
