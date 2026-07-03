@@ -79,6 +79,19 @@ export const SEED_DELIVERY_PLAYBOOK: DeliveryPlaybook = {
       evidenceFacts: ["hasApprovedConstitution"],
       recommendationTemplate:
         "Generar y someter a aprobación la Constitución del Proyecto antes de iniciar la planificación detallada.",
+      suggestedActions: [
+        {
+          action: "generate_project_constitution_draft",
+          description:
+            "Generar un draft de la Project Constitution a partir del playbook y el contexto disponible del proyecto.",
+          approvalRequired: false,
+        },
+        {
+          action: "approve_project_constitution",
+          description: "Someter la Project Constitution a aprobación formal antes de que gobierne el proyecto.",
+          approvalRequired: true,
+        },
+      ],
     },
     {
       id: "pb-init-stakeholder-map-missing",
