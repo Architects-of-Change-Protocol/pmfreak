@@ -12,7 +12,9 @@ This is Sprint 1 of the Playbook Engine MVP. Later sprints build on this foundat
 2. **Project Constitution Generator** (Sprint 2) — derives a draft `project-constitution` record from the
    playbook; see `generateProjectConstitutionDraftFromPlaybook` and `explainProjectConstitutionDraftGeneration`
    in `constitution-generator.ts`. Pure, no persistence, never auto-approves.
-3. Recommendation Engine v1 — persists governed recommendations from rule evaluations (draft/reviewed/approved)
+3. **Recommendation Engine v1** (Sprint 3) — converts fired rule evaluations into governed, explainable
+   recommendations with an approval-aware status lifecycle; see `generatePlaybookRecommendations` and
+   `explainPlaybookRecommendation` in `recommendation-engine.ts`. Pure, no persistence yet, never auto-executes.
 4. Communications Playbook — generates draft communications (never sent automatically)
 5. Risk/Issue/Dependency/Decision Intelligence — layers playbook rules over `raid` and `decision-governance`
 6. Closure & Billing Intelligence
@@ -170,8 +172,12 @@ src/lib/playbook-engine/
 ├── seed-playbook.ts            — SEED_DELIVERY_PLAYBOOK (phases + rules)
 ├── rules-engine.ts              — evaluatePlaybookRule, evaluatePlaybookRules (pure)
 ├── explain.ts                    — explainPlaybookEngineCapability (pure)
-└── constitution-generator.ts      — generateProjectConstitutionDraftFromPlaybook,
-                                       explainProjectConstitutionDraftGeneration (pure, Sprint 2)
+├── constitution-generator.ts      — generateProjectConstitutionDraftFromPlaybook,
+│                                      explainProjectConstitutionDraftGeneration (pure, Sprint 2)
+├── recommendation-engine.ts        — generatePlaybookRecommendations, explainPlaybookRecommendation,
+│                                      mergePlaybookRecommendations (pure, Sprint 3)
+└── recommendation-state.ts          — status transition helpers (markRecommendationViewed,
+                                        acceptRecommendation, approveRecommendation, ...) (pure, Sprint 3)
 ```
 
 No database migration or `platform-events` emission is introduced in this sprint — nothing is
@@ -222,3 +228,126 @@ a rule fires (mirroring `recommendationTemplate`'s never-invented-when-not-fired
 seed rule `pb-init-constitution-missing` now suggests two actions: `generate_project_constitution_draft`
 (`approvalRequired: false` — drafting is safe to do automatically) and `approve_project_constitution`
 (`approvalRequired: true` — approval always requires a human).
+
+---
+
+## Recommendation Engine v1 (Sprint 3)
+
+The governing principle for this sprint: PMFreak never says "I think you should do X." It says
+*"according to the playbook, this rule fired on this evidence, this is missing, and this is the
+recommended action."* `generatePlaybookRecommendations(context, playbook)`
+(`recommendation-engine.ts`) is the layer that turns `PlaybookRuleEvaluation[]` (Sprint 1) into
+that governed, explainable, actionable shape.
+
+### Reuse decisions
+
+Before adding new architecture, the existing `recommended-actions/`, `task-drafts/`,
+`governance-actions/`, and `decision-governance/` modules were reviewed:
+
+- `recommended-actions` (RAID-derived) has its own status vocabulary
+  (`proposed | accepted | rejected | deferred | converted_to_task`) tied to `raid_item_id` and a
+  Supabase-backed `recommended_actions` table — it doesn't cover the
+  `requires_approval → approved → executed` approval gate this sprint needs, and is scoped to a
+  different source domain (RAID items, not playbook rules).
+- `governance-actions` and `decision-governance` are heavier, DB-backed state machines for a
+  different bounded context (organization-wide governance actions / formal decisions).
+- The `requires_approval` / `approved` vocabulary itself is already an established convention
+  across the repo (e.g. `agent-action-conversion-types.ts`), so the new
+  `PlaybookRecommendationStatus` enum reuses that language instead of inventing new words for the
+  same concept.
+
+Rather than force-fit or duplicate any of those, `PlaybookRecommendation` is a new, small type
+scoped to playbook-rule-derived recommendations, but it **reuses** `PlaybookRuleSeverity` (as
+`PlaybookRecommendationSeverity`) and `PlaybookSuggestedAction` (as `PlaybookRecommendationAction`)
+from Sprint 1/2 rather than declaring parallel types for the same shape.
+
+### `generatePlaybookRecommendations(context, playbook)`
+
+Pure function, no persistence, no event emission, no execution:
+
+1. Calls `evaluatePlaybookRules(playbook, context)` (Sprint 1).
+2. Only `"fired"` evaluations become a `PlaybookRecommendation`. `"not_fired"` evaluations are
+   dropped (nothing to recommend). `"indeterminate"` evaluations are never turned into a
+   recommendation — they're reported separately as `indeterminateRuleIds`, preserving the
+   "never invent data" discipline from Sprint 1.
+3. Each recommendation carries: `playbookRuleId`, `ruleName`, `title`, `detectedSituation`,
+   `phase`, `severity`, `status`, `confidence`, `evidenceUsed`, `missingEvidence`,
+   `recommendedAction`, `suggestedActions`, `approvalRequired`, `hasApprovalSensitiveActions`,
+   `explanation`, `createdAt`/`updatedAt`, plus `id`/`fingerprint`/`workspaceId`/`projectId`/
+   `playbookId`/`playbookVersion` for identity and idempotency.
+
+**Confidence** is never invented: it's `round(evidenceUsed.length / (evidenceUsed.length +
+missingEvidence.length) * 100)` — a deterministic measure of how much of the rule's declared
+evidence was actually known, derived purely from the evaluation itself.
+
+**`approvalRequired` / `hasApprovalSensitiveActions`**: both are `true` when any of the rule's
+`suggestedActions` has `approvalRequired: true` (e.g. `pb-init-constitution-missing`'s
+`approve_project_constitution`). They're kept as two fields with the same value today so a future
+sprint could introduce approval requirements not tied to a specific suggested action without a
+breaking rename.
+
+### Idempotency: `fingerprint`
+
+`id` and `fingerprint` are both `sha256(workspaceId:projectId:playbookId:playbookVersion:ruleId)`.
+Re-evaluating the exact same context twice yields byte-identical fingerprints/ids — this is the
+entire idempotency mechanism available in this sprint, since there is no persistence layer yet
+(a future materialization layer would use `fingerprint` as its uniqueness/upsert key, mirroring
+`recommended_actions.fingerprint`).
+
+`mergePlaybookRecommendations(previous, next)` is a pure helper for combining a freshly generated
+recommendation set with a previously known one: it dedupes by `fingerprint`, keeps at most one
+recommendation per fingerprint, and — critically — preserves the previous recommendation's
+`status` (a human's `viewed`/`accepted`/`dismissed`/... decision must never be silently reset by
+re-evaluation) while refreshing the evidence-derived fields from the latest evaluation.
+
+### `explainPlaybookRecommendation(recommendation, playbook?)`
+
+Returns a `PlaybookRecommendationExplanation` with `detectedCondition`, `activatedRule`,
+`evidenceUsed`, `missingEvidence`, `recommendedAction`, `requiresHumanApproval`,
+`availableConversions` (which statuses this recommendation could structurally move to next), and
+`futureCapabilities` (plain statements that task-draft and communication-draft conversion are not
+implemented yet). `narrative` assembles all of this into the single governed sentence PMFreak is
+allowed to say, e.g.:
+
+> Según el playbook 'Playbook de Entrega Estándar PMFreak' (v1), la regla
+> 'pb-init-constitution-missing' (Constitución de proyecto no generada) se activó por:
+> hasApprovedConstitution = false. No falta evidencia adicional para esta regla. La acción
+> recomendada es: Generar y someter a aprobación la Constitución del Proyecto antes de iniciar la
+> planificación detallada. Esta recomendación incluye al menos una acción que requiere aprobación
+> humana antes de ejecutarse.
+
+### Status lifecycle (`recommendation-state.ts`)
+
+```
+new → viewed → accepted → requires_approval → approved → executed
+                   │                                  ↘
+                   ├──────────────────────────────→ dismissed (terminal)
+                   ├──→ converted_to_task (terminal)
+                   ├──→ converted_to_draft (terminal)
+                   └──→ executed (terminal, only when approvalRequired is false)
+```
+
+`PLAYBOOK_RECOMMENDATION_TRANSITIONS` is a static graph (same pattern as
+`decision-governance/state-machine.ts`'s `allowedTransitions`), validated by every helper before
+mutating status. `dismissed` and `executed` have no outgoing edges — a dismissed recommendation
+can never later become executed, and executed never moves again.
+
+The graph alone can't express the approval precondition (it would allow `accepted → executed`
+regardless of `approvalRequired`), so `approveRecommendation` and `markRecommendationExecuted` add
+an explicit guard: `approveRecommendation` refuses to run when `approvalRequired` is `false`
+(approving something that was never sensitive is meaningless), and `markRecommendationExecuted`
+requires status `approved` when `approvalRequired` is `true`, or status `accepted` when it's
+`false`. None of these helpers execute anything — they're pure status bookkeeping, called only
+after a real action (out of scope for this sprint) has already happened elsewhere. This is what
+guarantees approval-sensitive actions are never auto-executed.
+
+### What's deliberately not in this sprint
+
+- **No persistence.** No new table/migration. A future sprint would materialize
+  `PlaybookRecommendation[]` into storage, most likely following the
+  `recommended_actions`/`materialize-recommended-actions.ts` shape (fingerprint-keyed upsert,
+  skip-if-already-decided), but that integration is out of scope here.
+- **No UI.** No recommendations screen exists yet that this cleanly slots into.
+- **No Communications Playbook, no Closure & Billing Intelligence, no Playbook Registry.**
+- **No automatic execution, approval, or emails.** `approve_project_constitution` and any other
+  approval-sensitive suggested action are never auto-approved or auto-executed by this engine.

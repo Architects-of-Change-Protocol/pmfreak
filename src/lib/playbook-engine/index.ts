@@ -5,6 +5,22 @@ export {
   generateProjectConstitutionDraftFromPlaybook,
   explainProjectConstitutionDraftGeneration,
 } from "./constitution-generator";
+export {
+  generatePlaybookRecommendations,
+  explainPlaybookRecommendation,
+  mergePlaybookRecommendations,
+} from "./recommendation-engine";
+export {
+  PLAYBOOK_RECOMMENDATION_TRANSITIONS,
+  markRecommendationViewed,
+  acceptRecommendation,
+  dismissRecommendation,
+  markRecommendationConvertedToTask,
+  markRecommendationConvertedToDraft,
+  markRecommendationRequiresApproval,
+  approveRecommendation,
+  markRecommendationExecuted,
+} from "./recommendation-state";
 export type {
   PlaybookEngineCapabilityExplain,
 } from "./explain";
@@ -15,6 +31,14 @@ export type {
   ProjectConstitutionDraftGenerationExplanation,
   ProjectConstitutionSourceFacts,
 } from "./constitution-generator";
+export type {
+  GeneratePlaybookRecommendationsResult,
+  PlaybookRecommendation,
+  PlaybookRecommendationAction,
+  PlaybookRecommendationExplanation,
+  PlaybookRecommendationSeverity,
+  PlaybookRecommendationStatus,
+} from "./recommendation-engine";
 export type {
   DeliveryPlaybook,
   PlaybookEngineFailureClass,
