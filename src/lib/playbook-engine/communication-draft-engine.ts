@@ -31,16 +31,57 @@ function recommendationText(recommendation: PlaybookRecommendation): string {
 }
 
 /**
- * Maps a governed recommendation to the communication template best suited to it. Priority
- * order mirrors the Sprint 4 spec exactly: reception/sign-off first, then billing, then
+ * Structured-data-first template selection for the known seed playbook rules
+ * (`seed-playbook.ts`). Keyed by the stable `playbookRuleId` rather than derived from rule prose,
+ * so a future copy-edit to a rule's title/description/recommendationTemplate can never silently
+ * change which template it selects. Every entry reproduces exactly what the text/severity
+ * fallback below already resolves for that rule id today — this is a pure robustness refactor,
+ * not a behavior change. Recommendations whose `playbookRuleId` isn't listed here (a custom/manual
+ * recommendation, or a future Playbook Registry rule) fall through to the text/severity
+ * classification unchanged, which remains only a fallback.
+ */
+const RULE_ID_COMMUNICATION_TEMPLATE: Partial<Record<string, CommunicationTemplateId>> = {
+  "pb-init-charter-missing": "information_request",
+  "pb-init-constitution-missing": "decision_request",
+  "pb-init-stakeholder-map-missing": "information_request",
+  "pb-any-stale-status": "soft_follow_up",
+  "pb-plan-scope-baseline-missing": "information_request",
+  "pb-plan-wbs-missing": "information_request",
+  "pb-plan-schedule-baseline-missing": "information_request",
+  "pb-plan-budget-baseline-missing": "information_request",
+  "pb-plan-comms-plan-missing": "information_request",
+  "pb-plan-risk-register-missing": "information_request",
+  "pb-exec-critical-risks-open": "formal_follow_up",
+  "pb-exec-overdue-tasks": "formal_follow_up",
+  "pb-exec-schedule-variance": "formal_follow_up",
+  "pb-exec-budget-variance": "formal_follow_up",
+  "pb-monitor-open-issues": "formal_follow_up",
+  "pb-close-signoff-missing": "reception_request",
+  "pb-close-invoice-missing": "billing_enablement_follow_up",
+  "pb-close-checklist-not-started": "information_request",
+};
+
+/**
+ * Maps a governed recommendation to the communication template best suited to it. Checks the
+ * structured `RULE_ID_COMMUNICATION_TEMPLATE` lookup first; only recommendations from an unknown
+ * rule id fall through to the text/severity classification below. That fallback's priority order
+ * mirrors the Sprint 4 spec exactly: reception/sign-off first, then billing, then
  * client-no-response (branched by severity), decision, missing-artifact/evidence, closure,
- * scope change, and finally a safe fallback (`formal_follow_up`) when nothing matches — this
+ * scope change, and finally a safe default (`formal_follow_up`) when nothing matches — this
  * function never returns "no template", since every recommendation deserves a governed,
  * editable draft even when the match is generic.
+ *
+ * A caller that already knows the right template (e.g. a closure/billing assessment's own
+ * `recommendedCommunicationTemplateId`) should always pass it explicitly via
+ * `generateCommunicationDraftFromRecommendation`'s `templateId` parameter instead of relying on
+ * this function — an explicit pin always wins over auto-selection.
  */
 export function selectCommunicationTemplateForRecommendation(
   recommendation: PlaybookRecommendation,
 ): CommunicationTemplateId {
+  const knownTemplate = RULE_ID_COMMUNICATION_TEMPLATE[recommendation.playbookRuleId];
+  if (knownTemplate) return knownTemplate;
+
   const text = recommendationText(recommendation);
 
   if (RECEPTION_OR_SIGNOFF_PATTERN.test(text)) return "reception_request";

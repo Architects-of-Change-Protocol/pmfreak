@@ -84,6 +84,13 @@ function decisionTypeForDraft(draft: OperationalDraft): DecisionType {
  * the input shape `src/lib/decision-governance` expects. Returns `null` for issue drafts — an
  * issue is never itself a decision. Never persists; the caller decides if/when to actually
  * create a `DecisionRecord` through the decision-governance service.
+ *
+ * `DecisionRecord` (`src/lib/decision-governance/types.ts`) has no structural "decision owner"
+ * column of its own, so for a `DecisionDraft` this mapper surfaces `draft.decisionOwner` — never
+ * `draft.owner` — into `metadata.decisionOwner`, `null` when the draft never had one (never
+ * invented). This is deliberate: the two fields answer different questions (see `DecisionDraft`'s
+ * doc comment in `operational-intelligence-types.ts`), and only `decisionOwner` is meaningful once
+ * this maps into an actual decision.
  */
 export function operationalDraftToDecisionInput(draft: OperationalDraft): DecisionRecordMappingInput | null {
   if (draft.type === "issue") return null;
@@ -97,6 +104,10 @@ export function operationalDraftToDecisionInput(draft: OperationalDraft): Decisi
     summary: draft.description,
     decision_rationale: draft.explanation.classifiedAsBecause,
     recommendation_id: draft.linkedRecommendationId,
-    metadata: { operationalDraftFingerprint: draft.fingerprint, operationalDraftType: draft.type },
+    metadata: {
+      operationalDraftFingerprint: draft.fingerprint,
+      operationalDraftType: draft.type,
+      ...(draft.type === "decision" ? { decisionOwner: draft.decisionOwner } : {}),
+    },
   };
 }
