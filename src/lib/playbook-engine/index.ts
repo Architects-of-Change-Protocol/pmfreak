@@ -54,6 +54,29 @@ export {
   operationalDraftToRaidItemInput,
   operationalDraftToDecisionInput,
 } from "./operational-intelligence-mappers";
+export {
+  buildClosureChecklist,
+  detectClosureBlockers,
+  detectBillingBlockers,
+  selectClosureBillingNextBestActions,
+  evaluateClosureAndBilling,
+  explainClosureBillingAssessment,
+} from "./closure-billing-engine";
+export {
+  markClosureChecklistItemValidated,
+  markClosureBlockerReviewed,
+  markBillingBlockerReviewed,
+  CLOSURE_BILLING_ASSESSMENT_TRANSITIONS,
+  markClosureBillingAssessmentReviewed,
+  discardClosureBillingAssessment,
+} from "./closure-billing-state";
+export {
+  closureBlockerToOperationalDraftInput,
+  billingBlockerToOperationalDraftInput,
+  closureBlockerToDecisionInput,
+  billingBlockerToDecisionInput,
+  closureBillingAssessmentToCommunicationDraftInput,
+} from "./closure-billing-mappers";
 export type {
   PlaybookEngineCapabilityExplain,
 } from "./explain";
@@ -125,3 +148,30 @@ export type {
   DecisionRecordMappingInput,
   RaidItemMappingInput,
 } from "./operational-intelligence-mappers";
+export type { ClosureBillingEvaluationOptions } from "./closure-billing-engine";
+export type {
+  BillingBlocker,
+  BillingBlockerType,
+  BillingReadinessStatus,
+  ClosureBillingAssessment,
+  ClosureBillingAssessmentReviewStatus,
+  ClosureBillingBlockerStatus,
+  ClosureBillingExplanation,
+  ClosureBillingNextAction,
+  ClosureBillingNextActionType,
+  ClosureBillingProjectContext,
+  ClosureBlocker,
+  ClosureBlockerType,
+  ClosureChecklist,
+  ClosureChecklistItem,
+  ClosureChecklistItemCategory,
+  ClosureChecklistItemSource,
+  ClosureChecklistItemStatus,
+  ClosureChecklistStatus,
+  ClosureReadinessStatus,
+} from "./closure-billing-types";
+export type {
+  ClosureBillingCommunicationDraftInput,
+  ClosureBillingDecisionRecordMappingInput,
+  ClosureBillingRaidItemMappingInput,
+} from "./closure-billing-mappers";

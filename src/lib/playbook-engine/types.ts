@@ -49,6 +49,24 @@ export type ProjectContextFacts = {
   daysSinceLastStatusUpdate: number | null;
   scheduleVarianceDays: number | null;
   budgetVariancePercent: number | null;
+  /** Closure & Billing Intelligence (Sprint 6) facts below. Same "unknown, never false" rule
+   * applies: absence of evidence must never be read as "not done". */
+  hasDeliverablesCompleted: boolean | null;
+  hasTechnicalEvidence: boolean | null;
+  /** Client validated/accepted the work — distinct from `hasClientSignoff` (the formal
+   * reception/sign-off document), since a client can validate informally before signing off. */
+  hasClientValidation: boolean | null;
+  hasClosureDecisionsMade: boolean | null;
+  hasFinalReportDelivered: boolean | null;
+  /** Whether a final report is required for this project at all; `null` means unknown. */
+  requiresFinalReport: boolean | null;
+  hasPurchaseOrder: boolean | null;
+  requiresPurchaseOrder: boolean | null;
+  hasAdministrativeDocumentationComplete: boolean | null;
+  requiresAdministrativeDocumentation: boolean | null;
+  hasInternalApprovalForBilling: boolean | null;
+  openCriticalDependencies: number | null;
+  openBlockingIssues: number | null;
   metadata: Record<string, unknown>;
 };
 
