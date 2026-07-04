@@ -351,3 +351,191 @@ guarantees approval-sensitive actions are never auto-executed.
 - **No Communications Playbook, no Closure & Billing Intelligence, no Playbook Registry.**
 - **No automatic execution, approval, or emails.** `approve_project_constitution` and any other
   approval-sensitive suggested action are never auto-approved or auto-executed by this engine.
+
+## Sprints 4-6 (summary)
+
+Sprints 4-6 extended the same chain, each following the pattern established above (pure functions,
+`fingerprint`-keyed idempotency, an `explain*` function, a governed state machine, never any
+persistence/execution):
+
+- **Sprint 4 — Communications Playbook** (`communication-draft-engine.ts`, `communication-templates.ts`,
+  `communication-state.ts`, `communication-types.ts`). Converts a `PlaybookRecommendation` into a
+  `CommunicationDraft` (template auto-selected by text/severity pattern matching), never sent —
+  every draft's lifecycle stops at `copied`/`sent_manually`, which the caller performs outside this
+  module.
+- **Sprint 5 — Operational Intelligence** (`operational-intelligence-engine.ts`,
+  `operational-intelligence-state.ts`, `operational-intelligence-types.ts`,
+  `operational-intelligence-mappers.ts`). Classifies a `PlaybookRecommendation` into zero or more
+  `OperationalDraft`s (risk/issue/dependency/decision), plus pure mappers into the real RAID/decision-
+  governance input shapes (`operationalDraftToRaidItemInput`, `operationalDraftToDecisionInput`) —
+  the caller decides if/when to actually create the real object.
+- **Sprint 6 — Closure & Billing Intelligence** (`closure-billing-engine.ts`, `closure-billing-state.ts`,
+  `closure-billing-types.ts`, `closure-billing-mappers.ts`). Builds a governed closure checklist from
+  `ProjectContextFacts` + the Project Constitution draft, detects closure/billing blockers, and
+  produces a `ClosureBillingAssessment` with `readyForClosure`/`readyForBilling` — never closes a
+  project or marks an invoice issued.
+
+## Sprint 7 — Audit Trail + Demo-Ready Integration Polish
+
+Sprint 7 closes the MVP with three additions: a pure **Audit Trail** layer, a **Governance
+Snapshot** orchestrator that chains every prior sprint into one evaluation, and **demo project
+scenarios** that exercise the whole chain end-to-end.
+
+### MVP architecture (end-to-end)
+
+```
+ProjectContextFacts (Sprint 1)
+        │
+        ▼
+Rules Engine (Sprint 1) ──────────────────────────► PlaybookRuleEvaluation[]
+        │
+        ▼
+Project Constitution Generator (Sprint 2) ────────► ProjectConstitutionDraft
+        │
+        ▼
+Recommendation Engine (Sprint 3) ─────────────────► PlaybookRecommendation[]
+        │                     │
+        ▼                     ▼
+Communications Playbook   Operational Intelligence
+(Sprint 4)                (Sprint 5)
+CommunicationDraft[]      OperationalDraft[]
+        │                     │
+        └─────────┬───────────┘
+                   ▼
+Closure & Billing Intelligence (Sprint 6) ────────► ClosureBillingAssessment
+                   │
+                   ▼
+Audit Trail (Sprint 7) ───────────────────────────► PlaybookAuditEvent[]
+                   │
+                   ▼
+Governance Snapshot (Sprint 7) ───────────────────► PlaybookGovernanceSnapshot
+```
+
+Every arrow is a pure function call; nothing in this diagram writes to a database, sends a real
+message, or executes an action. The Governance Snapshot is the single entry point that runs the
+whole chain and returns everything in one governed, explainable, demo-ready object.
+
+### Audit Trail (`playbook-audit-types.ts`, `playbook-audit-engine.ts`, `playbook-audit-mappers.ts`)
+
+A `PlaybookAuditEvent` records that the engine *evaluated or generated* something — never that it
+*executed* something. Twelve event types cover every module (Sprints 1-7):
+`playbook_rules_evaluated`, `project_constitution_draft_generated`, `recommendation_generated`,
+`recommendation_state_changed`, `communication_draft_generated`, `communication_draft_state_changed`,
+`operational_draft_generated`, `operational_draft_state_changed`,
+`closure_billing_assessment_generated`, `closure_billing_blocker_detected`,
+`closure_billing_next_action_recommended`, `governance_snapshot_generated`.
+
+Every event's `id`/`fingerprint` is a deterministic sha256 of
+`(workspaceId, projectId, eventType, relatedEntityType, relatedEntityId)` — re-auditing the same
+artifact always yields the same event id, which is what `dedupePlaybookAuditEvents` relies on.
+`createPlaybookAuditEvent` is the validated, generic entry point; the domain-specific
+`auditXxx(...)` helpers (`auditRulesEvaluation`, `auditConstitutionDraftGenerated`,
+`auditRecommendationGenerated`, `auditCommunicationDraftGenerated`, `auditOperationalDraftGenerated`,
+`auditClosureBillingAssessmentGenerated`, `auditClosureBillingBlockerDetected`,
+`auditClosureBillingNextActionRecommended`, `auditGovernanceSnapshotGenerated`) each take the
+already-fingerprinted domain object (recommendation, draft, assessment, blocker, next action) and
+reuse its own fingerprint/id rather than inventing a parallel one.
+
+`playbookAuditEventToPlatformEventInput` is a **pure mapper** to the existing
+`platform-events` module's `CreatePlatformEventInput` shape (`src/lib/platform-events/types.ts`) —
+it never calls `createPlatformEvent`, never touches Supabase. Event types are namespaced
+`PLAYBOOK_<EVENT_TYPE>`; everything not covered by an existing `PlatformEventCategory` (most
+Playbook Engine events) is recorded under the existing `"governance"` category, matching how
+`domain-events.ts` already records constitution/decision lifecycle events. Wiring this mapper's
+output into an actual `createPlatformEvent(...)` call — i.e. *materializing* the audit trail into
+real `platform_events` rows — is explicitly **future work**, not part of this sprint.
+
+### Governance Snapshot (`governance-snapshot-types.ts`, `governance-snapshot-engine.ts`)
+
+`generatePlaybookGovernanceSnapshot(context, options?)` is the integration orchestrator: it calls
+Rules Engine → Project Constitution Generator → Recommendation Engine → Communications Playbook →
+Operational Intelligence → Closure & Billing Intelligence → Audit Trail, in that order, and returns
+a single `PlaybookGovernanceSnapshot` containing every intermediate artifact
+(`rulesEvaluationSummary`, `constitutionDraft`, `recommendations`, `communicationDrafts`,
+`operationalDrafts`, `closureBillingAssessment`, `auditEvents`, `nextBestActions`) plus two
+roll-ups (`approvalRequiredSummary`, `missingEvidenceSummary`) and a `demoSummary` narrative.
+Recommendations/communication drafts/audit events are all deduplicated by fingerprint before
+landing in the snapshot (reusing `mergePlaybookRecommendations`/`mergeCommunicationDrafts`/
+`dedupePlaybookAuditEvents` — no new dedup logic invented). The whole snapshot's own
+`id`/`fingerprint` is a deterministic sha256 over every contained artifact's fingerprint, so
+re-running the same `ProjectContextFacts` through the same playbook always reproduces the same
+snapshot id.
+
+`explainPlaybookGovernanceSnapshot(snapshot)` renders the human-readable explanation: what was
+evaluated, which rules activated, what was generated at each stage, what blockers were detected,
+what evidence was used/missing, what needs human approval, and the governed closing sentence that
+nothing was executed automatically — the snapshot is a read-only demo artifact unless a future
+sprint adds a materialization step.
+
+### Demo scenarios (`demo-scenarios.ts`)
+
+Four hand-picked `ProjectContextFacts` fixtures exercise the full chain:
+
+| Scenario | Theme | Demonstrates |
+|---|---|---|
+| `pending_reception_billing_blocker` | Public infrastructure project | Technically complete but client reception/sign-off pending → `missing_reception` billing blocker, `reception_request`/`billing_enablement_follow_up` communication drafts, a `dependency` operational draft, `readyForBilling: false`. |
+| `security_hardening_client_validation` | Security/hardening project | Reception obtained but client validation and the closure checklist are missing → `missing_validation`/`missing_acceptance` blockers, an `information_request` communication draft, `readyForClosure: false`. |
+| `web_software_uat_evidence_pending` | Web/software project | Technical evidence (UAT/content) and reception both pending → `missing_evidence` blocker, `information_request` draft, a `dependency`(`client`) operational draft, not ready for closure/billing. |
+| `ready_for_billing` | Fully compliant project | Every checklist item satisfied → `readyForBilling: true`, `readyForClosure: true`, but the only next actions are governed, `approvalRequired: true` suggestions (`start_internal_billing_process`, `start_administrative_closure`) — no invoice is ever issued automatically. |
+
+`generateDemoGovernanceSnapshot(scenarioId, options?)` is a thin wrapper that resolves a scenario id
+to its fixture and runs it through `generatePlaybookGovernanceSnapshot`.
+
+**Known limitation carried over from Sprints 4-5:** `selectOperationalDraftTypesForRecommendation`
+classifies a draft type purely by regex-matching the *text* of the seed playbook's rule
+title/description/recommendation (Sprint 4/5 design). None of the seed playbook's 18 rules
+(`seed-playbook.ts`) contain the words that would trigger an `"issue"` classification (e.g.
+"entregable", "hito venc-/atras-", "no ha respondido"), so no realistic `ProjectContextFacts`
+combination produces an `"issue"`-type `OperationalDraft` today — only `"dependency"` (client
+reception) and `"risk"` (critical risks) are reachable. This is not a Sprint 7 regression; it is an
+existing gap in the seed playbook's rule text vocabulary, documented here rather than worked around
+with an artificial demo fixture.
+
+### Capability explanation (`explain.ts`)
+
+`explainPlaybookEngineCapability()` now documents the whole MVP: it lists all nine modules (Seed
+Playbook, Rules Engine, Project Constitution Generator, Recommendation Engine, Communications
+Playbook, Operational Intelligence, Closure & Billing Intelligence, Audit Trail, Governance
+Snapshot) and states explicitly, in its `limits`: no DB side effects, no automatic emails, no
+automatic closure, no automatic billing, no automatic approvals — every sensitive action carries
+`approvalRequired: true` and stops there.
+
+### What's implemented (MVP-complete)
+
+- Rules Engine, Project Constitution Generator, Recommendation Engine, Communications Playbook,
+  Operational Intelligence, Closure & Billing Intelligence (Sprints 1-6).
+- A pure Audit Trail with deterministic, fingerprint-keyed events covering every module.
+- A pure mapper from audit events to the shape `platform-events` would need (never calls it).
+- A single integration orchestrator (`generatePlaybookGovernanceSnapshot`) chaining all of the
+  above, with deduplication, approval/missing-evidence roll-ups, and a demo narrative.
+- Four demo scenarios covering pending reception, client validation, UAT/evidence gaps, and a
+  fully ready-for-billing project.
+- A consolidated capability explanation covering all nine modules.
+
+### What's intentionally not implemented
+
+- **No persistence.** No new tables/migrations; nothing in this sprint (or any prior Playbook
+  Engine sprint) writes to the database.
+- **No real event emission.** `playbookAuditEventToPlatformEventInput` produces the right shape
+  but nothing calls `createPlatformEvent` with it.
+- **No UI.** No screen renders a `PlaybookGovernanceSnapshot` yet.
+- **No automatic sends, approvals, closure, or billing.** Every communication draft still requires
+  a human to copy/send it manually; every recommendation/draft/blocker/next-action that is
+  approval-sensitive is marked `approvalRequired: true` and stops there.
+
+### Future work (post-MVP)
+
+- **UI.** A screen to render `PlaybookGovernanceSnapshot`/`explainPlaybookGovernanceSnapshot` for
+  PMs, and a recommendations/drafts review queue.
+- **Persistence / materialization.** Upsert `PlaybookRecommendation[]`/`CommunicationDraft[]`/
+  `OperationalDraft[]`/`ClosureBillingAssessment`/`PlaybookAuditEvent[]` into real tables, most
+  likely following the `recommended_actions` fingerprint-keyed upsert pattern already used
+  elsewhere in the codebase.
+- **Playbook Registry.** Multiple, editable, per-workspace methodologies instead of the single
+  static seed playbook.
+- **Gmail/email integration.** Actually sending a `CommunicationDraft` once a human approves it.
+- **`platform-events` materialization.** Wiring `playbookAuditEventToPlatformEventInput`'s output
+  into real `createPlatformEvent(...)` calls once a workspace/project context is available at
+  call time.
+- **Portfolio intelligence.** Aggregating `PlaybookGovernanceSnapshot`s across many projects for
+  portfolio-level reporting.

@@ -175,3 +175,44 @@ export type {
   ClosureBillingDecisionRecordMappingInput,
   ClosureBillingRaidItemMappingInput,
 } from "./closure-billing-mappers";
+export {
+  createPlaybookAuditEvent,
+  auditRulesEvaluation,
+  auditConstitutionDraftGenerated,
+  auditRecommendationGenerated,
+  auditRecommendationStateChanged,
+  auditCommunicationDraftGenerated,
+  auditCommunicationDraftStateChanged,
+  auditOperationalDraftGenerated,
+  auditOperationalDraftStateChanged,
+  auditClosureBillingAssessmentGenerated,
+  auditClosureBillingBlockerDetected,
+  auditClosureBillingNextActionRecommended,
+  auditGovernanceSnapshotGenerated,
+  dedupePlaybookAuditEvents,
+} from "./playbook-audit-engine";
+export { playbookAuditEventToPlatformEventInput } from "./playbook-audit-mappers";
+export type {
+  CreatePlaybookAuditEventInput,
+  PlaybookAuditActor,
+  PlaybookAuditActorType,
+  PlaybookAuditEvent,
+  PlaybookAuditEventType,
+  PlaybookAuditExplanation,
+  PlaybookAuditRelatedEntityType,
+  PlaybookAuditSeverity,
+} from "./playbook-audit-types";
+export type { GovernanceSnapshotAuditInput } from "./playbook-audit-engine";
+export { generatePlaybookGovernanceSnapshot, explainPlaybookGovernanceSnapshot } from "./governance-snapshot-engine";
+export type { GeneratePlaybookGovernanceSnapshotOptions } from "./governance-snapshot-engine";
+export type {
+  PlaybookGovernanceApprovalItem,
+  PlaybookGovernanceSnapshot,
+  PlaybookGovernanceSnapshotExplanation,
+  PlaybookRulesEvaluationSummary,
+} from "./governance-snapshot-types";
+export {
+  PLAYBOOK_DEMO_SCENARIOS,
+  generateDemoGovernanceSnapshot,
+} from "./demo-scenarios";
+export type { PlaybookDemoScenario, PlaybookDemoScenarioId } from "./demo-scenarios";
