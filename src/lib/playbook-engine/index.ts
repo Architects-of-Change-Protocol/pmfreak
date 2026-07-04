@@ -36,6 +36,24 @@ export {
   markDraftSentManually,
   discardDraft,
 } from "./communication-state";
+export {
+  selectOperationalDraftTypesForRecommendation,
+  generateOperationalDraftsFromRecommendation,
+  generateOperationalDraftsFromRecommendations,
+  explainOperationalDraftGeneration,
+  mergeOperationalDrafts,
+} from "./operational-intelligence-engine";
+export {
+  OPERATIONAL_DRAFT_TRANSITIONS,
+  markOperationalDraftReviewed,
+  approveOperationalDraft,
+  convertOperationalDraft,
+  discardOperationalDraft,
+} from "./operational-intelligence-state";
+export {
+  operationalDraftToRaidItemInput,
+  operationalDraftToDecisionInput,
+} from "./operational-intelligence-mappers";
 export type {
   PlaybookEngineCapabilityExplain,
 } from "./explain";
@@ -87,3 +105,23 @@ export type {
   CommunicationTemplateInputContext,
   CommunicationTone,
 } from "./communication-types";
+export type { OperationalDraftBlueprint } from "./operational-intelligence-engine";
+export type {
+  DependencyDraft,
+  DependencyDraftType,
+  DependencyEscalationLevel,
+  DecisionDraft,
+  IssueDraft,
+  OperationalDraft,
+  OperationalDraftExplanation,
+  OperationalDraftSeverity,
+  OperationalDraftStatus,
+  OperationalDraftType,
+  OperationalIntelligenceProjectContext,
+  RiskDraft,
+  RiskDraftCategory,
+} from "./operational-intelligence-types";
+export type {
+  DecisionRecordMappingInput,
+  RaidItemMappingInput,
+} from "./operational-intelligence-mappers";
