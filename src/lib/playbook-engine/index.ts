@@ -21,6 +21,21 @@ export {
   approveRecommendation,
   markRecommendationExecuted,
 } from "./recommendation-state";
+export { COMMUNICATION_TEMPLATES } from "./communication-templates";
+export {
+  selectCommunicationTemplateForRecommendation,
+  generateCommunicationDraftFromRecommendation,
+  explainCommunicationDraftGeneration,
+  mergeCommunicationDrafts,
+} from "./communication-draft-engine";
+export {
+  COMMUNICATION_DRAFT_TRANSITIONS,
+  markDraftReviewed,
+  approveDraft,
+  markDraftCopied,
+  markDraftSentManually,
+  discardDraft,
+} from "./communication-state";
 export type {
   PlaybookEngineCapabilityExplain,
 } from "./explain";
@@ -57,3 +72,18 @@ export type {
   PlaybookSuggestedAction,
   ProjectContextFacts,
 } from "./types";
+export type {
+  CommunicationAdditionalInputs,
+  CommunicationChannel,
+  CommunicationDraft,
+  CommunicationDraftExplanation,
+  CommunicationDraftRecipient,
+  CommunicationDraftRecipientRole,
+  CommunicationDraftStatus,
+  CommunicationProjectContext,
+  CommunicationPurpose,
+  CommunicationTemplate,
+  CommunicationTemplateId,
+  CommunicationTemplateInputContext,
+  CommunicationTone,
+} from "./communication-types";
