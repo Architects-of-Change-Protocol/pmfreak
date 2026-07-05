@@ -62,6 +62,9 @@ const CONTRACT = {
   project_milestones: extractDeclaredColumns("PROJECT_MILESTONE_SELECTABLE_COLUMNS"),
   pmo_executive_reports: extractDeclaredColumns("PMO_EXECUTIVE_REPORT_SELECTABLE_COLUMNS"),
   pmo_alert_payloads: extractDeclaredColumns("PMO_ALERT_PAYLOAD_SELECTABLE_COLUMNS"),
+  playbook_snapshots: extractDeclaredColumns("PLAYBOOK_SNAPSHOT_SELECTABLE_COLUMNS"),
+  playbook_recommendations: extractDeclaredColumns("PLAYBOOK_RECOMMENDATION_SELECTABLE_COLUMNS"),
+  playbook_audit_events: extractDeclaredColumns("PLAYBOOK_AUDIT_EVENT_SELECTABLE_COLUMNS"),
 };
 
 // ─── Known-drift patterns that MUST NOT appear in runtime code ───────────────
