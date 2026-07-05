@@ -10405,4 +10405,200 @@ export const AGENT_BETA_READINESS_EVENT_COLUMNS = [
   "safe_event_payload_json", "actor_id", "created_at",
 ] as const satisfies ReadonlyArray<keyof AgentBetaReadinessEventRow>;
 
-export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop-controlled-pmo-governance-intelligence-dashboard-pmo-governance-proposal-review-controlled-policy-change-backlog-controlled-governance-policy-simulation-report-pmo-approval-pack-controlled-policy-implementation-planning-workspace-controlled-policy-implementation-gate-dry-run-change-executor-controlled-policy-version-activation-rollback-gate-controlled-project-intelligence-handoff-end-to-end-governance-runtime-integration-production-hardening-beta-onboarding-demo-data-tenant-readiness" as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// playbook_snapshots
+// Source: 20260816000000_playbook_engine_materialization_phase1.sql
+// Header/provenance row for one run of generatePlaybookGovernanceSnapshot()
+// (src/lib/playbook-engine/governance-snapshot-engine.ts). The engine itself
+// stays pure/in-memory; this is the materialization layer's persisted anchor.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PlaybookSnapshotStatus = "generated";
+
+export type PlaybookSnapshotRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  fingerprint: string;
+  playbook_id: string;
+  playbook_version: string;
+  status: PlaybookSnapshotStatus;
+  generated_at: string;
+  source_context_hash: string | null;
+  rules_summary: Record<string, unknown>;
+  missing_evidence_summary: unknown[];
+  approval_required_summary: Record<string, unknown>;
+  next_best_actions: unknown[];
+  demo_summary: Record<string, unknown>;
+  snapshot_payload: Record<string, unknown>;
+  content_stale: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export const PLAYBOOK_SNAPSHOT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "fingerprint",
+  "playbook_id",
+  "playbook_version",
+  "status",
+  "generated_at",
+  "source_context_hash",
+  "rules_summary",
+  "missing_evidence_summary",
+  "approval_required_summary",
+  "next_best_actions",
+  "demo_summary",
+  "snapshot_payload",
+  "content_stale",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof PlaybookSnapshotRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// playbook_recommendations
+// Source: 20260816000000_playbook_engine_materialization_phase1.sql
+// Mirrors PlaybookRecommendationStatus (recommendation-state.ts) exactly.
+// Content is only regenerable while status='new' — see
+// src/lib/playbook-engine/materialization-mappers.ts (shouldPreserveHumanState).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PlaybookRecommendationRowStatus =
+  | "new"
+  | "viewed"
+  | "accepted"
+  | "dismissed"
+  | "converted_to_task"
+  | "converted_to_draft"
+  | "requires_approval"
+  | "approved"
+  | "executed";
+
+export type PlaybookRecommendationRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  snapshot_id: string | null;
+  fingerprint: string;
+  playbook_rule_id: string;
+  title: string;
+  status: PlaybookRecommendationRowStatus;
+  severity: "low" | "medium" | "high" | "critical";
+  phase: string | null;
+  detected_situation: string | null;
+  recommended_action: string | null;
+  approval_required: boolean;
+  evidence_used: unknown[];
+  missing_evidence: unknown[];
+  suggested_actions: unknown[];
+  explanation: Record<string, unknown>;
+  recommendation_payload: Record<string, unknown>;
+  content_stale: boolean;
+  viewed_at: string | null;
+  accepted_at: string | null;
+  dismissed_at: string | null;
+  approved_at: string | null;
+  executed_at: string | null;
+  reviewed_by: string | null;
+  approved_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const PLAYBOOK_RECOMMENDATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "snapshot_id",
+  "fingerprint",
+  "playbook_rule_id",
+  "title",
+  "status",
+  "severity",
+  "phase",
+  "detected_situation",
+  "recommended_action",
+  "approval_required",
+  "evidence_used",
+  "missing_evidence",
+  "suggested_actions",
+  "explanation",
+  "recommendation_payload",
+  "content_stale",
+  "viewed_at",
+  "accepted_at",
+  "dismissed_at",
+  "approved_at",
+  "executed_at",
+  "reviewed_by",
+  "approved_by",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof PlaybookRecommendationRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// playbook_audit_events
+// Source: 20260816000000_playbook_engine_materialization_phase1.sql
+// Append-only trail of what the Playbook Engine evaluated/generated — never an
+// executed action. Deduplicated by fingerprint, insert-only (no update/delete
+// RLS policy exists for this table). NOT materialized to platform_events yet
+// (see docs/playbook-engine-materialization-design.md §8 for the blocking
+// event_payload/payload schema divergence).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PlaybookAuditEventRelatedEntityType =
+  | "rules_evaluation"
+  | "project_constitution_draft"
+  | "recommendation"
+  | "communication_draft"
+  | "operational_draft"
+  | "closure_billing_assessment"
+  | "closure_billing_blocker"
+  | "closure_billing_next_action"
+  | "governance_snapshot";
+
+export type PlaybookAuditEventRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  snapshot_id: string | null;
+  related_entity_type: PlaybookAuditEventRelatedEntityType;
+  related_entity_id: string;
+  fingerprint: string;
+  event_type: string;
+  actor_type: "system" | "ai" | "user";
+  actor_id: string | null;
+  severity: "info" | "low" | "medium" | "high" | "critical";
+  summary: string;
+  evidence_used: unknown[];
+  missing_evidence: unknown[];
+  approval_required: boolean;
+  metadata: Record<string, unknown>;
+  audit_payload: Record<string, unknown>;
+  created_at: string;
+};
+
+export const PLAYBOOK_AUDIT_EVENT_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "snapshot_id",
+  "related_entity_type",
+  "related_entity_id",
+  "fingerprint",
+  "event_type",
+  "actor_type",
+  "actor_id",
+  "severity",
+  "summary",
+  "evidence_used",
+  "missing_evidence",
+  "approval_required",
+  "metadata",
+  "audit_payload",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof PlaybookAuditEventRow>;
+
+export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop-controlled-pmo-governance-intelligence-dashboard-pmo-governance-proposal-review-controlled-policy-change-backlog-controlled-governance-policy-simulation-report-pmo-approval-pack-controlled-policy-implementation-planning-workspace-controlled-policy-implementation-gate-dry-run-change-executor-controlled-policy-version-activation-rollback-gate-controlled-project-intelligence-handoff-end-to-end-governance-runtime-integration-production-hardening-beta-onboarding-demo-data-tenant-readiness-2026-08-16-playbook-engine-materialization-phase1" as const;
