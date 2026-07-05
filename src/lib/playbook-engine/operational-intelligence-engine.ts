@@ -38,6 +38,58 @@ export type OperationalDraftBlueprint =
   | { type: "dependency"; dependencyType: DependencyDraftType; reason: string }
   | { type: "decision"; reason: string };
 
+/**
+ * Suggested actions that mean "the fired rule already asks for a specific artifact to be
+ * (re)generated" rather than "here's a real-world risk/issue/dependency/decision to track."
+ * A recommendation carrying one of these must never also spawn an operational draft — e.g.
+ * `generate_project_constitution_draft` is a governed drafting action with its own module
+ * (`constitution-generator.ts`); classifying it as a "decision" draft too (which the text-only
+ * regex path below used to do, since the rule's own text happens to mention "decisiones
+ * futuras") would be a category error, not a real operational item.
+ */
+const NON_OPERATIONAL_SUGGESTED_ACTIONS = new Set<string>(["generate_project_constitution_draft"]);
+
+/**
+ * Structured-data-first classification for the known seed playbook rules (`seed-playbook.ts`).
+ * Keyed by the stable `playbookRuleId` rather than derived from rule prose, so a future copy-edit
+ * to a rule's title/description/recommendationTemplate can never silently change which operational
+ * draft(s) it produces. Values are factories (not static blueprints) so fields that legitimately
+ * depend on the recommendation's own severity (e.g. `escalationRecommended`) stay correct even if
+ * a rule's severity changes later without its id changing. Every entry here reproduces exactly
+ * what the text/severity fallback below already resolves for that rule id today — this is a pure
+ * robustness refactor, not a behavior change, with one deliberate exception documented at the
+ * `NON_OPERATIONAL_SUGGESTED_ACTIONS` guard above. Recommendations whose `playbookRuleId` isn't
+ * listed here (a custom/manual recommendation, or a future Playbook Registry rule) fall through to
+ * the text/severity classification unchanged.
+ */
+const RULE_ID_OPERATIONAL_DRAFT_BLUEPRINTS: Partial<
+  Record<string, (recommendation: PlaybookRecommendation) => OperationalDraftBlueprint[]>
+> = {
+  "pb-plan-risk-register-missing": (recommendation) => [
+    {
+      type: "risk",
+      category: "internal",
+      escalationRecommended: recommendation.severity === "critical",
+      reason: "La regla detectó un riesgo de severidad alta/crítica sin mitigación registrada.",
+    },
+  ],
+  "pb-exec-critical-risks-open": (recommendation) => [
+    {
+      type: "risk",
+      category: "internal",
+      escalationRecommended: recommendation.severity === "critical",
+      reason: "La regla detectó un riesgo de severidad alta/crítica sin mitigación registrada.",
+    },
+  ],
+  "pb-close-signoff-missing": () => [
+    {
+      type: "dependency",
+      dependencyType: "client",
+      reason: "La recepción/sign-off del cliente es una dependencia externa no resuelta.",
+    },
+  ],
+};
+
 function recommendationText(recommendation: PlaybookRecommendation): string {
   return [
     recommendation.playbookRuleId,
@@ -70,7 +122,11 @@ function detectRiskCategory(text: string): RiskDraftCategory {
 
 /**
  * Classifies a governed `PlaybookRecommendation` (Sprint 3) into zero or more operational draft
- * blueprints (risk/issue/dependency/decision). Pure text/severity classification — mirrors
+ * blueprints (risk/issue/dependency/decision). Structured data first: a recommendation whose fired
+ * rule already suggests a non-operational artifact action (`NON_OPERATIONAL_SUGGESTED_ACTIONS`)
+ * never produces a draft, and a recommendation from a known seed rule id resolves via
+ * `RULE_ID_OPERATIONAL_DRAFT_BLUEPRINTS`. Text/severity classification remains only as the
+ * fallback for recommendations that don't match either of those — mirrors
  * `selectCommunicationTemplateForRecommendation` (Sprint 4). Unlike that function, this one may
  * legitimately return an empty array: not every recommendation warrants an operational object
  * proposal (e.g. "missing constitution" does not).
@@ -78,6 +134,13 @@ function detectRiskCategory(text: string): RiskDraftCategory {
 export function selectOperationalDraftTypesForRecommendation(
   recommendation: PlaybookRecommendation,
 ): OperationalDraftBlueprint[] {
+  if (recommendation.suggestedActions.some((action) => NON_OPERATIONAL_SUGGESTED_ACTIONS.has(action.action))) {
+    return [];
+  }
+
+  const knownBlueprints = RULE_ID_OPERATIONAL_DRAFT_BLUEPRINTS[recommendation.playbookRuleId];
+  if (knownBlueprints) return knownBlueprints(recommendation);
+
   const text = recommendationText(recommendation);
   const isSevere = recommendation.severity === "high" || recommendation.severity === "critical";
 
@@ -185,6 +248,38 @@ function impactFromSeverity(recommendation: PlaybookRecommendation): "low" | "me
   return "low";
 }
 
+/**
+ * Single, centralized rule for whether an operational draft requires human approval before it
+ * can be converted into a real risk/issue/dependency/decision. Replaces four previously
+ * inconsistent per-type computations (risk folded in its own escalation signal, issue and
+ * dependency did not, decision was hard-coded) with one policy:
+ *
+ * - `recommendationApprovalRequired` can only ever be *elevated*, never relaxed: if the
+ *   originating `PlaybookRecommendation` already required approval, every draft derived from it
+ *   does too.
+ * - `decision` always requires approval — a draft proposing to decide something on the project's
+ *   behalf is never auto-approved, regardless of severity.
+ * - `risk` additionally requires approval when severity is high/critical or the classification
+ *   recommended escalation.
+ * - `issue`/`dependency` additionally require approval when they are currently blocking
+ *   (`blocking`) or severity is high/critical — a blocking item is exactly the kind of thing that
+ *   affects closure/billing readiness and must not be silently converted without review.
+ */
+export function resolveOperationalDraftApprovalRequirement(params: {
+  type: OperationalDraft["type"];
+  severity: OperationalDraft["severity"];
+  recommendationApprovalRequired: boolean;
+  blocking?: boolean;
+  escalationRecommended?: boolean;
+}): boolean {
+  if (params.recommendationApprovalRequired) return true;
+  if (params.type === "decision") return true;
+
+  const isSevere = params.severity === "high" || params.severity === "critical";
+  if (params.type === "risk") return isSevere || Boolean(params.escalationRecommended);
+  return Boolean(params.blocking) || isSevere; // issue | dependency
+}
+
 function buildDraft(
   recommendation: PlaybookRecommendation,
   projectContext: OperationalIntelligenceProjectContext,
@@ -217,7 +312,12 @@ function buildDraft(
   if (blueprint.type === "risk") {
     const mitigation = projectContext.mitigation?.trim() || null;
     const missingInputs = [!owner && "owner", !mitigation && "mitigation"].filter(Boolean) as string[];
-    const approvalRequired = recommendation.approvalRequired || blueprint.escalationRecommended;
+    const approvalRequired = resolveOperationalDraftApprovalRequirement({
+      type: "risk",
+      severity: recommendation.severity,
+      recommendationApprovalRequired: recommendation.approvalRequired,
+      escalationRecommended: blueprint.escalationRecommended,
+    });
     const base: Omit<RiskDraft, "explanation"> = {
       ...common,
       type: "risk",
@@ -243,7 +343,12 @@ function buildDraft(
       impactDescription: recommendation.detectedSituation,
       resolutionSuggestion: recommendation.recommendedAction,
       missingInputs,
-      approvalRequired: recommendation.approvalRequired,
+      approvalRequired: resolveOperationalDraftApprovalRequirement({
+        type: "issue",
+        severity: recommendation.severity,
+        recommendationApprovalRequired: recommendation.approvalRequired,
+        blocking: blueprint.blocking,
+      }),
     };
     return { ...base, explanation: buildExplanation(recommendation, blueprint, base) };
   }
@@ -258,16 +363,22 @@ function buildDraft(
     ].filter(Boolean) as string[];
     const escalationLevel: DependencyDraft["escalationLevel"] =
       recommendation.severity === "critical" ? "critical" : recommendation.severity === "high" ? "formal" : recommendation.severity === "medium" ? "soft" : "none";
+    const blockingStatus = recommendation.severity === "critical" || recommendation.severity === "high";
     const base: Omit<DependencyDraft, "explanation"> = {
       ...common,
       type: "dependency",
       dependencyType: blueprint.dependencyType,
       externalParty,
-      blockingStatus: recommendation.severity === "critical" || recommendation.severity === "high",
+      blockingStatus,
       linkedMilestoneId,
       escalationLevel,
       missingInputs,
-      approvalRequired: recommendation.approvalRequired,
+      approvalRequired: resolveOperationalDraftApprovalRequirement({
+        type: "dependency",
+        severity: recommendation.severity,
+        recommendationApprovalRequired: recommendation.approvalRequired,
+        blocking: blockingStatus,
+      }),
     };
     return { ...base, explanation: buildExplanation(recommendation, blueprint, base) };
   }
@@ -284,8 +395,11 @@ function buildDraft(
   ].filter(Boolean) as string[];
   const base: Omit<DecisionDraft, "explanation"> = {
     ...common,
+    // `common.owner` already comes from `projectContext.owner` (like every other draft type) and
+    // is deliberately left as-is here — it is never backfilled from `decisionOwner`. The two
+    // answer different questions ("who's tracking this draft" vs. "who must decide") and may
+    // legitimately differ or both be unset; see the type-level doc comment on `DecisionDraft`.
     type: "decision",
-    owner: decisionOwner,
     decisionOwner,
     options,
     recommendedOption,
@@ -293,7 +407,11 @@ function buildDraft(
     consequenceIfNotDecided,
     missingInputs,
     // Decisions always require human review before they govern a real project — never auto-decided.
-    approvalRequired: true,
+    approvalRequired: resolveOperationalDraftApprovalRequirement({
+      type: "decision",
+      severity: recommendation.severity,
+      recommendationApprovalRequired: recommendation.approvalRequired,
+    }),
   };
   return { ...base, explanation: buildExplanation(recommendation, blueprint, base) };
 }

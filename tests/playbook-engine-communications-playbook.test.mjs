@@ -1,15 +1,27 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { execFileSync } from "node:child_process";
+
+import {
+  SEED_DELIVERY_PLAYBOOK,
+  generatePlaybookRecommendations,
+  selectCommunicationTemplateForRecommendation,
+  generateCommunicationDraftFromRecommendation,
+  explainCommunicationDraftGeneration,
+  mergeCommunicationDrafts,
+  markDraftReviewed,
+  approveDraft,
+  markDraftCopied,
+  markDraftSentManually,
+  discardDraft,
+} from "../src/lib/playbook-engine/index.ts";
 
 const draftEngine = fs.readFileSync("src/lib/playbook-engine/communication-draft-engine.ts", "utf8");
 const templates = fs.readFileSync("src/lib/playbook-engine/communication-templates.ts", "utf8");
 const state = fs.readFileSync("src/lib/playbook-engine/communication-state.ts", "utf8");
-const types = fs.readFileSync("src/lib/playbook-engine/communication-types.ts", "utf8");
 const indexFile = fs.readFileSync("src/lib/playbook-engine/index.ts", "utf8");
 
-// ─── Exports ──────────────────────────────────────────────────────────────────
+// ─── Exports (static) ───────────────────────────────────────────────────────────
 
 test("communication draft engine functions are exported from the module", () => {
   for (const fn of [
@@ -20,13 +32,6 @@ test("communication draft engine functions are exported from the module", () => 
   ]) {
     assert.match(indexFile, new RegExp(fn), `index.ts must re-export ${fn}`);
     assert.match(draftEngine, new RegExp(`export function ${fn}`), `communication-draft-engine.ts must define ${fn}`);
-  }
-});
-
-test("communication draft state helpers are exported from the module", () => {
-  for (const fn of ["markDraftReviewed", "approveDraft", "markDraftCopied", "markDraftSentManually", "discardDraft"]) {
-    assert.match(indexFile, new RegExp(fn), `index.ts must re-export ${fn}`);
-    assert.match(state, new RegExp(`export function ${fn}`), `communication-state.ts must define ${fn}`);
   }
 });
 
@@ -54,8 +59,6 @@ test("every template declares externalSendRequiresApproval: true", () => {
   assert.ok(occurrences.length >= 11, "every one of the 11 templates must set externalSendRequiresApproval: true");
 });
 
-// ─── Status transition graph ─────────────────────────────────────────────────
-
 test("discarded and sent_manually are terminal states in the transition graph", () => {
   assert.match(state, /discarded: \[\]/);
   assert.match(state, /sent_manually: \[\]/);
@@ -66,189 +69,214 @@ test("no automated send exists: the module never calls an email provider or send
   assert.doesNotMatch(state, /sendEmail|resend\.com/i);
 });
 
-// ─── Runtime behavior probe ──────────────────────────────────────────────────
+// ─── Runtime behavior (direct import) ──────────────────────────────────────────
 
-const runtimeProbe = String.raw`
-import assert from "node:assert/strict";
-import {
-  SEED_DELIVERY_PLAYBOOK,
-  generatePlaybookRecommendations,
-  selectCommunicationTemplateForRecommendation,
-  generateCommunicationDraftFromRecommendation,
-  explainCommunicationDraftGeneration,
-  mergeCommunicationDrafts,
-  markDraftReviewed,
-  approveDraft,
-  markDraftCopied,
-  markDraftSentManually,
-  discardDraft,
-} from "./src/lib/playbook-engine/index.ts";
+function baseContext(overrides = {}) {
+  return {
+    projectId: "00000000-0000-0000-0000-000000000001",
+    workspaceId: "00000000-0000-0000-0000-000000000002",
+    phase: "cierre",
+    hasApprovedCharter: true,
+    hasApprovedConstitution: true,
+    hasScopeBaseline: true,
+    hasWbs: true,
+    hasScheduleBaseline: true,
+    hasBudgetBaseline: true,
+    hasRiskRegister: true,
+    hasStakeholderMap: true,
+    hasCommunicationsPlan: true,
+    hasClosureChecklistStarted: true,
+    hasFinalInvoiceIssued: false,
+    hasClientSignoff: false,
+    openCriticalRisks: null,
+    openHighRisks: null,
+    openIssues: null,
+    overdueTasks: null,
+    daysSinceLastStatusUpdate: null,
+    scheduleVarianceDays: null,
+    budgetVariancePercent: null,
+    metadata: {},
+    ...overrides,
+  };
+}
 
-const baseContext = {
-  projectId: "00000000-0000-0000-0000-000000000001",
-  workspaceId: "00000000-0000-0000-0000-000000000002",
-  phase: "cierre",
-  hasApprovedCharter: true,
-  hasApprovedConstitution: true,
-  hasScopeBaseline: true,
-  hasWbs: true,
-  hasScheduleBaseline: true,
-  hasBudgetBaseline: true,
-  hasRiskRegister: true,
-  hasStakeholderMap: true,
-  hasCommunicationsPlan: true,
-  hasClosureChecklistStarted: true,
-  hasFinalInvoiceIssued: false,
-  hasClientSignoff: false,
-  openCriticalRisks: null,
-  openHighRisks: null,
-  openIssues: null,
-  overdueTasks: null,
-  daysSinceLastStatusUpdate: null,
-  scheduleVarianceDays: null,
-  budgetVariancePercent: null,
-  metadata: {},
-};
+function recommendations(overrides = {}) {
+  const result = generatePlaybookRecommendations(baseContext(overrides), SEED_DELIVERY_PLAYBOOK);
+  assert.equal(result.ok, true);
+  return result.data.recommendations;
+}
 
-const recResult = generatePlaybookRecommendations(baseContext, SEED_DELIVERY_PLAYBOOK);
-assert.equal(recResult.ok, true);
-const { recommendations } = recResult.data;
+function findRec(id, overrides = {}) {
+  const rec = recommendations(overrides).find((r) => r.playbookRuleId === id);
+  assert.ok(rec, `${id} must fire for this context`);
+  return rec;
+}
 
-const signoffRec = recommendations.find((r) => r.playbookRuleId === "pb-close-signoff-missing");
-assert.ok(signoffRec, "pb-close-signoff-missing must fire when hasClientSignoff is false");
+// ─── Structured (rule-id) template selection — Hardening Sprint ────────────────
 
-const invoiceRec = recommendations.find((r) => r.playbookRuleId === "pb-close-invoice-missing");
-assert.ok(invoiceRec, "pb-close-invoice-missing must fire when hasFinalInvoiceIssued is false");
-
-// 1. reception/sign-off recommendation selects reception_request.
-assert.equal(selectCommunicationTemplateForRecommendation(signoffRec), "reception_request");
-
-// 2. billing blocker recommendation selects billing_enablement_follow_up.
-assert.equal(selectCommunicationTemplateForRecommendation(invoiceRec), "billing_enablement_follow_up");
-
-// 3. client no response, low/medium severity -> soft_follow_up.
-const clientNoResponseMedium = {
-  ...signoffRec,
-  playbookRuleId: "pb-any-client-no-response",
-  title: "Cliente sin respuesta",
-  detectedSituation: "El cliente no ha respondido a la última solicitud.",
-  recommendedAction: "Enviar un seguimiento amistoso.",
-  severity: "medium",
-};
-assert.equal(selectCommunicationTemplateForRecommendation(clientNoResponseMedium), "soft_follow_up");
-
-// 4. client no response, high/critical severity -> formal_follow_up or soft_escalation.
-const clientNoResponseHigh = { ...clientNoResponseMedium, severity: "high" };
-const clientNoResponseCritical = { ...clientNoResponseMedium, severity: "critical" };
-assert.equal(selectCommunicationTemplateForRecommendation(clientNoResponseHigh), "formal_follow_up");
-assert.equal(selectCommunicationTemplateForRecommendation(clientNoResponseCritical), "soft_escalation");
-
-// 5. decision recommendation selects decision_request.
-const decisionRec = {
-  ...signoffRec,
-  playbookRuleId: "pb-any-decision-pending",
-  title: "Decisión pendiente sin dueño",
-  detectedSituation: "Hay una decisión de alcance pendiente sin responsable asignado.",
-  recommendedAction: "Asignar un dueño y solicitar la decisión al sponsor.",
-  severity: "high",
-};
-assert.equal(selectCommunicationTemplateForRecommendation(decisionRec), "decision_request");
-
-// 6. no clear match falls back to formal_follow_up.
-const noMatchRec = {
-  ...signoffRec,
-  playbookRuleId: "pb-exec-critical-risks-open",
-  title: "Riesgos críticos abiertos",
-  detectedSituation: "Existen riesgos críticos sin mitigar durante la Ejecución.",
-  recommendedAction: "Escalar y asignar owner a los riesgos críticos abiertos.",
-  severity: "critical",
-};
-assert.equal(selectCommunicationTemplateForRecommendation(noMatchRec), "formal_follow_up");
-
-// 7. draft generation without recipients: never invents them, flags missingInputs.
-const draftNoRecipients = generateCommunicationDraftFromRecommendation(signoffRec, {});
-assert.equal(draftNoRecipients.ok, true);
-assert.deepEqual(draftNoRecipients.data.recipients, []);
-assert.ok(draftNoRecipients.data.missingInputs.includes("recipients"), "missing recipients must surface in missingInputs");
-assert.match(draftNoRecipients.data.body, /PENDIENTE/);
-
-// 8. draft carries linkedRecommendationId, playbookRuleId, evidenceUsed, missingEvidence, approvalRequired.
-assert.equal(draftNoRecipients.data.linkedRecommendationId, signoffRec.id);
-assert.equal(draftNoRecipients.data.playbookRuleId, "pb-close-signoff-missing");
-assert.deepEqual(draftNoRecipients.data.evidenceUsed, signoffRec.evidenceUsed);
-assert.deepEqual(draftNoRecipients.data.missingEvidence, signoffRec.missingEvidence);
-assert.equal(draftNoRecipients.data.approvalRequired, true);
-assert.equal(draftNoRecipients.data.externalSendRequiresApproval, true);
-assert.equal(draftNoRecipients.data.templateId, "reception_request");
-assert.equal(draftNoRecipients.data.status, "draft");
-
-// 9. draft generation with a real recipient populates recipients and clears that missingInput.
-const draftWithRecipient = generateCommunicationDraftFromRecommendation(signoffRec, {
-  projectName: "Proyecto Acme",
-  recipients: [{ name: "Jane Doe", email: "jane@acme.com", role: "client" }],
-});
-assert.equal(draftWithRecipient.ok, true);
-assert.equal(draftWithRecipient.data.recipients.length, 1);
-assert.ok(!draftWithRecipient.data.missingInputs.includes("recipients"));
-assert.match(draftWithRecipient.data.subject ?? "", /Proyecto Acme/);
-assert.match(draftWithRecipient.data.body, /Jane Doe/);
-
-// 10. two identical generations produce the same fingerprint (idempotent).
-const draftAgain = generateCommunicationDraftFromRecommendation(signoffRec, {
-  projectName: "Proyecto Acme",
-  recipients: [{ name: "Jane Doe", email: "jane@acme.com", role: "client" }],
-});
-assert.equal(draftAgain.data.fingerprint, draftWithRecipient.data.fingerprint);
-assert.equal(draftAgain.data.id, draftWithRecipient.data.id);
-
-// 11. mergeCommunicationDrafts never duplicates by fingerprint and preserves prior status.
-const reviewed = markDraftReviewed(draftWithRecipient.data);
-assert.equal(reviewed.ok, true);
-const merged = mergeCommunicationDrafts([reviewed.data], [draftAgain.data]);
-const fingerprints = merged.map((d) => d.fingerprint);
-assert.equal(new Set(fingerprints).size, fingerprints.length, "merge must not duplicate fingerprints");
-const mergedDraft = merged.find((d) => d.fingerprint === draftWithRecipient.data.fingerprint);
-assert.equal(mergedDraft.status, "reviewed", "merge must preserve the previously recorded human decision status");
-
-// 12. explainCommunicationDraftGeneration mentions it was never sent automatically.
-const explanation = explainCommunicationDraftGeneration(draftWithRecipient.data);
-assert.match(explanation.narrative, /no fue enviado automáticamente/i);
-assert.equal(explanation.supportingRule, "pb-close-signoff-missing");
-assert.equal(explanation.originRecommendation, signoffRec.id);
-
-// 13. state machine: discarded can never become sent_manually.
-const discarded = discardDraft(draftWithRecipient.data);
-assert.equal(discarded.ok, true);
-assert.equal(discarded.data.status, "discarded");
-const discardedToSent = markDraftSentManually(discarded.data);
-assert.equal(discardedToSent.ok, false, "discarded must never transition to sent_manually");
-
-// 14. sent_manually is a terminal state.
-const approved = approveDraft(reviewed.data);
-assert.equal(approved.ok, true);
-assert.equal(approved.data.status, "approved");
-const copied = markDraftCopied(approved.data);
-assert.equal(copied.ok, true);
-const sent = markDraftSentManually(copied.data);
-assert.equal(sent.ok, true);
-assert.equal(sent.data.status, "sent_manually");
-const sentAgain = markDraftReviewed(sent.data);
-assert.equal(sentAgain.ok, false, "sent_manually must be a final state with no further transitions");
-
-const payload = {
-  recommendationCount: recommendations.length,
-  signoffTemplate: draftWithRecipient.data.templateId,
-  missingInputsWithoutRecipient: draftNoRecipients.data.missingInputs,
-};
-console.log(JSON.stringify(payload));
-`;
-
-const runtime = JSON.parse(execFileSync("npx", ["tsx", "--eval", runtimeProbe], { encoding: "utf8" }).trim().split("\n").at(-1));
-
-test("communications playbook runtime probe: reception_request template chosen for signoff recommendation", () => {
-  assert.equal(runtime.signoffTemplate, "reception_request");
+test("selection is rule-id-first: every known seed rule resolves via the structured lookup, not prose", () => {
+  const expected = {
+    "pb-close-signoff-missing": "reception_request",
+    "pb-close-invoice-missing": "billing_enablement_follow_up",
+    "pb-close-checklist-not-started": "information_request",
+  };
+  for (const [ruleId, templateId] of Object.entries(expected)) {
+    const rec = findRec(ruleId, { hasClosureChecklistStarted: false });
+    assert.equal(selectCommunicationTemplateForRecommendation(rec), templateId);
+  }
 });
 
-test("communications playbook runtime probe: missing recipients are reported without invention", () => {
-  assert.deepEqual(runtime.missingInputsWithoutRecipient, ["recipients"]);
+test("structured lookup survives a prose edit to the rule's text (regression guard for the regex-fragility finding)", () => {
+  const rec = findRec("pb-close-signoff-missing");
+  // Simulate a future copy-edit to the rule's wording that no longer contains "sign-off"/"recepción" —
+  // the old text-only classifier would have silently stopped selecting reception_request here.
+  const reworded = { ...rec, title: "Confirmación pendiente", detectedSituation: "Falta confirmación formal del cliente.", recommendedAction: "Solicitar confirmación." };
+  assert.equal(selectCommunicationTemplateForRecommendation(reworded), "reception_request");
+});
+
+test("an unknown playbookRuleId falls through to the text/severity regex classifier (fallback path still works)", () => {
+  const clientNoResponseMedium = {
+    ...findRec("pb-close-signoff-missing"),
+    playbookRuleId: "pb-any-client-no-response",
+    title: "Cliente sin respuesta",
+    detectedSituation: "El cliente no ha respondido a la última solicitud.",
+    recommendedAction: "Enviar un seguimiento amistoso.",
+    severity: "medium",
+  };
+  assert.equal(selectCommunicationTemplateForRecommendation(clientNoResponseMedium), "soft_follow_up");
+
+  const clientNoResponseHigh = { ...clientNoResponseMedium, severity: "high" };
+  const clientNoResponseCritical = { ...clientNoResponseMedium, severity: "critical" };
+  assert.equal(selectCommunicationTemplateForRecommendation(clientNoResponseHigh), "formal_follow_up");
+  assert.equal(selectCommunicationTemplateForRecommendation(clientNoResponseCritical), "soft_escalation");
+
+  const decisionRec = {
+    ...clientNoResponseMedium,
+    playbookRuleId: "pb-any-decision-pending",
+    title: "Decisión pendiente sin dueño",
+    detectedSituation: "Hay una decisión de alcance pendiente sin responsable asignado.",
+    recommendedAction: "Asignar un dueño y solicitar la decisión al sponsor.",
+    severity: "high",
+  };
+  assert.equal(selectCommunicationTemplateForRecommendation(decisionRec), "decision_request");
+
+  const noMatchRec = {
+    ...clientNoResponseMedium,
+    playbookRuleId: "pb-exec-critical-risks-open-adhoc",
+    title: "Riesgos críticos abiertos",
+    detectedSituation: "Existen riesgos críticos sin mitigar durante la Ejecución.",
+    recommendedAction: "Escalar y asignar owner a los riesgos críticos abiertos.",
+    severity: "critical",
+  };
+  assert.equal(selectCommunicationTemplateForRecommendation(noMatchRec), "formal_follow_up");
+});
+
+test("an explicit templateId pin always overrides auto-selection", () => {
+  const rec = findRec("pb-close-signoff-missing");
+  const draft = generateCommunicationDraftFromRecommendation(rec, {}, "closure_confirmation");
+  assert.equal(draft.ok, true);
+  assert.equal(draft.data.templateId, "closure_confirmation", "an explicit templateId must win over selectCommunicationTemplateForRecommendation");
+});
+
+// ─── Draft generation, idempotency, state machine ──────────────────────────────
+
+test("draft generation without recipients never invents them and flags missingInputs", () => {
+  const rec = findRec("pb-close-signoff-missing");
+  const draft = generateCommunicationDraftFromRecommendation(rec, {});
+  assert.equal(draft.ok, true);
+  assert.deepEqual(draft.data.recipients, []);
+  assert.ok(draft.data.missingInputs.includes("recipients"));
+  assert.match(draft.data.body, /PENDIENTE/);
+});
+
+test("draft carries linkedRecommendationId, playbookRuleId, evidence, approvalRequired, template, status", () => {
+  const rec = findRec("pb-close-signoff-missing");
+  const draft = generateCommunicationDraftFromRecommendation(rec, {}).data;
+  assert.equal(draft.linkedRecommendationId, rec.id);
+  assert.equal(draft.playbookRuleId, "pb-close-signoff-missing");
+  assert.deepEqual(draft.evidenceUsed, rec.evidenceUsed);
+  assert.deepEqual(draft.missingEvidence, rec.missingEvidence);
+  assert.equal(draft.approvalRequired, true);
+  assert.equal(draft.externalSendRequiresApproval, true);
+  assert.equal(draft.templateId, "reception_request");
+  assert.equal(draft.status, "draft");
+});
+
+test("providing a real recipient populates recipients and clears that missingInput", () => {
+  const rec = findRec("pb-close-signoff-missing");
+  const draft = generateCommunicationDraftFromRecommendation(rec, {
+    projectName: "Proyecto Acme",
+    recipients: [{ name: "Jane Doe", email: "jane@acme.com", role: "client" }],
+  }).data;
+  assert.equal(draft.recipients.length, 1);
+  assert.ok(!draft.missingInputs.includes("recipients"));
+  assert.match(draft.subject ?? "", /Proyecto Acme/);
+  assert.match(draft.body, /Jane Doe/);
+});
+
+test("two identical generations produce the same fingerprint/id (idempotent)", () => {
+  const rec = findRec("pb-close-signoff-missing");
+  const ctx = { projectName: "Proyecto Acme", recipients: [{ name: "Jane Doe", email: "jane@acme.com", role: "client" }] };
+  const first = generateCommunicationDraftFromRecommendation(rec, ctx).data;
+  const second = generateCommunicationDraftFromRecommendation(rec, ctx).data;
+  assert.equal(second.fingerprint, first.fingerprint);
+  assert.equal(second.id, first.id);
+});
+
+test("mergeCommunicationDrafts never duplicates by fingerprint and preserves prior status", () => {
+  const rec = findRec("pb-close-signoff-missing");
+  const ctx = { projectName: "Proyecto Acme", recipients: [{ name: "Jane Doe", email: "jane@acme.com", role: "client" }] };
+  const first = generateCommunicationDraftFromRecommendation(rec, ctx).data;
+  const reviewed = markDraftReviewed(first);
+  assert.equal(reviewed.ok, true);
+  const second = generateCommunicationDraftFromRecommendation(rec, ctx).data;
+  const merged = mergeCommunicationDrafts([reviewed.data], [second]);
+  const fingerprints = merged.map((d) => d.fingerprint);
+  assert.equal(new Set(fingerprints).size, fingerprints.length, "merge must not duplicate fingerprints");
+  const mergedDraft = merged.find((d) => d.fingerprint === first.fingerprint);
+  assert.equal(mergedDraft.status, "reviewed", "merge must preserve the previously recorded human decision status");
+});
+
+test("explainCommunicationDraftGeneration always states the draft was never sent automatically", () => {
+  const rec = findRec("pb-close-signoff-missing");
+  const draft = generateCommunicationDraftFromRecommendation(rec, {
+    recipients: [{ name: "Jane Doe", email: "jane@acme.com", role: "client" }],
+  }).data;
+  const explanation = explainCommunicationDraftGeneration(draft);
+  assert.match(explanation.narrative, /no fue enviado automáticamente/i);
+  assert.equal(explanation.supportingRule, "pb-close-signoff-missing");
+  assert.equal(explanation.originRecommendation, rec.id);
+});
+
+test("state machine: discarded can never become sent_manually", () => {
+  const rec = findRec("pb-close-signoff-missing");
+  const draft = generateCommunicationDraftFromRecommendation(rec, {}).data;
+  const discarded = discardDraft(draft);
+  assert.equal(discarded.ok, true);
+  assert.equal(discarded.data.status, "discarded");
+  const result = markDraftSentManually(discarded.data);
+  assert.equal(result.ok, false, "discarded must never transition to sent_manually");
+});
+
+test("state machine: sent_manually is a terminal state reached only through approved -> copied", () => {
+  const rec = findRec("pb-close-signoff-missing");
+  const draft = generateCommunicationDraftFromRecommendation(rec, {}).data;
+  const reviewed = markDraftReviewed(draft).data;
+  const approved = approveDraft(reviewed);
+  assert.equal(approved.ok, true);
+  assert.equal(approved.data.status, "approved");
+  const copied = markDraftCopied(approved.data);
+  assert.equal(copied.ok, true);
+  const sent = markDraftSentManually(copied.data);
+  assert.equal(sent.ok, true);
+  assert.equal(sent.data.status, "sent_manually");
+  const sentAgain = markDraftReviewed(sent.data);
+  assert.equal(sentAgain.ok, false, "sent_manually must be a final state with no further transitions");
+});
+
+test("missing projectId/workspaceId on the recommendation fails validation", () => {
+  const rec = findRec("pb-close-signoff-missing");
+  const noProject = generateCommunicationDraftFromRecommendation({ ...rec, projectId: "" }, {});
+  assert.equal(noProject.ok, false);
+  assert.equal(noProject.failureClass, "validation_failed");
 });

@@ -1,14 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { execFileSync } from "node:child_process";
+
+import {
+  createPlaybookAuditEvent,
+  auditRulesEvaluation,
+  auditRecommendationGenerated,
+  auditRecommendationStateChanged,
+  dedupePlaybookAuditEvents,
+  playbookAuditEventToPlatformEventInput,
+  evaluatePlaybookRules,
+  generatePlaybookRecommendations,
+  SEED_DELIVERY_PLAYBOOK,
+} from "../src/lib/playbook-engine/index.ts";
 
 const engine = fs.readFileSync("src/lib/playbook-engine/playbook-audit-engine.ts", "utf8");
 const types = fs.readFileSync("src/lib/playbook-engine/playbook-audit-types.ts", "utf8");
 const mappers = fs.readFileSync("src/lib/playbook-engine/playbook-audit-mappers.ts", "utf8");
 const indexFile = fs.readFileSync("src/lib/playbook-engine/index.ts", "utf8");
 
-// ─── Exports ──────────────────────────────────────────────────────────────────
+// ─── Exports (static) ───────────────────────────────────────────────────────────
 
 test("playbook audit engine functions are exported from the module", () => {
   for (const fn of [
@@ -71,132 +82,143 @@ test("the audit engine never persists or emits a real platform event by itself",
   assert.doesNotMatch(engine, /supabase|createPlatformEvent\(|\.insert\(/i);
 });
 
-// ─── Runtime behavior probe ──────────────────────────────────────────────────
-
-const runtimeProbe = String.raw`
-import assert from "node:assert/strict";
-import {
-  createPlaybookAuditEvent,
-  auditRulesEvaluation,
-  auditRecommendationGenerated,
-  dedupePlaybookAuditEvents,
-  playbookAuditEventToPlatformEventInput,
-  evaluatePlaybookRules,
-  generatePlaybookRecommendations,
-  SEED_DELIVERY_PLAYBOOK,
-} from "./src/lib/playbook-engine/index.ts";
+// ─── Runtime behavior (direct import) ──────────────────────────────────────────
 
 const workspaceId = "00000000-0000-0000-0000-000000000002";
 const projectId = "00000000-0000-0000-0000-000000000001";
 
-const context = {
-  projectId,
-  workspaceId,
-  phase: "cierre",
-  hasApprovedCharter: null,
-  hasApprovedConstitution: null,
-  hasScopeBaseline: null,
-  hasWbs: null,
-  hasScheduleBaseline: null,
-  hasBudgetBaseline: null,
-  hasRiskRegister: null,
-  hasStakeholderMap: null,
-  hasCommunicationsPlan: null,
-  hasClosureChecklistStarted: null,
-  hasFinalInvoiceIssued: null,
-  hasClientSignoff: false,
-  openCriticalRisks: null,
-  openHighRisks: null,
-  openIssues: null,
-  overdueTasks: null,
-  daysSinceLastStatusUpdate: null,
-  scheduleVarianceDays: null,
-  budgetVariancePercent: null,
-  hasDeliverablesCompleted: null,
-  hasTechnicalEvidence: null,
-  hasClientValidation: null,
-  hasClosureDecisionsMade: null,
-  hasFinalReportDelivered: null,
-  requiresFinalReport: null,
-  hasPurchaseOrder: null,
-  requiresPurchaseOrder: null,
-  hasAdministrativeDocumentationComplete: null,
-  requiresAdministrativeDocumentation: null,
-  hasInternalApprovalForBilling: null,
-  openCriticalDependencies: null,
-  openBlockingIssues: null,
-  metadata: {},
-};
+function context(overrides = {}) {
+  return {
+    projectId,
+    workspaceId,
+    phase: "cierre",
+    hasApprovedCharter: null,
+    hasApprovedConstitution: null,
+    hasScopeBaseline: null,
+    hasWbs: null,
+    hasScheduleBaseline: null,
+    hasBudgetBaseline: null,
+    hasRiskRegister: null,
+    hasStakeholderMap: null,
+    hasCommunicationsPlan: null,
+    hasClosureChecklistStarted: null,
+    hasFinalInvoiceIssued: null,
+    hasClientSignoff: false,
+    openCriticalRisks: null,
+    openHighRisks: null,
+    openIssues: null,
+    overdueTasks: null,
+    daysSinceLastStatusUpdate: null,
+    scheduleVarianceDays: null,
+    budgetVariancePercent: null,
+    hasDeliverablesCompleted: null,
+    hasTechnicalEvidence: null,
+    hasClientValidation: null,
+    hasClosureDecisionsMade: null,
+    hasFinalReportDelivered: null,
+    requiresFinalReport: null,
+    hasPurchaseOrder: null,
+    requiresPurchaseOrder: null,
+    hasAdministrativeDocumentationComplete: null,
+    requiresAdministrativeDocumentation: null,
+    hasInternalApprovalForBilling: null,
+    openCriticalDependencies: null,
+    openBlockingIssues: null,
+    metadata: {},
+    ...overrides,
+  };
+}
 
-// 1. Generic constructor validates required fields.
-const missingWorkspace = createPlaybookAuditEvent({
-  workspaceId: "",
-  projectId,
-  eventType: "playbook_rules_evaluated",
-  actorType: "system",
-  relatedEntityType: "rules_evaluation",
-  relatedEntityId: "x",
-  summary: "test",
-});
-assert.equal(missingWorkspace.ok, false);
-assert.equal(missingWorkspace.failureClass, "validation_failed");
-
-const validEvent = createPlaybookAuditEvent({
-  workspaceId,
-  projectId,
-  eventType: "playbook_rules_evaluated",
-  actorType: "system",
-  relatedEntityType: "rules_evaluation",
-  relatedEntityId: "seed-delivery-playbook-v1@1",
-  summary: "test",
-});
-assert.equal(validEvent.ok, true);
-
-// 2. IDs/fingerprints are deterministic for identical input.
-const evaluations = evaluatePlaybookRules(SEED_DELIVERY_PLAYBOOK, context);
-const eventA = auditRulesEvaluation(context, SEED_DELIVERY_PLAYBOOK, evaluations);
-const eventB = auditRulesEvaluation(context, SEED_DELIVERY_PLAYBOOK, evaluations);
-assert.equal(eventA.id, eventB.id);
-assert.equal(eventA.fingerprint, eventB.fingerprint);
-
-// 3. Audit event carries projectId, relatedEntityType, relatedEntityId.
-assert.equal(eventA.projectId, projectId);
-assert.equal(eventA.relatedEntityType, "rules_evaluation");
-assert.ok(eventA.relatedEntityId.length > 0);
-
-// 4. auditRecommendationGenerated ties back to the originating recommendation.
-const recsResult = generatePlaybookRecommendations(context, SEED_DELIVERY_PLAYBOOK);
-assert.equal(recsResult.ok, true);
-const recommendation = recsResult.data.recommendations[0];
-const recEvent = auditRecommendationGenerated(recommendation);
-assert.equal(recEvent.relatedEntityType, "recommendation");
-assert.equal(recEvent.relatedEntityId, recommendation.fingerprint);
-assert.equal(recEvent.approvalRequired, recommendation.approvalRequired);
-
-// 5. Deduplication keeps only one event per fingerprint.
-const deduped = dedupePlaybookAuditEvents([eventA, eventB, recEvent]);
-assert.equal(deduped.length, 2);
-
-// 6. The platform-events mapper is pure and structurally valid.
-const mapped = playbookAuditEventToPlatformEventInput(eventA);
-assert.equal(mapped.workspaceId, workspaceId);
-assert.equal(mapped.projectId, projectId);
-assert.equal(mapped.eventCategory, "governance");
-assert.ok(mapped.eventType.startsWith("PLAYBOOK_"));
-assert.equal(mapped.learningEligible, false);
-assert.equal(mapped.rawReferenceTable, null);
-
-const payload = { dedupedCount: deduped.length, mappedEventType: mapped.eventType };
-console.log(JSON.stringify(payload));
-`;
-
-const runtime = JSON.parse(execFileSync("npx", ["tsx", "--eval", runtimeProbe], { encoding: "utf8" }).trim().split("\n").at(-1));
-
-test("audit runtime probe: dedupePlaybookAuditEvents keeps one event per fingerprint", () => {
-  assert.equal(runtime.dedupedCount, 2);
+test("the generic constructor validates required fields", () => {
+  const result = createPlaybookAuditEvent({
+    workspaceId: "",
+    projectId,
+    eventType: "playbook_rules_evaluated",
+    actorType: "system",
+    relatedEntityType: "rules_evaluation",
+    relatedEntityId: "x",
+    summary: "test",
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.failureClass, "validation_failed");
 });
 
-test("audit runtime probe: mapped platform event type is namespaced under PLAYBOOK_", () => {
-  assert.ok(runtime.mappedEventType.startsWith("PLAYBOOK_"));
-  assert.ok(!runtime.mappedEventType.startsWith("PLAYBOOK_PLAYBOOK_"), "event type must not be double-prefixed");
+test("the generic constructor succeeds with all required fields present", () => {
+  const result = createPlaybookAuditEvent({
+    workspaceId,
+    projectId,
+    eventType: "playbook_rules_evaluated",
+    actorType: "system",
+    relatedEntityType: "rules_evaluation",
+    relatedEntityId: "seed-delivery-playbook-v1@1",
+    summary: "test",
+  });
+  assert.equal(result.ok, true);
+});
+
+test("ids/fingerprints are deterministic for identical input", () => {
+  const evaluations = evaluatePlaybookRules(SEED_DELIVERY_PLAYBOOK, context());
+  const eventA = auditRulesEvaluation(context(), SEED_DELIVERY_PLAYBOOK, evaluations);
+  const eventB = auditRulesEvaluation(context(), SEED_DELIVERY_PLAYBOOK, evaluations);
+  assert.equal(eventA.id, eventB.id);
+  assert.equal(eventA.fingerprint, eventB.fingerprint);
+});
+
+test("audit event carries projectId, relatedEntityType, relatedEntityId", () => {
+  const evaluations = evaluatePlaybookRules(SEED_DELIVERY_PLAYBOOK, context());
+  const event = auditRulesEvaluation(context(), SEED_DELIVERY_PLAYBOOK, evaluations);
+  assert.equal(event.projectId, projectId);
+  assert.equal(event.relatedEntityType, "rules_evaluation");
+  assert.ok(event.relatedEntityId.length > 0);
+});
+
+test("auditRecommendationGenerated ties back to the originating recommendation", () => {
+  const result = generatePlaybookRecommendations(context(), SEED_DELIVERY_PLAYBOOK);
+  assert.equal(result.ok, true);
+  const recommendation = result.data.recommendations[0];
+  const event = auditRecommendationGenerated(recommendation);
+  assert.equal(event.relatedEntityType, "recommendation");
+  assert.equal(event.relatedEntityId, recommendation.fingerprint);
+  assert.equal(event.approvalRequired, recommendation.approvalRequired);
+});
+
+test("auditRecommendationStateChanged produces distinct ids per transition, identical ids on replay", () => {
+  const result = generatePlaybookRecommendations(context(), SEED_DELIVERY_PLAYBOOK);
+  const recommendation = result.data.recommendations[0];
+  const viewedEvent = auditRecommendationStateChanged(recommendation, "new", "viewed");
+  const viewedEventAgain = auditRecommendationStateChanged(recommendation, "new", "viewed");
+  const dismissedEvent = auditRecommendationStateChanged(recommendation, "viewed", "dismissed");
+  assert.equal(viewedEvent.id, viewedEventAgain.id, "replaying the same transition must audit identically");
+  assert.notEqual(viewedEvent.id, dismissedEvent.id, "different transitions must get distinct audit ids");
+});
+
+test("dedupePlaybookAuditEvents keeps only one event per fingerprint", () => {
+  const evaluations = evaluatePlaybookRules(SEED_DELIVERY_PLAYBOOK, context());
+  const eventA = auditRulesEvaluation(context(), SEED_DELIVERY_PLAYBOOK, evaluations);
+  const eventB = auditRulesEvaluation(context(), SEED_DELIVERY_PLAYBOOK, evaluations);
+  const recResult = generatePlaybookRecommendations(context(), SEED_DELIVERY_PLAYBOOK);
+  const recEvent = auditRecommendationGenerated(recResult.data.recommendations[0]);
+  const deduped = dedupePlaybookAuditEvents([eventA, eventB, recEvent]);
+  assert.equal(deduped.length, 2);
+});
+
+test("the platform-events mapper is pure and structurally valid", () => {
+  const evaluations = evaluatePlaybookRules(SEED_DELIVERY_PLAYBOOK, context());
+  const event = auditRulesEvaluation(context(), SEED_DELIVERY_PLAYBOOK, evaluations);
+  const mapped = playbookAuditEventToPlatformEventInput(event);
+  assert.equal(mapped.workspaceId, workspaceId);
+  assert.equal(mapped.projectId, projectId);
+  assert.equal(mapped.eventCategory, "governance");
+  assert.ok(mapped.eventType.startsWith("PLAYBOOK_"));
+  assert.ok(!mapped.eventType.startsWith("PLAYBOOK_PLAYBOOK_"), "event type must not be double-prefixed");
+  assert.equal(mapped.learningEligible, false);
+  assert.equal(mapped.rawReferenceTable, null);
+  assert.equal(mapped.rawReferenceId, null);
+});
+
+test("recommendation lifecycle events map to the 'recommendation' platform-events category", () => {
+  const result = generatePlaybookRecommendations(context(), SEED_DELIVERY_PLAYBOOK);
+  const event = auditRecommendationGenerated(result.data.recommendations[0]);
+  const mapped = playbookAuditEventToPlatformEventInput(event);
+  assert.equal(mapped.eventCategory, "recommendation");
 });

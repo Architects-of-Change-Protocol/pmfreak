@@ -539,3 +539,137 @@ automatic closure, no automatic billing, no automatic approvals — every sensit
   call time.
 - **Portfolio intelligence.** Aggregating `PlaybookGovernanceSnapshot`s across many projects for
   portfolio-level reporting.
+
+## Hardening Sprint (post-Sprint-7)
+
+Before UI or persistence work begins, this sprint followed up on the MVP Integration Review
+(health 8/10, no critical findings) with a consistency/testability/materialization-readiness pass.
+**No new features, no UI, no persistence, no side effects.** Every change below is either a pure
+refactor (same behavior, more robust mechanism) or a small, explicit consistency fix — never a
+scope expansion.
+
+### What changed
+
+**1. Test suite: runtime-first, not regex-first.** All 8 `tests/playbook-engine-*.test.mjs` files
+previously split their coverage between lightweight static checks (`assert.match` against
+`fs.readFileSync(".ts")` source text — real and worth keeping, but shallow) and a single
+`execFileSync("npx", ["tsx", "--eval", ...])` subprocess per file bundling 10-20 sequential
+assertions into one opaque `node:test` case. Since this repo's own `npm test` script already runs
+`tsx --test`, every playbook-engine test file now `import`s the module directly (`../src/lib/
+playbook-engine/index.ts`) and expresses each behavioral guarantee as its own named `test()` —
+no subprocess, full per-assertion failure reporting, and roughly 5x faster (177 tests run in
+~1.1s where 83 tests previously took ~5.8s across all 8 files, once you account for the runtime
+tests they replace). The static structural checks were kept (never eliminated), since "exports
+exist" and "narrative mentions X" are still legitimate, cheap guards — they are simply no longer
+the *primary* signal for behavioral correctness. `tests/playbook-engine-governance-snapshot.test.mjs`
+gained an explicit end-to-end smoke test (`generatePlaybookGovernanceSnapshot runs the complete
+chain end-to-end`) exercising every stage (Rules Engine → Constitution Generator → Recommendation
+Engine → Communications Playbook → Operational Intelligence → Closure & Billing → Audit Trail) in
+one assertion block, plus dedicated tests for `missingEvidenceSummary` deduplication,
+`approvalRequiredSummary` detection, no-side-effects, audit-event determinism, and "never invents
+recipients/owner/dueDate/evidence" across all four demo scenarios.
+
+**2. `owner` vs. `decisionOwner` no longer auto-duplicated.** `DecisionDraft` (`operational-
+intelligence-types.ts`) keeps both `owner` (the common field every operational draft has —
+"who's tracking this draft") and `decisionOwner` (the decision-specific "who must decide"), but
+`buildDraft` (`operational-intelligence-engine.ts`) no longer copies `decisionOwner`'s value into
+`owner`. The two now vary independently: `owner` is only ever populated from
+`OperationalIntelligenceProjectContext.owner`, `decisionOwner` only from `...decisionOwner`, and
+either can be `null` while the other is set. `operationalDraftToDecisionInput`
+(`operational-intelligence-mappers.ts`) surfaces `decisionOwner` — never `owner` — into
+`metadata.decisionOwner` when mapping a decision draft, since `DecisionRecord` has no structural
+owner column of its own; non-decision drafts never carry that metadata key at all.
+
+**3. `approvalRequired` normalized across all four operational draft types.** A new pure helper,
+`resolveOperationalDraftApprovalRequirement({ type, severity, recommendationApprovalRequired,
+blocking?, escalationRecommended? })` (exported from `operational-intelligence-engine.ts` and the
+barrel), replaces four previously inconsistent per-type computations with one policy: a
+recommendation's own `approvalRequired` can only ever be *elevated*, never relaxed; `decision`
+drafts are always approval-required; `risk` drafts add approval on high/critical severity or
+`escalationRecommended`; `issue`/`dependency` drafts add approval on high/critical severity *or*
+being currently `blocking` — closing the gap where a blocking, high-severity dependency (e.g. a
+pending client sign-off) could previously carry `approvalRequired: false` just because its parent
+recommendation happened to have no sensitive suggested action of its own.
+
+**4. Closure/Billing blockers distinguish confirmed-missing from unknown evidence.**
+`ClosureBlocker`/`BillingBlocker` (`closure-billing-types.ts`) gained an `evidenceStatus: "missing"
+| "requires_validation"` field (a `ClosureBillingBlockerEvidenceStatus`, reusing
+`ClosureChecklistItemStatus`'s own two non-terminal values rather than inventing a parallel
+vocabulary). `detectClosureBlockers`/`detectBillingBlockers` derive it directly from the checklist
+item's status: `"missing"` only when a fact is explicitly known to be `false`/absent,
+`"requires_validation"` when it's `null`/unrecorded or the Project Constitution reports the
+artifact exists elsewhere unvalidated. `buildClosureChecklist`'s status derivation
+(`boolStatus`/`countStatus`/`applicableBoolStatus`/`constitutionFieldStatus`) already followed this
+discipline correctly — unknown facts were never read as `false` — but the *blockers* built from
+those items previously carried no field saying which case applied, so a UI/comms consumer reading
+the blocker list directly (rather than the assessment-level `closureStatus`/`billingStatus`) had no
+way to avoid overstating confidence. `explainClosureBillingAssessment`'s blocker summary lines now
+say "(evidencia por validar)" for `requires_validation` blockers. `readyForClosure`/`readyForBilling`
+were already conservative before this change (an unknown fact yields `"indeterminate"`, never
+`"ready"`) and remain unchanged — this was a confidence-labeling fix, not a readiness-logic change.
+
+**5. Structured (rule-id) classification, with regex only as fallback.**
+`selectCommunicationTemplateForRecommendation` (`communication-draft-engine.ts`) and
+`selectOperationalDraftTypesForRecommendation` (`operational-intelligence-engine.ts`) each gained a
+lookup table keyed by the seed playbook's stable `playbookRuleId` — `RULE_ID_COMMUNICATION_TEMPLATE`
+and `RULE_ID_OPERATIONAL_DRAFT_BLUEPRINTS` — checked *before* the existing text/severity regex
+classification. Every entry reproduces exactly what the regex path already resolved for that rule
+id (verified by running the old classifier against every seed rule before writing the tables), so
+this is a pure robustness refactor: a future copy-edit to a rule's title/description in
+`seed-playbook.ts` can no longer silently change which template or operational draft type it
+produces, since the stable id — not the prose — now drives the decision for all 18 known seed
+rules. Recommendations from an unrecognized `playbookRuleId` (ad-hoc/manual recommendations, or a
+future Playbook Registry rule) still fall through to the text/severity fallback unchanged — regex
+is now genuinely only a fallback, not the primary mechanism. One deliberate behavior fix rode along
+with this refactor: `selectOperationalDraftTypesForRecommendation` now checks
+`recommendation.suggestedActions` first and returns `[]` immediately for any recommendation
+suggesting `generate_project_constitution_draft` — previously, `pb-init-constitution-missing`'s own
+rule text ("... decisiones futuras ...") happened to match the generic decision-detection regex
+and produced a spurious `DecisionDraft`, even though drafting the Project Constitution is already a
+non-sensitive, non-RAID action owned by `constitution-generator.ts`. A caller that already knows
+the right communication template (e.g. a closure/billing next action) can still always override
+auto-selection by passing `generateCommunicationDraftFromRecommendation`'s explicit `templateId`
+parameter, which already existed and is now covered by a dedicated test.
+
+**6. Closure & Billing next actions no longer go silent on a real blocker.**
+`selectClosureBillingNextBestActions` previously had no case for a `missing_validation` billing
+blocker (client validation/acceptance pending) — a project in exactly Demo Scenario B's situation
+(security/hardening work awaiting client validation) produced two real, detected blockers but an
+*empty* `nextBestActions` array, a functional dead end for both the UI and the demo narrative. A
+new `ClosureBillingNextActionType` value, `request_client_validation`, is now generated whenever a
+`missing_validation` blocker is open (and no `decision` operational draft already covers it),
+recommending the `information_request` communication template and a `decision` operational draft
+type, `approvalRequired: true`. This is a bugfix to close a real signal-to-zero-output gap, not new
+functional scope — the blocker itself was already being detected; the selector simply failed to
+acknowledge it. Demo scenarios A, C, and D were re-verified end-to-end and needed no changes.
+
+### Testing strategy going forward
+
+Prefer a runtime `test()` importing the module directly over a source-text `assert.match` whenever
+the two would prove the same thing — the former proves the behavior, the latter only proves a
+string exists. Keep `assert.match`/`assert.doesNotMatch` on `fs.readFileSync` output for things that
+*are* genuinely about the source shape (e.g. "the mapper file must never mention `supabase`" — a
+purity guard no runtime test could otherwise express, since a call that's never made produces no
+observable runtime difference). When adding a new seed rule or a new classification pattern, add
+both: a rule-id table entry (§5 above) and a runtime test asserting its resolved template/blueprint,
+so a future prose edit to that rule has a test to fail against instead of silently drifting.
+
+### Materialization readiness (updated)
+
+Nothing here changes what "materialize this MVP" requires (see the prior section above), but two
+things are now cheaper to get right on the first migration:
+
+- `ClosureBlocker`/`BillingBlocker` rows should carry `evidenceStatus` as a real column (not
+  re-derived post-hoc from the checklist), so a persisted blocker list keeps the same
+  confirmed-vs-unknown distinction the in-memory assessment already has.
+- `resolveOperationalDraftApprovalRequirement` is the single place future materialization code
+  should call (or mirror) if it ever needs to recompute `approvalRequired` for a stored draft —
+  there is now exactly one policy to keep in sync, not four.
+
+### What still needs UI/persistence work (unchanged by this sprint)
+
+This sprint did not build any UI, database migration, `platform-events` emission,
+Gmail integration, real materialization, portfolio intelligence, or Lessons Learned Loop — see
+"Future work (post-MVP)" above, which still applies unchanged. The Playbook Engine remains 100%
+pure: every function in `src/lib/playbook-engine/` takes data in and returns data out, with no
+network call, no database access, and no automatically-executed action anywhere in the module.

@@ -11,6 +11,7 @@ import type {
   BillingBlockerType,
   BillingReadinessStatus,
   ClosureBillingAssessment,
+  ClosureBillingBlockerEvidenceStatus,
   ClosureBillingExplanation,
   ClosureBillingNextAction,
   ClosureBillingNextActionType,
@@ -355,6 +356,16 @@ function blockerId(context: ProjectContextFacts, kind: "closure" | "billing", ty
   return createHash("sha256").update(`${context.workspaceId}:${context.projectId}:${kind}-blocker:${type}:${checklistItemId}`).digest("hex");
 }
 
+/**
+ * A blocker only ever exists for a checklist item whose status is `"missing"` (confirmed absent)
+ * or `"requires_validation"` (unknown) — `detectClosureBlockers`/`detectBillingBlockers` already
+ * skip `"complete"`/`"not_applicable"` items before reaching this. Reuses the checklist item's own
+ * status rather than inventing a parallel confidence value.
+ */
+function blockerEvidenceStatus(itemStatus: ClosureChecklistItemStatus): ClosureBillingBlockerEvidenceStatus {
+  return itemStatus === "missing" ? "missing" : "requires_validation";
+}
+
 function itemEvidence(context: ProjectContextFacts, item: ClosureChecklistItem): { evidenceUsed: PlaybookEvidenceUsed[]; missingEvidence: PlaybookFactKey[] } {
   if (!item.evidenceKey) return { evidenceUsed: [], missingEvidence: [] };
   const value = context[item.evidenceKey];
@@ -430,6 +441,7 @@ export function detectClosureBlockers(
       approvalRequired: severity === "critical" || severity === "high",
       suggestedAction: closureSuggestedAction(type),
       status: "open",
+      evidenceStatus: blockerEvidenceStatus(item.status),
       relatedChecklistItemId: item.id,
       relatedRecommendationId: findRelatedRecommendationId(recommendations, item.evidenceKey),
     });
@@ -471,6 +483,7 @@ export function detectBillingBlockers(
       approvalRequired: severity === "critical" || severity === "high",
       suggestedAction: billingSuggestedAction(type),
       status: "open",
+      evidenceStatus: blockerEvidenceStatus(item.status),
       relatedChecklistItemId: item.id,
       relatedRecommendationId: findRelatedRecommendationId(recommendations, item.evidenceKey),
     });
@@ -645,6 +658,21 @@ export function selectClosureBillingNextBestActions(
   if (evidenceBlocker) {
     actions.push(
       action(assessment, "request_missing_evidence", "Solicitar o cargar la evidencia técnica faltante.", evidenceBlocker.id, "information_request", null, false),
+    );
+  }
+
+  const validationBlocker = assessment.billingBlockers.find((b) => b.type === "missing_validation");
+  if (validationBlocker && !existingOperationalDraftTypes.has("decision")) {
+    actions.push(
+      action(
+        assessment,
+        "request_client_validation",
+        "Solicitar al cliente la validación/aceptación formal del trabajo entregado.",
+        validationBlocker.id,
+        "information_request",
+        "decision",
+        true,
+      ),
     );
   }
 
@@ -894,8 +922,10 @@ export function evaluateClosureAndBilling(
 export function explainClosureBillingAssessment(assessment: ClosureBillingAssessment): ClosureBillingExplanation {
   const evidenceUsed = assessment.evidenceUsed.map((e) => `${e.fact} = ${e.value}`);
   const missingEvidence = [...assessment.missingEvidence];
-  const closureBlockersSummary = assessment.closureBlockers.map((b) => `${b.type}: ${b.description}`);
-  const billingBlockersSummary = assessment.billingBlockers.map((b) => `${b.type}: ${b.description}`);
+  const blockerSummaryLine = (b: ClosureBlocker | BillingBlocker) =>
+    b.evidenceStatus === "missing" ? `${b.type}: ${b.description}` : `${b.type} (evidencia por validar): ${b.description}`;
+  const closureBlockersSummary = assessment.closureBlockers.map(blockerSummaryLine);
+  const billingBlockersSummary = assessment.billingBlockers.map(blockerSummaryLine);
 
   const closureReadinessExplanation = assessment.readyForClosure
     ? "El proyecto cumple todas las condiciones de cierre registradas por el checklist."

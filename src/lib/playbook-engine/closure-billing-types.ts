@@ -76,6 +76,20 @@ export type BillingBlockerType =
 
 export type ClosureBillingBlockerStatus = "open" | "reviewed";
 
+/**
+ * Whether a blocker's underlying checklist item is a *confirmed* gap or merely *unknown*
+ * evidence — reuses `ClosureChecklistItemStatus`'s own two non-terminal values instead of
+ * inventing a parallel confidence vocabulary. A blocker only ever exists for a checklist item
+ * whose status is `"missing"` (a fact is explicitly known to be `false`/absent — e.g.
+ * `hasClientSignoff: false`) or `"requires_validation"` (the fact is `null`/unrecorded, or the
+ * Project Constitution reports the artifact exists elsewhere and needs importing). Both produce a
+ * blocker (closure/billing can't proceed either way), but only `"missing"` means the engine has
+ * confirmed evidence of absence — `"requires_validation"` means it genuinely doesn't know and
+ * must never be read as if it had confirmed anything (the "no inventar datos" principle applied
+ * at the blocker level, not just at the assessment's `closureStatus`/`billingStatus`).
+ */
+export type ClosureBillingBlockerEvidenceStatus = Extract<ClosureChecklistItemStatus, "missing" | "requires_validation">;
+
 /** Fields shared by `ClosureBlocker`/`BillingBlocker`. Never carries invented owner/dueDate —
  * both stay `null` unless the caller's `ClosureBillingProjectContext` supplied them. */
 type ClosureBillingBlockerCommon = {
@@ -89,6 +103,9 @@ type ClosureBillingBlockerCommon = {
   approvalRequired: boolean;
   suggestedAction: string;
   status: ClosureBillingBlockerStatus;
+  /** See `ClosureBillingBlockerEvidenceStatus`. Lets a UI/comms consumer distinguish "confirmed
+   * absent" from "simply unknown" without re-deriving it from the checklist. */
+  evidenceStatus: ClosureBillingBlockerEvidenceStatus;
   /** The `ClosureChecklistItem.id` this blocker was derived from. */
   relatedChecklistItemId: string;
   /** Populated only when a matching `PlaybookRecommendation` was passed into
@@ -103,6 +120,7 @@ export type ClosureBillingNextActionType =
   | "request_formal_reception"
   | "billing_enablement_follow_up"
   | "request_missing_evidence"
+  | "request_client_validation"
   | "prepare_final_report"
   | "request_po_validation"
   | "convert_to_operational_issue"

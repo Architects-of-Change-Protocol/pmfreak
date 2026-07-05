@@ -69,7 +69,11 @@ type OperationalDraftCommon = {
   title: string;
   description: string;
   severity: OperationalDraftSeverity;
-  /** Never invented — only ever populated from `OperationalIntelligenceProjectContext.owner`. */
+  /** Never invented — only ever populated from `OperationalIntelligenceProjectContext.owner`.
+   * Distinct from `DecisionDraft.decisionOwner`: this is "who is coordinating/tracking this
+   * draft," which for a decision draft is a different (and usually unset) question from "who
+   * must make the decision." The two are never auto-synced — see `buildDraft` in
+   * `operational-intelligence-engine.ts`. */
   owner: string | null;
   /** Never invented — only ever populated from `OperationalIntelligenceProjectContext.dueDate`. */
   dueDate: string | null;
@@ -116,7 +120,12 @@ export type DependencyDraft = OperationalDraftCommon & {
 
 export type DecisionDraft = OperationalDraftCommon & {
   type: "decision";
-  /** Never invented — only ever populated from `OperationalIntelligenceProjectContext.decisionOwner`. */
+  /** Who must make the decision. Never invented — only ever populated from
+   * `OperationalIntelligenceProjectContext.decisionOwner`, and never backfilled from/synced with
+   * the common `owner` field above (they answer different questions and may legitimately differ
+   * or both be `null`). Mappers into `decision-governance` (see
+   * `operational-intelligence-mappers.ts`) must read `decisionOwner`, never `owner`, when they
+   * need "who decides." */
   decisionOwner: string | null;
   /** Never invented — only ever populated from `OperationalIntelligenceProjectContext.options`. */
   options: string[];

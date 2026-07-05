@@ -42,6 +42,7 @@ export {
   generateOperationalDraftsFromRecommendations,
   explainOperationalDraftGeneration,
   mergeOperationalDrafts,
+  resolveOperationalDraftApprovalRequirement,
 } from "./operational-intelligence-engine";
 export {
   OPERATIONAL_DRAFT_TRANSITIONS,
@@ -155,6 +156,7 @@ export type {
   BillingReadinessStatus,
   ClosureBillingAssessment,
   ClosureBillingAssessmentReviewStatus,
+  ClosureBillingBlockerEvidenceStatus,
   ClosureBillingBlockerStatus,
   ClosureBillingExplanation,
   ClosureBillingNextAction,
