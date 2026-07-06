@@ -1,9 +1,9 @@
-# Golden Intent Evaluation Set — Quick Reference (Sprint 11R, calibrated in Sprint 12R/13R/14R/15R)
+# Golden Intent Evaluation Set — Quick Reference (Sprint 11R, calibrated in Sprint 12R/13R/14R/15R/16R)
 
 > Full context, rationale, and the current baseline numbers live in the Sprint 11R (§11),
-> Sprint 12R (§12), Sprint 13R (§13), Sprint 14R (§14), and Sprint 15R (§15) sections of
-> `docs/conversational-brain-pipeline-reconciliation.md`. This file is a short, standalone
-> quick-reference for running and interpreting the evaluation.
+> Sprint 12R (§12), Sprint 13R (§13), Sprint 14R (§14), Sprint 15R (§15), and Sprint 16R (§16)
+> sections of `docs/conversational-brain-pipeline-reconciliation.md`. This file is a short,
+> standalone quick-reference for running and interpreting the evaluation.
 
 ## What this is
 
@@ -167,16 +167,65 @@ collision-avoidance analysis (in particular why the new bare "asigna(le|me|r)?" 
 patterns don't hijack `governance_audit`'s "aprobaciones pendientes" or `risk_issue_dependency`'s
 "pendiente de tercero/proveedor/cliente" patterns).
 
-## Next steps (Sprint 16R candidate work)
+## Sprint 16R — communication_draft vocabulary calibration result
+
+Sprint 16R adjusted both pattern lists (`intentClassifier.rules.ts` and `intent-patterns.ts`) — no
+adapter, router, composer, handler, endpoint, or feature-flag changes. Result:
+
+| Metric | Before (Sprint 15R) | After (Sprint 16R) |
+|---|---|---|
+| Global `compatibilityRate` | 67.6% (69/102) | **72.5% (74/102)** — **+4.9 points** |
+| `communication_draft` | 60% (6/10) | **100% (10/10)** |
+| `thresholdBand` | not_ready | **needs_adjustment** (crossed the 70% line) |
+
+Every protected category (`project_status`, `closure_billing`, `risk_issue_dependency`,
+`task_action`, `governance_audit`, `playbook_analysis`) is unchanged or improved from Sprint 15R —
+verified both by the `communication_draft` section added to
+`tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` and by re-running the
+full existing test suites.
+
+Production gained ten new `communication_draft` patterns: an explicit "ayudame a
+responder/contestar" verb, a "seguimiento formal" follow-up phrase, a bare "minuta(s)" noun, bare
+"draft"/"borrador" loanwords, a "prepara/arma/formula + correo/mensaje/minuta/borrador/respuesta/
+nota" drafting-verb-plus-noun combination, a widened "pedir/solicitar recepcion/visto bueno/
+aceptacion/conformidad" closure-communication phrase, a "como le digo/que le respondo/que le
+contesto" stakeholder-communication trigger, an "ayudame a escalar" phrase, and a
+"con la recomendacion/explicando la recomendacion" playbook-communication phrase. The enriched
+classifier gained the matching subset it was missing: "escribeme/escribime" (production already had
+it), the same drafting-verb-plus-noun combination, "ayudame a escalar", "como le digo/que le
+respondo/que le contesto", and a widened "pedir/solicitar recepcion/visto bueno/aceptacion/
+conformidad" pattern.
+
+Every new pattern is weighted so an explicit drafting request wins over a bare topic word (the
+sprint's own "communication_draft must win" collision rule) while leaving every already-protected
+phrase's winning pattern untouched — most notably `cb-06`'s "preparame el seguimiento para
+recepción" (closure_billing, unaffected because it has no correo/mensaje/minuta/borrador/respuesta/
+nota noun for the new drafting-verb pattern to combine with) and every task_action/governance_audit/
+risk_issue_dependency/project_status/playbook_analysis phrase that carries a topic word without a
+drafting verb.
+
+One golden case outside `communication_draft` genuinely drifted and was updated with a note: `gpa-07`
+("cómo le digo al cliente que hay un retraso") now ties the enriched classifier's pre-existing
+`general_pm_advice` "como le digo" pattern against the new `communication_draft` one and resolves to
+`communication_draft` via `FAMILY_TIE_BREAK_ORDER` — matching the sprint's explicit rule that
+"cómo le digo" should win over topic vocabulary (including "atraso"/"retraso"). This is a net
+improvement (the case was already-incompatible, now compatible) and `general_pm_advice`'s own
+compatibilityRate did not decrease (30% → 40%); the category was intentionally left otherwise
+untouched, per this sprint's own scope.
+
+See §16 of the reconciliation doc for the full mismatch classification, pattern changes, and
+collision-avoidance analysis.
+
+## Next steps (Sprint 17R candidate work)
 
 Use `report.byCategory` and `report.topDifferences` to prioritize which classifier's pattern list
 (`intentClassifier.rules.ts` for production, `intent-patterns.ts` for the enriched classifier) or
 which row of the adapter's mapping table (`intentCompatibilityAdapter.ts`) needs adjustment next.
-`general_pm_advice` (30%) and `communication_draft` (60%) are now the largest remaining
-vocabulary-calibration candidates among the "real" categories — `general_pm_advice` likely also
-needs a design review for overlap with `playbook_analysis`/`decision_support`, not just vocabulary.
-`decision_support` (0%) and `ambiguous_or_unknown` (0%) remain out of scope for vocabulary-only
-calibration, per every sprint's own instructions — they need an architecture/product decision (a
-production handler for `decision_support`; a defined fallback behavior for ambiguous input) before a
-calibration sprint can move their numbers. See §14.8 of the reconciliation doc for the full criteria
-before proposing any router/handler change.
+`general_pm_advice` (40%) is now the largest remaining vocabulary-calibration candidate among the
+"real" categories, and likely also needs a design review for overlap with
+`playbook_analysis`/`decision_support`, not just vocabulary (see `gpa-05`/`gpa-06`/`gpa-08`/`gpa-09`/
+`gpa-10`, the remaining misses). `decision_support` (0%) and `ambiguous_or_unknown` (0%) remain out
+of scope for vocabulary-only calibration, per every sprint's own instructions — they need an
+architecture/product decision (a production handler for `decision_support`; a defined fallback
+behavior for ambiguous input) before a calibration sprint can move their numbers. See §14.8 of the
+reconciliation doc for the full criteria before proposing any router/handler change.

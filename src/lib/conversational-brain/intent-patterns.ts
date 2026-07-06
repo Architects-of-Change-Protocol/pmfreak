@@ -37,8 +37,29 @@ export const INTENT_FAMILY_PATTERNS: Record<RealIntentFamily, IntentPatternRule[
     { pattern: /follow[ -]?up/, weight: 3, label: "follow up", intentType: "follow_up_draft_request" },
     { pattern: /\bminuta\b/, weight: 5, label: "minuta", intentType: "meeting_minutes_request" },
     { pattern: /escalamiento/, weight: 5, label: "escalamiento", intentType: "escalation_draft_request" },
-    { pattern: /(pedir|solicitar) recepcion/, weight: 5, label: "pedir/solicitar recepción", intentType: "reception_request_draft" },
+    { pattern: /(pedir|solicitar) (recepcion|visto bueno|aceptacion|conformidad)/, weight: 5, label: "pedir/solicitar recepción/visto bueno/aceptación/conformidad", intentType: "reception_request_draft" },
     { pattern: /(correo de cierre|comunicacion de cierre)/, weight: 5, label: "correo de cierre", intentType: "closure_communication_request" },
+    // Sprint 16R calibration — closes communication_draft vocabulary gaps this family shares with
+    // general_pm_advice ("como le digo"), risk_issue_dependency ("preparame un mensaje ... la
+    // dependencia", "ayudame a escalar el bloqueo"), and its own missing "escribeme/escribime" verb
+    // (production already had it). Each pattern is scoped narrowly enough not to fire on the
+    // protected golden cases documented in the vocabulary-calibration regression tests (e.g.
+    // cb-06's "preparame el seguimiento para recepción" has no correo/mensaje/minuta/borrador/
+    // respuesta/nota noun, so the prepara/arma/formula pattern below does not match it).
+    { pattern: /escrib(eme|ime)/, weight: 5, label: "escribeme/escribime", intentType: "email_draft_request" },
+    {
+      pattern: /\b(prepara(me)?|arma(me)?|formula(me)?)\b[\s\S]*\b(correo|mensaje|minuta|borrador|respuesta|nota)\b/,
+      weight: 5,
+      label: "prepara/arma/formula + correo/mensaje/minuta/borrador/respuesta/nota",
+      intentType: "email_draft_request",
+    },
+    { pattern: /ayudame a escalar/, weight: 5, label: "ayudame a escalar", intentType: "escalation_draft_request" },
+    {
+      pattern: /(como le digo|como se lo digo|que le digo|que le respondo|que le contesto)/,
+      weight: 5,
+      label: "como le digo/que le respondo/que le contesto",
+      intentType: "email_draft_request",
+    },
   ],
   playbook_analysis: [
     { pattern: /segun el playbook/, weight: 5, label: "según el playbook", intentType: "playbook_rule_explanation" },

@@ -579,3 +579,208 @@ test("regression: Sprint 12R/13R protected phrases still classify the same way a
   assert.equal(classifyProductionIntent("qué recomienda el playbook").intent, "recommendation_request");
   assert.equal(classifyProductionIntent("cuál es la siguiente mejor acción").intent, "recommendation_request");
 });
+
+// ─── Sprint 16R: communication_draft vocabulary calibration ───────────────────
+
+test("production and enriched: previously-missed communication_draft phrases now both classify as communication_draft", () => {
+  const phrases = [
+    "redactame un correo para pedir recepción",
+    "ayudame a responder este correo",
+    "preparame una minuta",
+    "haceme un correo de escalamiento",
+    "dame seguimiento formal para el cliente",
+    "armame un mensaje para pedir visto bueno",
+    "cómo le digo al cliente que falta el acta",
+    "preparame correo para solicitar recepción definitiva",
+    "redacta un correo de cierre",
+    "escribime una respuesta cordial",
+    "redactame un status update para el cliente",
+    "preparame un mensaje al cliente sobre la dependencia",
+    "ayudame a escalar el bloqueo",
+    "redactame un correo con la recomendación del playbook",
+    "escribime un correo explicando la recomendación",
+  ];
+  for (const message of phrases) {
+    assert.equal(
+      classifyProductionIntent(message).intent,
+      "communication_draft",
+      `"${message}" should classify as communication_draft (production)`,
+    );
+    assert.equal(
+      classifyEnrichedIntent(baseInput(message)).intent.intentFamily,
+      "communication_draft",
+      `"${message}" should classify as communication_draft (enriched)`,
+    );
+  }
+});
+
+test("regression: closure_billing phrases without a drafting verb still classify as closure_billing, not communication_draft", () => {
+  const expectations = [
+    ["qué falta para facturar", "billing_question"],
+    ["estamos listos para cobrar", "billing_question"],
+    ["qué nos falta para la recepción definitiva", "closure_question"],
+    ["ya puedo cerrar el proyecto", "closure_question"],
+    ["qué bloquea la facturación", "billing_question"],
+    ["falta el acta de recepción", "closure_question"],
+    ["tenemos aceptación final?", "closure_question"],
+    ["está listo el cierre administrativo?", "closure_question"],
+  ];
+  for (const [message, expectedIntent] of expectations) {
+    assert.equal(classifyProductionIntent(message).intent, expectedIntent, `"${message}" should classify as ${expectedIntent}`);
+    assert.equal(
+      classifyEnrichedIntent(baseInput(message)).intent.intentFamily,
+      "closure_billing",
+      `"${message}" enriched family should remain closure_billing`,
+    );
+  }
+});
+
+test("regression: task_action phrases without a drafting verb still classify as task_or_action_request, not communication_draft", () => {
+  const expectations = [
+    ["creá una tarea para Arturo", "task_or_action_request"],
+    ["convertí esto en tarea", "task_or_action_request"],
+    ["asignale seguimiento a Gabriela", "task_or_action_request"],
+    ["actualizá el estado de esta tarea", "task_or_action_request"],
+    ["cerrá esta acción", "task_or_action_request"],
+    ["programá seguimiento para mañana", "task_or_action_request"],
+    ["pasalo a task", "task_or_action_request"],
+    ["creá un action item", "task_or_action_request"],
+  ];
+  for (const [message, expectedIntent] of expectations) {
+    assert.equal(classifyProductionIntent(message).intent, expectedIntent, `"${message}" should classify as ${expectedIntent}`);
+    assert.equal(
+      classifyEnrichedIntent(baseInput(message)).intent.intentFamily,
+      "task_action",
+      `"${message}" enriched family should remain task_action`,
+    );
+  }
+  // Documented pre-existing overlap (Sprint 15R): unaffected by Sprint 16R's new patterns.
+  assert.equal(classifyProductionIntent("marcá esta recomendación como vista").intent, "recommendation_request");
+});
+
+test("regression: governance_audit phrases without a drafting verb still classify as governance_audit", () => {
+  const expectations = [
+    ["por qué recomendaste esto", "audit_question"],
+    ["qué evidencia usaste", "governance_question"],
+    ["mostrame el audit trail", "audit_question"],
+    ["qué regla aplicó", "audit_question"],
+    ["quiero ver la bitácora de auditoría", "audit_question"],
+    ["quién aprobó esto", "audit_question"],
+  ];
+  for (const [message, expectedIntent] of expectations) {
+    assert.equal(classifyProductionIntent(message).intent, expectedIntent, `"${message}" should classify as ${expectedIntent}`);
+    assert.equal(
+      classifyEnrichedIntent(baseInput(message)).intent.intentFamily,
+      "governance_audit",
+      `"${message}" enriched family should remain governance_audit`,
+    );
+  }
+});
+
+test("regression: risk_issue_dependency phrases without a drafting verb still classify as risk_analysis", () => {
+  const phrases = [
+    "qué riesgos hay",
+    "qué issues tenemos abiertos",
+    "qué dependencias nos bloquean",
+    "qué nos está deteniendo",
+    "cuál es el impedimento",
+    "estamos esperando al cliente",
+    "hay algún pendiente de proveedor",
+  ];
+  for (const message of phrases) {
+    assert.equal(classifyProductionIntent(message).intent, "risk_analysis", `"${message}" should classify as risk_analysis`);
+    assert.equal(
+      classifyEnrichedIntent(baseInput(message)).intent.intentFamily,
+      "risk_issue_dependency",
+      `"${message}" enriched family should remain risk_issue_dependency`,
+    );
+  }
+});
+
+test("regression: project_status phrases without a drafting verb still classify as project_status_question", () => {
+  const phrases = ["cómo va el proyecto", "dame estado de HMP", "qué avance tenemos", "estamos atrasados", "salud del proyecto"];
+  for (const message of phrases) {
+    assert.equal(classifyProductionIntent(message).intent, "project_status_question", `"${message}" should classify as project_status_question`);
+    assert.equal(
+      classifyEnrichedIntent(baseInput(message)).intent.intentFamily,
+      "project_status",
+      `"${message}" enriched family should remain project_status`,
+    );
+  }
+});
+
+test("regression: playbook_analysis phrases without a drafting verb still classify as recommendation_request/playbook_analysis", () => {
+  const phrases = ["qué recomienda el playbook", "cuál es la siguiente mejor acción", "analizá esto según el playbook"];
+  for (const message of phrases) {
+    assert.equal(classifyProductionIntent(message).intent, "recommendation_request", `"${message}" should classify as recommendation_request`);
+    assert.equal(
+      classifyEnrichedIntent(baseInput(message)).intent.intentFamily,
+      "playbook_analysis",
+      `"${message}" enriched family should remain playbook_analysis`,
+    );
+  }
+});
+
+test("safety: communication_draft vocabulary calibration never calls the router, composer, handlers, DB, or Supabase, and never sends a real email or creates an external draft", () => {
+  const rulesSource = readFileSync(
+    new URL("../src/lib/playbook-engine/conversation/classifier/intentClassifier.rules.ts", import.meta.url),
+    "utf8",
+  );
+  const patternsSource = readFileSync(
+    new URL("../src/lib/conversational-brain/intent-patterns.ts", import.meta.url),
+    "utf8",
+  );
+  for (const source of [rulesSource, patternsSource]) {
+    assert.doesNotMatch(source, /brainRouter|responseComposer|handlers\//);
+    assert.doesNotMatch(source, /supabase/i);
+    assert.doesNotMatch(source, /\bfetch\(/);
+    assert.doesNotMatch(source, /sendEmail|createTask|executeAction|gmail/i);
+  }
+});
+
+test("golden evaluation: communication_draft reaches its Sprint 16R target of 90%+ without regressing protected categories", () => {
+  const evaluation = runGoldenIntentEvaluation(GOLDEN_INTENT_CASES);
+  const report = summarizeGoldenIntentEvaluation(evaluation);
+  const byCategory = Object.fromEntries(report.byCategory.map((c) => [c.category, c]));
+
+  assert.ok(
+    byCategory.communication_draft.compatibilityRate >= 90,
+    `communication_draft compatibilityRate did not reach the Sprint 16R target of 90%: ${byCategory.communication_draft.compatibilityRate}%`,
+  );
+  assert.equal(
+    byCategory.project_status.compatibilityRate,
+    100,
+    `project_status must remain at 100%: ${byCategory.project_status.compatibilityRate}%`,
+  );
+  assert.equal(
+    byCategory.closure_billing.compatibilityRate,
+    100,
+    `closure_billing must remain at 100%: ${byCategory.closure_billing.compatibilityRate}%`,
+  );
+  assert.equal(
+    byCategory.risk_issue_dependency.compatibilityRate,
+    100,
+    `risk_issue_dependency must remain at 100%: ${byCategory.risk_issue_dependency.compatibilityRate}%`,
+  );
+  assert.equal(
+    byCategory.task_action.compatibilityRate,
+    100,
+    `task_action must remain at 100%: ${byCategory.task_action.compatibilityRate}%`,
+  );
+  assert.ok(
+    byCategory.governance_audit.compatibilityRate >= 90,
+    `governance_audit must remain >= 90%: ${byCategory.governance_audit.compatibilityRate}%`,
+  );
+  assert.ok(
+    byCategory.playbook_analysis.compatibilityRate >= 88.9,
+    `playbook_analysis must remain >= 88.9%: ${byCategory.playbook_analysis.compatibilityRate}%`,
+  );
+});
+
+test("golden evaluation: global compatibilityRate did not regress below the Sprint 15R baseline of 67.6%", () => {
+  const evaluation = runGoldenIntentEvaluation(GOLDEN_INTENT_CASES);
+  assert.ok(
+    evaluation.summary.compatibilityRate >= 67.6,
+    `global compatibilityRate regressed: ${evaluation.summary.compatibilityRate}%`,
+  );
+});
