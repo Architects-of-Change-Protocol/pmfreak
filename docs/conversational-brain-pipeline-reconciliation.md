@@ -1043,3 +1043,154 @@ for next PR" en `docs/conversational-brain-general-pm-advice-boundary.md` para e
 - `npm run lint:aoc-boundaries` — pasó.
 - `npm run typecheck` (`tsc --noEmit`) — mismos errores preexistentes no relacionados a este sprint (paquetes faltantes en este entorno: `react`, `@supabase/*`, `next/*`, `stripe`, `@types/node`); cero errores nuevos en `generalPmAdviceBoundaryReview.ts`, la fixture del boundary corpus, o el nuevo archivo de tests (verificado con `grep` del output de typecheck).
 - `git diff --name-only` — confirma que sólo se agregaron archivos nuevos; ningún archivo de producción, router, composer, handler, classifier de patrones, o adaptador fue modificado.
+
+---
+
+## 18. Sprint 18R — Decision Support + Clarification Architecture Review
+
+> **Estado:** review de arquitectura únicamente. Ver `git log` — este sprint agrega
+> `docs/conversational-brain-decision-support-clarification-architecture.md`,
+> `tests/fixtures/conversational-brain-decision-clarification-cases.ts`,
+> `src/lib/playbook-engine/conversation/classifier/decisionClarificationArchitectureReview.ts`, su
+> test file, y esta sección; no modifica `intentClassifier.rules.ts`, `intent-patterns.ts`,
+> `intentCompatibilityAdapter.ts`, `brainRouter.ts`, `responseComposer.ts`, ningún `handlers/*.ts`, el
+> endpoint, ni activa ningún feature flag. No crea un handler productivo de `decision_support`. No
+> implementa un clarification loop real.
+
+### 18.1 Por qué no se implementó handler ni clarification loop todavía
+
+Sprint 17R (§17) dejó `decision_support` (0%) y `ambiguous_or_unknown` (0%) fuera de calibración de
+vocabulario y recomendó explícitamente un **"Decision Support + Clarification Architecture Review"**
+como siguiente sprint — no un PR de implementación. Ambos huecos son arquitectónicos: `decision_support`
+no tiene intent, ruta ni handler productivo; `needs_clarification` no tiene un loop de clarificación
+real (resuelve directo a `general_pm_advisor`). Construir cualquiera de los dos sin primero medir
+dónde cada uno colisiona con las otras ocho categorías arriesgaba repetir el mismo error que Sprint
+17R evitó para `general_pm_advice`: absorber territorio ajeno silenciosamente, o ser absorbido por él.
+
+### 18.2 Qué se creó
+
+1. **Documento de arquitectura** —
+   `docs/conversational-brain-decision-support-clarification-architecture.md`: definición de
+   `decision_support`, definición de `needs_clarification`, qué NO es cada uno, precedence rules de
+   10 niveles, safe temporary mapping, requisitos de un futuro Decision Support Candidate Handler y
+   de una futura Clarification Response Strategy, y recomendación para Sprint 19R.
+2. **Corpus dedicado** — `tests/fixtures/conversational-brain-decision-clarification-cases.ts`, 79
+   casos con `id`, `input`, `architectureCategory`, `desiredFutureRoute`, `currentSafeMappedIntent`,
+   `targetKind`, `rationale`, `riskLevel`, `requiresNewHandler`, `requiresClarification`,
+   `shouldExecuteAction` (siempre `false`).
+3. **Evaluator puro** —
+   `src/lib/playbook-engine/conversation/classifier/decisionClarificationArchitectureReview.ts`
+   (`runDecisionClarificationArchitectureReview`, `summarizeDecisionClarificationArchitectureReview`,
+   `explainDecisionClarificationArchitecture`), que reutiliza el shadow comparison de Sprint 10R
+   (`runIntentClassifierShadowComparison`) — sin llamar router, composer, handlers, DB, Supabase,
+   Gmail, ni ejecutar ninguna acción real.
+
+### 18.3 Corpus
+
+13 valores de `architectureCategory` (mínimos del sprint entre paréntesis):
+
+| `architectureCategory` | Casos | `currentSafeMappingRate` | `futureRouteAlreadySupportedRate` |
+|---|---|---|---|
+| `decision_support_clear` (≥12) | 12 | 91.7% | 33.3% |
+| `decision_support_vs_playbook` (≥8) | 8 | 75% | 62.5% |
+| `decision_support_vs_general_pm` (≥8) | 8 | 37.5% | 25% |
+| `decision_support_vs_risk` (≥6) | 6 | 16.7% | 0% |
+| `decision_support_vs_closure` (≥6) | 6 | 16.7% | 0% |
+| `decision_support_vs_governance` (≥5) | 5 | 40% | 20% |
+| `clarification_clear` (≥10) | 10 | 90% | 90% |
+| `clarification_vs_general_pm` (≥6) | 6 | 100% | 100% |
+| `clarification_vs_status` / `vs_risk` / `vs_task` / `vs_communication` (≥8 combinados) | 8 (2 c/u) | 25-50% | 25-50% |
+| `existing_route_should_win` (≥10) | 10 | 100% | 100% |
+
+### 18.4 Métricas del evaluator
+
+| Métrica | Valor |
+|---|---|
+| `totalCases` | 79 |
+| `currentSafeMappingRate` | **64.6%** (51/79) |
+| `futureRouteAlreadySupportedRate` | **49.4%** (39/79) |
+| `requiresNewHandlerCount` | 45 |
+| `requiresClarificationCount` | 24 |
+| `shouldExecuteActionCount` | 0 |
+| `unsafeMappings` | 28/79 |
+| `existingRouteRegressions` | 0/10 |
+| `recommendedImplementationOrder` | Decision Support Candidate Handler → Clarification Response Strategy → General PM Advice Calibration → Controlled Shadow Capture Prep |
+| `recommendedNextSprint` | **"Sprint 19R — Decision Support Candidate Handler"** |
+
+`byConflictType` (no-cero): `none` 20, `decision_support_missing_handler` 22,
+`decision_support_collides_with_playbook` 7, `decision_support_collides_with_general_pm` 4,
+`decision_support_collides_with_risk` 5, `decision_support_collides_with_closure` 3,
+`decision_support_collides_with_governance` 4, `clarification_missing_strategy` 12,
+`clarification_collides_with_status` 2.
+
+### 18.5 Principales decision_support gaps
+
+- `decision_support_vs_playbook` es la colisión más marcada: 7/8 casos resuelven hoy a
+  `recommendation_request` en ambos classifiers (el patrón bare `playbook` de producción y las
+  patterns de `playbook_analysis` del enriquecido ganan sobre el framing de decisión).
+- `decision_support_vs_general_pm` es la segunda más marcada (5/8 unsafe): "qué harías en mi lugar" y
+  "qué hago si el cliente no responde, escalo o espero" resuelven a `general_pm_advice` en ambos
+  classifiers — la misma colisión que el corpus de boundary de Sprint 17R ya había señalado (`gpa-02`).
+- `decision_support_vs_risk` y `decision_support_vs_closure` son las dos peores franjas (16.7%
+  `currentSafeMappingRate` cada una) — vocabulario de riesgo/cierre/facturación/evidencia domina el
+  framing de decisión en casi todos los casos. `dc-36` reproduce el mismo solapamiento
+  `governance_audit`/`decision_support` documentado desde `ga-09` (Sprint 11R).
+- `decision_support_clear` sólo alcanza 33.3% de `futureRouteAlreadySupportedRate` — el classifier
+  enriquecido (la única señal disponible, ya que producción no tiene equivalente) no reconoce dos
+  tercios incluso de la frase decision_support más limpia — una brecha real de vocabulario en el
+  enriquecido, independiente del handler productivo faltante.
+
+### 18.6 Principales clarification gaps
+
+- `clarification_clear` y `clarification_vs_general_pm` ya están cerca o en el máximo (90% y 100%
+  respectivamente) — la detección de ambigüedad ya funciona bien para la mayoría de estos casos.
+- `clarification_vs_status` es el único riesgo de regresión viva confirmado: "esto no avanza" y "esto
+  está bloqueado" resuelven hoy con confianza a `project_status_question` (patrones de Sprint
+  12R/14R) en vez de caer a un fallback seguro de clarificación.
+- El resto de las categorías `vs_risk`/`vs_task`/`vs_communication` fallan sobre todo cayendo a
+  `unsupported`/`unknown` en vez del fallback documentado `general_pm_advice` — un hueco más leve
+  (sigue siendo una no-respuesta neutral) pero tampoco el comportamiento objetivo de un clarification
+  loop real.
+
+### 18.7 Recomendación para Sprint 19R
+
+`requiresNewHandlerCount` (45) casi duplica `requiresClarificationCount` (24), y dentro de los dos
+grupos de huecos `decision_support` es el 65.2% del total combinado (45/69) — por encima del umbral
+de dominancia (60%) que usa el evaluator. `decision_support` también tiene el modo de fallo más
+severo: sus mappings inseguros no solo fallan en detectar — casi la mitad de las veces producen una
+respuesta operacional específica y confiadamente equivocada.
+
+**Recomendación: Sprint 19R — Decision Support Candidate Handler**, seguido de una calibración de
+vocabulario de `general_pm_advice` una vez que el handler exista, y luego una Clarification Response
+Strategy. Ver la sección "Recommendation for Sprint 19R" de
+`docs/conversational-brain-decision-support-clarification-architecture.md` para el detalle completo y
+los criterios de entrada/salida.
+
+### 18.8 Protección contra regresiones
+
+- El golden corpus de Sprint 11R-16R no fue tocado. `compatibilityRate` global permanece en **72.5%**
+  y las 7 categorías previamente calibradas quedan exactamente iguales.
+- El boundary review de Sprint 17R no fue tocado: `policyAlignedRate` (74.3%),
+  `currentSystemAcceptableRate` (84.3%), `architectureGapCount` (10), y `clarificationGapCount` (10)
+  quedan exactamente iguales.
+- `intentClassifier.rules.ts`, `intent-patterns.ts`, e `intentCompatibilityAdapter.ts` no fueron
+  modificados (verificado con `git diff --name-only`).
+- El nuevo módulo (`decisionClarificationArchitectureReview.ts`) tiene sus propios tests de "safety"
+  (grep de texto fuente) que verifican que no importa el router, composer, handlers, o los archivos
+  de patrones de clasificación, y que no llama Supabase, `fetch`, envío de emails, Gmail, ni
+  creación/ejecución de tareas.
+
+### 18.9 Verificación ejecutada
+
+- `npx tsx --test tests/playbook-engine-conversation-decision-clarification-architecture.test.mjs` — ok (51/51, nuevo).
+- `npx tsx --test tests/playbook-engine-conversation-general-pm-advice-boundary.test.mjs` — ok (45/45, sin cambios).
+- `npx tsx --test tests/playbook-engine-conversation-intent-golden-evaluation.test.mjs` — ok (21/21).
+- `npx tsx --test tests/playbook-engine-conversation-intent-compatibility.test.mjs` — ok, sin cambios.
+- `npx tsx --test tests/conversational-brain-intent-classifier.test.mjs` — ok, sin cambios.
+- `npx tsx --test tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` — ok, sin cambios.
+- Resto de `playbook-engine/conversation/*` — todos ok, sin cambios de comportamiento.
+- `npm run lint:aoc-boundaries` — pasó.
+- `npm run typecheck` — mismos errores preexistentes no relacionados (paquetes faltantes en este
+  entorno); cero errores nuevos en los archivos de este sprint.
+- `git diff --name-only` — confirma que sólo se agregaron archivos nuevos; ningún archivo de
+  producción, router, composer, handler, classifier de patrones, o adaptador fue modificado.

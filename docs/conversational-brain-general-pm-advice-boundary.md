@@ -205,3 +205,19 @@ claims them — the opposite of this sprint's own precedence rules. The next PR 
 `decision_support` production handler and a clarification-loop strategy; only after those exist
 should a Sprint 19R-style `general_pm_advice` vocabulary calibration follow, re-running this same
 boundary review to confirm the newly-lower-risk categories don't regress.
+
+## Sprint 18R follow-up — Decision Support + Clarification Architecture Review
+
+Sprint 18R answered the "next PR" question above with a dedicated architecture review rather than
+implementation: `docs/conversational-brain-decision-support-clarification-architecture.md` defines
+policy for both `decision_support` and `needs_clarification` (precedence rules against all eight other
+categories, a safe-mapping definition, and future-handler/strategy requirements), backed by a new
+79-case corpus (`tests/fixtures/conversational-brain-decision-clarification-cases.ts`) and a pure
+evaluator (`decisionClarificationArchitectureReview.ts`). This sprint's own corpus, `policyAlignedRate`
+(74.3%), `currentSystemAcceptableRate` (84.3%), `architectureGapCount` (10), and
+`clarificationGapCount` (10) are all unchanged by Sprint 18R — verified by
+`tests/playbook-engine-conversation-decision-clarification-architecture.test.mjs`'s regression-awareness
+section. Sprint 18R's own evaluator recommends **"Sprint 19R — Decision Support Candidate Handler"**
+as the next step, since `decision_support` cases turned out to be both the majority (65.2%) of the
+combined architecture/clarification gap and the more severe failure mode (a wrong, confident
+operational answer roughly half the time, versus clarification's mostly-safe non-answer fallback).
