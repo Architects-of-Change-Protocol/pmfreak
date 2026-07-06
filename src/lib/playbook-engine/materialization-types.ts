@@ -62,7 +62,7 @@ export interface MaterializationDbClient {
   from<T = Record<string, unknown>>(table: string): MaterializationQueryBuilder<T>;
 }
 
-export type MaterializationFailureClass = "validation_failed" | "persistence_failed";
+export type MaterializationFailureClass = "validation_failed" | "persistence_failed" | "not_found" | "governance_violation";
 
 export type MaterializationResult<T> =
   | { ok: true; data: T }
@@ -126,3 +126,24 @@ export type PlaybookGovernanceSnapshotMaterializationViewModel = {
 };
 
 export type MaterializePlaybookGovernanceSnapshotResult = MaterializationResult<PlaybookGovernanceSnapshotMaterializationViewModel>;
+
+/**
+ * Phase 2 — read/query layer types. Distinct from `MaterializationDbClient` above (which is
+ * mutation-oriented: single-row select/insert/update, no ordering, no array results), because
+ * `materialization-query-service.ts` needs to fetch and order multiple rows. Modeled directly on
+ * how `@supabase/supabase-js`'s real `PostgrestFilterBuilder` behaves — chainable, and itself
+ * thenable (awaiting the builder resolves an array), so a real `SupabaseClient` satisfies this
+ * without an adapter. See `src/lib/dashboard/persistent-snapshot-store/supabase-snapshot-store.ts`
+ * for the established precedent of this exact `then`-typed duck-typing pattern in this repo.
+ */
+export interface MaterializationQueryReadBuilder<T> {
+  select(columns: string): MaterializationQueryReadBuilder<T>;
+  eq(column: string, value: unknown): MaterializationQueryReadBuilder<T>;
+  order(column: string, options?: { ascending?: boolean }): MaterializationQueryReadBuilder<T>;
+  maybeSingle(): Promise<{ data: T | null; error: { message: string } | null }>;
+  then: Promise<{ data: T[] | null; error: { message: string } | null }>["then"];
+}
+
+export interface MaterializationQueryReadDbClient {
+  from<T = Record<string, unknown>>(table: string): MaterializationQueryReadBuilder<T>;
+}
