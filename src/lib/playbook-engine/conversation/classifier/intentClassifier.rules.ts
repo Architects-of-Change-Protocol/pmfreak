@@ -184,11 +184,35 @@ export const INTENT_PATTERNS: Record<Exclude<ConversationIntent, "clarification"
   task_or_action_request: [
     { pattern: /crea(?:me)? una tarea/, weight: 45, label: "crea una tarea" },
     { pattern: /crear (?:una )?tarea/, weight: 40, label: "crear tarea" },
-    { pattern: /asigna(?:me)? (?:esto|una tarea)/, weight: 35, label: "asigname una tarea" },
-    { pattern: /programa(?:me)? una reunion/, weight: 35, label: "programa una reunion" },
+    { pattern: /programa(?:me)? (?:una reunion|seguimiento)/, weight: 35, label: "programa una reunion/seguimiento" },
     { pattern: /create a task/, weight: 45, label: "create a task" },
     { pattern: /schedule a meeting/, weight: 35, label: "schedule a meeting" },
     { pattern: /remind me to/, weight: 25, label: "remind me to" },
+    // Sprint 15R calibration — task_action vocabulary the enriched classifier's task_action family
+    // already recognized (intent-patterns.ts) but production had no pattern for at all (golden
+    // corpus mismatches ta-02/04/05/09). Broadened from the old narrow "asigna(me)? (esto|una
+    // tarea)" so "asignale seguimiento a Gabriela" also matches (the enriched classifier's own
+    // bare "asigna(r|me)?" pattern already covered this).
+    { pattern: /asigna(?:le|me|r)?\b/, weight: 35, label: "asigná/asignale/asignar" },
+    { pattern: /convert(?:i|ir)(?:me)? esto en (?:tarea|task|accion|action item)/, weight: 40, label: "convertí/convertir esto en tarea" },
+    { pattern: /pasa(?:lo|rlo)? a (?:tarea|task|accion|action item)/, weight: 40, label: "pasalo/pasarlo a tarea/task" },
+    // "generar accion desde" is deliberately weighted above recommendation_request's bare
+    // "recomendacion" pattern (weight 30) so "generá una acción desde esta recomendación" resolves
+    // to task_or_action_request instead of recommendation_request (golden corpus mismatch ta
+    // vocabulary-calibration list, "conversion" section).
+    { pattern: /genera(?:r)? (?:una )?accion desde/, weight: 40, label: "generar acción desde" },
+    { pattern: /\baction item\b/, weight: 40, label: "action item" },
+    // Status/update vocabulary — each phrase carries its own explicit "tarea"/"accion"/"estado"
+    // word so none collide with recommendation_request's "marcá esta recomendación como vista"
+    // (ta-03, a documented, intentionally-untouched task_action/playbook_analysis overlap).
+    { pattern: /actualiza(?:r)? (?:el )?estado(?: de (?:esta|la|una|dicha) tarea)?/, weight: 35, label: "actualizá/actualizar el estado (de la tarea)" },
+    { pattern: /cambia(?:r)? (?:el )?estado/, weight: 30, label: "cambiá/cambiar el estado" },
+    { pattern: /cerra(?:r)? (?:esta |la )?(?:accion|tarea)/, weight: 40, label: "cerrá/cerrar acción/tarea" },
+    { pattern: /marca(?:r)? (?:esta |la |una )?(?:tarea|accion) como/, weight: 35, label: "marcá/marcar tarea/acción como" },
+    { pattern: /como pendiente/, weight: 35, label: "poner/marcar como pendiente" },
+    // "recordame" (bare reminder verb) is distinct from general_pm_advice's "recomendame" — kept
+    // narrow to the seguimiento/follow-up phrasing so it doesn't broaden into a generic catch-all.
+    { pattern: /recordame (?:hacer )?seguimiento/, weight: 30, label: "recordame (hacer) seguimiento" },
   ],
   unsupported: [
     { pattern: /capital de|capital of/, weight: 60, label: "capital de/of" },

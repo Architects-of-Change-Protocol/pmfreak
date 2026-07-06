@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import { classifyConversationIntent as classifyProductionIntent } from "../src/lib/playbook-engine/conversation/classifier/intentClassifier.ts";
 import { classifyConversationIntent as classifyEnrichedIntent } from "../src/lib/conversational-brain/intent-classifier.ts";
@@ -408,6 +409,148 @@ test("golden evaluation: global compatibilityRate did not regress below the Spri
   const evaluation = runGoldenIntentEvaluation(GOLDEN_INTENT_CASES);
   assert.ok(
     evaluation.summary.compatibilityRate >= 51.0,
+    `global compatibilityRate regressed: ${evaluation.summary.compatibilityRate}%`,
+  );
+});
+
+// ─── Sprint 15R: task_action vocabulary calibration ────────────────────────
+
+test("production: previously-missed task_action phrases now classify as task_or_action_request", () => {
+  const expectations = [
+    ["creá una tarea para Arturo", "task_or_action_request"],
+    ["convertí esto en tarea", "task_or_action_request"],
+    ["asignale seguimiento a Gabriela", "task_or_action_request"],
+    ["actualizá el estado de esta tarea", "task_or_action_request"],
+    ["cerrá esta acción", "task_or_action_request"],
+    ["programá seguimiento para mañana", "task_or_action_request"],
+    ["pasalo a task", "task_or_action_request"],
+    ["creá un action item", "task_or_action_request"],
+    ["poné esto como pendiente", "task_or_action_request"],
+    ["generá una acción desde esta recomendación", "task_or_action_request"],
+    ["marcá esta tarea como completada", "task_or_action_request"],
+  ];
+  for (const [message, expectedIntent] of expectations) {
+    const { intent } = classifyProductionIntent(message);
+    assert.equal(intent, expectedIntent, `"${message}" should classify as ${expectedIntent}`);
+  }
+});
+
+test("enriched: previously-missed task_action phrases now classify as task_action", () => {
+  const phrases = [
+    "convertí esto en tarea",
+    "asignale seguimiento a Gabriela",
+    "actualizá el estado de esta tarea",
+    "cerrá esta acción",
+    "programá seguimiento para mañana",
+    "pasalo a task",
+    "creá un action item",
+    "poné esto como pendiente",
+    "generá una acción desde esta recomendación",
+    "marcá esta tarea como completada",
+  ];
+  for (const message of phrases) {
+    const { intent } = classifyEnrichedIntent(baseInput(message));
+    assert.equal(intent.intentFamily, "task_action", `"${message}" should classify as task_action`);
+  }
+});
+
+test("regression: 'marcá esta recomendación como vista' keeps its documented task_action/playbook_analysis overlap", () => {
+  // Regression guard: the new task_action status/update patterns (marca... tarea/accion como,
+  // actualiza(r)? el estado, etc.) all require an explicit "tarea"/"accion"/"estado" noun and must
+  // not match this bare "recomendación" phrasing — it should keep resolving through
+  // recommendation_request/playbook_analysis exactly as before Sprint 15R.
+  assert.equal(classifyProductionIntent("marcá esta recomendación como vista").intent, "recommendation_request");
+  assert.equal(
+    classifyEnrichedIntent(baseInput("marcá esta recomendación como vista")).intent.intentFamily,
+    "playbook_analysis",
+  );
+});
+
+test("regression: task_action's new 'como pendiente'/'estado' vocabulary does not hijack protected categories", () => {
+  // project_status
+  assert.equal(classifyProductionIntent("cómo va el proyecto").intent, "project_status_question");
+  assert.equal(classifyProductionIntent("dame estado de HMP").intent, "project_status_question");
+  assert.equal(classifyProductionIntent("qué avance tenemos").intent, "project_status_question");
+  // closure_billing
+  assert.equal(classifyProductionIntent("qué falta para facturar").intent, "billing_question");
+  assert.equal(classifyProductionIntent("estamos listos para cobrar").intent, "billing_question");
+  // communication_draft
+  assert.equal(classifyProductionIntent("redactame un correo para pedir recepción").intent, "communication_draft");
+  assert.equal(
+    classifyEnrichedIntent(baseInput("ayudame a responder este correo")).intent.intentFamily,
+    "communication_draft",
+  );
+  assert.equal(classifyEnrichedIntent(baseInput("preparame una minuta")).intent.intentFamily, "communication_draft");
+  // governance_audit
+  assert.equal(classifyProductionIntent("por qué recomendaste esto").intent, "audit_question");
+  assert.equal(classifyProductionIntent("qué evidencia usaste").intent, "governance_question");
+  // risk_issue_dependency
+  assert.equal(classifyProductionIntent("qué riesgos hay").intent, "risk_analysis");
+  assert.equal(classifyProductionIntent("qué dependencias nos bloquean").intent, "risk_analysis");
+  // playbook_analysis
+  assert.equal(classifyProductionIntent("qué recomienda el playbook").intent, "recommendation_request");
+  assert.equal(classifyProductionIntent("cuál es la siguiente mejor acción").intent, "recommendation_request");
+});
+
+test("safety: task_action vocabulary calibration never calls the router, composer, handlers, DB, or Supabase, and never executes/creates a real task", () => {
+  const rulesSource = readFileSync(
+    new URL("../src/lib/playbook-engine/conversation/classifier/intentClassifier.rules.ts", import.meta.url),
+    "utf8",
+  );
+  const patternsSource = readFileSync(
+    new URL("../src/lib/conversational-brain/intent-patterns.ts", import.meta.url),
+    "utf8",
+  );
+  for (const source of [rulesSource, patternsSource]) {
+    assert.doesNotMatch(source, /brainRouter|responseComposer|handlers\//);
+    assert.doesNotMatch(source, /supabase/i);
+    assert.doesNotMatch(source, /\bfetch\(/);
+    assert.doesNotMatch(source, /sendEmail|createTask|executeAction/i);
+  }
+});
+
+test("golden evaluation: task_action reaches its Sprint 15R target of 80%+ without regressing protected categories", () => {
+  const evaluation = runGoldenIntentEvaluation(GOLDEN_INTENT_CASES);
+  const report = summarizeGoldenIntentEvaluation(evaluation);
+  const byCategory = Object.fromEntries(report.byCategory.map((c) => [c.category, c]));
+
+  assert.ok(
+    byCategory.task_action.compatibilityRate >= 80,
+    `task_action compatibilityRate did not reach the Sprint 15R target of 80%: ${byCategory.task_action.compatibilityRate}%`,
+  );
+  assert.equal(
+    byCategory.project_status.compatibilityRate,
+    100,
+    `project_status must remain at 100%: ${byCategory.project_status.compatibilityRate}%`,
+  );
+  assert.equal(
+    byCategory.closure_billing.compatibilityRate,
+    100,
+    `closure_billing must remain at 100%: ${byCategory.closure_billing.compatibilityRate}%`,
+  );
+  assert.equal(
+    byCategory.risk_issue_dependency.compatibilityRate,
+    100,
+    `risk_issue_dependency must remain at 100%: ${byCategory.risk_issue_dependency.compatibilityRate}%`,
+  );
+  assert.ok(
+    byCategory.governance_audit.compatibilityRate >= 90,
+    `governance_audit must remain >= 90%: ${byCategory.governance_audit.compatibilityRate}%`,
+  );
+  assert.ok(
+    byCategory.playbook_analysis.compatibilityRate >= 88.9,
+    `playbook_analysis must remain >= 88.9%: ${byCategory.playbook_analysis.compatibilityRate}%`,
+  );
+  assert.ok(
+    byCategory.communication_draft.compatibilityRate >= 60,
+    `communication_draft must not regress below 60%: ${byCategory.communication_draft.compatibilityRate}%`,
+  );
+});
+
+test("golden evaluation: global compatibilityRate did not regress below the Sprint 14R baseline of 62.7%", () => {
+  const evaluation = runGoldenIntentEvaluation(GOLDEN_INTENT_CASES);
+  assert.ok(
+    evaluation.summary.compatibilityRate >= 62.7,
     `global compatibilityRate regressed: ${evaluation.summary.compatibilityRate}%`,
   );
 });
