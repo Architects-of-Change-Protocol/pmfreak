@@ -100,6 +100,28 @@ export const INTENT_PATTERNS: Record<Exclude<ConversationIntent, "clarification"
     { pattern: /draft (?:an? )?(?:email|message)/, weight: 45, label: "draft an email" },
     { pattern: /write (?:me )?(?:an? )?(?:email|message)/, weight: 40, label: "write an email" },
     { pattern: /follow[- ]up email/, weight: 30, label: "follow-up email" },
+    // Sprint 16R calibration — communication_draft vocabulary the enriched classifier's own
+    // pattern list already recognized (intent-patterns.ts) but production had no pattern for at
+    // all (golden corpus mismatches cd-02/03/04/07). Each phrase below is weighted well above the
+    // closure/billing/risk/playbook bare-word patterns it might otherwise share vocabulary with
+    // ("recepcion", "acta", "dependencia", "recomendacion", etc.), so an explicit drafting request
+    // still wins over a bare topic word — see the vocabulary-calibration regression tests for the
+    // collision guards protecting closure_billing/task_action/governance_audit/
+    // risk_issue_dependency/project_status/playbook_analysis.
+    { pattern: /ayudame a (?:responder|contestar)|necesito (?:responder|contestar)/, weight: 35, label: "ayudame a responder/contestar" },
+    { pattern: /seguimiento formal|dar seguimiento formal/, weight: 35, label: "seguimiento formal" },
+    { pattern: /\bminutas?\b/, weight: 35, label: "minuta(s)" },
+    { pattern: /\bdraft\b/, weight: 30, label: "draft" },
+    { pattern: /\bborrador\b/, weight: 30, label: "borrador" },
+    {
+      pattern: /\b(?:prepara(?:me)?|arma(?:me)?|formula(?:me)?)\b[\s\S]*\b(?:correo|mensaje|minuta|borrador|respuesta|nota)\b/,
+      weight: 40,
+      label: "prepara/arma/formula + correo/mensaje/minuta/borrador/respuesta/nota",
+    },
+    { pattern: /(?:pedir|solicitar) (?:recepcion|visto bueno|aceptacion|conformidad)/, weight: 30, label: "pedir/solicitar recepcion/visto bueno/aceptacion/conformidad" },
+    { pattern: /como le digo|como se lo digo|que le digo|que le respondo|que le contesto/, weight: 35, label: "como le digo/que le respondo/que le contesto" },
+    { pattern: /ayudame a escalar/, weight: 35, label: "ayudame a escalar" },
+    { pattern: /con la recomendacion|recomendacion del playbook|explicando la recomendacion|explicar(?:le)? la recomendacion/, weight: 40, label: "con la recomendacion/explicando la recomendacion" },
   ],
   closure_question: [
     { pattern: /podemos cerrar/, weight: 45, label: "podemos cerrar" },

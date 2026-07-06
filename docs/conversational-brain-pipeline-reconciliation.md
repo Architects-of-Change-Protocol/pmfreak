@@ -753,3 +753,135 @@ Las categorías con mayor brecha ahora son `decision_support` (0%, fuera de alca
 2. `decision_support` y `ambiguous_or_unknown` siguen fuera de alcance de nivelación de vocabulario — requieren decisiones de arquitectura/producto (handler nuevo y distinción `clarification`/`unknown` en el modelo enriquecido, respectivamente).
 3. Con 4 de 10 categorías ya en 100% (`project_status`, `closure_billing`, `risk_issue_dependency`, `task_action`) y 2 más por encima de 85% (`governance_audit` 90%, `playbook_analysis` 88.9%), el `compatibilityRate` global (67.6%) está a solo 2.4 puntos de la banda `needs_adjustment` (≥ 70%). Calibrar `communication_draft` (60% → potencialmente 90%+) es probablemente suficiente para cruzar ese umbral en el próximo sprint.
 4. Sólo cuando el `compatibilityRate` global se acerque de forma sostenida a la banda `staging_candidate` (≥ 85%) tiene sentido retomar el PR 6 de §6 (shadow mode en staging). En 67.6% (post Sprint 15R), sigue en `not_ready`, pero con 4 de 10 categorías ya en 100% y 2 más ≥ 88.9%.
+
+## 16. Sprint 16R — Communication Draft Vocabulary Calibration
+
+> **Estado:** ajuste de vocabulario/patrones únicamente. Este sprint modifica `intentClassifier.rules.ts` (producción) y `intent-patterns.ts` (enriquecido), actualiza los `expected*` de 5 casos (`cd-02, cd-03, cd-04, cd-07, gpa-07`) del golden corpus que cambiaron de comportamiento real, agrega una sección `communication_draft` a `tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs`, y esta sección; no modifica `intentCompatibilityAdapter.ts` (la tabla de mapping ya resolvía `communication_draft` → `communication_draft` 1:1 sin distinción de subtipo, y ningún caso nuevo requería una regla nueva), `brainRouter.ts`, `responseComposer.ts`, ningún `handlers/*.ts`, el endpoint, ni activa ningún feature flag. No se envió ningún correo real, no se creó ningún draft externo, no se llamó a Gmail, no se ejecutó ninguna acción real.
+
+### 16.1 Análisis de `communication_draft` (antes de tocar código)
+
+Sobre el baseline de Sprint 15R (`communication_draft` 60%, 6/10), se corrió la evaluación completa y se examinaron los 10 resultados caso por caso:
+
+| Caso | Frase | Clasificación del mismatch |
+|---|---|---|
+| `cd-01` | "redactame un correo para pedir recepción" | ya compatible — sin cambios |
+| `cd-02` | "ayudame a responder este correo" | production classifier misses vocabulary (sin patrón "ayudame a responder/contestar"; el enriquecido ya lo tenía) |
+| `cd-03` | "dame seguimiento formal para el cliente" | production classifier misses vocabulary (sin patrón "seguimiento formal"; el enriquecido ya lo tenía) |
+| `cd-04` | "preparame una minuta" | production classifier misses vocabulary (sin patrón bare "minuta"; el enriquecido ya lo tenía) |
+| `cd-05` | "haceme un correo de escalamiento" | ya compatible — sin cambios |
+| `cd-06` | "escribime un correo para el cliente" | ya compatible — sin cambios |
+| `cd-07` | "necesito un draft de email para escalar esto" | production classifier misses vocabulary (el patrón existente `draft (?:an? )?(?:email\|message)` no cubre "draft de email"; el enriquecido ya matcheaba vía su bare "email") |
+| `cd-08` | "redactame un correo de cierre para el cliente" | ya compatible — sin cambios |
+| `cd-09` | "ayudame a redactar una minuta de la reunión" | ya compatible — sin cambios |
+| `cd-10` | "preparame el correo de seguimiento para el stakeholder" | ya compatible — sin cambios |
+
+6 de 10 casos ya estaban compatibles. Los 4 restantes (`cd-02/03/04/07`) eran todos production-side-only gaps — vocabulario que el clasificador enriquecido ya reconocía y producción no — resolubles sin tocar el adapter, exactamente el mismo patrón que Sprint 15R resolvió para `task_action`.
+
+Adicionalmente, la instrucción del sprint pedía verificar 15 frases mínimas de prueba (algunas fuera del golden corpus) cubriendo las reglas de colisión A–G (communication_draft debe ganar sobre closure_billing/task_action/governance_audit/risk_issue_dependency/project_status/playbook_analysis cuando hay un verbo explícito de redacción). Al correr esas 15 frases contra el estado post-Sprint 15R se encontraron 6 gaps adicionales fuera del golden corpus:
+
+| Frase | Gap encontrado |
+|---|---|
+| "armame un mensaje para pedir visto bueno" | true product gap en ambos classifiers — ningún patrón de "arma" ni "visto bueno" existía |
+| "cómo le digo al cliente que falta el acta" | producción sin patrón "como le digo" (colisionaba con `closure_question`'s bare "acta"); enriquecido tenía "como le digo" pero bajo `general_pm_advice`, no `communication_draft` |
+| "preparame correo para solicitar recepción definitiva" | producción: `closure_question`'s "recepcion definitiva" (peso 35) superaba a `correo para` (peso 25) — faltaba un verbo de redacción "prepara" con peso suficiente |
+| "preparame un mensaje al cliente sobre la dependencia" | overlap con `risk_issue_dependency` en ambos classifiers — faltaba patrón "prepara/arma/formula + mensaje" |
+| "ayudame a escalar el bloqueo" | overlap con `risk_issue_dependency`'s bare "bloqueo" en el enriquecido; sin patrón en producción |
+| "escribime un correo explicando la recomendación" | producción ya compatible; enriquecido sin patrón "escribeme/escribime" en su lista de `communication_draft` (gap simétrico con producción, que sí lo tenía) — perdía contra `playbook_analysis`'s bare "recomendacion" |
+| "redactame un correo con la recomendación del playbook" | producción: `recommendation_request`'s "recomendacion" (30) + "playbook" (25) = 55 superaba a `redacta` (45) solo — faltaba una señal adicional de "correo + recomendación" |
+
+**Riesgo de colisión evaluado:** se grepeó el corpus completo (102 casos) por cada palabra/frase nueva (`prepara`, `arma`, `formula`, `minuta`, `draft`, `borrador`, `como le digo`, `ayudame a escalar`, `seguimiento formal`, `visto bueno`, `conformidad`, `recomendacion del playbook`, `explicando la recomendacion`) fuera de `communication_draft`. El único caso protegido con superposición literal fue `cb-06` ("preparame el seguimiento para recepción", `closure_billing`, ya documentado en Sprint 13R como una superposición intencional) — contiene "prepara" pero ningún sustantivo de comunicación (correo/mensaje/minuta/borrador/respuesta/nota), así que el nuevo patrón combinado "prepara/arma/formula + sustantivo" no lo alcanza; se verificó explícitamente que `cb-06` permanece en `closure_billing` después del cambio. El único caso del corpus que sí cambió de comportamiento fuera de `communication_draft` fue `gpa-07` (ver §16.2).
+
+### 16.2 Ajustes de patrones aplicados
+
+**Producción — `intentClassifier.rules.ts` (`communication_draft`):**
+
+- `ayudame a (?:responder|contestar)|necesito (?:responder|contestar)` (peso 35).
+- `seguimiento formal|dar seguimiento formal` (peso 35).
+- bare `\bminutas?\b` (peso 35).
+- bare `\bdraft\b` (peso 30) y bare `\bborrador\b` (peso 30).
+- `\b(?:prepara(?:me)?|arma(?:me)?|formula(?:me)?)\b[\s\S]*\b(?:correo|mensaje|minuta|borrador|respuesta|nota)\b` (peso 40) — exige el verbo de redacción **y** un sustantivo de comunicación en el mismo mensaje, para no colisionar con `cb-06`.
+- `(?:pedir|solicitar) (?:recepcion|visto bueno|aceptacion|conformidad)` (peso 30) — amplía el vocabulario de "cierre comunicacional" del sprint.
+- `como le digo|como se lo digo|que le digo|que le respondo|que le contesto` (peso 35).
+- `ayudame a escalar` (peso 35).
+- `con la recomendacion|recomendacion del playbook|explicando la recomendacion|explicar(?:le)? la recomendacion` (peso 40) — supera el combinado `recomendacion`(30) + `playbook`(25) = 55 de `recommendation_request` cuando también hay un verbo de redacción (45+).
+
+**Enriquecido — `intent-patterns.ts` (`communication_draft`):**
+
+- Se agregó `escrib(eme|ime)` (peso 5, `email_draft_request`) — producción ya lo tenía; era un gap simétrico puro.
+- Se agregó el mismo patrón combinado `\b(prepara(me)?|arma(me)?|formula(me)?)\b[\s\S]*\b(correo|mensaje|minuta|borrador|respuesta|nota)\b` (peso 5, `email_draft_request`).
+- Se agregó `ayudame a escalar` (peso 5, `escalation_draft_request`).
+- Se agregó `(como le digo|como se lo digo|que le digo|que le respondo|que le contesto)` (peso 5, `email_draft_request`) — empata con el patrón preexistente "como le digo" de `general_pm_advice` (peso 5); el empate se resuelve a `communication_draft` vía `FAMILY_TIE_BREAK_ORDER` (que lista `communication_draft` pero no `general_pm_advice`).
+- Se amplió `(pedir|solicitar) recepcion` a `(pedir|solicitar) (recepcion|visto bueno|aceptacion|conformidad)` (peso 5, sin cambiar el `intentType`).
+
+**Mapping del adapter (`intentCompatibilityAdapter.ts`):** sin cambios — `communication_draft` ya mapeaba 1:1 a `communication_draft` sin distinción de subtipo; ningún patrón nuevo requería una regla nueva.
+
+**Colisiones evitadas:** ver §16.1. Se verificó explícitamente que:
+- `cb-06` ("preparame el seguimiento para recepción") y el resto de `closure_billing` (`qué falta para facturar`, `estamos listos para cobrar`, `qué nos falta para la recepción definitiva`, `ya puedo cerrar el proyecto`, `qué bloquea la facturación`, `falta el acta de recepción`, `tenemos aceptación final?`, `está listo el cierre administrativo?`) siguen clasificando igual en ambos classifiers.
+- `task_action` (`creá una tarea para Arturo`, `convertí esto en tarea`, `asignale seguimiento a Gabriela`, `actualizá el estado de esta tarea`, `cerrá esta acción`, `programá seguimiento para mañana`, `pasalo a task`, `creá un action item`, y el overlap ya documentado `marcá esta recomendación como vista`) no se ve afectado — ninguna de estas frases contiene un verbo de redacción explícito.
+- `governance_audit` (`por qué recomendaste esto`, `qué evidencia usaste`, `mostrame el audit trail`, `qué regla aplicó`, `quiero ver la bitácora de auditoría`, `quién aprobó esto`) no se ve afectado.
+- `risk_issue_dependency` (`qué riesgos hay`, `qué issues tenemos abiertos`, `qué dependencias nos bloquean`, `qué nos está deteniendo`, `cuál es el impedimento`, `estamos esperando al cliente`, `hay algún pendiente de proveedor`) no se ve afectado.
+- `project_status` (`cómo va el proyecto`, `dame estado de HMP`, `qué avance tenemos`, `estamos atrasados`, `salud del proyecto`) no se ve afectado.
+- `playbook_analysis` (`qué recomienda el playbook`, `cuál es la siguiente mejor acción`, `analizá esto según el playbook`) no se ve afectado.
+- `gpa-07` ("cómo le digo al cliente que hay un retraso") **sí** cambió de comportamiento — de `general_pm_advice`/`unknown` (incompatible) a `communication_draft`/`communication_draft` (compatible) — por diseño explícito del sprint (la regla de colisión A dice que "cómo le digo" debe ganar aunque el contenido hable de "atraso"). Se actualizó el golden corpus con nota "Sprint 16R calibration" documentando el cambio; `general_pm_advice` no bajó (30% → 40%, una mejora incidental) y la categoría se dejó fuera de alcance de calibración activa, como pide el sprint.
+
+### 16.3 Resultado — antes / después
+
+| Métrica | Sprint 15R | Sprint 16R | Δ |
+|---|---|---|---|
+| `compatibilityRate` global | 67.6% (69/102) | **72.5% (74/102)** | **+4.9 puntos** |
+| `communication_draft` | 60% (6/10) | **100% (10/10)** | +40 puntos |
+| `project_status` | 100% (11/11) | **100% (11/11)** | sin cambio (protegido) |
+| `closure_billing` | 100% (12/12) | **100% (12/12)** | sin cambio (protegido) |
+| `risk_issue_dependency` | 100% (10/10) | **100% (10/10)** | sin cambio (protegido) |
+| `task_action` | 100% (10/10) | **100% (10/10)** | sin cambio (protegido) |
+| `governance_audit` | 90% (9/10) | **90% (9/10)** | sin cambio (protegido) |
+| `playbook_analysis` | 88.9% (8/9) | **88.9% (8/9)** | sin cambio (protegido) |
+| `general_pm_advice` | 30% (3/10) | 40% (4/10) | +10 puntos (efecto incidental de `gpa-07`, categoría fuera de alcance) |
+| `thresholdBand` | `not_ready` | **`needs_adjustment`** | cruzó el umbral de 70% |
+
+Desglose completo por categoría después de este sprint:
+
+| Categoría | Casos | Compatibles | compatibilityRate | Cambio vs. Sprint 15R |
+|---|---|---|---|---|
+| project_status | 11 | 11 | **100%** | sin cambio |
+| closure_billing | 12 | 12 | **100%** | sin cambio |
+| risk_issue_dependency | 10 | 10 | **100%** | sin cambio |
+| task_action | 10 | 10 | **100%** | sin cambio |
+| communication_draft | 10 | 10 | **100%** | +40 pts |
+| governance_audit | 10 | 9 | **90%** | sin cambio |
+| playbook_analysis | 9 | 8 | **88.9%** | sin cambio |
+| general_pm_advice | 10 | 4 | 40% | +10 pts (incidental) |
+| decision_support | 10 | 0 | 0% | sin cambio (fuera de alcance) |
+| ambiguous_or_unknown | 10 | 0 | 0% | sin cambio (fuera de alcance) |
+
+`expectedMappedIntentFailCount = 0` — el corpus quedó al día con el código después de actualizar los 5 casos afectados (`cd-02, cd-03, cd-04, cd-07, gpa-07`), cada uno con una nota "Sprint 16R calibration".
+
+### 16.4 `topDifferences` restante
+
+`communication_draft` queda en 100% (0 mismatches) — la quinta categoría, junto con `project_status`, `closure_billing`, `risk_issue_dependency` y `task_action`, en llegar a compatibilidad total.
+
+Las categorías con mayor brecha ahora son `decision_support` (0%, fuera de alcance por diseño), `ambiguous_or_unknown` (0%, fuera de alcance por diseño), y `general_pm_advice` (40%) — la única categoría "real" restante sin nivelar, y la única señalada por instrucción explícita del sprint como fuera de alcance por requerir revisión de diseño (overlap con `playbook_analysis`/`decision_support`), no solo vocabulario.
+
+### 16.5 Protección contra regresiones
+
+- `tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs`: se agregó una sección `communication_draft` que verifica (a) las 15 frases mínimas de prueba del sprint (golden corpus + las reglas de colisión A–G) clasifican como `communication_draft` en ambos classifiers; (b) las frases protegidas de `closure_billing`, `task_action`, `governance_audit`, `risk_issue_dependency`, `project_status` y `playbook_analysis` sin verbo de redacción siguen clasificando exactamente igual en ambos classifiers; (c) un test de "safety" que verifica por `grep` de texto fuente que ninguno de los dos archivos de patrones modificados importa/menciona el router, composer, handlers, Supabase, `fetch`, envío de emails reales, Gmail, o creación/ejecución real de tareas; (d) el piso de `communication_draft` ≥ 90%, junto con los pisos exactos/mínimos de las 6 categorías protegidas; (e) el piso global ≥ 67.6% (baseline Sprint 15R).
+- Los pisos por categoría de Sprint 12R/13R/14R/15R permanecen sin cambios y siguen pasando.
+- Las 180 pruebas de `playbook-engine/conversation/*` + `conversational-brain-intent-classifier` siguen pasando sin cambios de comportamiento fuera de lo documentado (`gpa-07`).
+
+### 16.6 Verificación ejecutada
+
+- `npx tsx --test tests/playbook-engine-conversation-intent-golden-evaluation.test.mjs` — ok (21/21).
+- `npx tsx --test tests/playbook-engine-conversation-intent-compatibility.test.mjs` — ok (21/21).
+- `npx tsx --test tests/conversational-brain-intent-classifier.test.mjs` — ok (32/32).
+- `npx tsx --test tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` (actualizado, +9 tests nuevos, 46 en total) — ok.
+- Resto de tests de `playbook-engine/conversation/*` (classifier, brain-router, response-composer, gateway, context-resolver, demo-scenarios) + `conversational-brain-intent-classifier` — todos ok, sin cambios de comportamiento (180/180 combinados).
+- `npm run lint:aoc-boundaries` — pasó.
+- `npm run typecheck` (`tsc --noEmit`) — mismos errores preexistentes no relacionados (paquetes faltantes en este entorno: `react`, `@supabase/*`, `next/*`, `@types/node`); cero errores nuevos en `intentClassifier.rules.ts`, `intent-patterns.ts`, `intentGoldenEvaluation.ts`, la fixture del golden corpus, o cualquier otro archivo tocado este sprint (verificado con `grep` del output de typecheck sobre los nombres de archivo modificados).
+- Suite completa (`tests/*.test.mjs`, ~7080 tests): mismas 9 fallas preexistentes y no relacionadas (módulos de `agent-execution`/`beta-readiness`/`governance-runtime-hardening`, ya fallando de forma idéntica en el baseline de Sprint 15R sin ningún cambio de este sprint) — verificado comparando el conteo de fallas antes y después de aplicar el diff de este sprint.
+
+### 16.7 Recomendación para el siguiente sprint
+
+1. `general_pm_advice` (40%) es ahora la única categoría "real" restante sin nivelar. Como ya señalado en Sprint 12R/13R/14R/15R (§12.7.3, §14.8, §15.7), probablemente tenga solapes de diseño reales con `playbook_analysis`/`decision_support` (ver `gpa-06`, `gpa-08`, `gpa-09` en el golden corpus) que ameritan revisión de diseño antes de solo agregar patrones — no se recomienda otro sprint de calibración de vocabulario puro sin esa revisión primero.
+2. `decision_support` y `ambiguous_or_unknown` siguen fuera de alcance de nivelación de vocabulario — requieren decisiones de arquitectura/producto (handler nuevo y distinción `clarification`/`unknown` en el modelo enriquecido, respectivamente).
+3. Con 5 de 10 categorías ya en 100% (`project_status`, `closure_billing`, `risk_issue_dependency`, `task_action`, `communication_draft`) y 2 más por encima de 85% (`governance_audit` 90%, `playbook_analysis` 88.9%), el `compatibilityRate` global (72.5%) ya cruzó la banda `needs_adjustment` (≥ 70%). Acercarse a `staging_candidate` (≥ 85%) requeriría resolver `general_pm_advice` y al menos parte de `decision_support`/`ambiguous_or_unknown` — ambos fuera de alcance de una calibración de vocabulario simple.
+4. Sólo cuando el `compatibilityRate` global se acerque de forma sostenida a la banda `staging_candidate` (≥ 85%) tiene sentido retomar el PR 6 de §6 (shadow mode en staging). En 72.5% (post Sprint 16R), la banda es `needs_adjustment`, con 5 de 10 categorías ya en 100% y 2 más ≥ 88.9%.
