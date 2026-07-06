@@ -5,6 +5,7 @@ import type { Agent, ChatMessage, DrawerContent, NeedsYouItem, ProjectListItem }
 import { DEMO_AGENTS, DEMO_CHAT, DEMO_MEMORY, DEMO_NEEDS_YOU, DEMO_REPOSITORY } from "./demo-data";
 import { deriveAgents, deriveNeedsYou, deriveRepository, postOperationalFlow, useOperationalFlow } from "./operational-data";
 import type { DecisionStatus } from "./operational-data";
+import { chatMessagesToConversationTurns, conversationResultToAssistantMessage, postConversationMessage } from "./conversation-data";
 import { ProjectSidebar } from "./project-sidebar";
 import { ProjectTopBar } from "./project-top-bar";
 import { CommandFeed } from "./command-feed";
@@ -150,15 +151,34 @@ export function CommandCenterLayout({
 
   const handleSendMessage = (text: string) => {
     setUserInteracted(true);
-    setMessages((current) => [
-      ...current,
-      { id: nextId("user"), role: "user", content: text },
-      {
-        id: nextId("assistant"),
-        role: "assistant",
-        content: "Thanks — I'm still learning to answer open-ended questions like that. Try one of the suggested prompts below.",
-      },
-    ]);
+    const userMessage: ChatMessage = { id: nextId("user"), role: "user", content: text };
+    let historyForGateway: ChatMessage[] = [];
+    setMessages((current) => {
+      const next = [...current, userMessage];
+      historyForGateway = next;
+      return next;
+    });
+
+    void postConversationMessage({
+      message: text,
+      workspaceId,
+      activeProjectId: selectedProject?.id,
+      activeProjectName: selectedProject?.fullName,
+      conversationHistory: chatMessagesToConversationTurns(historyForGateway),
+    })
+      .then((result) => {
+        setMessages((current) => [...current, conversationResultToAssistantMessage(nextId("assistant"), result)]);
+      })
+      .catch(() => {
+        setMessages((current) => [
+          ...current,
+          {
+            id: nextId("assistant"),
+            role: "assistant",
+            content: "Sorry — I couldn't process that just now. Please try again in a moment.",
+          },
+        ]);
+      });
   };
 
   const handleActionClick = (action: string) => {
