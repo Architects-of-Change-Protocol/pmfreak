@@ -67,6 +67,30 @@ export const INTENT_PATTERNS: Record<Exclude<ConversationIntent, "clarification"
     { pattern: /\briesgos?\b/, weight: 20, label: "riesgo(s)" },
     { pattern: /what risks/, weight: 45, label: "what risks" },
     { pattern: /\brisk(s)?\b/, weight: 20, label: "risk(s)" },
+    // Sprint 14R calibration — risk_issue_dependency vocabulary the enriched classifier's
+    // risk_issue_dependency family already recognized (intent-patterns.ts) but production had no
+    // pattern for at all (golden corpus mismatches rid-02/03/06/07/10). "problemas" is kept
+    // plural-only so it doesn't collide with gpa-08's singular "este problema" (general_pm_advice's
+    // escalation phrasing), which must keep resolving through its own patterns untouched.
+    { pattern: /\bissues?\b/, weight: 20, label: "issue(s)" },
+    { pattern: /\bproblemas\b/, weight: 20, label: "problemas" },
+    { pattern: /dependenc(?:ia|y)(?:s|as)?/, weight: 20, label: "dependencia/dependency" },
+    { pattern: /\bimpedimentos?\b/, weight: 20, label: "impedimento(s)" },
+    { pattern: /\btrabas?\b/, weight: 20, label: "traba(s)" },
+    { pattern: /\bobstaculos?\b/, weight: 20, label: "obstaculo(s)" },
+    // Blocker-phrase vocabulary (rid-04/08 and the Sprint 14R blocker vocabulary list). Each of
+    // these phrases carries its own explicit blocker word ("detiene", "frenando", "trabando",
+    // "bloquea el avance", "impide avanzar") so none of them collide with project_status's separate
+    // "avance tenemos|avance del proyecto" or "atorado|estancado|no avanza" patterns.
+    { pattern: /que nos detiene|que nos esta deteniendo/, weight: 40, label: "que nos detiene/esta deteniendo" },
+    { pattern: /que (?:nos )?esta frenando/, weight: 40, label: "que (nos) esta frenando" },
+    { pattern: /bloquea el avance|impide avanzar/, weight: 35, label: "bloquea el avance/impide avanzar" },
+    { pattern: /esta trabando/, weight: 35, label: "esta trabando" },
+    // Dependency-on-third-party vocabulary (rid-related "esperando al cliente/proveedor" and
+    // "pendiente de tercero/proveedor/cliente" cases) — uses "de" rather than closure_billing's
+    // "pendiente para <cierre/recepcion/aceptacion/facturar/cobrar>" so the two never collide.
+    { pattern: /esperando al (?:cliente|proveedor)/, weight: 35, label: "esperando al cliente/proveedor" },
+    { pattern: /pendiente de (?:tercero|proveedor|cliente)/, weight: 35, label: "pendiente de tercero/proveedor/cliente" },
   ],
   communication_draft: [
     { pattern: /redacta(?:me)?/, weight: 45, label: "redacta(me)" },
@@ -122,6 +146,9 @@ export const INTENT_PATTERNS: Record<Exclude<ConversationIntent, "clarification"
     { pattern: /trazabilidad/, weight: 25, label: "trazabilidad" },
     { pattern: /enough evidence/, weight: 45, label: "enough evidence" },
     { pattern: /\bgovernance\b/, weight: 25, label: "governance" },
+    // Sprint 14R calibration — bare "evidencia" (golden corpus mismatch ga-02), mirroring the
+    // enriched classifier's own bare "evidencia" pattern (intent-patterns.ts).
+    { pattern: /\bevidencia\b/, weight: 20, label: "evidencia" },
   ],
   audit_question: [
     { pattern: /por que (?:recomendaste|sugeriste|dijiste)/, weight: 50, label: "por que recomendaste" },
@@ -129,6 +156,30 @@ export const INTENT_PATTERNS: Record<Exclude<ConversationIntent, "clarification"
     { pattern: /cual fue la razon/, weight: 30, label: "cual fue la razon" },
     { pattern: /why did you (?:recommend|suggest|say)/, weight: 50, label: "why did you recommend" },
     { pattern: /why was (?:this|that)/, weight: 30, label: "why was this/that" },
+    // Sprint 14R calibration — audit-trail and rule/approval-explanation vocabulary the enriched
+    // classifier's governance_audit family already recognized (or was extended to recognize this
+    // sprint, see intent-patterns.ts) but production had no pattern for (golden corpus mismatches
+    // ga-03/04/05, plus the vocabulary-calibration test corpus). Each phrase below carries its own
+    // distinctive audit/governance word, so none collide with recommendation_request's bare
+    // "recomendacion" pattern (weight 30) or playbook_analysis vocabulary.
+    { pattern: /audit trail/, weight: 35, label: "audit trail" },
+    { pattern: /\bbitacora\b/, weight: 30, label: "bitacora" },
+    { pattern: /\bauditoria\b/, weight: 25, label: "auditoria" },
+    { pattern: /historial de (?:cambios|decisiones|recomendaciones)/, weight: 35, label: "historial de cambios/decisiones/recomendaciones" },
+    { pattern: /\bhistorial\b/, weight: 20, label: "historial" },
+    { pattern: /eventos registrados|quien hizo que/, weight: 30, label: "eventos registrados/quien hizo que" },
+    { pattern: /que regla (?:aplico|aplique|uso|utilizaste|utilizo)/, weight: 35, label: "que regla aplico/uso" },
+    { pattern: /quien aprobo/, weight: 30, label: "quien aprobo" },
+    { pattern: /\bjustificacion\b/, weight: 25, label: "justificacion" },
+    // "basado en"/"fundamento"/"criterio" additionally carry a second, more specific pattern that
+    // also fires whenever the phrase explicitly names a recommendation, so the combined score
+    // reliably outweighs recommendation_request's bare "recomendacion" match (weight 30) instead of
+    // just tying it.
+    { pattern: /basado en (?:que|la evidencia|los datos)/, weight: 35, label: "basado en que/la evidencia/los datos" },
+    { pattern: /cual fue el fundamento/, weight: 35, label: "cual fue el fundamento" },
+    { pattern: /fundamento de (?:esa|esta) recomendacion/, weight: 20, label: "fundamento de esa/esta recomendacion" },
+    { pattern: /que criterio (?:usaste|uso|utilizaste)/, weight: 30, label: "que criterio usaste/uso" },
+    { pattern: /hiciste (?:esa|esta) recomendacion/, weight: 20, label: "hiciste esa/esta recomendacion" },
   ],
   task_or_action_request: [
     { pattern: /crea(?:me)? una tarea/, weight: 45, label: "crea una tarea" },

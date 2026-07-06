@@ -89,6 +89,28 @@ export const INTENT_FAMILY_PATTERNS: Record<RealIntentFamily, IntentPatternRule[
     { pattern: /que regla/, weight: 3, label: "qué regla", intentType: "recommendation_explanation" },
     { pattern: /quien aprobo/, weight: 3, label: "quién aprobó", intentType: "audit_trail_request" },
     { pattern: /trazabilidad/, weight: 3, label: "trazabilidad", intentType: "audit_trail_request" },
+    // Sprint 14R calibration — audit-trail and rule/approval-explanation vocabulary production
+    // already recognizes (or was extended to recognize this sprint, see intentClassifier.rules.ts),
+    // closing golden corpus mismatches ga-10 and the vocabulary-calibration test corpus. "aprobaciones
+    // pendientes" and "historial" both use intentType "evidence_request"/"audit_trail_request" so the
+    // adapter maps them the same way production's own pattern already does.
+    { pattern: /aprobaciones? pendientes?/, weight: 5, label: "aprobaciones pendientes", intentType: "evidence_request" },
+    { pattern: /\bbitacora\b/, weight: 3, label: "bitácora", intentType: "audit_trail_request" },
+    { pattern: /registro de auditoria/, weight: 5, label: "registro de auditoría", intentType: "audit_trail_request" },
+    // "historial de decisiones" also matches decision_support's bare "decision(es)" pattern (weight
+    // 5) — the extra bare "historial" match below brings governance_audit's total to 8, so it wins
+    // outright instead of tying (ties for either family fall through to needs_clarification, since
+    // neither is in FAMILY_TIE_BREAK_ORDER).
+    { pattern: /historial de (?:cambios|decisiones|recomendaciones)/, weight: 5, label: "historial de cambios/decisiones/recomendaciones", intentType: "audit_trail_request" },
+    { pattern: /\bhistorial\b/, weight: 3, label: "historial", intentType: "audit_trail_request" },
+    { pattern: /que criterio (?:usaste|uso)/, weight: 5, label: "qué criterio usaste", intentType: "recommendation_explanation" },
+    // "basado en"/"fundamento" each pair a generic pattern with a more specific one that also names
+    // the recommendation explicitly, so a phrase using both sums to 10 and reliably outweighs
+    // playbook_analysis's bare "recomendacion" match (weight 5) instead of tying it.
+    { pattern: /basado en (?:que|la evidencia|los datos)/, weight: 5, label: "basado en qué/la evidencia/los datos", intentType: "recommendation_explanation" },
+    { pattern: /hiciste (?:esa|esta) recomendacion/, weight: 5, label: "hiciste esa/esta recomendación", intentType: "recommendation_explanation" },
+    { pattern: /cual fue el fundamento/, weight: 5, label: "cuál fue el fundamento", intentType: "recommendation_explanation" },
+    { pattern: /fundamento de (?:esa|esta) recomendacion/, weight: 5, label: "fundamento de esa/esta recomendación", intentType: "recommendation_explanation" },
   ],
   risk_issue_dependency: [
     { pattern: /que riesgos hay/, weight: 5, label: "qué riesgos hay", intentType: "risk_check" },
@@ -97,9 +119,20 @@ export const INTENT_FAMILY_PATTERNS: Record<RealIntentFamily, IntentPatternRule[
     { pattern: /(\bissues?\b|\bproblemas?\b)/, weight: 5, label: "issue/problema", intentType: "issue_check" },
     { pattern: /que dependencias bloquean/, weight: 5, label: "qué dependencias bloquean", intentType: "dependency_check" },
     { pattern: /dependenc(ia|y)(s|as)?/, weight: 5, label: "dependencia/dependency", intentType: "dependency_check" },
-    { pattern: /que nos detiene/, weight: 5, label: "qué nos detiene", intentType: "blocker_check" },
+    { pattern: /que nos detiene|que nos esta deteniendo/, weight: 5, label: "qué nos detiene/está deteniendo", intentType: "blocker_check" },
     { pattern: /bloque(o|ado|an|ando)/, weight: 3, label: "bloqueo/bloqueado/bloquean", intentType: "blocker_check" },
-    { pattern: /(impedimento|\btraba\b)/, weight: 3, label: "impedimento/traba", intentType: "blocker_check" },
+    { pattern: /(impedimento|\btraba\b|obstaculo)/, weight: 3, label: "impedimento/traba/obstáculo", intentType: "blocker_check" },
+    // Sprint 14R calibration — blocker-phrase and third-party-dependency vocabulary production
+    // already recognizes (or was extended to recognize this sprint, see intentClassifier.rules.ts),
+    // closing golden corpus mismatch rid-04 and the vocabulary-calibration test corpus. Weight 5 (not
+    // 3) so each of these strictly outscores project_status's bare "avance" match (weight 3) instead
+    // of tying it — a tie between risk_issue_dependency and project_status resolves to
+    // needs_clarification, since risk_issue_dependency is not in FAMILY_TIE_BREAK_ORDER.
+    { pattern: /que (?:nos )?esta frenando/, weight: 5, label: "qué (nos) está frenando", intentType: "blocker_check" },
+    { pattern: /bloquea el avance|impide avanzar/, weight: 5, label: "bloquea el avance/impide avanzar", intentType: "blocker_check" },
+    { pattern: /esta trabando/, weight: 5, label: "está trabando", intentType: "blocker_check" },
+    { pattern: /esperando al (?:cliente|proveedor)/, weight: 5, label: "esperando al cliente/proveedor", intentType: "dependency_check" },
+    { pattern: /pendiente de (?:tercero|proveedor|cliente)/, weight: 5, label: "pendiente de tercero/proveedor/cliente", intentType: "dependency_check" },
   ],
   decision_support: [
     { pattern: /que decision falta/, weight: 5, label: "qué decisión falta", intentType: "decision_needed_check" },

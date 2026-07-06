@@ -1,7 +1,7 @@
-# Golden Intent Evaluation Set — Quick Reference (Sprint 11R, calibrated in Sprint 12R/13R)
+# Golden Intent Evaluation Set — Quick Reference (Sprint 11R, calibrated in Sprint 12R/13R/14R)
 
 > Full context, rationale, and the current baseline numbers live in the Sprint 11R (§11),
-> Sprint 12R (§12), and Sprint 13R (§13) sections of
+> Sprint 12R (§12), Sprint 13R (§13), and Sprint 14R (§14) sections of
 > `docs/conversational-brain-pipeline-reconciliation.md`. This file is a short, standalone
 > quick-reference for running and interpreting the evaluation.
 
@@ -105,12 +105,41 @@ collision-avoidance analysis (in particular why `communication_draft` phrases sh
 closure/billing vocabulary — "correo para pedir recepción", "correo de cierre" — still classify
 correctly).
 
-## Next steps (Sprint 14R candidate work)
+## Sprint 14R — governance/audit and risk/issue/dependency vocabulary calibration result
+
+Sprint 14R adjusted both pattern lists (`intentClassifier.rules.ts` and `intent-patterns.ts`) — no
+adapter, router, composer, handler, endpoint, or feature-flag changes. Result:
+
+| Metric | Before (Sprint 13R) | After (Sprint 14R) |
+|---|---|---|
+| Global `compatibilityRate` | 51% (52/102) | **62.7% (64/102)** — **+11.7 points** |
+| `governance_audit` | 40% (4/10) | **90% (9/10)** |
+| `risk_issue_dependency` | 30% (3/10) | **100% (10/10)** |
+| `thresholdBand` | not_ready | not_ready (still `< 70%`, unchanged band) |
+
+Every protected category (`project_status`, `closure_billing`, `playbook_analysis`,
+`communication_draft`) is bit-for-bit unchanged from Sprint 13R — verified both by the
+`governance_audit`/`risk_issue_dependency` sections added to
+`tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` and by re-running the
+full existing test suites (163 tests).
+
+`qué trazabilidad tiene esta decisión` (ga-09) is the one remaining `governance_audit` miss — a
+documented `governance_audit`/`decision_support` vocabulary overlap dating back to Sprint 11R, not
+resolvable without first giving `decision_support` a production handler (out of scope for this
+sprint, per its own instructions).
+
+See §14 of the reconciliation doc for the full mismatch classification, pattern changes, and
+collision-avoidance analysis (in particular why the new "explicit blocker" vocabulary for
+`risk_issue_dependency` — "está frenando", "está trabando", "bloquea el avance" — doesn't hijack
+`project_status`'s own "atorado/estancado/no avanza"/"avance" vocabulary).
+
+## Next steps (Sprint 15R candidate work)
 
 Use `report.byCategory` and `report.topDifferences` to prioritize which classifier's pattern list
 (`intentClassifier.rules.ts` for production, `intent-patterns.ts` for the enriched classifier) or
 which row of the adapter's mapping table (`intentCompatibilityAdapter.ts`) needs adjustment next.
-`governance_audit` (40%), `risk_issue_dependency` (30%), and `general_pm_advice` (30%) are now the
-largest remaining gaps below the 85% staging threshold — `general_pm_advice` likely also needs a
-design review for overlap with `playbook_analysis`/`decision_support`, not just vocabulary. See
-§13.7 of the reconciliation doc for the full criteria before proposing any router/handler change.
+`general_pm_advice` (30%) is now the largest remaining vocabulary-calibration candidate — it likely
+also needs a design review for overlap with `playbook_analysis`/`decision_support`, not just
+vocabulary. `task_action` (50%) has not been targeted by any calibration sprint yet and looks like a
+lower-risk candidate (several of its mismatches are simple production-side vocabulary gaps). See
+§14.8 of the reconciliation doc for the full criteria before proposing any router/handler change.

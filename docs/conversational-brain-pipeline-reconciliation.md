@@ -521,4 +521,123 @@ Desglose completo por categoría después de este sprint:
 1. `governance_audit` (40%), `risk_issue_dependency` (30%) y `general_pm_advice` (30%) siguen siendo los candidatos de mayor volumen con el mismo patrón de causa raíz (vocabulario asimétrico bidireccional) — aplican la misma técnica usada en Sprint 12R/13R.
 2. `general_pm_advice` probablemente tenga, además de vocabulario faltante, solapes de diseño reales con `playbook_analysis`/`decision_support` (ver `gpa-02`, `gpa-08` en el corpus) — revisar eso antes de solo agregar patrones, igual que se señaló en Sprint 12R (§12.7.3).
 3. `decision_support` y `ambiguous_or_unknown` siguen fuera de alcance de nivelación de vocabulario — requieren decisiones de arquitectura/producto (handler nuevo y distinción `clarification`/`unknown` en el modelo enriquecido, respectivamente).
+
+## 14. Sprint 14R — Governance/Audit & Risk/Issue/Dependency Vocabulary Calibration
+
+> **Estado:** ajuste de vocabulario/patrones únicamente. Este sprint modifica `intentClassifier.rules.ts` (producción) y `intent-patterns.ts` (enriquecido), actualiza los `expected*` de 12 casos (`governance_audit` ×5, `risk_issue_dependency` ×7) del golden corpus que cambiaron de comportamiento real, agrega secciones `governance_audit` y `risk_issue_dependency` a `tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs`, y esta sección; no modifica `intentCompatibilityAdapter.ts` (la tabla de mapping ya cubría todos los subtipos necesarios), `brainRouter.ts`, `responseComposer.ts`, ningún `handlers/*.ts`, el endpoint, ni activa ningún feature flag.
+
+### 14.1 Análisis de `governance_audit` (antes de tocar código)
+
+Sobre el baseline de Sprint 13R (`governance_audit` 40%, 4/10), se corrió la evaluación completa y se examinaron los 10 resultados caso por caso:
+
+| Caso | Frase | Clasificación del mismatch |
+|---|---|---|
+| `ga-02` | "qué evidencia usaste" | production classifier misses vocabulary (sin patrón bare "evidencia"; el enriquecido ya lo tenía) |
+| `ga-03` | "mostrame el audit trail" | production classifier misses vocabulary (sin patrón "audit trail"; el enriquecido ya matcheaba vía "audit" bare) |
+| `ga-04` | "qué regla aplicó" | production classifier misses vocabulary (el enriquecido ya mapea "que regla" → `recommendation_explanation` → `audit_question` vía el adapter existente) |
+| `ga-05` | "quién aprobó esto" | production classifier misses vocabulary (el enriquecido ya tenía "quien aprobo" → `audit_trail_request` → `audit_question`) |
+| `ga-09` | "qué trazabilidad tiene esta decisión" | **golden expectation questionable / audit vs. decision_support overlap** — ya documentado desde Sprint 11R: "decisión" pesa más que "trazabilidad" en el enriquecido y cae en `decision_support`, familia sin equivalente productivo. Fuera de alcance (requiere decisión de arquitectura sobre `decision_support`, explícitamente no tocar este sprint). |
+| `ga-10` | "hay aprobaciones pendientes" | enriched classifier misses vocabulary (producción ya tenía "aprobaciones? pendientes?"; el enriquecido no tenía ningún patrón y caía a `needs_clarification`) |
+
+Solo `ga-09` queda fuera de alcance por diseño; los otros 5 casos eran vocabulario asimétrico resoluble sin tocar el adapter ni ninguna ruta.
+
+**Riesgo de colisión evaluado:** se grepeó el corpus completo (102 casos) por las palabras nuevas (`evidencia`, `auditoria`, `bitacora`, `historial`, `criterio`, `fundamento`, `basado en`, `regla`, `aprobo`, `justificacion`) fuera de `governance_audit`: cero coincidencias, salvo `ga-04`/`ga-05` (el propio caso a arreglar). El caso más delicado fue el vocabulario de "explicación de una recomendación" (`basado en qué...`, `cuál fue el fundamento...`), que comparte la palabra "recomendación" con el patrón bare de `playbook_analysis`/`recommendation_request` — ver §14.2 para cómo se evitó el empate.
+
+### 14.2 Análisis de `risk_issue_dependency` (antes de tocar código)
+
+Sobre el baseline de Sprint 13R (`risk_issue_dependency` 30%, 3/10):
+
+| Caso | Frase | Clasificación del mismatch |
+|---|---|---|
+| `rid-02` | "qué issues tenemos abiertos" | production classifier misses vocabulary (el enriquecido ya tenía `issues?|problemas?` bare) |
+| `rid-03` | "qué dependencias nos bloquean" | production classifier misses vocabulary (el enriquecido ya tenía `dependenc(ia\|y)(s\|as)?` bare) |
+| `rid-04` | "qué nos está deteniendo" | **true product gap en ambos classifiers** — el patrón existente del enriquecido "que nos detiene" no cubría el gerundio "está deteniendo" |
+| `rid-06` | "hay algún impedimento activo" | production classifier misses vocabulary (el enriquecido ya tenía "impedimento" bare) |
+| `rid-07` | "qué problemas tenemos pendientes" | production classifier misses vocabulary (mismo patrón que rid-02, con "problemas") |
+| `rid-08` | "qué está trabando el avance" | **overlap real con `project_status`** — "avance" bare (peso 3 en el enriquecido) ganaba porque ningún classifier tenía un patrón para "trabando" |
+| `rid-10` | "qué dependencias externas tenemos" | production classifier misses vocabulary (mismo patrón que rid-03) |
+
+En 5 de 7 casos (`rid-02/03/06/07/10`) el enriquecido ya clasificaba y mapeaba correctamente — el único lado con vocabulario faltante era producción, igual que en Sprint 13R. Los dos restantes (`rid-04`, `rid-08`) eran gaps genuinos/colisiones en ambos lados.
+
+**Regla de colisión aplicada (protección de `project_status`):** `project_status` ya posee vocabulario de "bloqueo genérico" (`atorado|estancado|no avanza`, `avance tenemos|avance del proyecto`, bare `avance`) que **no se tocó**. Los nuevos patrones de `risk_issue_dependency` para frases de "bloqueador explícito" (`está frenando`, `está trabando`, `bloquea el avance`, `impide avanzar`, `qué nos detiene/está deteniendo`) usan palabras propias que no aparecen en ningún patrón de `project_status`, y en el classifier enriquecido se les asignó peso 5 (no 3) para que superen estrictamente el bare `avance` (peso 3) sin empatar — un empate entre `risk_issue_dependency` y `project_status` cae a `needs_clarification`, porque `risk_issue_dependency` no está en `FAMILY_TIE_BREAK_ORDER`. Verificado con test de regresión explícito (§14.5) que `el proyecto está estancado` y `qué tan atrasados estamos con el cronograma` (vocabulario ya propio de `project_status`) no se ven afectados.
+
+También se restringió el nuevo patrón bare de producción `problemas` a plural únicamente, para no colisionar con `gpa-08` ("cómo escalo este problema", `general_pm_advice`, singular) — verificado con test de regresión explícito.
+
+### 14.3 Ajustes de patrones aplicados
+
+**Producción — `intentClassifier.rules.ts`:**
+
+- `risk_analysis`: se agregaron `\bissues?\b`, `\bproblemas\b` (solo plural), `dependenc(?:ia|y)(?:s|as)?`, `\bimpedimentos?\b`, `\btrabas?\b`, `\bobstaculos?\b` (todas peso 20, bare), más las frases de bloqueador explícito `que nos detiene|que nos esta deteniendo`, `que (?:nos )?esta frenando`, `bloquea el avance|impide avanzar`, `esta trabando` (peso 35-40), y las de dependencia de terceros `esperando al (?:cliente|proveedor)`, `pendiente de (?:tercero|proveedor|cliente)` (peso 35).
+- `governance_question`: se agregó bare `\bevidencia\b` (peso 20).
+- `audit_question`: se agregaron `audit trail`, `\bbitacora\b`, `\bauditoria\b`, `historial de (?:cambios|decisiones|recomendaciones)`, `\bhistorial\b`, `eventos registrados|quien hizo que`, `que regla (?:aplico|aplique|uso|utilizaste|utilizo)`, `quien aprobo`, `\bjustificacion\b`, y el par `basado en (?:que|la evidencia|los datos)` + `hiciste (?:esa|esta) recomendacion` / `cual fue el fundamento` + `fundamento de (?:esa|esta) recomendacion` — diseñados en pares para que la suma de ambos (35+20=55) supere con margen el peso del patrón bare "recomendacion" de `recommendation_request` (30), en vez de solo empatarlo.
+
+**Enriquecido — `intent-patterns.ts`:**
+
+- `risk_issue_dependency`: se amplió `que nos detiene` a `que nos detiene|que nos esta deteniendo`; se agregó `obstaculo` a la alternativa de `impedimento|traba`; se agregaron `que (?:nos )?esta frenando`, `bloquea el avance|impide avanzar`, `esta trabando`, `esperando al (?:cliente|proveedor)`, `pendiente de (?:tercero|proveedor|cliente)` — todas a peso 5 (no 3) para superar sin empate el bare `avance` de `project_status` (peso 3).
+- `governance_audit`: se agregaron `aprobaciones? pendientes?` (intentType `evidence_request`, igual que el patrón ya existente de producción), `\bbitacora\b`, `registro de auditoria`, el par `historial de (?:cambios|decisiones|recomendaciones)` + bare `\bhistorial\b` (suma 8, supera el empate de 5 con el bare `decision(es)` de `decision_support` en "historial de decisiones"), `que criterio (?:usaste|uso)`, y el par `basado en (?:que|...)` + `hiciste (?:esa|esta) recomendacion` / `cual fue el fundamento` + `fundamento de (?:esa|esta) recomendacion` (suma 10, supera sin empate el bare "recomendacion" de `playbook_analysis`, peso 5).
+
+**Mapping del adapter (`intentCompatibilityAdapter.ts`):** sin cambios — la tabla ya resolvía `evidence_request`→`governance_question` y `audit_trail_request`/`recommendation_explanation`/`why_recommended_request`→`audit_question` correctamente; todos los patrones nuevos se asignaron al `intentType` que produce el resultado deseado sin tocar el adapter.
+
+**Colisiones evitadas:** ver §14.1/§14.2. Se verificó con `grep` sobre el corpus completo que ninguna palabra nueva aparece fuera de su categoría objetivo, salvo los dos casos de diseño intencional descritos arriba (empate `historial de decisiones` vs. `decision_support`, resuelto por margen de score; y singular/plural `problema(s)` entre `risk_issue_dependency`/`general_pm_advice`, resuelto por restricción léxica).
+
+### 14.4 Resultado — antes / después
+
+| Métrica | Sprint 13R | Sprint 14R | Δ |
+|---|---|---|---|
+| `compatibilityRate` global | 51% (52/102) | **62.7% (64/102)** | **+11.7 puntos** |
+| `governance_audit` | 40% (4/10) | **90% (9/10)** | +50 puntos |
+| `risk_issue_dependency` | 30% (3/10) | **100% (10/10)** | +70 puntos |
+| `project_status` | 100% (11/11) | **100% (11/11)** | sin cambio (protegido) |
+| `closure_billing` | 100% (12/12) | **100% (12/12)** | sin cambio (protegido) |
+| `playbook_analysis` | 88.9% (8/9) | **88.9% (8/9)** | sin cambio (protegido) |
+| `communication_draft` | 60% (6/10) | **60% (6/10)** | sin cambio (protegido) |
+| `thresholdBand` | `not_ready` | `not_ready` | sin cambio de banda (sigue por debajo de 70%) |
+
+Desglose completo por categoría después de este sprint:
+
+| Categoría | Casos | Compatibles | compatibilityRate | Cambio vs. Sprint 13R |
+|---|---|---|---|---|
+| project_status | 11 | 11 | **100%** | sin cambio |
+| closure_billing | 12 | 12 | **100%** | sin cambio |
+| risk_issue_dependency | 10 | 10 | **100%** | +70 pts |
+| governance_audit | 10 | 9 | **90%** | +50 pts |
+| playbook_analysis | 9 | 8 | **88.9%** | sin cambio |
+| communication_draft | 10 | 6 | 60% | sin cambio |
+| task_action | 10 | 5 | 50% | sin cambio |
+| general_pm_advice | 10 | 3 | 30% | sin cambio |
+| decision_support | 10 | 0 | 0% | sin cambio (fuera de alcance) |
+| ambiguous_or_unknown | 10 | 0 | 0% | sin cambio (fuera de alcance) |
+
+`expectedMappedIntentFailCount = 0` — el corpus quedó al día con el código después de actualizar los 12 casos afectados (`ga-02,03,04,05,10`, `rid-02,03,04,06,07,08,10`), cada uno con una nota "Sprint 14R calibration".
+
+### 14.5 `topDifferences` restante
+
+`risk_issue_dependency` queda en 100% (0 mismatches). `governance_audit` queda en 90%, con un único mismatch restante:
+
+- `ga-09` ("qué trazabilidad tiene esta decisión") — overlap documentado `governance_audit`/`decision_support` desde Sprint 11R, no resoluble por vocabulario (requiere que `decision_support` tenga primero una decisión de arquitectura/handler productivo).
+
+Las categorías con mayor brecha ahora son `decision_support` (0%, fuera de alcance por diseño), `ambiguous_or_unknown` (0%, fuera de alcance por diseño), y `general_pm_advice` (30%) — el mismo candidato ya señalado por la recomendación de Sprint 12R/13R, sin cambios este sprint por estar fuera de su alcance explícito.
+
+### 14.6 Protección contra regresiones
+
+- `tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs`: se agregaron secciones `governance_audit` y `risk_issue_dependency` que verifican (a) las 10 frases de gobernanza/auditoría antes fallidas ahora clasifican como `governance_question`/`audit_question` en producción y como `governance_audit` en el enriquecido; (b) las 10 frases de riesgo/issue/dependencia antes fallidas ahora clasifican como `risk_analysis`/`risk_issue_dependency` en ambos; (c) el empate `historial de decisiones` vs. `decision_support` se resuelve a `governance_audit`; (d) las frases de bloqueo ya propias de `project_status` (`atorado|estancado|no avanza`, `atrasados con el cronograma`) no se ven afectadas por el nuevo vocabulario de bloqueador de `risk_issue_dependency`; (e) el singular "este problema" de `general_pm_advice` no se ve afectado por el patrón plural-only de `risk_issue_dependency`; (f) pisos de `governance_audit` ≥ 70% y `risk_issue_dependency` ≥ 70%, junto con los pisos exactos de `project_status` (100%), `closure_billing` (100%), `playbook_analysis` (≥ 88.9%) y `communication_draft` (≥ 60%); (g) las frases protegidas de Sprint 12R/13R (`project_status`, `communication_draft`, `closure_billing`, `playbook_analysis`) siguen clasificando igual.
+- Los pisos por categoría de Sprint 12R/13R permanecen sin cambios y siguen pasando.
+- Las 163 pruebas de `playbook-engine/conversation/*` + `conversational-brain-intent-classifier` siguen pasando sin cambios de comportamiento fuera de lo documentado.
+
+### 14.7 Verificación ejecutada
+
+- `npx tsx --test tests/playbook-engine-conversation-intent-golden-evaluation.test.mjs` — ok.
+- `npx tsx --test tests/playbook-engine-conversation-intent-compatibility.test.mjs` — ok.
+- `npx tsx --test tests/conversational-brain-intent-classifier.test.mjs` — ok.
+- `npx tsx --test tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` (actualizado, +10 tests nuevos, 103 en total) — ok.
+- `npx tsx --test tests/playbook-engine-conversation-intent-classifier.test.mjs` — ok.
+- Resto de tests de `playbook-engine/conversation/*` (brain-router, response-composer, gateway, context-resolver, demo-scenarios) + `conversational-brain-intent-classifier` — 163/163 ok en conjunto.
+- `npm run lint:aoc-boundaries` — pasó.
+- `npm run typecheck` — mismos errores preexistentes no relacionados (paquetes faltantes en este entorno: `react`, `@supabase/*`, `next/*`, `@types/node`; conteo de líneas de error idéntico antes/después del cambio, verificado con `git stash`); cero errores nuevos en `intentClassifier.rules.ts`, `intent-patterns.ts`, o cualquier otro archivo tocado este sprint (verificado con `grep` del output de typecheck sobre los nombres de archivo modificados).
+
+### 14.8 Recomendación para el siguiente sprint
+
+1. `general_pm_advice` (30%) es ahora el único candidato de vocabulario asimétrico restante fuera de `task_action` — pero, como ya señalado en Sprint 12R/13R (§12.7.3), probablemente tenga solapes de diseño reales con `playbook_analysis`/`decision_support` (ver `gpa-02`, `gpa-08`) que ameritan revisión de diseño antes de solo agregar patrones.
+2. `task_action` (50%) no ha sido priorizado en ningún sprint de calibración hasta ahora — buen candidato de bajo riesgo para la misma técnica bidireccional (varios de sus casos incompatibles, como `ta-02`/`ta-04`/`ta-05`/`ta-09`, muestran production con `unknown` mientras el enriquecido ya clasifica correctamente).
+3. `decision_support` y `ambiguous_or_unknown` siguen fuera de alcance de nivelación de vocabulario — requieren decisiones de arquitectura/producto (handler nuevo y distinción `clarification`/`unknown` en el modelo enriquecido, respectivamente). `ga-09` es evidencia adicional de que `decision_support` necesita resolverse antes de que `governance_audit` pueda superar ~90-95%.
 4. Sólo cuando el `compatibilityRate` global se acerque de forma sostenida a la banda `staging_candidate` (≥ 85%) tiene sentido retomar el PR 6 de §6 (shadow mode en staging). En 51% (post Sprint 13R), sigue en `not_ready`, pero con 3 de 10 categorías ya en 100%/≥88.9%.

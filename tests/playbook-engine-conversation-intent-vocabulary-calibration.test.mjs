@@ -244,3 +244,195 @@ test("golden evaluation: closure_billing meets its Sprint 13R floor of 70% witho
     `communication_draft must not regress below 60%: ${byCategory.communication_draft.compatibilityRate}%`,
   );
 });
+
+// ─── Sprint 14R: governance_audit vocabulary calibration ───────────────────────
+
+test("production: previously-missed governance_audit phrases now classify as governance_question/audit_question", () => {
+  const expectations = [
+    ["qué evidencia usaste", "governance_question"],
+    ["qué regla aplicó", "audit_question"],
+    ["mostrame el audit trail", "audit_question"],
+    ["quiero ver la bitácora de auditoría", "audit_question"],
+    ["quién aprobó esto", "audit_question"],
+    ["explicame la justificación", "audit_question"],
+    ["basado en qué hiciste esa recomendación", "audit_question"],
+    ["cuál fue el fundamento de esa recomendación", "audit_question"],
+    ["mostrame el historial de decisiones", "audit_question"],
+  ];
+  for (const [message, expectedIntent] of expectations) {
+    const { intent } = classifyProductionIntent(message);
+    assert.equal(intent, expectedIntent, `"${message}" should classify as ${expectedIntent}`);
+  }
+});
+
+test("enriched: previously-missed governance_audit phrases now classify as governance_audit", () => {
+  const phrases = [
+    "quiero ver la bitácora de auditoría",
+    "hay aprobaciones pendientes",
+    "mostrame el historial de decisiones",
+    "basado en qué hiciste esa recomendación",
+    "cuál fue el fundamento de esa recomendación",
+  ];
+  for (const message of phrases) {
+    const { intent } = classifyEnrichedIntent(baseInput(message));
+    assert.equal(intent.intentFamily, "governance_audit", `"${message}" should classify as governance_audit`);
+  }
+});
+
+test("enriched: 'historial de decisiones' does not lose the tie against decision_support's bare 'decision(es)' match", () => {
+  // Regression guard: "decisiones" alone matches decision_support's bare pattern (weight 5), tying
+  // governance_audit's "historial de decisiones" pattern (weight 5) unless the extra bare
+  // "historial" match (weight 3) pushes governance_audit's total to 8. A tie here would fall
+  // through to needs_clarification, since neither family is in FAMILY_TIE_BREAK_ORDER.
+  const { intent } = classifyEnrichedIntent(baseInput("mostrame el historial de decisiones"));
+  assert.equal(intent.intentFamily, "governance_audit");
+  assert.notEqual(intent.intentFamily, "decision_support");
+});
+
+test("golden evaluation: governance_audit meets its Sprint 14R floor of 70% without regressing protected categories", () => {
+  const evaluation = runGoldenIntentEvaluation(GOLDEN_INTENT_CASES);
+  const report = summarizeGoldenIntentEvaluation(evaluation);
+  const byCategory = Object.fromEntries(report.byCategory.map((c) => [c.category, c]));
+
+  assert.ok(
+    byCategory.governance_audit.compatibilityRate >= 70,
+    `governance_audit compatibilityRate did not reach the Sprint 14R floor of 70%: ${byCategory.governance_audit.compatibilityRate}%`,
+  );
+  assert.equal(
+    byCategory.project_status.compatibilityRate,
+    100,
+    `project_status must remain at 100%: ${byCategory.project_status.compatibilityRate}%`,
+  );
+  assert.equal(
+    byCategory.closure_billing.compatibilityRate,
+    100,
+    `closure_billing must remain at 100%: ${byCategory.closure_billing.compatibilityRate}%`,
+  );
+  assert.ok(
+    byCategory.playbook_analysis.compatibilityRate >= 88.9,
+    `playbook_analysis must remain >= 88.9%: ${byCategory.playbook_analysis.compatibilityRate}%`,
+  );
+  assert.ok(
+    byCategory.communication_draft.compatibilityRate >= 60,
+    `communication_draft must not regress below 60%: ${byCategory.communication_draft.compatibilityRate}%`,
+  );
+});
+
+// ─── Sprint 14R: risk_issue_dependency vocabulary calibration ──────────────────
+
+test("production: previously-missed risk_issue_dependency phrases now classify as risk_analysis", () => {
+  const phrases = [
+    "qué riesgos hay",
+    "qué issues tenemos abiertos",
+    "qué dependencias nos bloquean",
+    "qué nos está deteniendo",
+    "cuál es el impedimento",
+    "estamos esperando al cliente",
+    "hay algún pendiente de proveedor",
+    "qué está frenando el avance",
+    "qué obstáculo tenemos",
+    "qué está trabando el proyecto",
+  ];
+  for (const message of phrases) {
+    const { intent } = classifyProductionIntent(message);
+    assert.equal(intent, "risk_analysis", `"${message}" should classify as risk_analysis`);
+  }
+});
+
+test("enriched: previously-missed risk_issue_dependency phrases now classify as risk_issue_dependency", () => {
+  const phrases = [
+    "qué issues tenemos abiertos",
+    "qué dependencias nos bloquean",
+    "qué nos está deteniendo",
+    "cuál es el impedimento",
+    "estamos esperando al cliente",
+    "hay algún pendiente de proveedor",
+    "qué está frenando el avance",
+    "qué obstáculo tenemos",
+    "qué está trabando el proyecto",
+  ];
+  for (const message of phrases) {
+    const { intent } = classifyEnrichedIntent(baseInput(message));
+    assert.equal(intent.intentFamily, "risk_issue_dependency", `"${message}" should classify as risk_issue_dependency`);
+  }
+});
+
+test("regression: blocker-phrase risk_issue_dependency patterns do not hijack project_status's own blocker vocabulary", () => {
+  // Regression guard: "no avanza"/"atorado"/"estancado" stay project_status-only — Sprint 14R's new
+  // risk_issue_dependency blocker patterns ("frenando", "trabando", "detiene", "bloquea el avance",
+  // "impide avanzar") are distinct word forms and must not match these phrases.
+  const phrases = ["el proyecto está estancado", "qué tan atrasados estamos con el cronograma"];
+  for (const message of phrases) {
+    assert.equal(classifyProductionIntent(message).intent, "project_status_question");
+    assert.equal(classifyEnrichedIntent(baseInput(message)).intent.intentFamily, "project_status");
+  }
+});
+
+test("regression: general_pm_advice's singular 'problema' escalation phrasing is unaffected by risk_issue_dependency's plural-only 'problemas' pattern", () => {
+  // Regression guard for the plural-only restriction: production has no pattern matching singular
+  // "problema", so this phrase must not flip to risk_analysis.
+  const { intent } = classifyProductionIntent("cómo escalo este problema");
+  assert.notEqual(intent, "risk_analysis");
+});
+
+test("golden evaluation: risk_issue_dependency meets its Sprint 14R floor of 70% without regressing protected categories", () => {
+  const evaluation = runGoldenIntentEvaluation(GOLDEN_INTENT_CASES);
+  const report = summarizeGoldenIntentEvaluation(evaluation);
+  const byCategory = Object.fromEntries(report.byCategory.map((c) => [c.category, c]));
+
+  assert.ok(
+    byCategory.risk_issue_dependency.compatibilityRate >= 70,
+    `risk_issue_dependency compatibilityRate did not reach the Sprint 14R floor of 70%: ${byCategory.risk_issue_dependency.compatibilityRate}%`,
+  );
+  assert.equal(
+    byCategory.project_status.compatibilityRate,
+    100,
+    `project_status must remain at 100%: ${byCategory.project_status.compatibilityRate}%`,
+  );
+  assert.equal(
+    byCategory.closure_billing.compatibilityRate,
+    100,
+    `closure_billing must remain at 100%: ${byCategory.closure_billing.compatibilityRate}%`,
+  );
+  assert.ok(
+    byCategory.playbook_analysis.compatibilityRate >= 88.9,
+    `playbook_analysis must remain >= 88.9%: ${byCategory.playbook_analysis.compatibilityRate}%`,
+  );
+  assert.ok(
+    byCategory.communication_draft.compatibilityRate >= 60,
+    `communication_draft must not regress below 60%: ${byCategory.communication_draft.compatibilityRate}%`,
+  );
+});
+
+test("golden evaluation: global compatibilityRate did not regress below the Sprint 13R baseline of 51.0%", () => {
+  const evaluation = runGoldenIntentEvaluation(GOLDEN_INTENT_CASES);
+  assert.ok(
+    evaluation.summary.compatibilityRate >= 51.0,
+    `global compatibilityRate regressed: ${evaluation.summary.compatibilityRate}%`,
+  );
+});
+
+test("regression: Sprint 12R/13R protected phrases still classify the same way after Sprint 14R calibration", () => {
+  const stillProjectStatus = ["cómo va el proyecto", "dame estado de HMP", "qué avance tenemos"];
+  for (const message of stillProjectStatus) {
+    assert.equal(classifyProductionIntent(message).intent, "project_status_question", `"${message}" should still classify as project_status_question`);
+  }
+
+  const stillCommunicationDraft = [
+    "redactame un correo para pedir recepción",
+    "ayudame a responder este correo",
+    "preparame una minuta",
+  ];
+  for (const message of stillCommunicationDraft) {
+    assert.equal(
+      classifyEnrichedIntent(baseInput(message)).intent.intentFamily,
+      "communication_draft",
+      `"${message}" enriched family should still be communication_draft`,
+    );
+  }
+
+  assert.equal(classifyProductionIntent("qué falta para facturar").intent, "billing_question");
+  assert.equal(classifyProductionIntent("estamos listos para cobrar").intent, "billing_question");
+  assert.equal(classifyProductionIntent("qué recomienda el playbook").intent, "recommendation_request");
+  assert.equal(classifyProductionIntent("cuál es la siguiente mejor acción").intent, "recommendation_request");
+});
