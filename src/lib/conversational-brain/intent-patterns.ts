@@ -73,11 +73,22 @@ export const INTENT_FAMILY_PATTERNS: Record<RealIntentFamily, IntentPatternRule[
   ],
   task_action: [
     { pattern: /crea(r|me)? (una )?tarea|crear tarea/, weight: 5, label: "creá/crear tarea", intentType: "task_creation_request" },
-    { pattern: /convert(i|ir)(me)? esto en tarea/, weight: 5, label: "convertí esto en tarea", intentType: "convert_recommendation_request" },
+    { pattern: /\baction item\b/, weight: 5, label: "action item", intentType: "task_creation_request" },
+    { pattern: /convert(i|ir)(me)? esto en (tarea|task|accion|action item)/, weight: 5, label: "convertí esto en tarea", intentType: "convert_recommendation_request" },
+    { pattern: /pasa(lo|rlo)? a (tarea|task|accion|action item)/, weight: 5, label: "pasalo/pasarlo a tarea/task", intentType: "convert_recommendation_request" },
+    // Sprint 15R calibration — ties with playbook_analysis's bare "recomendacion" pattern (weight
+    // 5) on messages like "generá una acción desde esta recomendación"; FAMILY_TIE_BREAK_ORDER
+    // resolves the tie to task_action (matching production's own strictly-higher-weighted pattern
+    // for the same phrase, see intentClassifier.rules.ts).
+    { pattern: /genera(r)? (una )?accion desde/, weight: 5, label: "generar acción desde", intentType: "convert_recommendation_request" },
     { pattern: /asigna(r|me)?/, weight: 5, label: "asigná/asignar", intentType: "task_update_request" },
     { pattern: /(marca(r)?|actualiza(r)?|cambia(r)? estado)/, weight: 3, label: "marcá/actualizá/cambiá estado", intentType: "task_update_request" },
     { pattern: /\bcerra\b/, weight: 3, label: "cerrá", intentType: "task_update_request" },
+    { pattern: /como pendiente/, weight: 5, label: "poner/marcar como pendiente", intentType: "task_update_request" },
     { pattern: /(ejecuta(r)?|\bmanda\b|\benvia\b|programa(r)?)/, weight: 5, label: "ejecutá/mandá/enviá/programá", intentType: "action_execution_request" },
+    // "recordame" (bare reminder verb) is distinct from general_pm_advice's "recomendame" — kept
+    // narrow to the seguimiento/follow-up phrasing so it doesn't broaden into a generic catch-all.
+    { pattern: /recordame (hacer )?seguimiento/, weight: 5, label: "recordame (hacer) seguimiento", intentType: "action_execution_request" },
   ],
   governance_audit: [
     { pattern: /(por que recomendaste|por que sugeriste)/, weight: 5, label: "por qué recomendaste", intentType: "why_recommended_request" },

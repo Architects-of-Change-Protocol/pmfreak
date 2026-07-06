@@ -641,3 +641,115 @@ Las categorías con mayor brecha ahora son `decision_support` (0%, fuera de alca
 2. `task_action` (50%) no ha sido priorizado en ningún sprint de calibración hasta ahora — buen candidato de bajo riesgo para la misma técnica bidireccional (varios de sus casos incompatibles, como `ta-02`/`ta-04`/`ta-05`/`ta-09`, muestran production con `unknown` mientras el enriquecido ya clasifica correctamente).
 3. `decision_support` y `ambiguous_or_unknown` siguen fuera de alcance de nivelación de vocabulario — requieren decisiones de arquitectura/producto (handler nuevo y distinción `clarification`/`unknown` en el modelo enriquecido, respectivamente). `ga-09` es evidencia adicional de que `decision_support` necesita resolverse antes de que `governance_audit` pueda superar ~90-95%.
 4. Sólo cuando el `compatibilityRate` global se acerque de forma sostenida a la banda `staging_candidate` (≥ 85%) tiene sentido retomar el PR 6 de §6 (shadow mode en staging). En 51% (post Sprint 13R), sigue en `not_ready`, pero con 3 de 10 categorías ya en 100%/≥88.9%.
+
+## 15. Sprint 15R — Task Action Vocabulary Calibration
+
+> **Estado:** ajuste de vocabulario/patrones únicamente. Este sprint modifica `intentClassifier.rules.ts` (producción) y `intent-patterns.ts` (enriquecido), actualiza los `expected*` de 5 casos (`ta-02, ta-04, ta-05, ta-09, ta-10`) del golden corpus que cambiaron de comportamiento real, agrega una sección `task_action` a `tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs`, y esta sección; no modifica `intentCompatibilityAdapter.ts` (la tabla de mapping ya resolvía `task_action` → `task_or_action_request` 1:1, y ningún caso nuevo requería un subtipo distinto), `brainRouter.ts`, `responseComposer.ts`, ningún `handlers/*.ts`, el endpoint, ni activa ningún feature flag.
+
+### 15.1 Análisis de `task_action` (antes de tocar código)
+
+Sobre el baseline de Sprint 14R (`task_action` 50%, 5/10), se corrió la evaluación completa y se examinaron los 10 resultados caso por caso:
+
+| Caso | Frase | Clasificación del mismatch |
+|---|---|---|
+| `ta-01` | "creá una tarea para Arturo" | ya compatible — sin cambios |
+| `ta-02` | "convertí esto en tarea" | production classifier misses vocabulary (sin patrón "convertir...en tarea"; el enriquecido ya lo tenía) |
+| `ta-03` | "marcá esta recomendación como vista" | ya compatible — overlap documentado `task_action`/`playbook_analysis` (ambos classifiers de acuerdo en `recommendation_request` vía el mapping existente); intencionalmente **no tocado** |
+| `ta-04` | "cerrá esta acción" | production classifier misses vocabulary (sin patrón "cerrar acción/tarea"; el enriquecido ya tenía bare `cerra`) |
+| `ta-05` | "asignale seguimiento a Gabriela" | production classifier misses vocabulary (el patrón existente `asigna(?:me)? (?:esto|una tarea)` era demasiado angosto; el enriquecido ya matcheaba con su bare `asigna(r|me)?`) |
+| `ta-06` | "creame una tarea para el equipo" | ya compatible — sin cambios |
+| `ta-07` | "programa una reunión con el cliente" | ya compatible — sin cambios |
+| `ta-08` | "asigname esto a Gabriela" | ya compatible — sin cambios |
+| `ta-09` | "actualiza el estado de esta tarea" | production classifier misses vocabulary (el enriquecido ya tenía bare `actualiza(r)?`; producción no tenía ningún patrón de "estado" en `task_or_action_request`) |
+| `ta-10` | "recordame hacer seguimiento mañana" | **true product gap en ambos classifiers** — ninguno reconocía "recordame" como vocabulario de recordatorio/seguimiento |
+
+7 de 10 casos ya estaban compatibles o eran production-side-only gaps resolubles sin tocar el adapter. Solo `ta-10` requería una adición simétrica en ambos classifiers, y `ta-03` se dejó explícitamente sin tocar por ser un overlap ya documentado y ya compatible.
+
+**Riesgo de colisión evaluado:** se grepeó el corpus completo (102 casos) por las palabras nuevas (`asigna`, `convert`, `pasa.*a (tarea|task)`, `action item`, `como pendiente`, `genera.*accion`, `recordame`) fuera de `task_action`: cero coincidencias, salvo los propios casos de `task_action` a arreglar. El caso más delicado era evitar que el nuevo vocabulario de "actualizar/marcar/cerrar" colisionara con `ta-03` ("marcá esta recomendación como vista") — ver §15.2.
+
+### 15.2 Ajustes de patrones aplicados
+
+**Producción — `intentClassifier.rules.ts` (`task_or_action_request`):**
+
+- Se amplió el patrón de asignación de `asigna(?:me)? (?:esto|una tarea)` a un prefijo bare `asigna(?:le|me|r)?\b` (peso 35) — cubre "asignale seguimiento a Gabriela" sin perder los casos ya compatibles.
+- Se amplió `programa(?:me)? una reunion` a `programa(?:me)? (?:una reunion|seguimiento)` (peso 35) — cubre "programá seguimiento para mañana" (el enriquecido ya matcheaba vía su bare `programa(r)?`).
+- Se agregaron patrones de conversión: `convert(?:i|ir)(?:me)? esto en (?:tarea|task|accion|action item)` (peso 40), `pasa(?:lo|rlo)? a (?:tarea|task|accion|action item)` (peso 40), `genera(?:r)? (?:una )?accion desde` (peso 40 — deliberadamente por encima del bare "recomendacion" de `recommendation_request`, peso 30, para que "generá una acción desde esta recomendación" resuelva a `task_or_action_request`), y bare `\baction item\b` (peso 40).
+- Se agregaron patrones de status/update, cada uno exigiendo explícitamente la palabra "tarea"/"accion"/"estado" para no colisionar con `ta-03`: `actualiza(?:r)? (?:el )?estado(?: de (?:esta|la|una|dicha) tarea)?` (peso 35), `cambia(?:r)? (?:el )?estado` (peso 30), `cerra(?:r)? (?:esta |la )?(?:accion|tarea)` (peso 40), `marca(?:r)? (?:esta |la |una )?(?:tarea|accion) como` (peso 35), y bare `como pendiente` (peso 35).
+- Se agregó `recordame (?:hacer )?seguimiento` (peso 30) — vocabulario de recordatorio distinto de `recomendame` (`general_pm_advice`).
+
+**Enriquecido — `intent-patterns.ts` (`task_action`):**
+
+- Se agregó bare `\baction item\b` (peso 5, `task_creation_request`).
+- Se amplió `convert(i|ir)(me)? esto en tarea` a `convert(i|ir)(me)? esto en (tarea|task|accion|action item)` (peso 5).
+- Se agregó `pasa(lo|rlo)? a (tarea|task|accion|action item)` (peso 5, `convert_recommendation_request`).
+- Se agregó `genera(r)? (una )?accion desde` (peso 5, `convert_recommendation_request`) — empata con el bare "recomendacion" de `playbook_analysis` (peso 5); el empate se resuelve a `task_action` vía `FAMILY_TIE_BREAK_ORDER` (que ya lista `task_action` primero), igual que producción resuelve el mismo caso por margen de score.
+- Se agregó bare `como pendiente` (peso 5, `task_update_request`).
+- Se agregó `recordame (hacer )?seguimiento` (peso 5, `action_execution_request`).
+
+**Mapping del adapter (`intentCompatibilityAdapter.ts`):** sin cambios — `task_action` ya mapeaba 1:1 a `task_or_action_request` sin distinción de subtipo; ningún patrón nuevo requería una regla nueva.
+
+**Colisiones evitadas:** ver §15.1. Se verificó explícitamente que:
+- `marcá esta recomendación como vista` (ta-03) sigue clasificando como `recommendation_request`/`playbook_analysis` en ambos classifiers — ninguno de los nuevos patrones de status/update matchea porque todos exigen "tarea"/"accion"/"estado" explícitos.
+- `dame estado de HMP`, `cómo va el proyecto`, `qué avance tenemos` (`project_status`) no matchean los nuevos patrones de "estado"/"asigna" (requieren "actualiza"/"cambia" como prefijo, ausente en estas frases).
+- `qué falta para facturar`, `estamos listos para cobrar` (`closure_billing`), `redactame un correo...`, `ayudame a responder este correo`, `preparame una minuta` (`communication_draft`), `por qué recomendaste esto`, `qué evidencia usaste` (`governance_audit`), `qué riesgos hay`, `qué dependencias nos bloquean` (`risk_issue_dependency`), y `qué recomienda el playbook`, `cuál es la siguiente mejor acción` (`playbook_analysis`) no se ven afectados por ningún patrón nuevo (ninguno contiene "asigna", "convert", "action item", "como pendiente", "estado", o "cerra").
+
+### 15.3 Resultado — antes / después
+
+| Métrica | Sprint 14R | Sprint 15R | Δ |
+|---|---|---|---|
+| `compatibilityRate` global | 62.7% (64/102) | **67.6% (69/102)** | **+4.9 puntos** |
+| `task_action` | 50% (5/10) | **100% (10/10)** | +50 puntos |
+| `project_status` | 100% (11/11) | **100% (11/11)** | sin cambio (protegido) |
+| `closure_billing` | 100% (12/12) | **100% (12/12)** | sin cambio (protegido) |
+| `risk_issue_dependency` | 100% (10/10) | **100% (10/10)** | sin cambio (protegido) |
+| `governance_audit` | 90% (9/10) | **90% (9/10)** | sin cambio (protegido) |
+| `playbook_analysis` | 88.9% (8/9) | **88.9% (8/9)** | sin cambio (protegido) |
+| `communication_draft` | 60% (6/10) | **60% (6/10)** | sin cambio (protegido) |
+| `thresholdBand` | `not_ready` | `not_ready` | sin cambio de banda (sigue por debajo de 70%, aunque a 2.4 puntos) |
+
+Desglose completo por categoría después de este sprint:
+
+| Categoría | Casos | Compatibles | compatibilityRate | Cambio vs. Sprint 14R |
+|---|---|---|---|---|
+| project_status | 11 | 11 | **100%** | sin cambio |
+| closure_billing | 12 | 12 | **100%** | sin cambio |
+| risk_issue_dependency | 10 | 10 | **100%** | sin cambio |
+| task_action | 10 | 10 | **100%** | +50 pts |
+| governance_audit | 10 | 9 | **90%** | sin cambio |
+| playbook_analysis | 9 | 8 | **88.9%** | sin cambio |
+| communication_draft | 10 | 6 | 60% | sin cambio |
+| general_pm_advice | 10 | 3 | 30% | sin cambio |
+| decision_support | 10 | 0 | 0% | sin cambio (fuera de alcance) |
+| ambiguous_or_unknown | 10 | 0 | 0% | sin cambio (fuera de alcance) |
+
+`expectedMappedIntentFailCount = 0` — el corpus quedó al día con el código después de actualizar los 5 casos afectados (`ta-02, ta-04, ta-05, ta-09, ta-10`), cada uno con una nota "Sprint 15R calibration".
+
+### 15.4 `topDifferences` restante
+
+`task_action` queda en 100% (0 mismatches) — la primera categoría, junto con `project_status`, `closure_billing` y `risk_issue_dependency`, en llegar a compatibilidad total.
+
+Las categorías con mayor brecha ahora son `decision_support` (0%, fuera de alcance por diseño), `ambiguous_or_unknown` (0%, fuera de alcance por diseño), y `general_pm_advice` (30%) — el mismo candidato ya señalado por la recomendación de Sprint 12R/13R/14R, sin cambios este sprint por estar fuera de su alcance explícito. `communication_draft` (60%) es ahora el candidato de vocabulario asimétrico de menor riesgo entre las categorías "reales" que aún no llegan a 100%.
+
+### 15.5 Protección contra regresiones
+
+- `tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs`: se agregó una sección `task_action` que verifica (a) las 11 frases de task_action antes fallidas (o nuevas, del listado de "tests mínimos") ahora clasifican como `task_or_action_request` en producción; (b) las 10 frases correspondientes ahora clasifican como `task_action` en el enriquecido; (c) `marcá esta recomendación como vista` sigue clasificando como `recommendation_request`/`playbook_analysis` en ambos, sin verse afectada por el nuevo vocabulario de status/update; (d) las frases protegidas de `project_status`, `closure_billing`, `communication_draft`, `governance_audit`, `risk_issue_dependency` y `playbook_analysis` no se ven afectadas por el nuevo vocabulario de `task_action`; (e) un test de "safety" que verifica por `grep` de texto fuente que ninguno de los dos archivos de patrones modificados importa/menciona el router, composer, handlers, Supabase, `fetch`, envío de emails, o creación/ejecución real de tareas; (f) el piso de `task_action` ≥ 80%, junto con los pisos exactos/mínimos de las 6 categorías protegidas; (g) el piso global ≥ 62.7% (baseline Sprint 14R).
+- Los pisos por categoría de Sprint 12R/13R/14R permanecen sin cambios y siguen pasando.
+- Las 170 pruebas de `playbook-engine/conversation/*` + `conversational-brain-intent-classifier` siguen pasando sin cambios de comportamiento fuera de lo documentado.
+
+### 15.6 Verificación ejecutada
+
+- `npx tsx --test tests/playbook-engine-conversation-intent-golden-evaluation.test.mjs` — ok (21/21).
+- `npx tsx --test tests/playbook-engine-conversation-intent-compatibility.test.mjs` — ok (21/21).
+- `npx tsx --test tests/conversational-brain-intent-classifier.test.mjs` — ok (32/32).
+- `npx tsx --test tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` (actualizado, +7 tests nuevos, 36 en total) — ok.
+- `npx tsx --test tests/playbook-engine-conversation-intent-classifier.test.mjs` — ok (17/17).
+- Resto de tests de `playbook-engine/conversation/*` (brain-router, response-composer, gateway, context-resolver, demo-scenarios, runtime-conversation-state, command-center-conversation-gateway-integration, conversation-vault-ingestion) — todos ok, sin cambios de comportamiento.
+- `npm run lint:aoc-boundaries` — pasó.
+- `npm run typecheck` (`tsc --noEmit`) — mismos errores preexistentes no relacionados (paquetes faltantes en este entorno: `react`, `@supabase/*`, `next/*`, `@types/node`); cero errores nuevos en `intentClassifier.rules.ts`, `intent-patterns.ts`, `intentGoldenEvaluation.ts`, la fixture del golden corpus, o cualquier otro archivo tocado este sprint (verificado con `grep` del output de typecheck sobre los nombres de archivo modificados).
+
+### 15.7 Recomendación para el siguiente sprint
+
+1. `communication_draft` (60%) y `general_pm_advice` (30%) son ahora los únicos candidatos de vocabulario asimétrico restantes entre las categorías "reales". `communication_draft` es probablemente el de menor riesgo (varios de sus mismatches muestran production con `unknown` mientras el enriquecido ya clasifica correctamente, similar al patrón resuelto este sprint para `task_action`). `general_pm_advice`, como ya señalado en Sprint 12R/13R/14R (§12.7.3, §14.8), probablemente tenga solapes de diseño reales con `playbook_analysis`/`decision_support` que ameritan revisión de diseño antes de solo agregar patrones.
+2. `decision_support` y `ambiguous_or_unknown` siguen fuera de alcance de nivelación de vocabulario — requieren decisiones de arquitectura/producto (handler nuevo y distinción `clarification`/`unknown` en el modelo enriquecido, respectivamente).
+3. Con 4 de 10 categorías ya en 100% (`project_status`, `closure_billing`, `risk_issue_dependency`, `task_action`) y 2 más por encima de 85% (`governance_audit` 90%, `playbook_analysis` 88.9%), el `compatibilityRate` global (67.6%) está a solo 2.4 puntos de la banda `needs_adjustment` (≥ 70%). Calibrar `communication_draft` (60% → potencialmente 90%+) es probablemente suficiente para cruzar ese umbral en el próximo sprint.
+4. Sólo cuando el `compatibilityRate` global se acerque de forma sostenida a la banda `staging_candidate` (≥ 85%) tiene sentido retomar el PR 6 de §6 (shadow mode en staging). En 67.6% (post Sprint 15R), sigue en `not_ready`, pero con 4 de 10 categorías ya en 100% y 2 más ≥ 88.9%.

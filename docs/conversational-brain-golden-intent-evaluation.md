@@ -1,7 +1,7 @@
-# Golden Intent Evaluation Set — Quick Reference (Sprint 11R, calibrated in Sprint 12R/13R/14R)
+# Golden Intent Evaluation Set — Quick Reference (Sprint 11R, calibrated in Sprint 12R/13R/14R/15R)
 
 > Full context, rationale, and the current baseline numbers live in the Sprint 11R (§11),
-> Sprint 12R (§12), Sprint 13R (§13), and Sprint 14R (§14) sections of
+> Sprint 12R (§12), Sprint 13R (§13), Sprint 14R (§14), and Sprint 15R (§15) sections of
 > `docs/conversational-brain-pipeline-reconciliation.md`. This file is a short, standalone
 > quick-reference for running and interpreting the evaluation.
 
@@ -133,13 +133,50 @@ collision-avoidance analysis (in particular why the new "explicit blocker" vocab
 `risk_issue_dependency` — "está frenando", "está trabando", "bloquea el avance" — doesn't hijack
 `project_status`'s own "atorado/estancado/no avanza"/"avance" vocabulary).
 
-## Next steps (Sprint 15R candidate work)
+## Sprint 15R — task_action vocabulary calibration result
+
+Sprint 15R adjusted both pattern lists (`intentClassifier.rules.ts` and `intent-patterns.ts`) — no
+adapter, router, composer, handler, endpoint, or feature-flag changes. Result:
+
+| Metric | Before (Sprint 14R) | After (Sprint 15R) |
+|---|---|---|
+| Global `compatibilityRate` | 62.7% (64/102) | **67.6% (69/102)** — **+4.9 points** |
+| `task_action` | 50% (5/10) | **100% (10/10)** |
+| `thresholdBand` | not_ready | not_ready (still `< 70%`, unchanged band) |
+
+Every protected category (`project_status`, `closure_billing`, `risk_issue_dependency`,
+`governance_audit`, `playbook_analysis`, `communication_draft`) is bit-for-bit unchanged from
+Sprint 14R — verified both by the `task_action` section added to
+`tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` and by re-running the
+full existing test suites.
+
+Production gained six new `task_or_action_request` patterns (conversion phrases, a broadened
+assignment prefix, status/update phrases requiring an explicit "tarea"/"accion"/"estado" noun, and a
+narrow "recordame ... seguimiento" reminder pattern) — all of the target vocabulary was already
+present or trivially portable from the enriched classifier's existing `task_action` pattern list, so
+this sprint closed every remaining `task_action` mismatch, including the `recordame hacer seguimiento
+mañana` (ta-10) case that was previously a true gap in *both* classifiers.
+
+`marcá esta recomendación como vista` (ta-03) remains a deliberately untouched, documented
+`task_action`/`playbook_analysis` vocabulary overlap (both classifiers already agree it's
+`recommendation_request` via the existing mapping) — none of the new task_action patterns match it,
+since each requires an explicit "tarea"/"accion"/"estado" noun that this phrase doesn't have.
+
+See §15 of the reconciliation doc for the full mismatch classification, pattern changes, and
+collision-avoidance analysis (in particular why the new bare "asigna(le|me|r)?" and "como pendiente"
+patterns don't hijack `governance_audit`'s "aprobaciones pendientes" or `risk_issue_dependency`'s
+"pendiente de tercero/proveedor/cliente" patterns).
+
+## Next steps (Sprint 16R candidate work)
 
 Use `report.byCategory` and `report.topDifferences` to prioritize which classifier's pattern list
 (`intentClassifier.rules.ts` for production, `intent-patterns.ts` for the enriched classifier) or
 which row of the adapter's mapping table (`intentCompatibilityAdapter.ts`) needs adjustment next.
-`general_pm_advice` (30%) is now the largest remaining vocabulary-calibration candidate — it likely
-also needs a design review for overlap with `playbook_analysis`/`decision_support`, not just
-vocabulary. `task_action` (50%) has not been targeted by any calibration sprint yet and looks like a
-lower-risk candidate (several of its mismatches are simple production-side vocabulary gaps). See
-§14.8 of the reconciliation doc for the full criteria before proposing any router/handler change.
+`general_pm_advice` (30%) and `communication_draft` (60%) are now the largest remaining
+vocabulary-calibration candidates among the "real" categories — `general_pm_advice` likely also
+needs a design review for overlap with `playbook_analysis`/`decision_support`, not just vocabulary.
+`decision_support` (0%) and `ambiguous_or_unknown` (0%) remain out of scope for vocabulary-only
+calibration, per every sprint's own instructions — they need an architecture/product decision (a
+production handler for `decision_support`; a defined fallback behavior for ambiguous input) before a
+calibration sprint can move their numbers. See §14.8 of the reconciliation doc for the full criteria
+before proposing any router/handler change.
