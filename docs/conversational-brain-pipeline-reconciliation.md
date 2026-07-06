@@ -1194,3 +1194,118 @@ los criterios de entrada/salida.
   entorno); cero errores nuevos en los archivos de este sprint.
 - `git diff --name-only` — confirma que sólo se agregaron archivos nuevos; ningún archivo de
   producción, router, composer, handler, classifier de patrones, o adaptador fue modificado.
+
+## 19. Sprint 19R — Decision Support Candidate Handler
+
+> **Estado:** capacidad técnica aislada únicamente. Ver `git log` — este sprint agrega
+> `src/lib/playbook-engine/conversation/decision-support/` (4 archivos), su fixture corpus
+> (`tests/fixtures/conversational-brain-decision-support-handler-cases.ts`), su test file
+> (`tests/playbook-engine-conversation-decision-support-candidate-handler.test.mjs`), este documento
+> (`docs/conversational-brain-decision-support-candidate-handler.md`), y esta sección; no modifica
+> `intentClassifier.rules.ts`, `intent-patterns.ts`, `intentCompatibilityAdapter.ts`,
+> `brainRouter.ts`, `responseComposer.ts`, ningún `handlers/*.ts` existente, el endpoint, ni activa
+> ningún feature flag. No conecta `decision_support` a producción.
+
+### 19.1 Por qué este handler y no otra cosa
+
+Sprint 18R (§18) midió que `decision_support` era el hueco más urgente de los dos restantes
+(`decision_support`, `needs_clarification`): sus mappings inseguros no solo fallan en detectar, casi
+la mitad de las veces producen una respuesta operacional específica y confiadamente equivocada
+(colisionando con `playbook_analysis`, `general_pm_advice`, `risk_issue_dependency`,
+`closure_billing`, o `governance_audit`). `requiresNewHandlerCount` (45) casi duplicó
+`requiresClarificationCount` (24), y `decision_support` fue el 65.2% del total combinado de los dos
+grupos de huecos. El evaluator de Sprint 18R recomendó explícitamente **"Sprint 19R — Decision
+Support Candidate Handler"** como siguiente paso.
+
+### 19.2 Qué se creó
+
+1. **Módulo aislado** — `src/lib/playbook-engine/conversation/decision-support/`:
+   - `decisionSupportCandidateTypes.ts`: tipos puros (`DecisionSupportInput`, `DecisionSupportContext`,
+     `DecisionSupportDecisionType` (10 valores), `DecisionSupportOption`, `DecisionSupportTradeoff`,
+     `DecisionSupportRisk`, `DecisionSupportEvidenceNeed`, `DecisionSupportRecommendation`,
+     `DecisionSupportSafety`, `DecisionSupportAuditMetadata`, `DecisionSupportCandidateResult`).
+   - `decisionSupportAnalyzer.ts`: analyzer puro y determinístico —
+     `normalizeDecisionSupportInput`, `detectDecisionType`/`detectDecisionTypeWithDetail`,
+     `extractDecisionOptions`, `identifyDecisionTradeoffs`, `identifyDecisionRisks`,
+     `identifyEvidenceNeeds`, `buildDecisionStatement`, `estimateDecisionConfidence`,
+     `explainDecisionSupportAnalysis`. Sin `fetch`, sin DB, sin Supabase, sin Gmail, sin LLM, sin leer
+     el reloj del sistema.
+   - `decisionSupportCandidateHandler.ts`: `handleDecisionSupportCandidate`,
+     `formatDecisionSupportCandidateResponse`, `explainDecisionSupportCandidateHandler`. No llama
+     router, composer, ningún handler productivo, ni ejecuta ninguna acción.
+   - `index.ts`: barrel aislado — **no** re-exportado desde
+     `src/lib/playbook-engine/conversation/index.ts` (verificado por test).
+2. **Fixture corpus** — `tests/fixtures/conversational-brain-decision-support-handler-cases.ts`: 50
+   casos cubriendo los 10 `DecisionSupportDecisionType`, cada uno con `expectedDecisionType`,
+   `expectedMinOptions`, `expectedEvidenceKeywords`, `expectedTradeoffKeywords`,
+   `expectedRiskKeywords`, `expectedConfidence`, `shouldAskClarifyingQuestion`.
+3. **Test suite** — `tests/playbook-engine-conversation-decision-support-candidate-handler.test.mjs`:
+   54 tests (estructura del fixture, analyzer, extracción de opciones, handler end-to-end,
+   formatting, safety a nivel de código fuente, y regresión contra golden/Sprint 17R/Sprint 18R).
+4. **Documento de referencia** —
+   `docs/conversational-brain-decision-support-candidate-handler.md`: input/output contract, los 10
+   decision types, safety guarantees, human confirmation policy, ejemplo de output, limitaciones, por
+   qué no se conecta al router todavía, y criterios para Sprint 20R.
+
+### 19.3 Decision types soportados
+
+`choose_between_options`, `escalate_or_wait`, `close_or_continue`, `bill_or_wait`,
+`accept_or_mitigate_risk`, `change_vendor_or_continue`, `approve_or_request_evidence`,
+`prioritize_next_step`, `identify_missing_decision`, `general_decision_support` (fallback seguro).
+
+Detección por reglas de keyword/conector ordenadas de más a menos específicas (facturación, cierre,
+escalamiento, riesgo, proveedor, evidencia, decisión faltante, priorización, luego conectores
+estructurales de opciones), cayendo a `general_decision_support` cuando nada más específico aplica.
+Documentado en código vía `explainDecisionSupportAnalysis()`, para que las reglas y su documentación
+no diverjan.
+
+### 19.4 Qué NO se hizo (por diseño de este sprint)
+
+- No se conectó `decision_support` a producción, al router, al composer, o al endpoint.
+- No se activó ningún feature flag.
+- No se modificó `intentClassifier.rules.ts`, `intent-patterns.ts`, ni
+  `intentCompatibilityAdapter.ts` (verificado con `git diff --name-only` y con tests de safety que
+  hacen grep del código fuente).
+- No se reutilizó todavía el `DecisionDraft` real de `operational-intelligence-engine.ts` (Sprint 5) —
+  las tradeoffs/riesgos/evidencia son plantillas determinísticas por `decisionType`, no informadas por
+  datos reales de proyecto. Documentado como el gap más grande antes de Sprint 20R.
+- No se implementó un clarification loop real (`needs_clarification` sigue exactamente como lo dejó
+  Sprint 18R).
+- No se calibró vocabulario de `general_pm_advice`.
+
+### 19.5 Protección contra regresiones
+
+- El golden corpus de Sprint 11R-16R no fue tocado: `compatibilityRate` global permanece en **72.5%**
+  y las 7 categorías previamente calibradas quedan exactamente iguales.
+- El boundary review de Sprint 17R no fue tocado: `policyAlignedRate` (74.3%),
+  `currentSystemAcceptableRate` (84.3%), `architectureGapCount` (10), y `clarificationGapCount` (10)
+  quedan exactamente iguales.
+- El architecture review de Sprint 18R no fue tocado: `currentSafeMappingRate` (64.6%),
+  `futureRouteAlreadySupportedRate` (49.4%), `requiresNewHandlerCount` (45),
+  `requiresClarificationCount` (24), y `recommendedNextSprint` ("Sprint 19R — Decision Support
+  Candidate Handler") quedan exactamente iguales.
+- `intentClassifier.rules.ts`, `intent-patterns.ts`, e `intentCompatibilityAdapter.ts` no fueron
+  modificados.
+- El nuevo módulo tiene sus propios tests de "safety" (grep de texto fuente) que verifican que no
+  importa el router, composer, handlers, el gateway, los archivos de patrones de clasificación, ni el
+  adaptador, y que no llama Supabase, `fetch`, Gmail, envío de emails, ni creación/ejecución de tareas.
+  Un test adicional confirma que el barrel productivo (`conversation/index.ts`) no exporta el módulo
+  nuevo.
+
+### 19.6 Verificación ejecutada
+
+- `npx tsx --test tests/playbook-engine-conversation-decision-support-candidate-handler.test.mjs` — ok (54/54, nuevo).
+- `npx tsx --test tests/playbook-engine-conversation-decision-clarification-architecture.test.mjs` — ok (51/51, sin cambios).
+- `npx tsx --test tests/playbook-engine-conversation-general-pm-advice-boundary.test.mjs` — ok (45/45, sin cambios).
+- `npx tsx --test tests/playbook-engine-conversation-intent-golden-evaluation.test.mjs` — ok (21/21, sin cambios).
+- `npx tsx --test tests/playbook-engine-conversation-intent-compatibility.test.mjs` — ok (21/21, sin cambios).
+- `npx tsx --test tests/conversational-brain-intent-classifier.test.mjs` — ok (32/32, sin cambios).
+- `npx tsx --test tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` — ok (46/46, sin cambios).
+- Resto de `tests/playbook-engine-conversation-*.test.mjs` + `command-center-conversation-gateway-integration.test.mjs` — 312/312 ok, sin cambios de comportamiento.
+- `npm run lint:aoc-boundaries` — pasó.
+- `npm run typecheck` — mismos errores preexistentes no relacionados (módulos/tipos de Node/React/Next
+  faltantes en todo el repo); cero errores nuevos en los archivos de este sprint (verificado con
+  `grep -i decision-support` sobre la salida de `tsc --noEmit`).
+- `git diff --name-only` — confirma que sólo se agregaron archivos nuevos; ningún archivo de
+  producción, router, composer, handler existente, classifier de patrones, adaptador, o endpoint fue
+  modificado.
