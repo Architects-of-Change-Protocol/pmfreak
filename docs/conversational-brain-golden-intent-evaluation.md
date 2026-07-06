@@ -216,16 +216,48 @@ untouched, per this sprint's own scope.
 See §16 of the reconciliation doc for the full mismatch classification, pattern changes, and
 collision-avoidance analysis.
 
-## Next steps (Sprint 17R candidate work)
+## Sprint 17R — General PM Advice Boundary & Design Review (no calibration this sprint)
+
+Sprint 17R deliberately did **not** calibrate `general_pm_advice`, `decision_support`, or
+`ambiguous_or_unknown` vocabulary — it produced an explicit routing policy, a 70-case boundary
+corpus, and a pure evaluator instead, since those three categories' remaining gaps are
+architecture/design questions, not missing pattern-list entries. Confirmed via
+`tests/playbook-engine-conversation-general-pm-advice-boundary.test.mjs`:
+
+| Metric | Value |
+|---|---|
+| Global `compatibilityRate` (this doc's corpus) | **72.5% — unchanged** |
+| `project_status` / `closure_billing` / `risk_issue_dependency` / `task_action` / `communication_draft` | **100% each — unchanged** |
+| `governance_audit` | **90% — unchanged** |
+| `playbook_analysis` | **88.9% — unchanged** |
+
+New boundary-corpus metrics (from `generalPmAdviceBoundaryReview.ts`, a separate 70-case corpus, not
+part of this golden corpus):
+
+| Metric | Value |
+|---|---|
+| `policyAlignedRate` | 74.3% (52/70) |
+| `currentSystemAcceptableRate` | 84.3% (59/70) |
+| `architectureGapCount` | 10 (all `decision_support_candidate`) |
+| `clarificationGapCount` | 10 (all `ambiguous_clarification_candidate`) |
+| `recommendedNextSprint` | "Decision Support + Clarification Architecture Review" |
+
+See `docs/conversational-brain-general-pm-advice-boundary.md` for the full policy, precedence
+rules, boundary examples, and architecture/clarification gap analysis, and §17 of the
+reconciliation doc for the full sprint write-up.
+
+## Next steps (Sprint 18R candidate work)
 
 Use `report.byCategory` and `report.topDifferences` to prioritize which classifier's pattern list
 (`intentClassifier.rules.ts` for production, `intent-patterns.ts` for the enriched classifier) or
 which row of the adapter's mapping table (`intentCompatibilityAdapter.ts`) needs adjustment next.
-`general_pm_advice` (40%) is now the largest remaining vocabulary-calibration candidate among the
-"real" categories, and likely also needs a design review for overlap with
-`playbook_analysis`/`decision_support`, not just vocabulary (see `gpa-05`/`gpa-06`/`gpa-08`/`gpa-09`/
-`gpa-10`, the remaining misses). `decision_support` (0%) and `ambiguous_or_unknown` (0%) remain out
-of scope for vocabulary-only calibration, per every sprint's own instructions — they need an
-architecture/product decision (a production handler for `decision_support`; a defined fallback
-behavior for ambiguous input) before a calibration sprint can move their numbers. See §14.8 of the
-reconciliation doc for the full criteria before proposing any router/handler change.
+`general_pm_advice` (40%) remains the largest remaining vocabulary-calibration candidate among the
+"real" categories, but per the Sprint 17R boundary review, calibrating it before `decision_support`
+and `ambiguous_or_unknown` have a production home risks baking `general_pm_advice` in as a silent
+default for decision- and clarification-shaped messages. `decision_support` (0%) and
+`ambiguous_or_unknown` (0%) remain out of scope for vocabulary-only calibration, per every sprint's
+own instructions — they need an architecture/product decision (a production handler for
+`decision_support`; a defined fallback behavior for ambiguous input) before a calibration sprint can
+move their numbers. See §14.8 of the reconciliation doc for the full criteria before proposing any
+router/handler change, and `docs/conversational-brain-general-pm-advice-boundary.md`'s
+"Recommendation for next PR" for the Sprint 17R evaluator's own recommendation.

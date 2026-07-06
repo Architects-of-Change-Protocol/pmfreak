@@ -885,3 +885,161 @@ Las categorías con mayor brecha ahora son `decision_support` (0%, fuera de alca
 2. `decision_support` y `ambiguous_or_unknown` siguen fuera de alcance de nivelación de vocabulario — requieren decisiones de arquitectura/producto (handler nuevo y distinción `clarification`/`unknown` en el modelo enriquecido, respectivamente).
 3. Con 5 de 10 categorías ya en 100% (`project_status`, `closure_billing`, `risk_issue_dependency`, `task_action`, `communication_draft`) y 2 más por encima de 85% (`governance_audit` 90%, `playbook_analysis` 88.9%), el `compatibilityRate` global (72.5%) ya cruzó la banda `needs_adjustment` (≥ 70%). Acercarse a `staging_candidate` (≥ 85%) requeriría resolver `general_pm_advice` y al menos parte de `decision_support`/`ambiguous_or_unknown` — ambos fuera de alcance de una calibración de vocabulario simple.
 4. Sólo cuando el `compatibilityRate` global se acerque de forma sostenida a la banda `staging_candidate` (≥ 85%) tiene sentido retomar el PR 6 de §6 (shadow mode en staging). En 72.5% (post Sprint 16R), la banda es `needs_adjustment`, con 5 de 10 categorías ya en 100% y 2 más ≥ 88.9%.
+
+## 17. Sprint 17R — General PM Advice Boundary & Design Review
+
+### 17.1 Por qué este sprint NO es calibración de vocabulario
+
+Sprint 16R dejó `general_pm_advice` (40%), `decision_support` (0%) y `ambiguous_or_unknown` (0%) sin
+tocar, señalando explícitamente que `general_pm_advice` "probablemente tenga solapes de diseño reales
+con `playbook_analysis`/`decision_support`" (§16.7.1) y que `decision_support`/`ambiguous_or_unknown`
+"requieren decisiones de arquitectura/producto" (§16.7.2). Agregar patrones de vocabulario a
+`general_pm_advice` sin resolver esos dos huecos arquitectónicos primero arriesga que
+`general_pm_advice` termine siendo el default silencioso para cualquier mensaje con forma de decisión
+o de ambigüedad, precisamente porque ninguna otra categoría los reclama todavía — lo opuesto a lo que
+una política de frontera explícita debería garantizar.
+
+Por eso Sprint 17R no modifica `intentClassifier.rules.ts`, `intent-patterns.ts`, ni
+`intentCompatibilityAdapter.ts`. En su lugar, produce tres artefactos nuevos y puramente de solo
+lectura:
+
+1. Una **política de frontera explícita** para `general_pm_advice` — `docs/conversational-brain-general-pm-advice-boundary.md`.
+2. Un **corpus de boundary cases** — `tests/fixtures/conversational-brain-general-pm-advice-boundary-cases.ts` (70 casos).
+3. Un **evaluator puro** — `src/lib/playbook-engine/conversation/classifier/generalPmAdviceBoundaryReview.ts`
+   (`runGeneralPmAdviceBoundaryReview`, `summarizeGeneralPmAdviceBoundaryReview`,
+   `explainGeneralPmAdviceBoundaryPolicy`), que reutiliza el shadow comparison de Sprint 10R
+   (`runIntentClassifierShadowComparison`) sin llamar router, composer, handlers, DB, Supabase, Gmail
+   ni ejecutar ninguna acción real.
+
+### 17.2 Propósito del boundary review
+
+Definir con precisión cuándo un mensaje debe ser `general_pm_advice` versus cuándo debe ganar
+`playbook_analysis`, `decision_support` (candidate), `ambiguous_or_unknown`/`needs_clarification`
+(candidate), `project_status`, `task_action`, `communication_draft`, `risk_issue_dependency`,
+`governance_audit`, o `closure_billing` — y medir qué tan alineados están la política, el classifier
+productivo, el classifier enriquecido y el intent mapeado vía el adaptador de Sprint 10R, sin subir el
+`compatibilityRate` global ni tocar producción.
+
+### 17.3 Definición y precedence rules
+
+Ver `docs/conversational-brain-general-pm-advice-boundary.md` para el documento completo. Resumen: 9
+categorías (`project_status_preferred`, `playbook_analysis_preferred`, `communication_draft_preferred`,
+`task_action_preferred`, `closure_billing_preferred`, `risk_issue_dependency_preferred`,
+`governance_audit_preferred`, `decision_support_candidate`, `ambiguous_clarification_candidate`) ganan
+sobre `general_pm_advice` cuando el mensaje trae su señal explícita; `general_pm_advice` es el
+fallback útil sólo cuando ninguna de esas nueve señales está presente.
+
+### 17.4 Corpus creado
+
+`tests/fixtures/conversational-brain-general-pm-advice-boundary-cases.ts` — 70 casos, con
+`boundaryCategory`, `policyTarget`, `policyTargetKind` (`production_intent` | `architecture_candidate`
+| `clarification_candidate`), `rationale`, `riskLevel`, y `shouldCurrentSystemHandle` registrado en el
+momento de autoría (corriendo los classifiers reales, igual que el golden corpus de Sprint 11R).
+
+| `boundaryCategory` | Casos (mínimo del sprint) |
+|---|---|
+| `safe_general_pm_advice` | 12 (≥12) |
+| `playbook_analysis_preferred` | 8 (≥8) |
+| `decision_support_candidate` | 10 (≥10) |
+| `ambiguous_clarification_candidate` | 10 (≥10) |
+| `project_status_preferred` | 5 (≥5) |
+| `communication_draft_preferred` | 5 (≥5) |
+| `task_action_preferred` | 5 (≥5) |
+| `closure_billing_preferred` | 5 (≥5) |
+| `risk_issue_dependency_preferred` | 5 (≥5) |
+| `governance_audit_preferred` | 5 (≥5) |
+
+### 17.5 Métricas del boundary evaluator
+
+| Métrica | Valor |
+|---|---|
+| `totalCases` | 70 |
+| `policyAlignedRate` | **74.3%** (52/70) |
+| `currentSystemAcceptableRate` | **84.3%** (59/70) |
+| `architectureGapCount` | 10 (14.3%) |
+| `clarificationGapCount` | 10 (14.3%) |
+| `recommendedNextSprint` | **"Decision Support + Clarification Architecture Review"** |
+
+Por `boundaryCategory` (`policyAlignedRate` / `currentSystemAcceptableRate`):
+`safe_general_pm_advice` 16.7%/16.7%, `playbook_analysis_preferred` 87.5%/100%,
+`decision_support_candidate` 40%/90%, `ambiguous_clarification_candidate` 90%/100%,
+`project_status_preferred` 100%/100%, `communication_draft_preferred` 100%/100%,
+`task_action_preferred` 100%/100%, `closure_billing_preferred` 100%/100%,
+`risk_issue_dependency_preferred` 100%/100%, `governance_audit_preferred` 100%/100%.
+
+### 17.6 Principales conflictos encontrados
+
+`byConflictType`: `none` 52, `general_pm_vs_closure_billing` 1, `classifier_disagreement` 10,
+`mapping_gap` 1, `architecture_gap` 6 (el resto de los tipos `general_pm_vs_*` en 0 — ninguna de las
+nueve categorías "preferred"/"candidate" fue swallowed por `general_pm_advice` en este corpus).
+
+- **`general_pm_vs_closure_billing` (1 caso)**: "qué buenas prácticas aplican para una reunión de
+  cierre" resuelve hoy a `closure_question` (patrón bare `cierre`, peso 20) en vez de
+  `general_pm_advice` — un solapamiento real de vocabulario que una futura calibración de
+  `general_pm_advice` deberá evitar repetir (mismo tipo de trabajo de "collision-avoidance" que
+  Sprint 16R hizo para `communication_draft`).
+- **`classifier_disagreement` (10 casos)**: en su mayoría, frases de `safe_general_pm_advice` con
+  conjugaciones que ninguno de los dos classifiers reconoce ("cómo puedo ordenar…", "cómo reduzco…",
+  "cómo evito…", "cómo recupero…", "cómo puedo mejorar…") — brecha real de vocabulario, no de diseño.
+- **`architecture_gap` (6 casos)**: `decision_support_candidate` sin ningún intent productivo que lo
+  represente — incluye un caso donde tanto producción como el classifier enriquecido lo confunden con
+  `governance_audit` ("deberíamos cerrar ya o pedir más evidencia").
+- **`mapping_gap` (1 caso)**: "no sé qué hacer" — ni producción ni el classifier enriquecido detectan
+  ambigüedad aquí; cae a `unknown`/`unknown` en vez de `clarification`/`needs_clarification`.
+
+### 17.7 Decision support candidates
+
+Los 10 casos `decision_support_candidate` tienen `policyAlignedRate` 40% (sólo el classifier
+enriquecido, la única señal disponible ya que producción no tiene intent para esto, detecta 4/10
+correctamente) y `currentSystemAcceptableRate` 90%. La brecha de vocabulario en `decision_support`
+(singular "alternativa" vs. patrón sólo-plural "alternativas"; "recomiendas" vs. patrón sólo-condicional
+"recomendarias"; frases sin keyword de decisión) es secundaria frente al hueco real: no existe intent,
+ruta ni handler productivo para `decision_support` — el mismo solapamiento `governance_audit`/
+`decision_support` documentado desde Sprint 11R (`ga-09`) reaparece aquí ("deberíamos cerrar ya o
+pedir más evidencia").
+
+### 17.8 Clarification candidates
+
+Los 10 casos `ambiguous_clarification_candidate` tienen `policyAlignedRate` 90% y
+`currentSystemAcceptableRate` 100% — detectar ambigüedad ya funciona bien con la lógica existente de
+mensajes cortos/sin señal. Lo que falta no es detección: es que tanto `clarification` (producción)
+como `needs_clarification` (enriquecido) resuelven directo a `general_pm_advisor` sin hacer ninguna
+pregunta de clarificación real — una decisión de producto pendiente, no un problema de patrones.
+
+### 17.9 Recomendación para el siguiente PR
+
+`architectureGapCount` y `clarificationGapCount` están ambos por encima del umbral de "alto" (12% del
+corpus) que usa el evaluator, así que `recommendedNextSprint` resuelve a **"Decision Support +
+Clarification Architecture Review"**: aunque `safe_general_pm_advice` (16.7%) parece a primera vista
+el candidato obvio de calibración, dos de sus nueve fronteras competidoras (`decision_support`,
+`ambiguous_or_unknown`) no tienen todavía un hogar productivo — calibrar `general_pm_advice` antes de
+resolver eso arriesga justamente lo que este sprint buscaba evitar (ver §17.1). Ver "Recommendation
+for next PR" en `docs/conversational-brain-general-pm-advice-boundary.md` para el detalle completo.
+
+### 17.10 Protección contra regresiones
+
+- El golden corpus de Sprint 11R-16R (`tests/fixtures/conversational-brain-golden-intents.ts`) no fue
+  tocado. `compatibilityRate` global permanece en **72.5%** y las 7 categorías previamente calibradas
+  (`project_status`, `closure_billing`, `risk_issue_dependency`, `task_action`, `communication_draft`
+  en 100%; `governance_audit` en 90%; `playbook_analysis` en 88.9%) quedan exactamente iguales —
+  verificado por `tests/playbook-engine-conversation-general-pm-advice-boundary.test.mjs` (sección
+  "Regression awareness", que re-corre `runGoldenIntentEvaluation`/`summarizeGoldenIntentEvaluation`
+  y falla si cualquiera de esos números cambia) y por la suite completa del golden corpus.
+- `intentClassifier.rules.ts`, `intent-patterns.ts`, e `intentCompatibilityAdapter.ts` no fueron
+  modificados (verificado con `git diff --name-only`).
+- El nuevo módulo (`generalPmAdviceBoundaryReview.ts`) tiene sus propios tests de "safety" (grep de
+  texto fuente) que verifican que no importa el router, composer, handlers, o los archivos de
+  patrones de clasificación, y que no llama Supabase, `fetch`, envío de emails, Gmail, ni
+  creación/ejecución de tareas.
+
+### 17.11 Verificación ejecutada
+
+- `npx tsx --test tests/playbook-engine-conversation-general-pm-advice-boundary.test.mjs` — ok (45/45, nuevo).
+- `npx tsx --test tests/playbook-engine-conversation-intent-golden-evaluation.test.mjs` — ok (21/21).
+- `npx tsx --test tests/playbook-engine-conversation-intent-compatibility.test.mjs` — ok (21/21).
+- `npx tsx --test tests/conversational-brain-intent-classifier.test.mjs` — ok (32/32).
+- `npx tsx --test tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` — ok (46/46, sin cambios).
+- Resto de `playbook-engine/conversation/*` (classifier, brain-router, response-composer, gateway, context-resolver, demo-scenarios) — todos ok, sin cambios de comportamiento.
+- `npm run lint:aoc-boundaries` — pasó.
+- `npm run typecheck` (`tsc --noEmit`) — mismos errores preexistentes no relacionados a este sprint (paquetes faltantes en este entorno: `react`, `@supabase/*`, `next/*`, `stripe`, `@types/node`); cero errores nuevos en `generalPmAdviceBoundaryReview.ts`, la fixture del boundary corpus, o el nuevo archivo de tests (verificado con `grep` del output de typecheck).
+- `git diff --name-only` — confirma que sólo se agregaron archivos nuevos; ningún archivo de producción, router, composer, handler, classifier de patrones, o adaptador fue modificado.
