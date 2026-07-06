@@ -33,14 +33,32 @@ export const INTENT_PATTERNS: Record<Exclude<ConversationIntent, "clarification"
     { pattern: /(?:como va|estado d?e?l? proyecto|que esta pasando con el proyecto)/, weight: 35, label: "estado del proyecto" },
     { pattern: /what(?:'s| is) blocking/, weight: 45, label: "what's blocking" },
     { pattern: /project status/, weight: 30, label: "project status" },
+    // Sprint 12R calibration — generic-but-scoped project-status vocabulary the classifier was
+    // missing (golden corpus mismatches ps-02/03/04/05/06/10/11). Kept narrow/testable rather than
+    // bare single words wherever a bare word risked colliding with another category (see the
+    // `estado de` lookahead below, which excludes "estado de esta/la tarea" so it doesn't hijack
+    // task_action phrases like "actualiza el estado de esta tarea").
+    { pattern: /estado de(?! (?:esta|la|una|dicha) tarea)/, weight: 28, label: "estado de <referencia>" },
+    { pattern: /avance tenemos|avance del proyecto/, weight: 30, label: "avance (tenemos/del proyecto)" },
+    { pattern: /\bstatus\b/, weight: 25, label: "status" },
+    { pattern: /atrasad[oa]s?/, weight: 30, label: "atrasado(s)" },
+    { pattern: /\bbloqueos\b/, weight: 30, label: "bloqueos" },
+    { pattern: /(?:\bhealth\b|salud (?:del )?proyecto)/, weight: 35, label: "health/salud del proyecto" },
+    { pattern: /(?:\btimeline\b|cronograma)/, weight: 35, label: "timeline/cronograma" },
   ],
   recommendation_request: [
-    { pattern: /que (?:me )?recomiendas/, weight: 45, label: "que recomiendas" },
+    { pattern: /que (?:me |nos )?recomienda(?:s)?/, weight: 45, label: "que recomienda(s)" },
     { pattern: /que sugieres/, weight: 40, label: "que sugieres" },
     { pattern: /(?:tienes |alguna )?recomendacion/, weight: 30, label: "recomendacion" },
     { pattern: /cual (?:seria|es) (?:el )?siguiente paso/, weight: 30, label: "siguiente paso" },
     { pattern: /what do you recommend/, weight: 45, label: "what do you recommend" },
     { pattern: /next steps?/, weight: 25, label: "next steps" },
+    // Sprint 12R calibration — playbook_analysis vocabulary that production folds into
+    // recommendation_request (golden corpus mismatches pa-01/02/03/07). Mirrors the enriched
+    // classifier's own playbook_analysis pattern list (intent-patterns.ts).
+    { pattern: /siguiente mejor accion/, weight: 35, label: "siguiente mejor accion" },
+    { pattern: /segun el playbook/, weight: 35, label: "segun el playbook" },
+    { pattern: /\bplaybook\b/, weight: 25, label: "playbook" },
   ],
   risk_analysis: [
     { pattern: /que riesgos (?:ves|hay|existen)/, weight: 45, label: "que riesgos ves" },
