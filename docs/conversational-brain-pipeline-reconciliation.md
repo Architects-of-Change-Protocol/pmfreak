@@ -175,3 +175,67 @@ Ningún PR de esta lista requiere el Context Resolver/Router/Composer *nuevos* d
 - **B (nuevo):** solo clasificación, pero con taxonomía más rica (familias+tipos, flags declarativos, candidateRoutes) y una familia genuinamente nueva (`decision_support`) que A no tiene.
 - **Recomendación:** Opción **C** ahora (coexistir con adapter, sin tocar producción), con Opción **B** como norte técnico de mediano plazo, ejecutado vía el plan de 8 PRs de §6 — ninguno de los cuales requiere Context Resolver/Router/Composer nuevos.
 - **No se implementó ningún wiring en este sprint.** `POST /api/command-center/chat` no fue tocado. No se borró código de ninguno de los dos módulos.
+
+---
+
+## 10. Sprint 10R — Compatibility Adapter + Shadow Mode
+
+> **Estado:** implementación del **PR 1** del plan de §6 (tipos compartidos + adapter puro) más una versión mínima de shadow mode (parte de PR 6, sin feature flag ni wiring a producción). Ver `git log` — este sprint agrega únicamente `src/lib/playbook-engine/conversation/classifier/intentCompatibilityAdapter.ts` y su test file; no modifica `intentClassifier.ts`, `brainRouter.ts`, `responseComposer.ts`, ningún `handlers/*.ts`, el endpoint, ni borra código.
+
+### 10.1 Qué se creó
+
+`src/lib/playbook-engine/conversation/classifier/intentCompatibilityAdapter.ts` — módulo puro, sin efectos secundarios, que expone:
+
+- `mapEnrichedIntentToProductionIntent(enrichedIntent)` → `IntentCompatibilityResult` (`productionIntent`, `sourceFamily`, `sourceIntentType`, `mappingRule`, `warnings`). Traduce una clasificación enriquecida (`@/lib/conversational-brain`) al valor de `ConversationIntent` (string union) que ya consumen `router/brainRouter.ts` y los `handlers/*.ts` de producción.
+- `compareProductionAndEnrichedIntent({ productionClassification, enrichedIntent })` → `IntentShadowComparison`. Función pura: recibe ambas clasificaciones ya calculadas y las compara — no ejecuta ningún classifier por sí misma.
+- `runIntentClassifierShadowComparison(input, options?)` → `IntentShadowComparison`. Orquesta: corre `classifyConversationIntent` de producción (`intentClassifier.ts`) y el de `conversational-brain` sobre el mismo turno normalizado, mapea el resultado enriquecido, y delega en `compareProductionAndEnrichedIntent`. Es la única función "shadow mode" de este sprint.
+- `explainIntentCompatibilityMapping()` → documentación programática de la tabla de mapping, qué no hace el adapter, y riesgos restantes (mismo patrón que `explainIntentClassifierCapability()` / `explainPlaybookEngineCapability()`).
+
+Tipos nuevos (definidos en el mismo archivo, sin archivo de tipos separado dado el alcance acotado del sprint): `IntentCompatibilityResult`, `IntentMappingWarning`, `IntentShadowComparison`, `IntentCompatibilityMappingExplain`. Aliases explícitos para evitar el conflicto de nombres documentado en §7: `ProductionConversationIntent` (re-export del `ConversationIntent` de producción) y `EnrichedConversationIntent` (alias del `ConversationIntent` estructurado de `conversational-brain`). El archivo no se agregó al barrel `conversation/index.ts` — se importa directamente desde su ruta, precisamente para no forzar ese rename todavía.
+
+### 10.2 Tabla de mapping (con decisiones documentadas)
+
+| Familia/tipo enriquecido (B) | Intent de producción (A) | Regla |
+|---|---|---|
+| `general_pm_advice` | `general_pm_advice` | 1:1 directo |
+| `project_status` | `project_status_question` | Mapeo directo de familia (el handler de A no distingue subtipos todavía) |
+| `playbook_analysis` | `recommendation_request` | Mapeo directo; **riesgo documentado**: puede solapar con `governance_audit`/`audit_question` para mensajes tipo "¿por qué el playbook recomienda esto?" (ver §3, "Alto riesgo") |
+| `risk_issue_dependency` | `risk_analysis` | Mapeo directo (A no distingue issue/dependency/blocker todavía) |
+| `communication_draft` | `communication_draft` | Mapeo directo, independiente del subtipo |
+| `closure_billing` + `billing_*` | `billing_question` | Match por prefijo en `intentType` |
+| `closure_billing` + `closure_readiness_check` / `reception_status_check` / `acceptance_status_check` | `closure_question` | **Decisión documentada**: `reception_status_check`/`acceptance_status_check` no calzan literalmente con `billing_*`/`closure_*`; se tratan como parte del ciclo de cierre (no de facturación), igual que ya hace `closureBillingHandler.ts` |
+| `governance_audit` + `audit_trail_request` / `recommendation_explanation` / `why_recommended_request` | `audit_question` | Match por subtipo |
+| `governance_audit` + `evidence_request` (o subtipo no reconocido) | `governance_question` | Default documentado — el más conservador de los dos intents de A |
+| `task_action` | `task_or_action_request` | Mapeo directo |
+| `decision_support` | `unsupported` | **Decisión documentada**: A no tiene intent/ruta/handler para esto (ver §3/§6, PR 3); mapear a `governance_question` sugeriría falsamente una respuesta de evidencia/auditoría que A no puede dar hoy. `unsupported` es el default más seguro hasta que exista un handler dedicado. |
+| `unknown` | `unsupported` | Default documentado. Nota: el *router* de A (`brainRouter.ts`) puede aún así recuperar `unknown` hacia `general_pm_advisor` vía `WEAK_PM_SIGNAL` — ese fallback vive en la capa de ruteo, no en la de clasificación, y a propósito no se reproduce aquí. |
+| `needs_clarification` | `general_pm_advice` | **Decisión documentada**: el propio intent `clarification` de A ya rutea a `general_pm_advisor` (`DIRECT_ROUTES` en `brainRouter.ts`), así que mapear a `general_pm_advice` preserva esa equivalencia de comportamiento sin introducir un valor legacy nuevo. Se prefirió sobre `unsupported` porque sería un cambio de comportamiento más estricto que el fallback actual de A. |
+
+### 10.3 Qué hace el adapter
+
+- Traduce, de forma pura y determinística, una clasificación de `conversational-brain` al modelo de intents de producción.
+- Corre ambos classifiers sobre el mismo mensaje y compara sus resultados (`runIntentClassifierShadowComparison`), devolviendo `productionIntent`, `enrichedIntent`, `mappedIntent`, `compatible`, `differences` y `migrationWarnings`.
+- Documenta, en código (`explainIntentCompatibilityMapping()`) y en este archivo, cada decisión de mapping no obvia.
+
+### 10.4 Qué NO hace el adapter (shadow mode no cambia producción)
+
+- No reemplaza, llama, ni modifica `classifier/intentClassifier.ts` — sigue siendo la única fuente de verdad para `POST /api/command-center/chat`.
+- No importa ni modifica `router/brainRouter.ts`, `composer/responseComposer.ts`, ni ningún `handlers/*.ts` (verificado también por test — ver §10.6).
+- No toca `gateway/conversationalBrainGateway.ts` ni el endpoint `POST /api/command-center/chat`.
+- No lee ni escribe base de datos, no llama Supabase, no hace `fetch`, no envía correos, no crea tareas ni RAID, no genera eventos de auditoría (verificado por test, mismo patrón que el test de pureza de Sprint 9).
+- No activa el classifier enriquecido en producción — no existe ningún feature flag conectado a nada; `runIntentClassifierShadowComparison` solo se invoca desde sus propios tests en este sprint.
+- No crea un Context Resolver, Router o Composer nuevos.
+
+### 10.5 Criterios para un futuro PR de integración
+
+1. Correr `runIntentClassifierShadowComparison` sobre el corpus combinado de `playbook-engine-conversation-intent-classifier.test.mjs` + `conversational-brain-intent-classifier.test.mjs` y confirmar una tasa de `compatible === true` estable y cercana al 100% antes de proponer cualquier cambio de router/handler.
+2. Cualquier caso incompatible recurrente se resuelve ajustando la tabla de mapping de este adapter (no cambiando comportamiento de producción) hasta que se scope un PR de integración dedicado.
+3. Conectar el classifier enriquecido al router real (plan de §6, PR 6/PR 7) requiere: feature flag apagado por defecto, y este shadow mode en verde en un ambiente de staging primero.
+4. Antes de fusionar el naming (`ConversationIntent` de A vs. B), aplicar el rename recomendado en §7 (B → `StructuredConversationIntent`) para eliminar el riesgo de colisión — este adapter ya usa aliases explícitos (`ProductionConversationIntent`/`EnrichedConversationIntent`) como mitigación local mientras tanto.
+
+### 10.6 Riesgos restantes
+
+- El mapeo plano `playbook_analysis` → `recommendation_request` puede ocultar solapes reales con `governance_audit`/`audit_question` (riesgo ya identificado en §3, no resuelto por este sprint — requiere tabla de desambiguación por `intentType`, no solo por familia).
+- `decision_support` no tiene ningún handler de producción: toda comparación shadow para esa familia reportará `mappedIntent = "unsupported"`, que hoy no tiene contenido real detrás (candidata a PR 3 de §6).
+- El test suite de este adapter (`tests/playbook-engine-conversation-intent-compatibility.test.mjs`) es independiente de las suites de regresión de ambos classifiers — un futuro PR de integración debería correr ambos corpus contra el adapter juntos, no solo los casos nuevos de este sprint.
+- El conflicto de nombres de tipos (`ConversationIntent` en A vs. B) descrito en §7 sigue sin resolverse a nivel de barrel exports; este adapter lo evita importando cada módulo con alias explícitos y sin agregarse al barrel de `conversation/index.ts`, pero el riesgo persiste para cualquier otro archivo futuro que importe ambos barrels sin alias.
