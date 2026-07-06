@@ -83,15 +83,36 @@ export const INTENT_PATTERNS: Record<Exclude<ConversationIntent, "clarification"
     { pattern: /cerrar (?:el|este) proyecto/, weight: 35, label: "cerrar el proyecto" },
     { pattern: /can we close/, weight: 45, label: "can we close" },
     { pattern: /ready (?:for|to) close/, weight: 35, label: "ready to close" },
+    // Sprint 13R calibration — closure/reception/acceptance vocabulary the enriched classifier's
+    // closure_billing family already recognized (intent-patterns.ts) but production had no pattern
+    // for at all (golden corpus mismatches cb-03/06/08/09/11). Bare single-word patterns are kept
+    // at a low weight (20) — well below any communication_draft phrase's score (45+ from
+    // "redacta(me)"/"correo (para|de)") — so a message like "redactame un correo de cierre" still
+    // resolves to communication_draft, not closure_question (see cd-08 regression guard).
+    { pattern: /que (?:nos |le )?falta para (?:el cierre|la recepcion|la aceptacion)/, weight: 40, label: "que falta para cierre/recepcion/aceptacion" },
+    { pattern: /pendiente para (?:cierre|recepcion|aceptacion)/, weight: 35, label: "pendiente para cierre/recepcion/aceptacion" },
+    { pattern: /recepcion definitiva/, weight: 35, label: "recepcion definitiva" },
+    { pattern: /acta de (?:recepcion|aceptacion)/, weight: 35, label: "acta de recepcion/aceptacion" },
+    { pattern: /cierre (?:administrativo|tecnico|contractual)/, weight: 30, label: "cierre administrativo/tecnico/contractual" },
+    { pattern: /cerrar formalmente|dar por cerrado/, weight: 35, label: "cerrar formalmente/dar por cerrado" },
+    { pattern: /\brecepcion\b/, weight: 20, label: "recepcion" },
+    { pattern: /\b(?:acta|aceptacion)\b/, weight: 20, label: "acta/aceptacion" },
+    { pattern: /\bcierre\b/, weight: 20, label: "cierre" },
   ],
   billing_question: [
-    { pattern: /(?:ya )?podemos facturar/, weight: 45, label: "podemos facturar" },
-    { pattern: /listos? para facturar/, weight: 40, label: "listos para facturar" },
+    { pattern: /(?:ya )?podemos (?:facturar|cobrar)/, weight: 45, label: "podemos facturar/cobrar" },
+    { pattern: /listos? para (?:cobrar|facturar)/, weight: 40, label: "listos para cobrar/facturar" },
     { pattern: /facturaci[o]?n/, weight: 25, label: "facturacion" },
     { pattern: /can we (?:invoice|bill)/, weight: 45, label: "can we invoice/bill" },
     { pattern: /ready to (?:invoice|bill)/, weight: 35, label: "ready to invoice/bill" },
     { pattern: /\binvoic(?:e|ing)\b/, weight: 20, label: "invoice(ing)" },
     { pattern: /\bbilling\b/, weight: 20, label: "billing" },
+    // Sprint 13R calibration — billing-blocker vocabulary the enriched classifier's closure_billing
+    // family already recognized but production had no pattern for (golden corpus mismatches
+    // cb-01/02/10). Bare "cobrar/cobro/cobranza" mirrors the existing bare "facturacion" pattern.
+    { pattern: /que (?:nos |le )?falta para (?:facturar|cobrar)/, weight: 40, label: "que falta para facturar/cobrar" },
+    { pattern: /pendiente para (?:facturar|cobrar)/, weight: 35, label: "pendiente para facturar/cobrar" },
+    { pattern: /\b(?:cobrar|cobro|cobranza)\b/, weight: 20, label: "cobrar/cobro/cobranza" },
   ],
   governance_question: [
     { pattern: /evidencia suficiente/, weight: 45, label: "evidencia suficiente" },

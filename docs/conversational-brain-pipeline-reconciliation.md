@@ -428,3 +428,97 @@ Desglose completo por categoría después de este sprint:
 3. `general_pm_advice` (30%) probablemente requiera revisar primero si hay solapes de diseño con `playbook_analysis`/`decision_support` (ver `gpa-02` en el corpus) antes de sólo agregar vocabulario, ya que ahí el problema puede ser de familia, no de patrón.
 4. `decision_support` y `ambiguous_or_unknown` siguen fuera de alcance de nivelación de vocabulario — requieren decisiones de arquitectura/producto (handler nuevo y distinción `clarification`/`unknown` en el modelo enriquecido, respectivamente) antes de que tenga sentido tocar sus patrones.
 5. Sólo cuando el `compatibilityRate` global se acerque de forma sostenida a la banda `staging_candidate` (≥ 85%) tiene sentido retomar el PR 6 de §6 (shadow mode en staging).
+
+---
+
+## 13. Sprint 13R — Closure/Billing Vocabulary Calibration
+
+> **Estado:** ajuste de vocabulario/patrones únicamente. Ver `git log` — este sprint modifica solo `intentClassifier.rules.ts` (producción), actualiza los `expected*` de 8 casos `closure_billing` del golden corpus que cambiaron de comportamiento real, agrega una sección `closure_billing` a `tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs`, y esta sección; no modifica `intent-patterns.ts` (enriquecido), `intentCompatibilityAdapter.ts`, `brainRouter.ts`, `responseComposer.ts`, ningún `handlers/*.ts`, el endpoint, ni activa ningún feature flag.
+
+### 13.1 Análisis de `closure_billing` (antes de tocar código)
+
+Sobre el baseline de Sprint 12R (`closure_billing` 33.3%, 4/12), se corrió la evaluación completa y se examinaron los 12 resultados caso por caso. Hallazgo clave: en **los 8 casos incompatibles, el classifier enriquecido (`closure_billing` family) ya clasificaba y mapeaba correctamente** — el `mappedIntent` ya coincidía con el `expectedMappedIntent` del corpus en el 100% de los casos. El único lado con vocabulario faltante era producción (`intentClassifier.rules.ts`):
+
+| Caso | Frase | Clasificación del mismatch |
+|---|---|---|
+| `cb-01` | "qué falta para facturar" | production classifier misses vocabulary (patrón de bloqueo de facturación) |
+| `cb-02` | "estamos listos para cobrar" | production classifier misses vocabulary ("cobrar" no cubierto por el patrón existente "listos para facturar") |
+| `cb-03` | "qué nos falta para la recepción definitiva" | production classifier misses vocabulary (sin ningún patrón para "recepción") |
+| `cb-06` | "preparame el seguimiento para recepción" | production classifier misses vocabulary ("recepción") — **communication_draft collision risk evaluado y descartado**: la frase no contiene "correo"/"redacta"/"escribe", así que ningún patrón de `communication_draft` la reclama; queda correctamente en `closure_question` (documentado ya en el `notes` del caso desde Sprint 11R) |
+| `cb-08` | "estamos listos para la recepción definitiva" | production classifier misses vocabulary ("recepción definitiva") |
+| `cb-09` | "qué falta para el cierre" | production classifier misses vocabulary (sin patrón para "cierre" como sustantivo) |
+| `cb-10` | "ya podemos cobrar honorarios" | production classifier misses vocabulary ("cobrar" no cubierto por "podemos facturar") |
+| `cb-11` | "el cliente ya firmó el acta de aceptación" | production classifier misses vocabulary ("acta"/"aceptación") |
+
+Ningún caso resultó ser *adapter mapping too coarse*, *golden expectation questionable*, ni *true product gap* — los 8 eran, de forma consistente, el mismo patrón de causa raíz que `governance_audit`/`risk_issue_dependency` (vocabulario asimétrico), ya anticipado en la recomendación de Sprint 12R (§12.7.1).
+
+**Riesgo de colisión con `communication_draft` (prioridad #2 del sprint):** antes de tocar código se grepeó el corpus completo (102 casos) por las palabras nuevas a introducir (`facturar`, `facturación`, `cobrar`, `cobro`, `cobranza`, `recepción`, `acta`, `aceptación`, `cierre`, `honorarios`) fuera de las categorías `closure_billing`/`communication_draft`: cero coincidencias. Dentro de `communication_draft`, solo dos casos comparten vocabulario (`cd-01` "redactame un correo para pedir recepción" contiene "recepción"; `cd-08` "redactame un correo de cierre para el cliente" contiene "cierre"), y en ambos el score de `communication_draft` (45 de `redacta(me)` + 25 de `correo (para|de)` = 70) es muy superior al de cualquier patrón nuevo de `closure_billing` (bare word, peso 20) — verificado con la evaluación completa después del cambio, sin regresión.
+
+### 13.2 Ajustes de patrones aplicados
+
+**Producción — `src/lib/playbook-engine/conversation/classifier/intentClassifier.rules.ts`** (único archivo tocado):
+
+- `billing_question`: se amplió `(?:ya )?podemos facturar` a `(?:ya )?podemos (?:facturar|cobrar)`, y `listos? para facturar` a `listos? para (?:cobrar|facturar)`; se agregaron `que (?:nos |le )?falta para (?:facturar|cobrar)`, `pendiente para (?:facturar|cobrar)`, y la palabra suelta `\b(?:cobrar|cobro|cobranza)\b` (peso 20, igual que la ya existente `facturaci[o]?n`).
+- `closure_question`: se agregaron `que (?:nos |le )?falta para (?:el cierre|la recepcion|la aceptacion)`, `pendiente para (?:cierre|recepcion|aceptacion)`, `recepcion definitiva`, `acta de (?:recepcion|aceptacion)`, `cierre (?:administrativo|tecnico|contractual)`, `cerrar formalmente|dar por cerrado`, y las palabras sueltas `\brecepcion\b`, `\b(?:acta|aceptacion)\b`, `\bcierre\b` (todas a peso 20, por debajo de cualquier señal de `communication_draft`).
+
+**Enriquecido — `src/lib/conversational-brain/intent-patterns.ts`:** sin cambios. La familia `closure_billing` ya cubría el 100% del vocabulario objetivo de este sprint (verificado antes de tocar código — ver §13.1).
+
+**Mapping del adapter (`intentCompatibilityAdapter.ts`):** sin cambios — el mapeo `billing_*` → `billing_question` / resto → `closure_question` ya era correcto; el problema nunca fue el mapeo.
+
+**Colisiones evitadas:** ver §13.1. Ninguna de las palabras nuevas aparece en `governance_audit`, `risk_issue_dependency`, `task_action`, `project_status`, `playbook_analysis`, `decision_support`, `general_pm_advice` ni `ambiguous_or_unknown` en el corpus; los dos casos de `communication_draft` con vocabulario compartido (`cd-01`, `cd-08`) se protegen por margen de score (70 vs. 20), no por exclusión léxica, y quedan cubiertos por test de regresión explícito (§13.5).
+
+### 13.3 Resultado — antes / después
+
+| Métrica | Sprint 12R | Sprint 13R | Δ |
+|---|---|---|---|
+| `compatibilityRate` global | 43.1% (44/102) | **51% (52/102)** | **+7.9 puntos** |
+| `closure_billing` | 33.3% (4/12) | **100% (12/12)** | +66.7 puntos |
+| `communication_draft` | 60% (6/10) | **60% (6/10)** | sin cambio (protegido) |
+| `project_status` | 100% (11/11) | **100% (11/11)** | sin cambio (protegido) |
+| `playbook_analysis` | 88.9% (8/9) | **88.9% (8/9)** | sin cambio (protegido) |
+| `thresholdBand` | `not_ready` | `not_ready` | sin cambio de banda (sigue por debajo de 70%) |
+
+Desglose completo por categoría después de este sprint:
+
+| Categoría | Casos | Compatibles | compatibilityRate | Cambio vs. Sprint 12R |
+|---|---|---|---|---|
+| project_status | 11 | 11 | **100%** | sin cambio |
+| closure_billing | 12 | 12 | **100%** | +66.7 pts |
+| playbook_analysis | 9 | 8 | **88.9%** | sin cambio |
+| communication_draft | 10 | 6 | 60% | sin cambio |
+| task_action | 10 | 5 | 50% | sin cambio |
+| governance_audit | 10 | 4 | 40% | sin cambio |
+| general_pm_advice | 10 | 3 | 30% | sin cambio |
+| risk_issue_dependency | 10 | 3 | 30% | sin cambio |
+| decision_support | 10 | 0 | 0% | sin cambio (fuera de alcance) |
+| ambiguous_or_unknown | 10 | 0 | 0% | sin cambio (fuera de alcance) |
+
+`expectedMappedIntentFailCount = 0` — el corpus quedó al día con el código después de actualizar los 8 casos afectados (`cb-01,02,03,06,08,09,10,11`), cada uno con una nota "Sprint 13R calibration".
+
+### 13.4 `topDifferences` restante
+
+`closure_billing` queda en 100% (0 mismatches restantes). Las categorías con mayor brecha ahora son `decision_support` (0%, fuera de alcance por diseño), `ambiguous_or_unknown` (0%, fuera de alcance por diseño), `general_pm_advice` y `risk_issue_dependency` (30% cada una), y `governance_audit` (40%) — los mismos candidatos ya señalados por la recomendación de Sprint 12R (§12.7.2/.3), sin cambios este sprint por estar fuera de su alcance explícito.
+
+### 13.5 Protección contra regresiones
+
+- `tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs`: se agregó una sección `closure_billing` que verifica (a) las 4 frases de facturación y las 9 frases de cierre/recepción/aceptación antes fallidas ahora clasifican como `billing_question`/`closure_question` en producción; (b) `redactame un correo para pedir recepción` y `redactame un correo de cierre para el cliente` siguen clasificando como `communication_draft` pese a compartir vocabulario nuevo con `closure_billing`; (c) `ayudame a responder este correo` y `preparame una minuta` (sin vocabulario de cierre) no se ven afectadas, y el classifier enriquecido las sigue clasificando como `communication_draft`; (d) un piso de `closure_billing` ≥ 70% junto con los pisos exactos de `project_status` (100%), `playbook_analysis` (≥ 88.9%) y `communication_draft` (≥ 60%) en el mismo test.
+- Los pisos por categoría de Sprint 12R (`project_status` ≥ 90%, `playbook_analysis` ≥ 80%, piso de no-regresión por categoría, piso global 28.4%) permanecen sin cambios y siguen pasando.
+- Las 147 pruebas ya existentes de `playbook-engine/conversation/*` y `conversational-brain-intent-classifier` siguen pasando sin cambios de comportamiento fuera de lo documentado.
+
+### 13.6 Verificación ejecutada
+
+- `npx tsx --test tests/playbook-engine-conversation-intent-golden-evaluation.test.mjs` — ok.
+- `npx tsx --test tests/playbook-engine-conversation-intent-compatibility.test.mjs` — ok.
+- `npx tsx --test tests/conversational-brain-intent-classifier.test.mjs` — ok (sin cambios, el archivo tocado no es `intent-patterns.ts`).
+- `npx tsx --test tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` (actualizado, +5 tests nuevos) — ok.
+- `npx tsx --test tests/playbook-engine-conversation-intent-classifier.test.mjs` — ok.
+- Resto de tests de `playbook-engine/conversation/*` (brain-router, response-composer, gateway, context-resolver, demo-scenarios) + `command-center-conversation-gateway-integration` — 57/57 ok en conjunto.
+- `npm run lint:aoc-boundaries` — pasó.
+- `npm run typecheck` — mismos errores preexistentes no relacionados (paquetes faltantes en este entorno: `react`, `stripe`, `@supabase/*`, `next/*`, `@types/node`); cero errores nuevos en `intentClassifier.rules.ts` o cualquier otro archivo tocado este sprint (verificado con `grep` del output de typecheck sobre los nombres de archivo modificados).
+
+### 13.7 Recomendación para el siguiente sprint
+
+1. `governance_audit` (40%), `risk_issue_dependency` (30%) y `general_pm_advice` (30%) siguen siendo los candidatos de mayor volumen con el mismo patrón de causa raíz (vocabulario asimétrico bidireccional) — aplican la misma técnica usada en Sprint 12R/13R.
+2. `general_pm_advice` probablemente tenga, además de vocabulario faltante, solapes de diseño reales con `playbook_analysis`/`decision_support` (ver `gpa-02`, `gpa-08` en el corpus) — revisar eso antes de solo agregar patrones, igual que se señaló en Sprint 12R (§12.7.3).
+3. `decision_support` y `ambiguous_or_unknown` siguen fuera de alcance de nivelación de vocabulario — requieren decisiones de arquitectura/producto (handler nuevo y distinción `clarification`/`unknown` en el modelo enriquecido, respectivamente).
+4. Sólo cuando el `compatibilityRate` global se acerque de forma sostenida a la banda `staging_candidate` (≥ 85%) tiene sentido retomar el PR 6 de §6 (shadow mode en staging). En 51% (post Sprint 13R), sigue en `not_ready`, pero con 3 de 10 categorías ya en 100%/≥88.9%.

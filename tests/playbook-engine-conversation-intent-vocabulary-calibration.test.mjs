@@ -159,3 +159,88 @@ test("golden evaluation: global compatibilityRate did not regress below the Spri
     `global compatibilityRate regressed: ${evaluation.summary.compatibilityRate}%`,
   );
 });
+
+// ─── Sprint 13R: closure_billing vocabulary calibration ────────────────────────
+
+test("production: previously-missed closure_billing billing phrases now classify as billing_question", () => {
+  const phrases = [
+    "qué falta para facturar",
+    "estamos listos para cobrar",
+    "qué bloquea la facturación",
+    "ya podemos cobrar honorarios",
+  ];
+  for (const message of phrases) {
+    const { intent } = classifyProductionIntent(message);
+    assert.equal(intent, "billing_question", `"${message}" should classify as billing_question`);
+  }
+});
+
+test("production: previously-missed closure_billing closure/reception/acceptance phrases now classify as closure_question", () => {
+  const phrases = [
+    "qué nos falta para la recepción definitiva",
+    "ya puedo cerrar el proyecto",
+    "preparame el seguimiento para recepción",
+    "estamos listos para la recepción definitiva",
+    "qué falta para el cierre",
+    "el cliente ya firmó el acta de aceptación",
+    "falta el acta de recepción",
+    "tenemos aceptación final?",
+    "está listo el cierre administrativo?",
+  ];
+  for (const message of phrases) {
+    const { intent } = classifyProductionIntent(message);
+    assert.equal(intent, "closure_question", `"${message}" should classify as closure_question`);
+  }
+});
+
+test("regression: communication_draft phrases sharing closure vocabulary still classify as communication_draft, not closure_billing", () => {
+  // "recepcion"/"cierre" now score under closure_question in production, but these phrases also
+  // carry "redacta"/"correo (para|de)" (weight 45+25) — a much stronger communication_draft signal
+  // than the new bare closure patterns (weight 20) — so they must not flip to closure_question.
+  const phrases = [
+    "redactame un correo para pedir recepción",
+    "redactame un correo de cierre para el cliente",
+  ];
+  for (const message of phrases) {
+    const { intent } = classifyProductionIntent(message);
+    assert.equal(intent, "communication_draft", `"${message}" should still classify as communication_draft`);
+  }
+});
+
+test("regression: communication_draft phrases with no closure vocabulary are unaffected by closure_billing calibration", () => {
+  const phrases = ["ayudame a responder este correo", "preparame una minuta"];
+  for (const message of phrases) {
+    const { intent } = classifyProductionIntent(message);
+    assert.notEqual(intent, "billing_question", `"${message}" must not classify as billing_question`);
+    assert.notEqual(intent, "closure_question", `"${message}" must not classify as closure_question`);
+    assert.equal(
+      classifyEnrichedIntent(baseInput(message)).intent.intentFamily,
+      "communication_draft",
+      `"${message}" enriched family should remain communication_draft`,
+    );
+  }
+});
+
+test("golden evaluation: closure_billing meets its Sprint 13R floor of 70% without regressing protected categories", () => {
+  const evaluation = runGoldenIntentEvaluation(GOLDEN_INTENT_CASES);
+  const report = summarizeGoldenIntentEvaluation(evaluation);
+  const byCategory = Object.fromEntries(report.byCategory.map((c) => [c.category, c]));
+
+  assert.ok(
+    byCategory.closure_billing.compatibilityRate >= 70,
+    `closure_billing compatibilityRate did not reach the Sprint 13R floor of 70%: ${byCategory.closure_billing.compatibilityRate}%`,
+  );
+  assert.equal(
+    byCategory.project_status.compatibilityRate,
+    100,
+    `project_status must remain at 100%: ${byCategory.project_status.compatibilityRate}%`,
+  );
+  assert.ok(
+    byCategory.playbook_analysis.compatibilityRate >= 88.9,
+    `playbook_analysis must remain >= 88.9%: ${byCategory.playbook_analysis.compatibilityRate}%`,
+  );
+  assert.ok(
+    byCategory.communication_draft.compatibilityRate >= 60,
+    `communication_draft must not regress below 60%: ${byCategory.communication_draft.compatibilityRate}%`,
+  );
+});
