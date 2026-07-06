@@ -1,9 +1,9 @@
 # Golden Intent Evaluation Set — Quick Reference (Sprint 11R, calibrated in Sprint 12R/13R/14R/15R/16R)
 
 > Full context, rationale, and the current baseline numbers live in the Sprint 11R (§11),
-> Sprint 12R (§12), Sprint 13R (§13), Sprint 14R (§14), Sprint 15R (§15), and Sprint 16R (§16)
-> sections of `docs/conversational-brain-pipeline-reconciliation.md`. This file is a short,
-> standalone quick-reference for running and interpreting the evaluation.
+> Sprint 12R (§12), Sprint 13R (§13), Sprint 14R (§14), Sprint 15R (§15), Sprint 16R (§16), Sprint
+> 17R (§17), and Sprint 18R (§18) sections of `docs/conversational-brain-pipeline-reconciliation.md`.
+> This file is a short, standalone quick-reference for running and interpreting the evaluation.
 
 ## What this is
 
@@ -246,18 +246,50 @@ See `docs/conversational-brain-general-pm-advice-boundary.md` for the full polic
 rules, boundary examples, and architecture/clarification gap analysis, and §17 of the
 reconciliation doc for the full sprint write-up.
 
-## Next steps (Sprint 18R candidate work)
+## Sprint 18R — Decision Support + Clarification Architecture Review (no calibration, no handler)
 
-Use `report.byCategory` and `report.topDifferences` to prioritize which classifier's pattern list
+Sprint 18R did not calibrate any vocabulary and did not build a `decision_support` handler or a real
+clarification loop — it produced a dedicated architecture policy, a 79-case corpus, and a pure
+evaluator for the two remaining gaps. Confirmed via
+`tests/playbook-engine-conversation-decision-clarification-architecture.test.mjs`:
+
+| Metric | Value |
+|---|---|
+| Global `compatibilityRate` (this doc's corpus) | **72.5% — unchanged** |
+| Sprint 17R boundary review's own metrics | **unchanged** (`policyAlignedRate` 74.3%, `currentSystemAcceptableRate` 84.3%, `architectureGapCount` 10, `clarificationGapCount` 10) |
+
+New corpus-specific metrics (from `decisionClarificationArchitectureReview.ts`, a separate 79-case
+corpus, not part of this golden corpus):
+
+| Metric | Value |
+|---|---|
+| `totalCases` | 79 |
+| `currentSafeMappingRate` | 64.6% (51/79) |
+| `futureRouteAlreadySupportedRate` | 49.4% (39/79) |
+| `requiresNewHandlerCount` | 45 |
+| `requiresClarificationCount` | 24 |
+| `unsafeMappings` | 28/79 |
+| `existingRouteRegressions` | 0/10 |
+| `recommendedNextSprint` | "Sprint 19R — Decision Support Candidate Handler" |
+
+See `docs/conversational-brain-decision-support-clarification-architecture.md` for the full policy,
+precedence rules, boundary examples, and architecture/clarification gap analysis, and §18 of the
+reconciliation doc for the full sprint write-up.
+
+## Next steps (Sprint 19R candidate work)
+
+Per Sprint 18R's evaluator recommendation, Sprint 19R should build a **Decision Support Candidate
+Handler** before any further vocabulary calibration — `decision_support` cases are the majority
+(65.2%) of the two remaining architecture gaps and have the more severe failure mode (a wrong,
+confident operational answer roughly half the time, not just a missed detection). After the handler
+exists, a `general_pm_advice` vocabulary calibration sprint should follow, then a Clarification
+Response Strategy sprint. Use `report.byCategory` and `report.topDifferences` (this evaluation) plus
+`decisionClarificationArchitectureReview.ts`'s own `byArchitectureCategory`/`topDecisionSupportGaps`/
+`topClarificationGaps` to prioritize which classifier's pattern list
 (`intentClassifier.rules.ts` for production, `intent-patterns.ts` for the enriched classifier) or
-which row of the adapter's mapping table (`intentCompatibilityAdapter.ts`) needs adjustment next.
-`general_pm_advice` (40%) remains the largest remaining vocabulary-calibration candidate among the
-"real" categories, but per the Sprint 17R boundary review, calibrating it before `decision_support`
-and `ambiguous_or_unknown` have a production home risks baking `general_pm_advice` in as a silent
-default for decision- and clarification-shaped messages. `decision_support` (0%) and
-`ambiguous_or_unknown` (0%) remain out of scope for vocabulary-only calibration, per every sprint's
-own instructions — they need an architecture/product decision (a production handler for
-`decision_support`; a defined fallback behavior for ambiguous input) before a calibration sprint can
-move their numbers. See §14.8 of the reconciliation doc for the full criteria before proposing any
-router/handler change, and `docs/conversational-brain-general-pm-advice-boundary.md`'s
-"Recommendation for next PR" for the Sprint 17R evaluator's own recommendation.
+which row of the adapter's mapping table (`intentCompatibilityAdapter.ts`) needs adjustment once a
+handler exists. `decision_support` (0%) and `ambiguous_or_unknown` (0%) remain out of scope for
+vocabulary-only calibration, per every sprint's own instructions, until their respective architecture
+pieces are built. See §18 of the reconciliation doc for the full criteria before proposing any
+router/handler change, and `docs/conversational-brain-decision-support-clarification-architecture.md`'s
+"Recommendation for Sprint 19R" for the Sprint 18R evaluator's own recommendation.
