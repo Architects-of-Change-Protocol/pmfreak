@@ -43,8 +43,12 @@ export const INTENT_FAMILY_PATTERNS: Record<RealIntentFamily, IntentPatternRule[
   playbook_analysis: [
     { pattern: /segun el playbook/, weight: 5, label: "según el playbook", intentType: "playbook_rule_explanation" },
     { pattern: /\bplaybook\b/, weight: 3, label: "playbook", intentType: "playbook_rule_explanation" },
-    { pattern: /(que recomienda|recomendacion)/, weight: 5, label: "qué recomienda/recomendación", intentType: "playbook_recommendation_request" },
+    { pattern: /(que (?:me |nos )?recomienda(?:s)?|recomendacion)/, weight: 5, label: "qué recomienda(s)/recomendación", intentType: "playbook_recommendation_request" },
     { pattern: /que deberia hacer/, weight: 3, label: "qué debería hacer", intentType: "playbook_recommendation_request" },
+    // Sprint 12R calibration — production already recognizes "que sugieres" for its
+    // recommendation_request intent (intentClassifier.rules.ts); this closes the equivalent gap
+    // here so golden corpus case pa-09 stops diverging on vocabulary alone.
+    { pattern: /que sugieres/, weight: 5, label: "qué sugieres", intentType: "playbook_recommendation_request" },
     { pattern: /(siguiente mejor accion|next best action)/, weight: 5, label: "siguiente mejor acción", intentType: "governed_next_action_request" },
     { pattern: /(brecha del playbook|que nos falta cumplir del playbook)/, weight: 5, label: "brecha del playbook", intentType: "playbook_gap_analysis" },
   ],
@@ -57,6 +61,15 @@ export const INTENT_FAMILY_PATTERNS: Record<RealIntentFamily, IntentPatternRule[
     { pattern: /(\btimeline\b|cronograma)/, weight: 5, label: "timeline/cronograma", intentType: "project_timeline_check" },
     { pattern: /atrasado/, weight: 3, label: "atrasado", intentType: "project_timeline_check" },
     { pattern: /bloqueado/, weight: 3, label: "bloqueado", intentType: "project_blockers_check" },
+    // Sprint 12R calibration — production already recognizes these two phrasings for
+    // project_status_question (intentClassifier.rules.ts); porting them here closes golden corpus
+    // mismatches ps-08/ps-09 where production caught real PM phrasing the enriched list missed.
+    { pattern: /atorado|estancado|no avanza/, weight: 3, label: "atorado/estancado/no avanza", intentType: "project_status_summary" },
+    { pattern: /nadie (?:responde|contesta)/, weight: 3, label: "nadie responde/contesta", intentType: "project_status_summary" },
+    // Plural noun form of "bloqueo" — distinct from the "bloqueado" adjective pattern above and
+    // from risk_issue_dependency's "bloque(o|ado|an|ando)" pattern; ties with the latter on score
+    // and is resolved to project_status via FAMILY_TIE_BREAK_ORDER (see ps-05 in the golden corpus).
+    { pattern: /\bbloqueos\b/, weight: 3, label: "bloqueos", intentType: "project_blockers_check" },
   ],
   task_action: [
     { pattern: /crea(r|me)? (una )?tarea|crear tarea/, weight: 5, label: "creá/crear tarea", intentType: "task_creation_request" },

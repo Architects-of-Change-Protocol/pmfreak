@@ -326,3 +326,105 @@ Con 28.4%, el resultado de este sprint cae en `not_ready`. El test suite del cor
 3. Repetir la evaluación después de cada ajuste y verificar que `compatibilityRate` sube y que `expectedMappedIntentFailCount` se mantiene en 0 (o se actualiza el corpus deliberadamente, documentando por qué cambió el valor esperado).
 4. Sólo cuando el corpus alcance de forma estable la banda `staging_candidate` (>= 85%) tiene sentido retomar el PR 6 de §6 (shadow mode en staging) con este corpus como criterio de entrada.
 5. `decision_support` y `ambiguous_or_unknown` seguirán en 0% mientras no exista handler de producción para `decision_support` (PR 3 de §6) y mientras producción no distinga `clarification` de `unknown` en el modelo enriquecido — ninguno de los dos es un blocker para elevar el resto de las categorías por separado.
+
+---
+
+## 12. Sprint 12R — Intent Vocabulary Calibration
+
+> **Estado:** ajuste de vocabulario/patrones únicamente. Ver `git log` — este sprint modifica `intentClassifier.rules.ts` (producción) y `intent-patterns.ts` (enriquecido), actualiza los `expected*` de 15 casos del golden corpus que cambiaron de comportamiento real, agrega `tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs`, y esta sección; no modifica `intentCompatibilityAdapter.ts`, `brainRouter.ts`, `responseComposer.ts`, ningún `handlers/*.ts`, el endpoint, ni activa ningún feature flag.
+
+### 12.1 Análisis de `topDifferences` (antes de tocar código)
+
+Sobre el baseline de Sprint 11R (28.4%, `project_status` 18.2%, `playbook_analysis` 22.2%), cada mismatch de esas dos categorías se clasificó así:
+
+**project_status (9 de 11 casos fallando):**
+
+| Caso | Clasificación del mismatch |
+|---|---|
+| `ps-02`, `ps-03`, `ps-06`, `ps-10` | production classifier misses vocabulary (`estado de X`, `avance`, `status`, `salud`) |
+| `ps-04`, `ps-11` | production classifier misses vocabulary (`atrasado(s)`) — `ps-04` además caía en el fallback de "clarification" por conteo de palabras al no matchear ningún patrón |
+| `ps-05` | adapter mapping too coarse / vocabulario ambiguo entre familias — "bloqueos" matcheaba `risk_issue_dependency` en el enriquecido pero ningún patrón de producción, sin verdadero solape de diseño (ver 12.2) |
+| `ps-08`, `ps-09` | enriched classifier misses vocabulary (`atorado/estancado/no avanza`, `nadie responde/contesta`) — producción ya los reconocía |
+
+**playbook_analysis (7 de 9 casos fallando):**
+
+| Caso | Clasificación del mismatch |
+|---|---|
+| `pa-01`, `pa-03`, `pa-07` | production classifier misses vocabulary (forma verbal "recomienda" en 3ª persona, "según el playbook", palabra suelta "playbook") |
+| `pa-02` | production classifier misses vocabulary ("siguiente mejor acción" con frase distinta a la ya soportada "siguiente paso") |
+| `pa-05` | enriched classifier misses vocabulary ("recomiendas", 2ª persona — producción ya lo reconocía) |
+| `pa-09` | enriched classifier misses vocabulary ("sugieres" — producción ya lo reconocía) |
+| `pa-04` | **true product gap** — "qué gap ve PMFreak" es coloquial y ninguno de los dos classifiers tiene vocabulario para él; no es un problema de nivelación, es un vacío real de producto (no atacado este sprint, por instrucción explícita). |
+
+Ningún caso de las dos categorías prioritarias resultó ser "golden expectation questionable" — todos los `expected*` de Sprint 11R eran correctos para el código de ese momento; simplemente el código cambió deliberadamente en este sprint, así que sus `expected*` se actualizaron para reflejar el nuevo comportamiento real (documentado caso por caso con una nota "Sprint 12R calibration" en el fixture).
+
+### 12.2 Ajustes de patrones aplicados
+
+**Producción — `src/lib/playbook-engine/conversation/classifier/intentClassifier.rules.ts`:**
+
+- `project_status_question`: se agregaron 7 patrones acotados — `estado de <referencia>` (con lookahead negativo que excluye `estado de esta/la/una/dicha tarea`, para no secuestrar frases de `task_action`), `avance tenemos|avance del proyecto`, `\bstatus\b`, `atrasad[oa]s?`, `\bbloqueos\b`, `health|salud (del )?proyecto`, `timeline|cronograma`.
+- `recommendation_request`: se amplió el patrón existente de `que (?:me )?recomiendas` a `que (?:me |nos )?recomienda(?:s)?` (acepta 3ª persona y "nos"), y se agregaron `siguiente mejor accion`, `segun el playbook`, `\bplaybook\b`.
+
+**Enriquecido — `src/lib/conversational-brain/intent-patterns.ts`:**
+
+- `project_status`: se portaron dos patrones que producción ya tenía (`atorado|estancado|no avanza`, `nadie (responde|contesta)`), y se agregó `\bbloqueos\b` (forma plural, distinta del patrón `bloqueado` ya existente).
+- `playbook_analysis`: se amplió el patrón existente `(que recomienda|recomendacion)` a `(que (?:me |nos )?recomienda(?:s)?|recomendacion)` (acepta 2ª persona), y se agregó `que sugieres`.
+
+**Mapping del adapter (`intentCompatibilityAdapter.ts`):** sin cambios — la tabla de mapeo ya era correcta 1:1 para ambas categorías (`project_status` → `project_status_question`, `playbook_analysis` → `recommendation_request`); el problema nunca fue el mapeo, sino que cada classifier tenía vocabulario que el otro no tenía.
+
+**Riesgo de colisión verificado:** cada patrón nuevo se validó contra los 102 casos del corpus completo antes de aplicarse. El único riesgo real detectado fue la palabra "estado" (aparece también en `ta-09`, `task_action`) y "avance" (aparece también en `ds-05`/`rid-08`); se resolvió con un lookahead negativo para "estado de" y restringiendo el patrón de "avance" a la frase exacta `avance tenemos|avance del proyecto` (en vez de una palabra suelta), evitando que producción reclasifique mensajes de otras categorías.
+
+### 12.3 Resultado — antes / después
+
+| Métrica | Sprint 11R | Sprint 12R | Δ |
+|---|---|---|---|
+| `compatibilityRate` global | 28.4% (29/102) | **43.1% (44/102)** | **+14.7 puntos** |
+| `project_status` | 18.2% (2/11) | **100% (11/11)** | +81.8 puntos |
+| `playbook_analysis` | 22.2% (2/9) | **88.9% (8/9)** | +66.7 puntos |
+| `thresholdBand` | `not_ready` | `not_ready` | sin cambio de banda (sigue por debajo de 70%) |
+
+Desglose completo por categoría después de este sprint:
+
+| Categoría | Casos | Compatibles | compatibilityRate | Cambio vs. Sprint 11R |
+|---|---|---|---|---|
+| project_status | 11 | 11 | **100%** | +81.8 pts |
+| playbook_analysis | 9 | 8 | **88.9%** | +66.7 pts |
+| communication_draft | 10 | 6 | 60% | sin cambio |
+| task_action | 10 | 5 | 50% | sin cambio |
+| governance_audit | 10 | 4 | 40% | sin cambio |
+| closure_billing | 12 | 4 | 33.3% | sin cambio |
+| general_pm_advice | 10 | 3 | 30% | sin cambio |
+| risk_issue_dependency | 10 | 3 | 30% | sin cambio |
+| decision_support | 10 | 0 | 0% | sin cambio (fuera de alcance) |
+| ambiguous_or_unknown | 10 | 0 | 0% | sin cambio (fuera de alcance) |
+
+`expectedMappedIntentFailCount = 0` — el corpus quedó al día con el código después de actualizar los 15 casos afectados (`ps-02,03,04,05,06,08,09,10,11`, `pa-01,02,03,05,07,09`).
+
+### 12.4 `topDifferences` restante en las categorías priorizadas
+
+- `pa-04` ("qué gap ve PMFreak"): único mismatch restante de `playbook_analysis` — vocabulario coloquial que ningún classifier reconoce, documentado como *true product gap*, no atacado por instrucción explícita de este sprint.
+- `project_status`: sin mismatches restantes (100%).
+
+### 12.5 Protección contra regresiones
+
+- `tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` (nuevo): verifica explícitamente que las frases antes fallidas de `project_status` y `playbook_analysis` ahora clasifican correctamente en ambos classifiers, que el lookahead de "estado de" no secuestra una frase de `task_action`, que el patrón ampliado de recomendación no matchea `decision_support`/`general_pm_advice`, y que `communication_draft`, `closure_billing`, `task_action` y `governance_audit` siguen clasificando igual que antes.
+- El mismo archivo fija *floors* de `compatibilityRate` por categoría (project_status ≥ 90%, playbook_analysis ≥ 80%, y un piso de no-regresión para cada categoría no tocada este sprint, igual a su valor de Sprint 11R) y un piso global de 28.4% — si un cambio futuro degrada cualquiera de estos, el test falla.
+- Las 113 pruebas ya existentes de `playbook-engine/conversation/*` y `conversational-brain-intent-classifier` siguen pasando sin cambios.
+
+### 12.6 Verificación ejecutada
+
+- `npx tsx --test tests/playbook-engine-conversation-intent-golden-evaluation.test.mjs` — 21/21 ok.
+- `npx tsx --test tests/playbook-engine-conversation-intent-compatibility.test.mjs` — 18/18 ok.
+- `npx tsx --test tests/conversational-brain-intent-classifier.test.mjs` — ok (sin cambios de comportamiento fuera de lo documentado).
+- `npx tsx --test tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` (nuevo) — 13/13 ok.
+- Resto de tests de `playbook-engine/conversation/*` (brain-router, response-composer, gateway, context-resolver, demo-scenarios, intent-classifier) — 147/147 ok en conjunto.
+- `npm run lint:aoc-boundaries` — pasó.
+- `npm run typecheck` — mismos errores preexistentes no relacionados (paquetes faltantes: `react`, `stripe`, `@supabase/*`, `@types/node`); cero errores nuevos en los archivos tocados este sprint.
+
+### 12.7 Recomendación para el siguiente sprint
+
+1. `closure_billing` (33.3%, 12 casos, la categoría con más volumen del corpus) es la candidata más clara para la próxima ronda de nivelación — varios de sus mismatches son de la misma naturaleza (producción no reconoce frases genéricas como "qué falta para X", "estamos listos para X").
+2. `governance_audit` (40%) y `risk_issue_dependency` (30%) tienen el mismo patrón de causa raíz (vocabulario asimétrico entre ambos classifiers) y se benefician de la misma técnica de nivelación bidireccional usada en este sprint.
+3. `general_pm_advice` (30%) probablemente requiera revisar primero si hay solapes de diseño con `playbook_analysis`/`decision_support` (ver `gpa-02` en el corpus) antes de sólo agregar vocabulario, ya que ahí el problema puede ser de familia, no de patrón.
+4. `decision_support` y `ambiguous_or_unknown` siguen fuera de alcance de nivelación de vocabulario — requieren decisiones de arquitectura/producto (handler nuevo y distinción `clarification`/`unknown` en el modelo enriquecido, respectivamente) antes de que tenga sentido tocar sus patrones.
+5. Sólo cuando el `compatibilityRate` global se acerque de forma sostenida a la banda `staging_candidate` (≥ 85%) tiene sentido retomar el PR 6 de §6 (shadow mode en staging).

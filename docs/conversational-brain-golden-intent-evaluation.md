@@ -1,8 +1,8 @@
-# Golden Intent Evaluation Set — Quick Reference (Sprint 11R)
+# Golden Intent Evaluation Set — Quick Reference (Sprint 11R, calibrated in Sprint 12R)
 
-> Full context, rationale, and the current baseline numbers live in the Sprint 11R section (§11) of
-> `docs/conversational-brain-pipeline-reconciliation.md`. This file is a short, standalone
-> quick-reference for running and interpreting the evaluation.
+> Full context, rationale, and the current baseline numbers live in the Sprint 11R (§11) and
+> Sprint 12R (§12) sections of `docs/conversational-brain-pipeline-reconciliation.md`. This file is
+> a short, standalone quick-reference for running and interpreting the evaluation.
 
 ## What this is
 
@@ -53,9 +53,36 @@ console.log(report.topDifferences); // where production and mapped-enriched disa
 - **No test in this suite fails because of a low `compatibilityRate`.** Only structural problems
   (duplicate ids, an empty input, a crash mid-evaluation, or corpus drift) fail the test suite.
 
-## Next steps (Sprint 12R candidate work)
+## Sprint 12R — vocabulary calibration result
+
+Sprint 12R adjusted only pattern lists (`intentClassifier.rules.ts`, `intent-patterns.ts`) — no
+router, composer, handler, endpoint, or feature-flag changes. Result:
+
+| Metric | Before (Sprint 11R) | After (Sprint 12R) |
+|---|---|---|
+| Global `compatibilityRate` | 28.4% (29/102) | **43.1% (44/102)** — **+14.7 points** |
+| `project_status` | 18.2% (2/11) | **100% (11/11)** |
+| `playbook_analysis` | 22.2% (2/9) | **88.9% (8/9)** |
+| `thresholdBand` | not_ready | not_ready (still `< 70%`, unchanged band) |
+
+Every other category (`communication_draft`, `closure_billing`, `governance_audit`,
+`task_action`, `risk_issue_dependency`, `decision_support`, `ambiguous_or_unknown`,
+`general_pm_advice`) is bit-for-bit unchanged from Sprint 11R — verified both by
+`tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` (which asserts a floor
+per category) and by re-running the full existing test suites.
+
+`qué gap ve PMFreak` (pa-04) is the one remaining playbook_analysis miss — a colloquial "gap"
+neither classifier recognizes, treated as a real product-vocabulary gap rather than something to
+special-case with a one-off pattern (out of scope for this sprint, per its own instructions).
+
+See §12 of the reconciliation doc for the full list of pattern changes and the next-sprint
+recommendation.
+
+## Next steps (Sprint 13R candidate work)
 
 Use `report.byCategory` and `report.topDifferences` to prioritize which classifier's pattern list
 (`intentClassifier.rules.ts` for production, `intent-patterns.ts` for the enriched classifier) or
-which row of the adapter's mapping table (`intentCompatibilityAdapter.ts`) needs adjustment next —
-see §11.7 of the reconciliation doc for the full criteria before proposing any router/handler change.
+which row of the adapter's mapping table (`intentCompatibilityAdapter.ts`) needs adjustment next.
+`closure_billing` (33.3%) and `governance_audit`/`risk_issue_dependency`/`general_pm_advice`
+(30-40%) are now the largest remaining gaps below the 85% staging threshold — see §12.7 of the
+reconciliation doc for the full criteria before proposing any router/handler change.
