@@ -218,3 +218,37 @@ export {
   generateDemoGovernanceSnapshot,
 } from "./demo-scenarios";
 export type { PlaybookDemoScenario, PlaybookDemoScenarioId } from "./demo-scenarios";
+
+// ─── Conversational Brain Gateway (Sprint 8) ────────────────────────────────────
+export { runConversationalBrainGateway } from "./conversation/gateway/conversationalBrainGateway";
+export { classifyConversationIntent } from "./conversation/classifier/intentClassifier";
+export { resolveConversationContext } from "./conversation/context/contextResolver";
+export { routeConversation } from "./conversation/router/brainRouter";
+export { composeConversationalResponse } from "./conversation/composer/responseComposer";
+export {
+  CONVERSATIONAL_DEMO_SCENARIOS,
+  runConversationalDemoScenario,
+} from "./conversation/demo/conversationalDemoScenarios";
+export type {
+  ConversationalDemoScenario,
+  ConversationalDemoScenarioId,
+} from "./conversation/demo/conversationalDemoScenarios";
+export type {
+  BrainRoute,
+  BrainRoutingDecision,
+  ContextResolution,
+  ConversationIntent,
+  ConversationLanguage,
+  ConversationMetadata,
+  ConversationTurn,
+  ConversationTurnRole,
+  ConversationalGatewayDiagnostics,
+  ConversationalGatewayInput,
+  ConversationalGatewayResult,
+  HandlerResult,
+  IntentClassification,
+  IntentSignal,
+  MissingContextItem,
+  ResolvedProjectContext,
+  ResponseMode,
+} from "./conversation/types";

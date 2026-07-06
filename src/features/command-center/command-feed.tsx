@@ -62,6 +62,31 @@ function AssistantBubble({
           ))}
         </div>
       )}
+
+      {message.gatewayMeta?.requiresApproval && (
+        <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
+          Requires your approval before anything is sent or executed
+        </div>
+      )}
+
+      {message.gatewayMeta && process.env.NODE_ENV !== "production" && (
+        <details className="mt-3 border-t border-slate-100 pt-2">
+          <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+            Debug: gateway metadata
+          </summary>
+          <dl className="mt-1.5 space-y-0.5 font-mono text-[11px] text-slate-500">
+            <div>intent: {message.gatewayMeta.intent}</div>
+            <div>route: {message.gatewayMeta.route}</div>
+            <div>mode: {message.gatewayMeta.mode}</div>
+            <div>confidence: {message.gatewayMeta.confidence}</div>
+            <div>auditRelevant: {String(message.gatewayMeta.auditRelevant)}</div>
+            {message.gatewayMeta.missingContext.length > 0 && <div>missingContext: {message.gatewayMeta.missingContext.join(", ")}</div>}
+            {message.gatewayMeta.recommendedNextSteps.length > 0 && (
+              <div>recommendedNextSteps: {message.gatewayMeta.recommendedNextSteps.join(" | ")}</div>
+            )}
+          </dl>
+        </details>
+      )}
     </div>
   );
 }

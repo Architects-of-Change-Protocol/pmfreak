@@ -66,6 +66,21 @@ export type Agent = {
   drawer: DrawerContent;
 };
 
+/** Sprint 8 Conversational Brain Gateway diagnostics carried alongside an assistant message.
+ * Kept loosely typed (plain strings) rather than importing the Playbook Engine's own unions so
+ * this UI-facing type doesn't couple tightly to the domain layer's vocabulary. Only rendered in
+ * a dev-only debug panel today — see `command-feed.tsx`. */
+export type ChatGatewayMeta = {
+  intent: string;
+  route: string;
+  mode: string;
+  confidence: number;
+  requiresApproval: boolean;
+  auditRelevant: boolean;
+  missingContext: string[];
+  recommendedNextSteps: string[];
+};
+
 export type ChatMessage = {
   id: string;
   role: "assistant" | "user";
@@ -73,6 +88,8 @@ export type ChatMessage = {
   structuredList?: string[];
   sources?: string[];
   suggestedActions?: string[];
+  /** Present only on assistant messages produced by the Conversational Brain Gateway. */
+  gatewayMeta?: ChatGatewayMeta;
 };
 
 export type TopBarStat = {
