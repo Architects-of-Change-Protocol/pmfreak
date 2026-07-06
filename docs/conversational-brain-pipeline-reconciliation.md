@@ -239,3 +239,90 @@ Tipos nuevos (definidos en el mismo archivo, sin archivo de tipos separado dado 
 - `decision_support` no tiene ningún handler de producción: toda comparación shadow para esa familia reportará `mappedIntent = "unsupported"`, que hoy no tiene contenido real detrás (candidata a PR 3 de §6).
 - El test suite de este adapter (`tests/playbook-engine-conversation-intent-compatibility.test.mjs`) es independiente de las suites de regresión de ambos classifiers — un futuro PR de integración debería correr ambos corpus contra el adapter juntos, no solo los casos nuevos de este sprint.
 - El conflicto de nombres de tipos (`ConversationIntent` en A vs. B) descrito en §7 sigue sin resolverse a nivel de barrel exports; este adapter lo evita importando cada módulo con alias explícitos y sin agregarse al barrel de `conversation/index.ts`, pero el riesgo persiste para cualquier otro archivo futuro que importe ambos barrels sin alias.
+
+---
+
+## 11. Sprint 11R — Golden Intent Evaluation Set
+
+> **Estado:** evaluación offline únicamente. Ver `git log` — este sprint agrega `tests/fixtures/conversational-brain-golden-intents.ts`, `src/lib/playbook-engine/conversation/classifier/intentGoldenEvaluation.ts`, su test file, y esta sección; no modifica `intentClassifier.ts`, `intentCompatibilityAdapter.ts`, `brainRouter.ts`, `responseComposer.ts`, ningún `handlers/*.ts`, el endpoint, ni activa ningún feature flag.
+
+### 11.1 Propósito del corpus
+
+El adapter de Sprint 10R (§10) puede comparar producción vs. enriquecido para un mensaje puntual, pero no había ninguna medición agregada de qué tan compatibles son ambos classifiers sobre frases realistas de un PM de PMFreak. El **golden corpus** (`tests/fixtures/conversational-brain-golden-intents.ts`) es un conjunto de 102 frases en español natural (y alguna mezcla de inglés/spanglish, como ya soportan ambos classifiers) que:
+
+- Cubre las 10 categorías mínimas pedidas: `general_pm_advice`, `project_status`, `playbook_analysis`, `communication_draft`, `closure_billing`, `governance_audit`, `risk_issue_dependency`, `task_action`, `decision_support`, `ambiguous_or_unknown`.
+- Registra `expectedProductionIntent`, `expectedEnrichedFamily` y `expectedMappedIntent` **capturados corriendo ambos classifiers de verdad** contra cada `input` al momento de escribir el corpus (no son valores adivinados) — esto convierte el corpus en una línea base de regresión: si un cambio futuro en cualquiera de los dos classifiers o en la tabla de mapping del adapter cambia el resultado, la evaluación lo reporta como *drift*, no lo oculta.
+- Documenta con `notes` los casos no obvios: solapes reales de vocabulario entre familias (p. ej. `playbook_analysis` vs. `governance_audit` vs. `decision_support` cuando el mensaje menciona "recomendación"/"decisión"), y huecos de patrones donde un classifier reconoce una frase y el otro no.
+
+### 11.2 Cómo correr la evaluación
+
+```bash
+npx tsx --test tests/playbook-engine-conversation-intent-golden-evaluation.test.mjs
+```
+
+Programáticamente:
+
+```ts
+import { runGoldenIntentEvaluation, summarizeGoldenIntentEvaluation } from
+  "src/lib/playbook-engine/conversation/classifier/intentGoldenEvaluation";
+import { GOLDEN_INTENT_CASES } from "tests/fixtures/conversational-brain-golden-intents";
+
+const evaluation = runGoldenIntentEvaluation(GOLDEN_INTENT_CASES);
+const report = summarizeGoldenIntentEvaluation(evaluation);
+```
+
+`runGoldenIntentEvaluation()` corre `runIntentClassifierShadowComparison()` (Sprint 10R) por cada caso — nunca llama al router, composer, handlers, DB, Supabase, ni ejecuta ninguna acción. `summarizeGoldenIntentEvaluation()` es puro: sólo reordena/resume el resultado ya calculado.
+
+### 11.3 Métricas
+
+- `totalCases`, `compatibleCount`, `incompatibleCount`, `compatibilityRate` (0-100, redondeado a 1 decimal): compatibilidad real observada (producción vs. mapeo del enriquecido) sobre el corpus completo.
+- `expectedMappedIntentPassCount` / `expectedMappedIntentFailCount`: cuántos casos coinciden con lo que el corpus dice que *debería* salir hoy — un `FailCount > 0` es una señal de que el corpus quedó desactualizado respecto al código, no una falla del feature.
+- `byCategory`: el mismo desglose por cada una de las 10 categorías.
+- `warnings`: avisos deduplicados — warnings de severidad `caution` del adapter (p. ej. `decision_support_no_production_equivalent`) más avisos de *drift* si algún caso ya no coincide con su expectativa registrada.
+- `topDifferences`: hasta 25 casos incompatibles, con el mensaje, el intent real de producción y el intent mapeado, para priorizar qué mirar primero.
+- `summarizeGoldenIntentEvaluation()` agrega además: `incompatibleCases`, `casesWithWarnings`, `productionUnsupportedButEnrichedDetected` (producción no reconoce nada pero el enriquecido sí clasificó algo) y `enrichedUnknownButProductionDetected` (el enriquecido no reconoce nada pero producción sí).
+
+### 11.4 Resultado obtenido en este sprint (baseline, no bloqueante)
+
+Corriendo el corpus completo (102 casos) hoy:
+
+| Categoría | Casos | Compatibles | compatibilityRate |
+|---|---|---|---|
+| communication_draft | 10 | 6 | 60% |
+| task_action | 10 | 5 | 50% |
+| governance_audit | 10 | 4 | 40% |
+| closure_billing | 12 | 4 | 33.3% |
+| general_pm_advice | 10 | 3 | 30% |
+| risk_issue_dependency | 10 | 3 | 30% |
+| playbook_analysis | 9 | 2 | 22.2% |
+| project_status | 11 | 2 | 18.2% |
+| decision_support | 10 | 0 | 0% |
+| ambiguous_or_unknown | 10 | 0 | 0% |
+| **Total** | **102** | **29** | **28.4%** |
+
+`expectedMappedIntentPassCount = 102 / 102` — el corpus está al día con el código en el momento de este sprint (0 casos de *drift*).
+
+Esta tasa global (28.4%) es un hallazgo real del sprint, no un error de captura: la mayoría de las divergencias vienen de que el classifier de producción (`intentClassifier.rules.ts`) tiene un vocabulario mucho más angosto y literal (por ejemplo, sólo reconoce "como va"/"estado del proyecto", no "que avance tenemos" ni "cual es el status") que el classifier enriquecido, cuyo vocabulario a su vez tampoco cubre todo lo que producción sí reconoce (p. ej. "atorado/estancado/no avanza", "nadie responde"). `decision_support` y `ambiguous_or_unknown` están en 0% por diseño: la primera no tiene intent de producción (documentado ya en §10.2), y la segunda mapea siempre a `general_pm_advice` mientras que producción distingue entre `clarification` y `unknown`.
+
+### 11.5 Threshold bands (soft, documentado — no bloquea el PR)
+
+| Banda | Rango | Significado |
+|---|---|---|
+| `staging_candidate` | `compatibilityRate >= 85%` | Candidato razonable para iniciar una captura de shadow mode en staging (Sprint 10R, PR 6). |
+| `needs_adjustment` | `70% - 84%` | Requiere ajustar la tabla de mapping del adapter o los patrones de algún classifier antes de proponer un feature flag. |
+| `not_ready` | `< 70%` | No integrar todavía — resolver las categorías con mayor incompatibilidad recurrente primero. |
+
+Con 28.4%, el resultado de este sprint cae en `not_ready`. El test suite del corpus (`tests/playbook-engine-conversation-intent-golden-evaluation.test.mjs`) **calcula y reporta** `thresholdBand`/`recommendation`, pero **no falla** por una tasa baja — sólo fallaría por un problema estructural (un caso que rompe la evaluación, un id duplicado, una categoría inválida, o *drift* de `expectedMappedIntent` respecto al comportamiento real).
+
+### 11.6 Qué significa "compatible" y qué casos requieren revisión
+
+- **Compatible** (`shouldBeCompatible: true` / `actual.compatible: true`): el intent de producción para ese mensaje ya es exactamente el mismo valor al que el adapter mapea la clasificación enriquecida. Estos casos son evidencia de que, para esa frase, activar el classifier enriquecido en el router (futuro, tras un feature flag) no cambiaría el comportamiento observable.
+- **Requieren revisión** (`compatible: false`): no implica un bug — la mayoría de las veces refleja que uno de los dos classifiers tiene un patrón que el otro no tiene todavía (ver `notes` de casos como `ps-08`, `ps-09`, `pa-05`, `pa-09`, `ga-10`), o un solape de vocabulario documentado entre familias (`ga-07`, `ga-09`, `ta-03`). Estos son justamente los casos que `topDifferences` y `byCategory` priorizan para trabajo futuro de nivelación de patrones — no de router/handlers.
+
+### 11.7 Criterio para pasar a Sprint 12R
+
+1. Priorizar por `byCategory`: nivelar primero el vocabulario de las categorías con mayor brecha respecto al umbral de 85% y mayor volumen de tráfico real esperado (`project_status`, `playbook_analysis`, `closure_billing` son las de mayor caso de uso y hoy están entre las más bajas).
+2. Cualquier ajuste de vocabulario debe hacerse en las listas de patrones de cada classifier (`intentClassifier.rules.ts` para producción, `intent-patterns.ts` para el enriquecido) o en la tabla de mapping del adapter — nunca cambiando router/composer/handlers todavía.
+3. Repetir la evaluación después de cada ajuste y verificar que `compatibilityRate` sube y que `expectedMappedIntentFailCount` se mantiene en 0 (o se actualiza el corpus deliberadamente, documentando por qué cambió el valor esperado).
+4. Sólo cuando el corpus alcance de forma estable la banda `staging_candidate` (>= 85%) tiene sentido retomar el PR 6 de §6 (shadow mode en staging) con este corpus como criterio de entrada.
+5. `decision_support` y `ambiguous_or_unknown` seguirán en 0% mientras no exista handler de producción para `decision_support` (PR 3 de §6) y mientras producción no distinga `clarification` de `unknown` en el modelo enriquecido — ninguno de los dos es un blocker para elevar el resto de las categorías por separado.
