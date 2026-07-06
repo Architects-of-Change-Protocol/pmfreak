@@ -221,3 +221,17 @@ section. Sprint 18R's own evaluator recommends **"Sprint 19R — Decision Suppor
 as the next step, since `decision_support` cases turned out to be both the majority (65.2%) of the
 combined architecture/clarification gap and the more severe failure mode (a wrong, confident
 operational answer roughly half the time, versus clarification's mostly-safe non-answer fallback).
+
+## Sprint 19R follow-up — Decision Support Candidate Handler
+
+Sprint 19R answered that recommendation with an isolated, pure, tested candidate handler
+(`src/lib/playbook-engine/conversation/decision-support/`) — not a boundary or vocabulary change, and
+not a production connection. This sprint's own corpus, `policyAlignedRate` (74.3%),
+`currentSystemAcceptableRate` (84.3%), `architectureGapCount` (10), and `clarificationGapCount` (10)
+are all unchanged by Sprint 19R — verified by
+`tests/playbook-engine-conversation-decision-support-candidate-handler.test.mjs`'s regression-awareness
+section. See `docs/conversational-brain-decision-support-candidate-handler.md` for the full design,
+and its "Criteria to pass to Sprint 20R" for what still has to happen — resolving the
+`decision_support_vs_playbook`/`decision_support_vs_general_pm` classifier collisions documented in
+this boundary review and in Sprint 18R — before `general_pm_advice` vocabulary calibration or any
+router integration can proceed.

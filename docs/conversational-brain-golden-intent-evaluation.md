@@ -2,8 +2,9 @@
 
 > Full context, rationale, and the current baseline numbers live in the Sprint 11R (§11),
 > Sprint 12R (§12), Sprint 13R (§13), Sprint 14R (§14), Sprint 15R (§15), Sprint 16R (§16), Sprint
-> 17R (§17), and Sprint 18R (§18) sections of `docs/conversational-brain-pipeline-reconciliation.md`.
-> This file is a short, standalone quick-reference for running and interpreting the evaluation.
+> 17R (§17), Sprint 18R (§18), and Sprint 19R (§19) sections of
+> `docs/conversational-brain-pipeline-reconciliation.md`. This file is a short, standalone
+> quick-reference for running and interpreting the evaluation.
 
 ## What this is
 
@@ -276,20 +277,42 @@ See `docs/conversational-brain-decision-support-clarification-architecture.md` f
 precedence rules, boundary examples, and architecture/clarification gap analysis, and §18 of the
 reconciliation doc for the full sprint write-up.
 
-## Next steps (Sprint 19R candidate work)
+## Sprint 19R — Decision Support Candidate Handler (no calibration, no routing change)
 
-Per Sprint 18R's evaluator recommendation, Sprint 19R should build a **Decision Support Candidate
-Handler** before any further vocabulary calibration — `decision_support` cases are the majority
-(65.2%) of the two remaining architecture gaps and have the more severe failure mode (a wrong,
-confident operational answer roughly half the time, not just a missed detection). After the handler
-exists, a `general_pm_advice` vocabulary calibration sprint should follow, then a Clarification
-Response Strategy sprint. Use `report.byCategory` and `report.topDifferences` (this evaluation) plus
+Per Sprint 18R's evaluator recommendation, Sprint 19R built a **Decision Support Candidate Handler**
+— an isolated, pure, tested capability in
+`src/lib/playbook-engine/conversation/decision-support/` — before any further vocabulary calibration.
+It does not touch this golden corpus, `intentClassifier.rules.ts`, `intent-patterns.ts`,
+`intentCompatibilityAdapter.ts`, the router, the composer, or any production handler, and it is not
+connected to `POST /api/command-center/chat`. Confirmed via
+`tests/playbook-engine-conversation-decision-support-candidate-handler.test.mjs`:
+
+| Metric | Value |
+|---|---|
+| Global `compatibilityRate` (this doc's corpus) | **72.5% — unchanged** |
+| Sprint 17R boundary review's own metrics | **unchanged** (`policyAlignedRate` 74.3%, `currentSystemAcceptableRate` 84.3%, `architectureGapCount` 10, `clarificationGapCount` 10) |
+| Sprint 18R architecture review's own metrics | **unchanged** (`currentSafeMappingRate` 64.6%, `futureRouteAlreadySupportedRate` 49.4%, `requiresNewHandlerCount` 45, `requiresClarificationCount` 24, `recommendedNextSprint` "Sprint 19R — Decision Support Candidate Handler") |
+
+The new handler supports 10 `DecisionSupportDecisionType` values, backed by a 50-case fixture corpus
+(`tests/fixtures/conversational-brain-decision-support-handler-cases.ts`) and 54 tests. See
+`docs/conversational-brain-decision-support-candidate-handler.md` for the full input/output contract,
+decision types, safety guarantees, and criteria to pass to Sprint 20R, and §19 of the reconciliation
+doc for the full sprint write-up.
+
+## Next steps (Sprint 20R candidate work)
+
+Per `docs/conversational-brain-decision-support-candidate-handler.md`'s own "Criteria to pass to
+Sprint 20R", a future integration sprint should (1) re-run this evaluation plus the Sprint 17R/18R
+reviews and Sprint 19R's own test suite to confirm none regress, (2) resolve the
+`decision_support_vs_playbook` and `decision_support_vs_general_pm` classifier collisions with
+explicit tie-break logic, (3) wire real `DecisionDraft` data (from `operational-intelligence-engine.ts`,
+Sprint 5) into the candidate handler's analyzer instead of its current deterministic per-type
+templates, and only then (4) propose a feature-flagged, default-off router integration. Use
+`report.byCategory` and `report.topDifferences` (this evaluation) plus
 `decisionClarificationArchitectureReview.ts`'s own `byArchitectureCategory`/`topDecisionSupportGaps`/
 `topClarificationGaps` to prioritize which classifier's pattern list
 (`intentClassifier.rules.ts` for production, `intent-patterns.ts` for the enriched classifier) or
-which row of the adapter's mapping table (`intentCompatibilityAdapter.ts`) needs adjustment once a
-handler exists. `decision_support` (0%) and `ambiguous_or_unknown` (0%) remain out of scope for
-vocabulary-only calibration, per every sprint's own instructions, until their respective architecture
-pieces are built. See §18 of the reconciliation doc for the full criteria before proposing any
-router/handler change, and `docs/conversational-brain-decision-support-clarification-architecture.md`'s
-"Recommendation for Sprint 19R" for the Sprint 18R evaluator's own recommendation.
+which row of the adapter's mapping table (`intentCompatibilityAdapter.ts`) needs adjustment once that
+integration is scoped. `general_pm_advice` vocabulary calibration and a Clarification Response
+Strategy remain the next steps after that, per Sprint 18R's `recommendedImplementationOrder`. See §19
+of the reconciliation doc for the full criteria before proposing any router/handler change.

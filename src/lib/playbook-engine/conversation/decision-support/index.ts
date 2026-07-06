@@ -1,0 +1,53 @@
+/**
+ * Sprint 19R — Decision Support Candidate Handler: isolated barrel.
+ *
+ * Exports types, the pure analyzer, and the candidate handler for this package only. This barrel is
+ * not re-exported from `src/lib/playbook-engine/conversation/index.ts` (the production barrel) and
+ * is not imported by the router, composer, any production handler, or the gateway — see
+ * `docs/conversational-brain-decision-support-candidate-handler.md`.
+ */
+
+export type {
+  DecisionSupportInput,
+  DecisionSupportInputSource,
+  DecisionSupportContext,
+  DecisionSupportDecisionType,
+  DecisionSupportOption,
+  DecisionSupportImpact,
+  DecisionSupportReversibility,
+  DecisionSupportTradeoff,
+  DecisionSupportRisk,
+  DecisionSupportRiskLevel,
+  DecisionSupportEvidenceNeed,
+  DecisionSupportEvidenceNeedPriority,
+  DecisionSupportConfidence,
+  DecisionSupportRecommendation,
+  DecisionSupportSafety,
+  DecisionSupportAuditMetadata,
+  DecisionSupportCandidateResult,
+} from "./decisionSupportCandidateTypes";
+
+export {
+  normalizeDecisionSupportInput,
+  detectDecisionType,
+  detectDecisionTypeWithDetail,
+  extractDecisionOptions,
+  identifyDecisionTradeoffs,
+  identifyDecisionRisks,
+  identifyEvidenceNeeds,
+  buildDecisionStatement,
+  estimateDecisionConfidence,
+  explainDecisionSupportAnalysis,
+} from "./decisionSupportAnalyzer";
+export type { DecisionTypeDetectionDetail, DecisionSupportAnalysisExplain } from "./decisionSupportAnalyzer";
+
+export {
+  handleDecisionSupportCandidate,
+  formatDecisionSupportCandidateResponse,
+  explainDecisionSupportCandidateHandler,
+  DECISION_SUPPORT_CANDIDATE_HANDLER_VERSION,
+} from "./decisionSupportCandidateHandler";
+export type {
+  FormatDecisionSupportCandidateResponseOptions,
+  DecisionSupportCandidateHandlerExplain,
+} from "./decisionSupportCandidateHandler";
