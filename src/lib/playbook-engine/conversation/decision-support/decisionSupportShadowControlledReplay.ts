@@ -110,13 +110,24 @@ const RECOMMENDED_NEXT_SPRINT_READY = "Sprint 31R — Clarification-Gated Decisi
  * real-side-effect flags from an override. `requireCapturePolicyClean`, `requireStorageDraftValid`,
  * `requireFakeAdapterSafety`, and `requireDeterministicOutputs` are always `true`.
  */
+/**
+ * Normalizes a caller-supplied `replayPasses` override into a positive integer — never `0`,
+ * negative, fractional, `NaN`, or `Infinity`. A non-integer is floored (`2.5` -> `2`) and a
+ * non-positive/non-finite value is clamped up to `1`, so `config.replayPasses` always reports
+ * exactly the number of passes the evaluation will actually run, never a stale or misleading value.
+ */
+function normalizeReplayPasses(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 3;
+  return Math.max(1, Math.floor(value));
+}
+
 export function createDecisionSupportShadowControlledReplayConfig(
   overrides: Partial<DecisionSupportShadowControlledReplayConfig> = {},
 ): DecisionSupportShadowControlledReplayConfig {
   const config: DecisionSupportShadowControlledReplayConfig = {
     profile: "strict_fake_adapter_controlled_replay",
     mode: overrides.mode ?? "multi_pass_replay",
-    replayPasses: overrides.replayPasses ?? 3,
+    replayPasses: normalizeReplayPasses(overrides.replayPasses),
     allowFakeAdapterWrites: overrides.allowFakeAdapterWrites ?? true,
     // These six are never actually loosened here, regardless of what a caller's override object
     // claims — this is the controlled replay's own strict, non-negotiable invariant.
@@ -422,15 +433,17 @@ function computeSafetyStatus(params: {
  * Runs a single Sprint 30R controlled replay pass over a single case: prepares the Sprint 24R shadow
  * mode run, captures it (`dry_run`, via the Sprint 25R harness), assesses the capture against the
  * Sprint 26R storage policy, maps it to a Sprint 27R storage draft, validates the draft, and — using
- * the supplied (or freshly created) Sprint 28R fake adapter — writes it. Never persists anything for
- * real; every side effect and forbidden-retention field is a literal `false` on this module's own
- * construction, never computed from anything that could make it `true` against a policy-clean corpus.
+ * the supplied (or freshly created) Sprint 28R fake adapter, and only when `allowFakeAdapterWrites` is
+ * `true` — writes it. Never persists anything for real; every side effect and forbidden-retention
+ * field is a literal `false` on this module's own construction, never computed from anything that
+ * could make it `true` against a policy-clean corpus.
  */
 function runSingleCasePass(
   architectureCase: DecisionClarificationCase,
   passIndex: number,
   adapter: DecisionSupportShadowStorageFakeAdapter,
   now: string | undefined,
+  allowFakeAdapterWrites: boolean,
 ): DecisionSupportShadowControlledReplayPassResult {
   const run = prepareDecisionSupportShadowModeRun(toShadowModeInput(architectureCase, now), {});
   const capture: DecisionSupportShadowCaptureResult = captureDecisionSupportShadowRun(run, { mode: "dry_run", now });
@@ -443,7 +456,10 @@ function runSingleCasePass(
   const validationResults = draft ? validateDecisionSupportShadowStorageDraft(draft) : [];
   const storageDraftValid = draft ? validationResults.filter((v) => v.severity === "blocking" && !v.passed).length === 0 : false;
 
-  const writeResult = draft ? writeDecisionSupportShadowStorageDraftToFakeAdapter(adapter, draft) : undefined;
+  // Honors config.allowFakeAdapterWrites: false — when the caller disables fake-adapter writes,
+  // no write is ever attempted (fakeWriteStatus falls through to "not_written" below), regardless
+  // of whether the draft itself would have been accepted.
+  const writeResult = draft && allowFakeAdapterWrites ? writeDecisionSupportShadowStorageDraftToFakeAdapter(adapter, draft) : undefined;
   const fakeWriteStatus = computeWriteStatus(draft, writeResult?.accepted, writeResult?.writeAttempted);
   const fakeWriteAccepted = writeResult?.accepted ?? false;
 
@@ -500,6 +516,10 @@ export type DecisionSupportShadowControlledReplayPassOptions = {
    * in-memory-only adapter is created for this pass — never shared across passes by default, so one
    * pass's writes can never leak into another pass's write-acceptance counts. */
   adapter?: DecisionSupportShadowStorageFakeAdapter;
+  /** Mirrors `DecisionSupportShadowControlledReplayConfig.allowFakeAdapterWrites`. Defaults to `true`
+   * — when explicitly `false`, no draft is ever written to the fake adapter for this pass, and every
+   * case's `fakeWriteStatus` reports `"not_written"` instead of `"fake_write_accepted"`. */
+  allowFakeAdapterWrites?: boolean;
 };
 
 /**
@@ -507,7 +527,8 @@ export type DecisionSupportShadowControlledReplayPassOptions = {
  * corpus — pass `DECISION_CLARIFICATION_CASES` from
  * `tests/fixtures/conversational-brain-decision-clarification-cases.ts` for the full Sprint 18R
  * corpus). Never creates a database, migration, storage adapter, or Supabase write, and never shows
- * anything to a user — every write lands only in `options.adapter` (or a freshly created one).
+ * anything to a user — every write lands only in `options.adapter` (or a freshly created one), and
+ * only when `options.allowFakeAdapterWrites` is not explicitly `false`.
  */
 export function runDecisionSupportShadowControlledReplayPass(
   cases: DecisionClarificationCase[] = DEFAULT_SYNTHETIC_CORPUS,
@@ -515,7 +536,8 @@ export function runDecisionSupportShadowControlledReplayPass(
 ): DecisionSupportShadowControlledReplayPassResult[] {
   const passIndex = options.passIndex ?? 0;
   const adapter = options.adapter ?? createDecisionSupportShadowStorageFakeAdapter();
-  return cases.map((architectureCase) => runSingleCasePass(architectureCase, passIndex, adapter, options.now));
+  const allowFakeAdapterWrites = options.allowFakeAdapterWrites ?? true;
+  return cases.map((architectureCase) => runSingleCasePass(architectureCase, passIndex, adapter, options.now, allowFakeAdapterWrites));
 }
 
 // ─── Aggregation ───────────────────────────────────────────────────────────────────────
@@ -654,7 +676,9 @@ export function runDecisionSupportShadowControlledReplayEvaluation(
   const passResults: DecisionSupportShadowControlledReplayPassResult[] = [];
   for (let passIndex = 0; passIndex < config.replayPasses; passIndex += 1) {
     const adapter = createDecisionSupportShadowStorageFakeAdapter();
-    passResults.push(...runDecisionSupportShadowControlledReplayPass(cases, { passIndex, now, adapter }));
+    passResults.push(
+      ...runDecisionSupportShadowControlledReplayPass(cases, { passIndex, now, adapter, allowFakeAdapterWrites: config.allowFakeAdapterWrites }),
+    );
   }
 
   const aggregates = aggregateDecisionSupportShadowControlledReplayCaseResults(passResults);
@@ -708,6 +732,7 @@ function computeDecision(fields: {
   unsafeCaseCount: number;
   fakeWriteRejectedCount: number;
   fakeAdapterBaselineRegressed: boolean;
+  clarificationGatedRecommendationCount: number;
 }): DecisionSupportShadowControlledReplayDecision {
   const allClean =
     fields.deterministicReplayRate === 100 &&
@@ -727,7 +752,12 @@ function computeDecision(fields: {
     fields.emailAddressRetainedCount === 0 &&
     fields.phoneNumberRetainedCount === 0;
 
-  if (allClean && !fields.fakeAdapterBaselineRegressed) return "ready_for_clarification_gated_integration_plan";
+  // Readiness requires at least one decision_candidate/clarification_candidate case that actually
+  // recommended clarification-gated integration — a corpus containing only existing-route/unsupported
+  // cases has nothing for Sprint 31R's integration plan to gate, so "clean" alone is not "ready".
+  if (allClean && !fields.fakeAdapterBaselineRegressed && fields.clarificationGatedRecommendationCount > 0) {
+    return "ready_for_clarification_gated_integration_plan";
+  }
   if (fields.unstableCaseCount > 0) return "blocked_by_replay_drift";
   if (fields.unsafeCaseCount > 0) return "blocked_by_safety_regression";
   if (fields.fakeWriteRejectedCount > 0 || fields.fakeAdapterBaselineRegressed) return "blocked_by_fake_adapter_regression";
@@ -834,6 +864,7 @@ export function summarizeDecisionSupportShadowControlledReplayEvaluation(
     unsafeCaseCount,
     fakeWriteRejectedCount,
     fakeAdapterBaselineRegressed,
+    clarificationGatedRecommendationCount,
   });
 
   const warnings = passResults.flatMap((p) => p.warnings);
@@ -956,9 +987,12 @@ export function explainDecisionSupportShadowControlledReplayEvaluation(): Decisi
     ],
     decisionRule:
       "ready_for_clarification_gated_integration_plan requires deterministicReplayRate/safeReplayRate/fakeWriteAcceptedRate all at " +
-      "100% and every real-persistence/DB/Supabase/external-call/user-visible-output/production-wiring/forbidden-retention count at " +
-      "zero. Otherwise: blocked_by_replay_drift if any case is unstable; else blocked_by_safety_regression if any case is unsafe; else " +
-      "blocked_by_fake_adapter_regression if any fake write was unexpectedly rejected; else continue_shadow_replay_only.",
+      "100%, every real-persistence/DB/Supabase/external-call/user-visible-output/production-wiring/forbidden-retention count at zero, " +
+      "and at least one case that actually recommended clarification_gated_decision_support (clarificationGatedRecommendationCount > " +
+      "0) — a corpus containing only existing-route/unsupported cases has nothing for Sprint 31R's integration plan to gate, so " +
+      "'clean' alone is not 'ready'. Otherwise: blocked_by_replay_drift if any case is unstable; else blocked_by_safety_regression if " +
+      "any case is unsafe; else blocked_by_fake_adapter_regression if any fake write was unexpectedly rejected; else " +
+      "continue_shadow_replay_only.",
     allowedNextActions: [...ALLOWED_NEXT_ACTIONS],
     prohibitedNextActions: [...PROHIBITED_NEXT_ACTIONS],
     whyDbIsNotCreated:

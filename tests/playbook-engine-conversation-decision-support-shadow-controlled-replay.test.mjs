@@ -189,6 +189,48 @@ test("config honors safe overrides (mode, replayPasses, allowFakeAdapterWrites)"
   assert.equal(config.allowFakeAdapterWrites, false);
 });
 
+test("replayPasses is normalized: non-positive, fractional, and non-finite overrides are clamped to a positive integer", () => {
+  assert.equal(createDecisionSupportShadowControlledReplayConfig({ replayPasses: 0 }).replayPasses, 1);
+  assert.equal(createDecisionSupportShadowControlledReplayConfig({ replayPasses: -3 }).replayPasses, 1);
+  assert.equal(createDecisionSupportShadowControlledReplayConfig({ replayPasses: 2.5 }).replayPasses, 2);
+  assert.equal(createDecisionSupportShadowControlledReplayConfig({ replayPasses: Number.NaN }).replayPasses, 3);
+  assert.equal(createDecisionSupportShadowControlledReplayConfig({ replayPasses: Infinity }).replayPasses, 3);
+});
+
+test("a fractional replayPasses override actually runs the normalized (floored) number of passes, not a stale reported value", () => {
+  const evaluation = runDecisionSupportShadowControlledReplayEvaluation([DECISION_CLARIFICATION_CASES[0]], { config: { replayPasses: 2.5 }, now: NOW });
+  assert.equal(evaluation.config.replayPasses, 2);
+  assert.equal(evaluation.passResults.length, 2);
+});
+
+test("replayPasses: 0 does not silently produce an empty, misleading evaluation", () => {
+  const evaluation = runDecisionSupportShadowControlledReplayEvaluation([DECISION_CLARIFICATION_CASES[0]], { config: { replayPasses: 0 }, now: NOW });
+  assert.equal(evaluation.config.replayPasses, 1);
+  assert.equal(evaluation.passResults.length, 1);
+  assert.equal(evaluation.aggregates.length, 1);
+});
+
+// ─── allowFakeAdapterWrites: false is honored ──────────────────────────────────────
+
+test("allowFakeAdapterWrites: false skips the fake write for every case in every pass", () => {
+  const evaluation = runDecisionSupportShadowControlledReplayEvaluation(DECISION_CLARIFICATION_CASES, {
+    config: { allowFakeAdapterWrites: false, replayPasses: 1 },
+    now: NOW,
+  });
+  assert.equal(evaluation.config.allowFakeAdapterWrites, false);
+  for (const p of evaluation.passResults) {
+    assert.equal(p.fakeWriteStatus, "not_written", `caseId ${p.caseId} should report not_written when writes are disabled`);
+    assert.equal(p.fakeWriteAccepted, false);
+    assert.equal(p.fakeRecordId, undefined);
+  }
+});
+
+test("allowFakeAdapterWrites: false at the single-pass level also skips the write", () => {
+  const [pass] = runDecisionSupportShadowControlledReplayPass([DECISION_CLARIFICATION_CASES[0]], { now: NOW, allowFakeAdapterWrites: false });
+  assert.equal(pass.fakeWriteStatus, "not_written");
+  assert.equal(pass.fakeWriteAccepted, false);
+});
+
 // ─── Allowed / prohibited actions ──────────────────────────────────────────────────
 
 test("allowed next actions include every required phrase", () => {
@@ -466,6 +508,18 @@ test("summary: decision is ready_for_clarification_gated_integration_plan (fixtu
 test("summary: recommendedNextSprint is Sprint 31R (fixture cr-recommended-sprint-31r)", () => {
   fixtureFor("cr-recommended-sprint-31r");
   assert.equal(SUMMARY.recommendedNextSprint, "Sprint 31R — Clarification-Gated Decision Support Integration Plan");
+});
+
+test("a clean corpus with zero decision/clarification candidates is not reported ready — there is nothing to integrate", () => {
+  const existingRouteOnlyCase = fixtureFor("cr-category-existing-route-stable").caseInput;
+  const evaluation = runDecisionSupportShadowControlledReplayEvaluation([existingRouteOnlyCase], { now: NOW });
+  const summary = summarizeDecisionSupportShadowControlledReplayEvaluation(evaluation);
+  assert.equal(summary.deterministicReplayRate, 100);
+  assert.equal(summary.safeReplayRate, 100);
+  assert.equal(summary.fakeWriteAcceptedRate, 100);
+  assert.equal(summary.clarificationGatedRecommendationCount, 0);
+  assert.notEqual(summary.decision, "ready_for_clarification_gated_integration_plan");
+  assert.equal(summary.decision, "continue_shadow_replay_only");
 });
 
 test("summary: route recommendation counts match the classification breakdown", () => {
