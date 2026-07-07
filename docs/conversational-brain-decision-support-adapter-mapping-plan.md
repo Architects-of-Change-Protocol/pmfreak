@@ -331,3 +331,17 @@ storage adapter real. No creó repository real. No implementó un loop de clarif
 conectó `decision_support` al router. Decisión explícita: `do_not_build_real_persistence_yet`. Siguiente
 sprint recomendado: **Sprint 30R — Controlled Shadow Replay Evaluation**.
 
+
+---
+
+## Nota — Sprint 30R
+
+Sprint 30R creó una **Controlled Shadow Replay Evaluation**
+(`docs/conversational-brain-decision-support-shadow-controlled-replay.md`), replayando el corpus del
+Sprint 18R (79 casos) tres veces a través del pipeline shadow existente usando unicamente el fake
+adapter del Sprint 28R. No cambió producción. No cambió routing. No activó ningún feature flag. No creó
+DB/migrations/tables/SQL files. No creó storage adapter real. No creó repository real. No implementó un
+loop de clarificación persistente. No conectó `decision_support` al router. Decisión explícita:
+`ready_for_clarification_gated_integration_plan`. Siguiente sprint recomendado: **Sprint 31R —
+Clarification-Gated Decision Support Integration Plan**.
+
