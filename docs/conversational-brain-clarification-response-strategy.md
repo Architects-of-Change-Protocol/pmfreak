@@ -359,3 +359,13 @@ before a capture is considered acceptable. This file's own 77-test suite still p
 sprint did not modify `clarificationResponseStrategy.ts`, `clarificationResponseAnalyzer.ts`,
 `clarificationResponseTypes.ts`, or `clarificationResponseEvaluation.ts`. See
 `docs/conversational-brain-decision-support-shadow-capture-harness.md`.
+
+## Sprint 26R note
+
+Sprint 26R's storage policy classifies `responseText`-named fields (and any field name containing
+`responseText`) as permanently prohibited — consistent with this strategy never retaining full
+response text. This file's own 77-test suite still passes unchanged: `acceptableResponseRate`
+100%, `safetyPassRate` 100%, `routeOptionsCoverageRate` 100%, `overQuestioningCount` 0. Sprint 26R did
+not modify `clarificationResponseStrategy.ts`, `clarificationResponseAnalyzer.ts`,
+`clarificationResponseTypes.ts`, or `clarificationResponseEvaluation.ts`. See
+`docs/conversational-brain-decision-support-shadow-storage-policy.md`.

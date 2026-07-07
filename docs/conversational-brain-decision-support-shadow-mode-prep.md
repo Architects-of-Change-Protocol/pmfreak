@@ -334,3 +334,13 @@ at 100%, `existingRoutePreservedCount` stays at 10, and `recommendedNextSprint` 
 25R — Decision Support Shadow Capture Harness". Sprint 25R did not modify
 `decisionSupportShadowModePrep.ts` or `decisionSupportShadowModePrepTypes.ts`. See
 `docs/conversational-brain-decision-support-shadow-capture-harness.md` for the full capture contract.
+
+## Sprint 26R note
+
+Sprint 26R's storage policy reuses this module only transitively, through the Sprint 25R capture
+harness — it does not import `decisionSupportShadowModePrep.ts` directly. This document's own 51-test
+suite still passes unchanged: `shadowEligibleCount` 69, `decisionCandidateGeneratedCount` 18,
+`clarificationCandidateGeneratedCount` 51, `existingRoutePreservedCount` 10,
+`blockedBySafetyGateCount` 0. Sprint 26R did not modify `decisionSupportShadowModePrep.ts` or
+`decisionSupportShadowModePrepTypes.ts`. See
+`docs/conversational-brain-decision-support-shadow-storage-policy.md`.

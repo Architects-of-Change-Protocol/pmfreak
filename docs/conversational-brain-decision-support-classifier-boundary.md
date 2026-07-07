@@ -311,3 +311,10 @@ contract, without touching `intent-patterns.ts` or this boundary's calibrated pa
 document's own 99-test suite still passes unchanged: `enrichedDecisionSupportDetectionRate` (88.9%)
 and `unsafeClassifierCollisionCount` (5) are identical. See
 `docs/conversational-brain-decision-support-shadow-capture-harness.md`.
+
+## Sprint 26R note
+
+Sprint 26R built a storage policy on top of the Sprint 25R capture harness, without touching
+`intent-patterns.ts` or this boundary's calibrated patterns. This document's own 99-test suite still
+passes unchanged: `enrichedDecisionSupportDetectionRate` (88.9%) and `unsafeClassifierCollisionCount`
+(5) are identical. See `docs/conversational-brain-decision-support-shadow-storage-policy.md`.

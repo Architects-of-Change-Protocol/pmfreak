@@ -298,3 +298,11 @@ remains explicitly out of scope (see this sprint's non-goals in
 `docs/conversational-brain-decision-support-shadow-capture-harness.md`). This document's own 45-test
 suite still passes unchanged: `policyAlignedRate` 82.9%, `currentSystemAcceptableRate` 84.3%. Sprint
 25R did not modify `generalPmAdviceBoundaryReview.ts` or this boundary corpus.
+
+## Sprint 26R note
+
+Sprint 26R's storage policy does not calibrate `general_pm_advice` vocabulary either — still
+explicitly out of scope (see this sprint's non-goals in
+`docs/conversational-brain-decision-support-shadow-storage-policy.md`). This document's own 45-test
+suite still passes unchanged: `policyAlignedRate` 82.9%, `currentSystemAcceptableRate` 84.3%. Sprint
+26R did not modify `generalPmAdviceBoundaryReview.ts` or this boundary corpus.

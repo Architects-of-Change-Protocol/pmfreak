@@ -343,3 +343,16 @@ handler, every feature flag, the DB/Supabase/Gmail integrations, `intentClassifi
 `src/lib/playbook-engine/conversation/decision-support/index.ts` was updated to export the new module
 (an isolated barrel, not re-exported from `src/lib/playbook-engine/conversation/index.ts` — the
 production barrel is unmodified).
+
+## Sprint 26R note
+
+Sprint 26R built `decisionSupportShadowCaptureStoragePolicy.ts`, a storage policy / default-off
+persistence plan that assesses real captures produced by this harness (via
+`runDecisionSupportShadowCaptureHarnessEvaluation()`, unmodified) against a field-classification
+policy — proving `captureHarnessCleanRate` is 100% against the Sprint 18R corpus. This sprint's own
+77-test suite still passes unchanged: `acceptableCaptureRate`/`allBlockingGatesPassedRate` stay at
+100% in both `dry_run` and `test_only_in_memory` modes, `existingRouteCaptureCount` stays at 10, and
+`recommendedNextSprint` still reads "Sprint 26R — Shadow Capture Storage Policy / Default-Off
+Persistence Plan". Sprint 26R did not modify `decisionSupportShadowCaptureHarness.ts` or
+`decisionSupportShadowCaptureHarnessTypes.ts`. See
+`docs/conversational-brain-decision-support-shadow-storage-policy.md` for the full policy.
