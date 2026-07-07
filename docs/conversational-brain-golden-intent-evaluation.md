@@ -408,3 +408,11 @@ Sprint 24R built the `hybrid_shadow_then_clarify` shadow mode prep contract
 the adapter. Re-running `runGoldenIntentEvaluation()` confirms the global `compatibilityRate` is
 unchanged at **72.5%**. See `docs/conversational-brain-decision-support-shadow-mode-prep.md` for the
 full contract and results.
+
+## Sprint 25R
+
+Sprint 25R built an offline/test-only shadow capture harness on top of the Sprint 24R shadow mode prep
+contract, without touching the golden evaluation corpus, the classifier, or the adapter. Re-running
+`runGoldenIntentEvaluation()` confirms the global `compatibilityRate` is unchanged at **72.5%**. See
+`docs/conversational-brain-decision-support-shadow-capture-harness.md` for the full contract and
+results.

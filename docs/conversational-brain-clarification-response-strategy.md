@@ -348,3 +348,14 @@ before a run is considered "acceptable." This file's own 77-test suite still pas
 sprint did not modify `clarificationResponseStrategy.ts`, `clarificationResponseAnalyzer.ts`,
 `clarificationResponseTypes.ts`, or `clarificationResponseEvaluation.ts`. See
 `docs/conversational-brain-decision-support-shadow-mode-prep.md` for the full contract.
+
+## Sprint 25R update
+
+Sprint 25R's shadow capture harness summarizes a clarification candidate produced by this strategy
+into structural fields only (`clarificationStrategyType`, `clarificationAmbiguityLevel`,
+`clarificationMissingSlots`, `clarificationRouteOptionIntents`, `clarificationQuestionCount`) — never
+the full `responseText` or question text — and requires it to pass this file's own safety check
+before a capture is considered acceptable. This file's own 77-test suite still passes unchanged; this
+sprint did not modify `clarificationResponseStrategy.ts`, `clarificationResponseAnalyzer.ts`,
+`clarificationResponseTypes.ts`, or `clarificationResponseEvaluation.ts`. See
+`docs/conversational-brain-decision-support-shadow-capture-harness.md`.

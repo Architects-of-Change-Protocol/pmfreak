@@ -1704,3 +1704,25 @@ se devuelve a un caller offline. Contra el corpus del Sprint 18R (79 casos): `sh
 shadow mode real, no se conectó `decision_support` al router, no se activó ningún feature flag, y no
 se persistió ningún shadow output — ver
 `docs/conversational-brain-decision-support-shadow-mode-prep.md` para el contrato completo.
+
+## §25R — Decision Support Shadow Capture Harness
+
+Sprint 25R construyó `decisionSupportShadowCaptureHarness.ts`, un harness offline/test-only/in-memory
+que convierte un `DecisionSupportShadowModeRun` (Sprint 24R) en un capture record minimizado y
+redactado: preview de input sanitizado + hash local (`sanitizeDecisionSupportShadowInput()` /
+`createDecisionSupportShadowInputHash()`), resumen estructural del candidato (nunca el texto completo
+de la recomendación o de la respuesta de clarificación), safety snapshot, y diez gates bloqueantes más
+dos informativos. Dos modos: `dry_run` (default, nunca escribe a ningún lado) y
+`test_only_in_memory` (requiere `allowInMemoryCaptureForTests: true` Y `policyAcknowledged: true`;
+escribe a un sink en memoria, de un solo proceso, nunca a una base de datos real). Contra el corpus del
+Sprint 18R (79 casos), en ambos modos: `acceptableCaptureRate` 100%, `allBlockingGatesPassedRate`
+100%, `decisionCandidateCaptureCount` 18, `clarificationCandidateCaptureCount` 51,
+`existingRouteCaptureCount` 10, y todos los conteos de retención/side-effect
+(`rawInputRetainedCount`/`fullDecisionCandidateRetainedCount`/`fullClarificationCandidateRetainedCount`/
+`userVisibleOutputRetainedCount`/`dbWriteAttemptedCount`/`supabaseWriteAttemptedCount`/
+`shouldReturnCandidateToUserCount`/`shouldPersistShadowResultCount`/`shouldExecuteActionCount`) en 0.
+`recommendedNextSprint`: **"Sprint 26R — Shadow Capture Storage Policy / Default-Off Persistence
+Plan"**. No se escribió ninguna base de datos ni Supabase, no se mostró ningún capture record a un
+usuario, no se retuvo input crudo ni candidatos completos, no se conectó `decision_support` al router,
+y no se activó ningún feature flag — ver
+`docs/conversational-brain-decision-support-shadow-capture-harness.md` para el contrato completo.

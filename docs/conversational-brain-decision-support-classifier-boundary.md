@@ -303,3 +303,11 @@ Sprint 24R built the shadow mode prep contract for `hybrid_shadow_then_clarify`
 calibrated patterns — this document's own 99-test suite still passes unchanged, and
 `enrichedDecisionSupportDetectionRate` (88.9%) and `unsafeClassifierCollisionCount` (5) are identical.
 See `docs/conversational-brain-decision-support-shadow-mode-prep.md` for the full contract.
+
+## Sprint 25R update
+
+Sprint 25R built an offline/test-only shadow capture harness on top of the Sprint 24R shadow mode prep
+contract, without touching `intent-patterns.ts` or this boundary's calibrated patterns. This
+document's own 99-test suite still passes unchanged: `enrichedDecisionSupportDetectionRate` (88.9%)
+and `unsafeClassifierCollisionCount` (5) are identical. See
+`docs/conversational-brain-decision-support-shadow-capture-harness.md`.

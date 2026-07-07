@@ -323,3 +323,14 @@ handler, every feature flag, the DB/Supabase/Gmail integrations, `intentClassifi
 `src/lib/playbook-engine/conversation/decision-support/index.ts` was updated to export the new module
 (an isolated barrel, not re-exported from `src/lib/playbook-engine/conversation/index.ts` — the
 production barrel is unmodified).
+
+## Sprint 25R update
+
+Sprint 25R built `decisionSupportShadowCaptureHarness.ts`, an offline/test-only capture harness that
+turns a `DecisionSupportShadowModeRun` from this module into a minimized, redacted capture record —
+still never persisted for real, still never shown to a user, still never executed. This file's own
+51-test suite still passes unchanged: `acceptableShadowPrepRunRate`/`allBlockingGatesPassedRate` stay
+at 100%, `existingRoutePreservedCount` stays at 10, and `recommendedNextSprint` still reads "Sprint
+25R — Decision Support Shadow Capture Harness". Sprint 25R did not modify
+`decisionSupportShadowModePrep.ts` or `decisionSupportShadowModePrepTypes.ts`. See
+`docs/conversational-brain-decision-support-shadow-capture-harness.md` for the full capture contract.

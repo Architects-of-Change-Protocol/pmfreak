@@ -294,3 +294,13 @@ input, and shadow-routes to its result only when it passes the same safety/struc
 here and confidence is medium/high. This file's own 54-test suite still passes unchanged; this sprint
 did not modify `decisionSupportCandidateHandler.ts`, `decisionSupportAnalyzer.ts`, or
 `decisionSupportCandidateTypes.ts`. See `docs/conversational-brain-decision-support-shadow-mode-prep.md`.
+
+## Sprint 25R update
+
+Sprint 25R's shadow capture harness summarizes a decision candidate produced by this handler into
+structural fields only (`decisionType`, `decisionConfidence`, `decisionOptionCount`,
+`decisionEvidenceNeededCount`, `decisionRiskCount`, `decisionWarningCount`) — never the full
+`recommendation.rationale`/`recommendedPath`/`suggestedNextStep` text. This file's own 54-test suite
+still passes unchanged; this sprint did not modify `decisionSupportCandidateHandler.ts`,
+`decisionSupportAnalyzer.ts`, or `decisionSupportCandidateTypes.ts`. See
+`docs/conversational-brain-decision-support-shadow-capture-harness.md`.
