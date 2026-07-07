@@ -235,3 +235,16 @@ and its "Criteria to pass to Sprint 20R" for what still has to happen — resolv
 `decision_support_vs_playbook`/`decision_support_vs_general_pm` classifier collisions documented in
 this boundary review and in Sprint 18R — before `general_pm_advice` vocabulary calibration or any
 router integration can proceed.
+
+## Sprint 20R follow-up — Decision Support Shadow Mapping Evaluation
+
+Sprint 20R measured, with a pure offline evaluator
+(`docs/conversational-brain-decision-support-shadow-mapping.md`), how the Sprint 19R candidate handler
+would behave against the Sprint 18R corpus. It found `general_pm_advice` responsible for 7 of 21
+live unsafe classifier collisions against `decision_support`-desired messages — the single largest
+named collision bucket, appearing across every `decision_support_vs_*` category, not only
+`decision_support_vs_general_pm` — directly reaffirming this document's own `general_pm_vs_decision_support`
+finding with a larger, independent corpus. `recommendedNextSprint` is **"Sprint 21R — Decision Support
+Classifier Boundary Calibration"**. This document's own corpus, `policyAlignedRate` (74.3%),
+`currentSystemAcceptableRate` (84.3%), `architectureGapCount` (10), and `clarificationGapCount` (10)
+are all unchanged by Sprint 20R.

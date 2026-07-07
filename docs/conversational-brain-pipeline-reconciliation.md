@@ -1309,3 +1309,100 @@ no diverjan.
 - `git diff --name-only` — confirma que sólo se agregaron archivos nuevos; ningún archivo de
   producción, router, composer, handler existente, classifier de patrones, adaptador, o endpoint fue
   modificado.
+
+## 20. Sprint 20R — Decision Support Shadow Mapping Evaluation
+
+> **Estado:** evaluación offline/shadow únicamente. Este sprint agrega
+> `src/lib/playbook-engine/conversation/decision-support/decisionSupportShadowMappingEvaluation.ts` y
+> `decisionSupportShadowMappingTypes.ts`, su test file
+> (`tests/playbook-engine-conversation-decision-support-shadow-mapping.test.mjs`), este documento
+> (`docs/conversational-brain-decision-support-shadow-mapping.md`), y esta sección; agrega exports al
+> barrel aislado `decision-support/index.ts` (no re-exportado desde el barrel productivo). No modifica
+> `intentClassifier.rules.ts`, `intent-patterns.ts`, `intentCompatibilityAdapter.ts`, `brainRouter.ts`,
+> `responseComposer.ts`, ningún `handlers/*.ts` existente, el endpoint, ni activa ningún feature flag.
+> No conecta `decision_support` a producción. No se creó ningún corpus nuevo — reutiliza el corpus de
+> 79 casos de Sprint 18R sin modificarlo.
+
+### 20.1 Por qué esta evaluación y no otra cosa
+
+Sprint 19R construyó el Decision Support Candidate Handler como una capacidad aislada, pura y
+probada, pero dejó una pregunta abierta explícitamente en su propio documento ("Criteria to pass to
+Sprint 20R"): re-ejecutar los test suites existentes confirma que nada regresó, pero no mide con
+números reales cómo se comportaría el handler frente al corpus que motivó construirlo. Este sprint
+responde exactamente eso — sin integrar nada a producción.
+
+### 20.2 Qué se creó
+
+1. **Evaluator puro** —
+   `src/lib/playbook-engine/conversation/decision-support/decisionSupportShadowMappingEvaluation.ts`:
+   `runDecisionSupportShadowMappingEvaluation(cases, options?)`,
+   `summarizeDecisionSupportShadowMappingEvaluation(results)`,
+   `explainDecisionSupportShadowMappingEvaluation()`. Reutiliza
+   `runDecisionClarificationArchitectureReview()` (Sprint 18R) para la comparación shadow
+   producción/enriquecido/adapter, y `handleDecisionSupportCandidate()` (Sprint 19R) para los casos
+   elegibles. Sin `fetch`, sin DB, sin Supabase, sin Gmail, sin LLM, sin feature flags.
+2. **Tipos** — `decisionSupportShadowMappingTypes.ts`: `DecisionSupportShadowEligibility`,
+   `DecisionSupportShadowCollisionType` (18 valores), `DecisionSupportShadowIntegrationMode` (8
+   valores), `DecisionSupportShadowMappingResult`, `DecisionSupportShadowMappingSummary`.
+3. **Test suite** — `tests/playbook-engine-conversation-decision-support-shadow-mapping.test.mjs`: 52
+   tests (estructura, elegibilidad, candidate handler, detección de colisiones, safety a nivel de
+   código fuente, y regresión contra golden/Sprint 17R/Sprint 18R).
+4. **Documento de referencia** — `docs/conversational-brain-decision-support-shadow-mapping.md`:
+   metodología completa, resultados, top collisions, top handler gaps, shadow routable cases,
+   recomendación de integration mode, y criterios para Sprint 21R.
+
+### 20.3 Resultados obtenidos
+
+| Métrica | Valor |
+|---|---|
+| `totalCases` | 79 |
+| `decisionSupportDesiredCount` / `candidateHandlerEligibleCount` | 45 / 45 (**100% coverage**) |
+| `candidateHandlerSafeRate` | **100%** (0 safety failures, 0 missing options/evidence) |
+| `shadowRoutableRate` | **40%** (18/45) |
+| `unsafeClassifierCollisionCount` | 21 (playbook 3, general_pm 7, risk 5, closure 2, governance 3, mapping_gap 1) |
+| `handlerLowConfidenceCount` | 19 (diseño esperado: sin `availableContext`, no un defecto) |
+| `recommendedIntegrationMode` | **`do_not_integrate`** (por `shadowRoutableRate` < 50%, no por falla del handler) |
+| `recommendedNextSprint` | **"Sprint 21R — Decision Support Classifier Boundary Calibration"** |
+
+### 20.4 Qué NO se hizo (por diseño de este sprint)
+
+- No se conectó `decision_support` a producción, al router, al composer, o al endpoint.
+- No se activó ningún feature flag.
+- No se modificó `intentClassifier.rules.ts`, `intent-patterns.ts`, ni
+  `intentCompatibilityAdapter.ts` (verificado con `git diff --name-only` y con tests de safety que
+  hacen grep del código fuente).
+- No se creó ningún corpus nuevo — se reutilizó el corpus de 79 casos de Sprint 18R sin modificarlo.
+- No se implementó `DecisionDraft` reuse — esta evaluación cuantifica cuánto cuesta no tenerlo
+  (`handlerLowConfidenceCount` 19/45) sin resolverlo.
+- No se implementó un clarification loop real.
+- No se calibró vocabulario de `general_pm_advice`.
+
+### 20.5 Protección contra regresiones
+
+- El golden corpus permanece en `compatibilityRate` **72.5%**, sin cambios por categoría.
+- El boundary review de Sprint 17R permanece igual (`policyAlignedRate` 74.3%,
+  `currentSystemAcceptableRate` 84.3%, `architectureGapCount` 10, `clarificationGapCount` 10).
+- El architecture review de Sprint 18R permanece igual (`currentSafeMappingRate` 64.6%,
+  `futureRouteAlreadySupportedRate` 49.4%, `requiresNewHandlerCount` 45,
+  `requiresClarificationCount` 24, `existingRouteRegressions` 0).
+- El candidate handler de Sprint 19R no cambió — su propio test suite (54 tests) sigue pasando sin
+  modificaciones al código de producción del handler.
+
+### 20.6 Verificación ejecutada
+
+- `npx tsx --test tests/playbook-engine-conversation-decision-support-shadow-mapping.test.mjs` — ok (52/52, nuevo).
+- `npx tsx --test tests/playbook-engine-conversation-decision-support-candidate-handler.test.mjs` — ok (54/54, sin cambios).
+- `npx tsx --test tests/playbook-engine-conversation-decision-clarification-architecture.test.mjs` — ok (51/51, sin cambios).
+- `npx tsx --test tests/playbook-engine-conversation-general-pm-advice-boundary.test.mjs` — ok (45/45, sin cambios).
+- `npx tsx --test tests/playbook-engine-conversation-intent-golden-evaluation.test.mjs` — ok (21/21, sin cambios).
+- `npx tsx --test tests/playbook-engine-conversation-intent-compatibility.test.mjs` — ok (21/21, sin cambios).
+- `npx tsx --test tests/conversational-brain-intent-classifier.test.mjs` — ok (32/32, sin cambios).
+- `npx tsx --test tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` — ok (46/46, sin cambios).
+- Resto de `tests/playbook-engine-conversation-*.test.mjs` + `tests/conversational-brain-*.test.mjs` — 382/382 ok, sin cambios de comportamiento.
+- `npm run lint:aoc-boundaries` — pasó.
+- `npm run typecheck` — mismos errores preexistentes no relacionados (módulos/tipos de Node/React/Next
+  faltantes en todo el repo); cero errores nuevos en los archivos de este sprint (verificado con
+  `grep -i decisionSupportShadow` sobre la salida de `tsc --noEmit`).
+- `git diff --name-only` — confirma que sólo se agregaron archivos nuevos y se editó el barrel aislado
+  `decision-support/index.ts`; ningún archivo de producción, router, composer, handler existente,
+  classifier de patrones, adaptador, o endpoint fue modificado.
