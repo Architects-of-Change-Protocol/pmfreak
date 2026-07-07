@@ -283,3 +283,15 @@ corpora on its first real run, and its own `recommendedNextSprint` is **"Sprint 
 Support Adapter Mapping Plan"** — i.e. the next architectural step is resolving `decision_support`'s
 still-pending adapter mapping (this document's own `do_not_integrate` finding), not further
 clarification-response hardening.
+
+## Sprint 23R follow-up — Decision Support Adapter Mapping Plan
+
+Sprint 23R built exactly that adapter mapping plan — see
+`docs/conversational-brain-decision-support-adapter-mapping-plan.md` — as a pure offline simulator,
+without touching this document's classifier calibration, `intent-patterns.ts`, or
+`intentCompatibilityAdapter.ts`. Re-running this file's own regression suite confirms every metric
+above is unchanged: `enrichedDecisionSupportDetectionRate` 88.9%, `unsafeClassifierCollisionCount` 5
+(playbook 0 / general_pm 1 / risk 2 / closure 1 / governance 0), `recommendedIntegrationMode`
+`do_not_integrate`. The new plan's own recommendation, `hybrid_shadow_then_clarify`, is the
+`recommendedSprint24Strategy`, with `recommendedNextSprint`: **"Sprint 24R — Decision Support Shadow
+Mode Prep"**.

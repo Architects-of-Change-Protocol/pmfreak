@@ -279,3 +279,15 @@ strategy's own offline evaluator measured `acceptableResponseRate` 100% and `saf
 against the Sprint 18R/17R clarification corpora, with `recommendedNextSprint` **"Sprint 23R —
 Decision Support Adapter Mapping Plan"** — i.e. this document's own `do_not_integrate` finding is now
 the largest remaining gap in the series, not clarification response quality.
+
+## Sprint 23R follow-up — Decision Support Adapter Mapping Plan
+
+Sprint 23R built exactly that adapter mapping plan — see
+`docs/conversational-brain-decision-support-adapter-mapping-plan.md` — reusing
+`runDecisionSupportShadowMappingEvaluation()` from this file unmodified as one of its building
+blocks. This sprint did not touch `decisionSupportShadowMappingEvaluation.ts` or
+`decisionSupportShadowMappingTypes.ts` — re-running this file's own test suite confirms every metric
+above is unchanged, including `recommendedIntegrationMode` `do_not_integrate`. The new plan simulates
+eight mapping strategies against this evaluator's own `isShadowRoutable` signal and recommends
+`hybrid_shadow_then_clarify` for Sprint 24R, with `recommendedNextSprint`: **"Sprint 24R — Decision
+Support Shadow Mode Prep"**.

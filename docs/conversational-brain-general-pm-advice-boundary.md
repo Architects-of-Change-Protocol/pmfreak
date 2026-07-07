@@ -272,3 +272,13 @@ are all unchanged. The new strategy's own offline evaluator reuses this document
 `ambiguous_clarification_candidate` cases directly (via `toGeneralPmBoundaryEvaluationCases()`) as
 part of its evidence base, measuring `acceptableResponseRate` 100% and `safetyPassRate` 100% against
 them.
+
+## Sprint 23R follow-up — Decision Support Adapter Mapping Plan
+
+Sprint 23R built an offline adapter mapping plan — see
+`docs/conversational-brain-decision-support-adapter-mapping-plan.md` — that simulates, and explicitly
+rejects, a `map_to_general_pm_advice` strategy for `decision_support` precisely because it would
+reintroduce the `general_pm_advice` collision this document's boundary policy exists to prevent
+(`safeOutcomeRate` drops to 12.7% under that strategy, with 12 cases at critical risk). It did not
+touch this boundary corpus, `generalPmAdviceBoundaryReview.ts`, or `intentCompatibilityAdapter.ts` —
+`policyAlignedRate` 82.9% and `currentSystemAcceptableRate` 84.3% are unchanged.
