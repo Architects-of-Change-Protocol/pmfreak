@@ -430,3 +430,14 @@ No creó storage adapter real. No creó repository real. No implementó un loop 
 persistente. No conectó `decision_support` al router. No mostró output de `decision_support` al
 usuario. Decisión explícita: `ready_for_user_visible_dry_run_plan`. Siguiente sprint recomendado:
 **Sprint 32R — Decision Support Response QA / User-Visible Dry Run Plan**.
+
+## Nota Sprint 32R
+
+Sprint 32R creó el Decision Support Response QA / User-Visible Dry Run Plan
+(`docs/conversational-brain-decision-support-response-qa-dry-run-plan.md`). No cambió producción, no
+cambió routing, no activó ningún feature flag, no creó DB/migrations/tables/SQL files, no creó storage
+adapter real ni repository real, no implementó un persistent clarification loop, no conectó
+`decision_support` al router, no mostró output de `decision_support` al usuario, no creó
+emails/drafts/tasks, y no ejecutó acciones. Decisión explícita: `ready_for_response_draft_harness`.
+Siguiente sprint recomendado: Sprint 33R — Decision Support Response Draft Harness.
+

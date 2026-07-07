@@ -378,3 +378,38 @@ export type {
   DecisionSupportClarificationGatedIntegrationPlanSummary,
   DecisionSupportClarificationGatedIntegrationPlanExplain,
 } from "./decisionSupportClarificationGatedIntegrationPlan";
+
+export {
+  DECISION_SUPPORT_RESPONSE_QA_DRY_RUN_PLAN_VERSION,
+  createDecisionSupportResponseQaDryRunPlanConfig,
+  listDecisionSupportResponseQaDryRunAllowedNextActions,
+  listDecisionSupportResponseQaDryRunProhibitedActions,
+  createDecisionSupportResponseQaDryRunResponseContract,
+  createDecisionSupportResponseQaDryRunSyntheticDraft,
+  evaluateDecisionSupportResponseQaDryRunGate,
+  assessDecisionSupportResponseQaDryRunCase,
+  buildDecisionSupportResponseQaDryRunPlan,
+  summarizeDecisionSupportResponseQaDryRunPlan,
+  explainDecisionSupportResponseQaDryRunPlan,
+} from "./decisionSupportResponseQaDryRunPlan";
+export type {
+  DecisionSupportResponseQaDryRunPlanProfile,
+  DecisionSupportResponseQaDryRunPlanMode,
+  DecisionSupportResponseQaDryRunPlanDecision,
+  DecisionSupportResponseQaDryRunResponseKind,
+  DecisionSupportResponseQaDryRunQaStatus,
+  DecisionSupportResponseQaDryRunRiskLevel,
+  DecisionSupportResponseQaDryRunViolationType,
+  DecisionSupportResponseQaDryRunGateType,
+  DecisionSupportResponseQaDryRunPlanConfig,
+  DecisionSupportResponseQaDryRunResponseContract,
+  DecisionSupportResponseQaDryRunResponseSections,
+  DecisionSupportResponseQaDryRunSyntheticResponseDraft,
+  DecisionSupportResponseQaDryRunGateResult,
+  DecisionSupportResponseQaDryRunCaseAssessment,
+  DecisionSupportResponseQaDryRunPlanOptions,
+  DecisionSupportResponseQaDryRunPlanResult,
+  DecisionSupportResponseQaDryRunPlanSummaryOptions,
+  DecisionSupportResponseQaDryRunPlanSummary,
+  DecisionSupportResponseQaDryRunPlanExplain,
+} from "./decisionSupportResponseQaDryRunPlan";
