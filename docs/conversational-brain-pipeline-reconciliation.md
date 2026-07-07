@@ -1510,3 +1510,90 @@ con `playbook_analysis`, `general_pm_advice`, `risk_issue_dependency`, `closure_
   `grep` sobre la salida de `tsc --noEmit` filtrando por los paths tocados).
 - `git diff --name-only` — confirma que no se tocó `intentClassifier.rules.ts`,
   `intentCompatibilityAdapter.ts`, el router, el composer, ningún handler productivo, ni el endpoint.
+
+---
+
+## 22. Sprint 22R — Clarification Response Strategy
+
+> **Estado:** módulo aislado nuevo. Ver `git log` — este sprint agrega
+> `src/lib/playbook-engine/conversation/clarification/` completo (tipos, analyzer, strategy,
+> evaluator, barrel), `tests/fixtures/conversational-brain-clarification-response-cases.ts` (67
+> casos), `tests/playbook-engine-conversation-clarification-response-strategy.test.mjs`,
+> `docs/conversational-brain-clarification-response-strategy.md`, y esta sección; no modifica
+> `intentClassifier.rules.ts`, `intent-patterns.ts`, `intentCompatibilityAdapter.ts`, el router, el
+> composer, ningún handler productivo, ni el endpoint; no activa ningún feature flag.
+
+### 22.1 Qué se creó
+
+Siguiendo la recomendación de Sprint 21R ("Sprint 22R — Clarification Response Strategy", el gap
+bucket más grande de los cuatro que rastrea `decisionSupportShadowMappingEvaluation.ts` una vez
+calibrado el boundary de `decision_support`), este sprint construye la capacidad de respuesta que
+faltaba para `needs_clarification`: dado un mensaje ambiguo, clasificarlo en uno de once
+`ClarificationStrategyType`, inferir qué slots faltan (project, intent, source_context,
+desired_output, owner, recipient, evidence, decision_options, urgency, timeframe,
+action_authorization), sugerir rutas plausibles, y renderizar una pregunta aclaratoria estructurada
+— todo puro, determinístico, sin LLM, sin red, sin DB.
+
+### 22.2 Resultados obtenidos
+
+| Métrica | Valor |
+|---|---|
+| `evaluatedClarificationCases` (corpus Sprint 18R `clarification_*` + Sprint 17R `ambiguous_clarification_candidate`) | 34 |
+| `strategyCoverageRate` | **100%** |
+| `acceptableResponseRate` | **100%** |
+| `safetyPassRate` | **100%** |
+| `routeOptionsCoverageRate` | **100%** |
+| `overQuestioningCount` | **0** |
+| `recommendedNextSprint` | **"Sprint 23R — Decision Support Adapter Mapping Plan"** |
+
+### 22.3 Qué NO se hizo (por diseño de este sprint)
+
+- No se implementó un clarification loop persistente/multi-turno — cada llamada es un turno único y
+  sin estado.
+- No se conectó la estrategia al router, composer, handlers, o endpoint.
+- No se modificó el classifier de producción ni el mapeo del adapter.
+- No se activó ningún feature flag.
+- No se calibró vocabulario de `general_pm_advice`.
+- No se creó un Context Resolver, Router, o Composer nuevos.
+
+### 22.4 Protección contra regresiones
+
+- Golden corpus: `compatibilityRate` global **72.5%, sin cambios**; todas las categorías previamente
+  calibradas sin cambios.
+- Sprint 17R: `policyAlignedRate` **82.9%**, `currentSystemAcceptableRate` **84.3%**,
+  `architectureGapCount` **10**, `clarificationGapCount` **10** — sin cambios.
+- Sprint 18R: `currentSafeMappingRate` **84.8%**, `futureRouteAlreadySupportedRate` **84.8%**,
+  `requiresNewHandlerCount` **45**, `requiresClarificationCount` **24** — sin cambios.
+- Sprint 19R: código del handler de decision-support sin modificar; su test suite de 54 tests sigue
+  pasando sin cambios.
+- Sprint 20R/21R: `candidateHandlerSafeRate` **100%**, `shadowRoutableRate` **40%**,
+  `unsafeClassifierCollisionCount` **5** (playbook 0 / general_pm 1 / risk 2 / closure 1 /
+  governance 0), `enrichedDecisionSupportDetectionRate` **88.9%**,
+  `recommendedIntegrationMode` `do_not_integrate` — sin cambios.
+
+### 22.5 Verificación ejecutada
+
+- `npx tsx --test tests/playbook-engine-conversation-clarification-response-strategy.test.mjs` — ok (77/77, nuevo).
+- `npx tsx --test tests/playbook-engine-conversation-decision-support-classifier-boundary.test.mjs` — ok (99/99).
+- `npx tsx --test tests/playbook-engine-conversation-decision-support-shadow-mapping.test.mjs` — ok (52/52).
+- `npx tsx --test tests/playbook-engine-conversation-decision-support-candidate-handler.test.mjs` — ok (54/54).
+- `npx tsx --test tests/playbook-engine-conversation-decision-clarification-architecture.test.mjs` — ok (51/51).
+- `npx tsx --test tests/playbook-engine-conversation-general-pm-advice-boundary.test.mjs` — ok (45/45).
+- `npx tsx --test tests/playbook-engine-conversation-intent-golden-evaluation.test.mjs` — ok (21/21).
+- `npx tsx --test tests/playbook-engine-conversation-intent-compatibility.test.mjs` — ok (21/21).
+- `npx tsx --test tests/conversational-brain-intent-classifier.test.mjs` — ok (32/32).
+- `npx tsx --test tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` — ok (46/46).
+- `npm run lint:aoc-boundaries` — pasó.
+- `npm run typecheck` — mismos errores preexistentes no relacionados; cero errores nuevos en los
+  archivos de este sprint.
+- `git diff --name-only` — confirma que no se tocó `intentClassifier.rules.ts`,
+  `intent-patterns.ts`, `intentCompatibilityAdapter.ts`, el router, el composer, ningún handler
+  productivo, ni el endpoint.
+
+### 22.6 Recomendación siguiente
+
+Per el heurístico propio (sin modificar) del nuevo evaluador, el siguiente sprint debería ser
+**Sprint 23R — Decision Support Adapter Mapping Plan**: con la calidad y seguridad de la respuesta de
+clarificación ya sólidas en su primera corrida real, la brecha arquitectónica más grande que queda
+abierta en esta serie es que `decision_support` todavía no tiene una ruta de producción real
+(`recommendedIntegrationMode: do_not_integrate` de Sprint 21R, con `shadowRoutableRate` en 40%).

@@ -248,3 +248,27 @@ finding with a larger, independent corpus. `recommendedNextSprint` is **"Sprint 
 Classifier Boundary Calibration"**. This document's own corpus, `policyAlignedRate` (74.3%),
 `currentSystemAcceptableRate` (84.3%), `architectureGapCount` (10), and `clarificationGapCount` (10)
 are all unchanged by Sprint 20R.
+
+## Sprint 21R follow-up — Decision Support Classifier Boundary Calibration
+
+Sprint 21R calibrated the enriched classifier's `decision_support` pattern boundary (see
+`docs/conversational-brain-decision-support-classifier-boundary.md`), which moved this document's own
+`policyAlignedRate` from 74.3% to **82.9%** (every newly-aligned case has `policyTargetKind:
+"architecture_candidate"`, i.e. `decision_support_candidate`) — `currentSystemAcceptableRate` (84.3%),
+`architectureGapCount` (10), and `clarificationGapCount` (10) are unchanged. This is verified by
+`tests/playbook-engine-conversation-decision-support-classifier-boundary.test.mjs`'s regression
+section.
+
+## Sprint 22R follow-up — Clarification Response Strategy
+
+Sprint 22R built the Clarification Response Strategy this document's own `unresolvedClarificationGaps`
+flagged as needing "a product decision on what a clarification loop should ask, not another
+pattern-list calibration" — see `docs/conversational-brain-clarification-response-strategy.md`. It
+did not touch this boundary corpus, `generalPmAdviceBoundaryReview.ts`, or
+`intentCompatibilityAdapter.ts` — re-running
+`tests/playbook-engine-conversation-general-pm-advice-boundary.test.mjs` confirms `policyAlignedRate`
+82.9%, `currentSystemAcceptableRate` 84.3%, `architectureGapCount` 10, and `clarificationGapCount` 10
+are all unchanged. The new strategy's own offline evaluator reuses this document's
+`ambiguous_clarification_candidate` cases directly (via `toGeneralPmBoundaryEvaluationCases()`) as
+part of its evidence base, measuring `acceptableResponseRate` 100% and `safetyPassRate` 100% against
+them.

@@ -355,3 +355,31 @@ lugar") now records `expectedEnrichedFamily: "decision_support"` and
 explaining the Sprint 21R calibration and that `shouldBeCompatible` stays `false` either way (the
 production classifier still returns `unknown` for this input). This is drift correction, not score
 inflation — the case was already incompatible before and after.
+
+## Sprint 22R — Clarification Response Strategy (no calibration, no golden corpus change)
+
+Sprint 22R did not touch this golden corpus, `intentClassifier.rules.ts`, `intent-patterns.ts`,
+`intentCompatibilityAdapter.ts`, the router, the composer, or any production handler — it built an
+isolated Clarification Response Strategy (`src/lib/playbook-engine/conversation/clarification/`, see
+`docs/conversational-brain-clarification-response-strategy.md`) that answers ambiguous messages with
+a structured clarifying question instead of a canned advice answer. Confirmed via
+`tests/playbook-engine-conversation-clarification-response-strategy.test.mjs`:
+
+| Metric | Value |
+|---|---|
+| Global `compatibilityRate` (this doc's corpus) | **72.5% — unchanged** |
+| Every previously-calibrated category | **unchanged** (`project_status`/`closure_billing`/`risk_issue_dependency`/`task_action`/`communication_draft` 100%, `governance_audit` 90%, `playbook_analysis` 88.9%) |
+
+New corpus-independent metrics (from `clarificationResponseEvaluation.ts`, reusing the Sprint 18R
+`clarification_*` cases and the Sprint 17R `ambiguous_clarification_candidate` cases — not part of
+this golden corpus):
+
+| Metric | Value |
+|---|---|
+| `evaluatedClarificationCases` | 34 |
+| `acceptableResponseRate` | 100% |
+| `safetyPassRate` | 100% |
+| `recommendedNextSprint` | "Sprint 23R — Decision Support Adapter Mapping Plan" |
+
+See `docs/conversational-brain-clarification-response-strategy.md` for the full strategy-type
+taxonomy, missing-slot inference, route options, response format, and evaluation results.
