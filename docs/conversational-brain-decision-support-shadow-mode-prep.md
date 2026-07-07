@@ -354,3 +354,14 @@ directly. This document's own 51-test suite still passes unchanged: `shadowEligi
 `existingRoutePreservedCount` 10, `blockedBySafetyGateCount` 0. Sprint 27R did not modify
 `decisionSupportShadowModePrep.ts` or `decisionSupportShadowModePrepTypes.ts`. See
 `docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md`.
+
+## Sprint 28R note
+
+Sprint 28R's fake storage adapter imports `prepareDecisionSupportShadowModeRun()` directly (to build
+one real base draft its synthetic invalid/expired-purge fixtures clone from), the same reuse pattern
+Sprint 25R itself uses. This document's own 51-test suite still passes unchanged:
+`shadowEligibleCount` 69, `decisionCandidateGeneratedCount` 18,
+`clarificationCandidateGeneratedCount` 51, `existingRoutePreservedCount` 10,
+`blockedBySafetyGateCount` 0. Sprint 28R did not modify `decisionSupportShadowModePrep.ts` or
+`decisionSupportShadowModePrepTypes.ts`. See
+`docs/conversational-brain-decision-support-shadow-storage-fake-adapter.md`.

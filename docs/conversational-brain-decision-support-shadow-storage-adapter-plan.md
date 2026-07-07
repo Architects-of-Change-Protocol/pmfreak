@@ -313,3 +313,17 @@ production handler, `intentCompatibilityAdapter.ts`, `intentClassifier.rules.ts`
 created. No feature flag was activated. No email/task/draft/execution ever happened. No shadow output
 was shown to or persisted for a user. Recommendation: **Sprint 28R — Shadow Capture Storage Adapter
 Fake Implementation**.
+
+## Sprint 28R note
+
+Sprint 28R built `decisionSupportShadowCaptureStorageFakeAdapter.ts`, a fake (in-memory-only)
+implementation of the five `futureOnly` methods this plan named (`writeCaptureDraft` ->
+`writeDraft`/`deleteByCaptureId`/`deleteByWorkspace`/`purgeExpired`/`listByPolicyVersion`), reusing
+`mapDecisionSupportCaptureRecordToStorageDraft()`, `validateDecisionSupportShadowStorageDraft()`, and
+`runDecisionSupportShadowStorageAdapterPlanEvaluation()` from this module exactly as-is. This
+document's own 90-test suite still passes unchanged: `validDraftRate` 100%, `invalidDraftCount` 0,
+`readinessStatus` still reaches `ready_for_fake_adapter_implementation` with a `test_only_in_memory`
+pass, `recommendedNextSprint` still reads "Sprint 28R — Shadow Capture Storage Adapter Fake
+Implementation". Sprint 28R did not modify `decisionSupportShadowCaptureStorageAdapterPlan.ts` or
+`decisionSupportShadowCaptureStorageAdapterPlanTypes.ts`. See
+`docs/conversational-brain-decision-support-shadow-storage-fake-adapter.md` for the full fake adapter.

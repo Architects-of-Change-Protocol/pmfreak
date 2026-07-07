@@ -386,3 +386,16 @@ retention/deletion policy, readiness gates, record assessment) still passes unch
 `decisionSupportShadowCaptureStoragePolicy.ts` or `decisionSupportShadowCaptureStoragePolicyTypes.ts`.
 See `docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md` for the full adapter
 plan.
+
+## Sprint 28R note
+
+Sprint 28R built `decisionSupportShadowCaptureStorageFakeAdapter.ts`, a fake in-memory storage
+adapter that reuses `classifyDecisionSupportShadowStorageField()` from this module directly (as a
+second, defense-in-depth check inside `writeDraft()`, scoped to `draft.fields` only) — still no
+database, migration, table, or real storage adapter. This document's own 97-test suite (field
+classification, retention/deletion policy, readiness gates, record assessment) still passes
+unchanged: `captureHarnessCleanRate` 100%, `blockingReadinessGateFailureCount` 0,
+`storageReadinessStatus` `ready_for_storage_adapter_design`. Sprint 28R did not modify
+`decisionSupportShadowCaptureStoragePolicy.ts` or `decisionSupportShadowCaptureStoragePolicyTypes.ts`.
+See `docs/conversational-brain-decision-support-shadow-storage-fake-adapter.md` for the full fake
+adapter.

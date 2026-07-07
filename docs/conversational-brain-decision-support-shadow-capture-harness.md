@@ -366,3 +366,14 @@ mapper. This file's own 77-test suite still passes unchanged: `acceptableCapture
 `existingRouteCaptureCount` stays at 10. Sprint 27R did not modify
 `decisionSupportShadowCaptureHarness.ts` or `decisionSupportShadowCaptureHarnessTypes.ts`. See
 `docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md`.
+
+## Sprint 28R note
+
+Sprint 28R's fake storage adapter reuses `captureDecisionSupportShadowRun()` directly (to build one
+real base draft its synthetic invalid/expired-purge fixtures clone from) and reuses this harness's
+capture records transitively via Sprint 27R's evaluator for the corpus pass. This file's own 77-test
+suite still passes unchanged: `acceptableCaptureRate`/`allBlockingGatesPassedRate` stay at 100% in
+both `dry_run` and `test_only_in_memory` modes, `existingRouteCaptureCount` stays at 10. Sprint 28R
+did not modify `decisionSupportShadowCaptureHarness.ts` or
+`decisionSupportShadowCaptureHarnessTypes.ts`. See
+`docs/conversational-brain-decision-support-shadow-storage-fake-adapter.md`.
