@@ -318,3 +318,10 @@ Sprint 26R built a storage policy on top of the Sprint 25R capture harness, with
 `intent-patterns.ts` or this boundary's calibrated patterns. This document's own 99-test suite still
 passes unchanged: `enrichedDecisionSupportDetectionRate` (88.9%) and `unsafeClassifierCollisionCount`
 (5) are identical. See `docs/conversational-brain-decision-support-shadow-storage-policy.md`.
+
+## Sprint 27R note
+
+Sprint 27R built a storage adapter plan on top of the Sprint 26R storage policy, without touching
+`intent-patterns.ts` or this boundary's calibrated patterns. This document's own 99-test suite still
+passes unchanged: `enrichedDecisionSupportDetectionRate` (88.9%) and `unsafeClassifierCollisionCount`
+(5) are identical. See `docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md`.

@@ -1750,3 +1750,28 @@ los conteos de violación (`rawInputViolationCount`/`fullCandidateViolationCount
 adapter, ni cliente de Supabase; no se implementó ningún feature flag real; no se conectó
 `decision_support` al router; no se cambió ningún comportamiento de producción — ver
 `docs/conversational-brain-decision-support-shadow-storage-policy.md` para la política completa.
+
+## §27R — Decision Support Shadow Capture Storage Adapter Plan
+
+Sprint 27R construyó `decisionSupportShadowCaptureStorageAdapterPlan.ts`, un plan/contrato de adapter
+puro, offline/determinístico — no una implementación — que diseña cómo sería un futuro Shadow Capture
+Storage Adapter: nombra y policy-gatea sus 8 métodos (`validatePolicy`/`mapCaptureRecordToStorageDraft`/
+`validateStorageDraft` implementados como funciones puras este sprint; `writeCaptureDraft`/
+`deleteByCaptureId`/`deleteByWorkspace`/`purgeExpired`/`listByPolicyVersion` marcados `futureOnly`),
+propone (sin crear) un schema de 21 columnas permitidas/minimizadas/hasheadas más 22 columnas
+prohibidas explícitas para una tabla `decision_support_shadow_captures`, documenta (sin crear) una
+migration proposal, mapea capture records reales del Sprint 25R a un storage draft policy-clean
+reutilizando la política del Sprint 26R, valida ese draft contra 23 gates (15 bloqueantes, 8
+informativos), y simula el contrato del adapter con un no-op que nunca escribe nada real. Contra el
+corpus del Sprint 18R (79 casos): `totalDraftsCreated` 79, `validDraftRate` 100%, `invalidDraftCount`
+0, todos los conteos de write/campo-prohibido (`writeAttemptedCount`/`realPersistenceAttemptedCount`/
+`dbWriteAttemptedCount`/`supabaseWriteAttemptedCount`/`rawInputIncludedCount`/
+`inputPreviewIncludedCount`/`fullCandidateIncludedCount`/`userVisibleOutputIncludedCount`/
+`projectNameIncludedCount`/`emailAddressIncludedCount`/`phoneNumberIncludedCount`) en 0,
+`migrationCreated`/`tableCreated`/`storageAdapterRealImplemented` en `false`, `readinessStatus`
+**`ready_for_noop_adapter_implementation`** (dry_run) o **`ready_for_fake_adapter_implementation`**
+(con pase `test_only_in_memory`). `recommendedNextSprint`: **"Sprint 28R — Shadow Capture Storage
+Adapter Fake Implementation"**. No se creó ninguna base de datos, migración, archivo SQL, tabla,
+storage adapter real, ni repository real; no se implementó ningún feature flag real; no se conectó
+`decision_support` al router; no se cambió ningún comportamiento de producción — ver
+`docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md` para el plan completo.

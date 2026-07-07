@@ -344,3 +344,13 @@ suite still passes unchanged: `shadowEligibleCount` 69, `decisionCandidateGenera
 `blockedBySafetyGateCount` 0. Sprint 26R did not modify `decisionSupportShadowModePrep.ts` or
 `decisionSupportShadowModePrepTypes.ts`. See
 `docs/conversational-brain-decision-support-shadow-storage-policy.md`.
+
+## Sprint 27R note
+
+Sprint 27R's storage adapter plan reuses this module only transitively, through the Sprint 25R
+capture harness and Sprint 26R storage policy — it does not import `decisionSupportShadowModePrep.ts`
+directly. This document's own 51-test suite still passes unchanged: `shadowEligibleCount` 69,
+`decisionCandidateGeneratedCount` 18, `clarificationCandidateGeneratedCount` 51,
+`existingRoutePreservedCount` 10, `blockedBySafetyGateCount` 0. Sprint 27R did not modify
+`decisionSupportShadowModePrep.ts` or `decisionSupportShadowModePrepTypes.ts`. See
+`docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md`.

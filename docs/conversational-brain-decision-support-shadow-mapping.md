@@ -317,3 +317,11 @@ Sprint 26R's storage policy does not import `decisionSupportShadowMappingEvaluat
 `candidateHandlerSafeRate` 100%, `shadowRoutableRate` 40%, `unsafeClassifierCollisionCount` 5,
 `recommendedIntegrationMode` `do_not_integrate`. See
 `docs/conversational-brain-decision-support-shadow-storage-policy.md`.
+
+## Sprint 27R note
+
+Sprint 27R's storage adapter plan does not import `decisionSupportShadowMappingEvaluation.ts` or
+`decisionSupportShadowMappingTypes.ts` directly. This file's own 52-test suite still passes unchanged:
+`candidateHandlerSafeRate` 100%, `shadowRoutableRate` 40%, `unsafeClassifierCollisionCount` 5,
+`recommendedIntegrationMode` `do_not_integrate`. See
+`docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md`.

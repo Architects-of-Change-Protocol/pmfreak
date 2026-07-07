@@ -403,3 +403,12 @@ This file's own 51-test suite still passes unchanged: `currentSafeMappingRate` 8
 `futureRouteAlreadySupportedRate` 84.8%, `requiresNewHandlerCount` 45, `requiresClarificationCount`
 24. Sprint 26R did not modify `decisionClarificationArchitectureReview.ts` or this corpus. See
 `docs/conversational-brain-decision-support-shadow-storage-policy.md`.
+
+## Sprint 27R note
+
+Sprint 27R's storage adapter plan evaluates this corpus (via the Sprint 25R capture harness) end to
+end into storage drafts — `validDraftRate` is 100% and every forbidden-field inclusion count is 0
+against all 79 cases. This file's own 51-test suite still passes unchanged: `currentSafeMappingRate`
+84.8%, `futureRouteAlreadySupportedRate` 84.8%, `requiresNewHandlerCount` 45,
+`requiresClarificationCount` 24. Sprint 27R did not modify `decisionClarificationArchitectureReview.ts`
+or this corpus. See `docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md`.

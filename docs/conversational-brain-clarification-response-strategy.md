@@ -369,3 +369,13 @@ response text. This file's own 77-test suite still passes unchanged: `acceptable
 not modify `clarificationResponseStrategy.ts`, `clarificationResponseAnalyzer.ts`,
 `clarificationResponseTypes.ts`, or `clarificationResponseEvaluation.ts`. See
 `docs/conversational-brain-decision-support-shadow-storage-policy.md`.
+
+## Sprint 27R note
+
+Sprint 27R's storage adapter plan's draft mapper never includes `responseText`/`recommendationText`
+in a mapped `candidateSummary` — consistent with this strategy never producing full response text in
+the first place. This file's own 77-test suite still passes unchanged: `acceptableResponseRate` 100%,
+`safetyPassRate` 100%, `routeOptionsCoverageRate` 100%, `overQuestioningCount` 0. Sprint 27R did not
+modify `clarificationResponseStrategy.ts`, `clarificationResponseAnalyzer.ts`,
+`clarificationResponseTypes.ts`, or `clarificationResponseEvaluation.ts`. See
+`docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md`.

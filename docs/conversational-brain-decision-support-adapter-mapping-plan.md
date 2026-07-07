@@ -301,3 +301,12 @@ still passes unchanged: `recommendedSprint24Strategy` remains `hybrid_shadow_the
 strategy summary (`safeOutcomeRate` 100%, `riskyOutcomeCount` 0, `criticalRiskCount` 0) is identical.
 Sprint 26R did not modify this file, `decisionSupportAdapterMappingPlanTypes.ts`, the router, the
 adapter, or any feature flag. See `docs/conversational-brain-decision-support-shadow-storage-policy.md`.
+
+## Sprint 27R note
+
+Sprint 27R's storage adapter plan does not import this file directly. This document's own 45-test
+suite still passes unchanged: `recommendedSprint24Strategy` remains `hybrid_shadow_then_clarify`, and
+its strategy summary (`safeOutcomeRate` 100%, `riskyOutcomeCount` 0, `criticalRiskCount` 0) is
+identical. Sprint 27R did not modify this file, `decisionSupportAdapterMappingPlanTypes.ts`, the
+router, the adapter, or any feature flag. See
+`docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md`.

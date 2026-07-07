@@ -356,3 +356,13 @@ policy — proving `captureHarnessCleanRate` is 100% against the Sprint 18R corp
 Persistence Plan". Sprint 26R did not modify `decisionSupportShadowCaptureHarness.ts` or
 `decisionSupportShadowCaptureHarnessTypes.ts`. See
 `docs/conversational-brain-decision-support-shadow-storage-policy.md` for the full policy.
+
+## Sprint 27R note
+
+Sprint 27R's storage adapter plan reuses this harness's capture records (via
+`runDecisionSupportShadowCaptureHarnessEvaluation()`, unmodified) as the input to its storage-draft
+mapper. This file's own 77-test suite still passes unchanged: `acceptableCaptureRate`/
+`allBlockingGatesPassedRate` stay at 100% in both `dry_run` and `test_only_in_memory` modes,
+`existingRouteCaptureCount` stays at 10. Sprint 27R did not modify
+`decisionSupportShadowCaptureHarness.ts` or `decisionSupportShadowCaptureHarnessTypes.ts`. See
+`docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md`.
