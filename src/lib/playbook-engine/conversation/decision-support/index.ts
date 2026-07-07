@@ -307,3 +307,37 @@ export type {
   DecisionSupportShadowPersistenceReadinessEvaluationSummary,
   DecisionSupportShadowPersistenceReadinessExplain,
 } from "./decisionSupportShadowCapturePersistenceReadiness";
+
+export {
+  DECISION_SUPPORT_SHADOW_CONTROLLED_REPLAY_VERSION,
+  createDecisionSupportShadowControlledReplayConfig,
+  listDecisionSupportShadowControlledReplayAllowedNextActions,
+  listDecisionSupportShadowControlledReplayProhibitedActions,
+  classifyDecisionSupportShadowControlledReplayCase,
+  recommendDecisionSupportShadowControlledReplayRoute,
+  runDecisionSupportShadowControlledReplayPass,
+  runDecisionSupportShadowControlledReplayEvaluation,
+  aggregateDecisionSupportShadowControlledReplayCaseResults,
+  summarizeDecisionSupportShadowControlledReplayEvaluation,
+  explainDecisionSupportShadowControlledReplayEvaluation,
+} from "./decisionSupportShadowControlledReplay";
+export type {
+  DecisionSupportShadowControlledReplayProfile,
+  DecisionSupportShadowControlledReplayMode,
+  DecisionSupportShadowControlledReplayDecision,
+  DecisionSupportShadowControlledReplayCaseCategory,
+  DecisionSupportShadowControlledReplayRouteRecommendation,
+  DecisionSupportShadowControlledReplaySafetyStatus,
+  DecisionSupportShadowControlledReplayStabilityStatus,
+  DecisionSupportShadowControlledReplayWriteStatus,
+  DecisionSupportShadowControlledReplayConfig,
+  DecisionSupportShadowControlledReplaySideEffects,
+  DecisionSupportShadowControlledReplayForbiddenRetention,
+  DecisionSupportShadowControlledReplayPassResult,
+  DecisionSupportShadowControlledReplayCaseAggregate,
+  DecisionSupportShadowControlledReplayEvaluationResult,
+  DecisionSupportShadowControlledReplayEvaluationOptions,
+  DecisionSupportShadowControlledReplayEvaluationSummary,
+  DecisionSupportShadowControlledReplayRouteRecommendationResult,
+  DecisionSupportShadowControlledReplayExplain,
+} from "./decisionSupportShadowControlledReplay";
