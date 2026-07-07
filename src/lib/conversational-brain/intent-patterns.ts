@@ -60,6 +60,10 @@ export const INTENT_FAMILY_PATTERNS: Record<RealIntentFamily, IntentPatternRule[
       label: "como le digo/que le respondo/que le contesto",
       intentType: "email_draft_request",
     },
+    // Sprint 21R calibration — "ayudame a explicar" is a drafting-help verb per the decision_support
+    // precedence rule (communication_draft wins on an explicit drafting/explaining verb even when the
+    // message also names a decision/alternativa), mirroring the existing "ayudame a contestar/responder".
+    { pattern: /ayudame a explicar/, weight: 5, label: "ayudame a explicar", intentType: "email_draft_request" },
   ],
   playbook_analysis: [
     { pattern: /segun el playbook/, weight: 5, label: "según el playbook", intentType: "playbook_rule_explanation" },
@@ -95,13 +99,17 @@ export const INTENT_FAMILY_PATTERNS: Record<RealIntentFamily, IntentPatternRule[
   task_action: [
     { pattern: /crea(r|me)? (una )?tarea|crear tarea/, weight: 5, label: "creá/crear tarea", intentType: "task_creation_request" },
     { pattern: /\baction item\b/, weight: 5, label: "action item", intentType: "task_creation_request" },
-    { pattern: /convert(i|ir)(me)? esto en (tarea|task|accion|action item)/, weight: 5, label: "convertí esto en tarea", intentType: "convert_recommendation_request" },
     { pattern: /pasa(lo|rlo)? a (tarea|task|accion|action item)/, weight: 5, label: "pasalo/pasarlo a tarea/task", intentType: "convert_recommendation_request" },
     // Sprint 15R calibration — ties with playbook_analysis's bare "recomendacion" pattern (weight
     // 5) on messages like "generá una acción desde esta recomendación"; FAMILY_TIE_BREAK_ORDER
     // resolves the tie to task_action (matching production's own strictly-higher-weighted pattern
     // for the same phrase, see intentClassifier.rules.ts).
     { pattern: /genera(r)? (una )?accion desde/, weight: 5, label: "generar acción desde", intentType: "convert_recommendation_request" },
+    // Sprint 21R calibration — broadened from a literal "esto" object to also accept "esta decision"
+    // so an explicit task-conversion verb still wins task_action over decision_support's bare
+    // "decision" pattern on inputs like "convertí esta decisión en tarea" (ties resolve to
+    // task_action via FAMILY_TIE_BREAK_ORDER regardless, but this keeps the match itself accurate).
+    { pattern: /convert(i|ir)(me)? (esto|esta decision) en (tarea|task|accion|action item)/, weight: 5, label: "convertí esto/esta decisión en tarea", intentType: "convert_recommendation_request" },
     { pattern: /asigna(r|me)?/, weight: 5, label: "asigná/asignar", intentType: "task_update_request" },
     { pattern: /(marca(r)?|actualiza(r)?|cambia(r)? estado)/, weight: 3, label: "marcá/actualizá/cambiá estado", intentType: "task_update_request" },
     { pattern: /\bcerra\b/, weight: 3, label: "cerrá", intentType: "task_update_request" },
@@ -170,8 +178,46 @@ export const INTENT_FAMILY_PATTERNS: Record<RealIntentFamily, IntentPatternRule[
     { pattern: /que decision falta/, weight: 5, label: "qué decisión falta", intentType: "decision_needed_check" },
     { pattern: /(\bdecision(es)?\b|decidir)/, weight: 5, label: "decisión/decidir", intentType: "decision_needed_check" },
     { pattern: /quien decide/, weight: 3, label: "quién decide", intentType: "decision_needed_check" },
-    { pattern: /(opciones|alternativas)/, weight: 5, label: "opciones/alternativas", intentType: "decision_options_request" },
+    // Sprint 21R calibration — broadened from plural-only "opciones/alternativas" to also match the
+    // singular "opción/alternativa", closing a real vocabulary gap (dc-02/dc-05/dc-07/dc-08/dc-43 in
+    // the Sprint 18R corpus all use the singular form).
+    { pattern: /(opcion(es)?|alternativa(s)?)/, weight: 5, label: "opción(es)/alternativa(s)", intentType: "decision_options_request" },
     { pattern: /(que opcion|recomendarias)/, weight: 5, label: "qué opción/recomendarías", intentType: "decision_recommendation_request" },
+
+    // ─── Sprint 21R boundary calibration ────────────────────────────────────────────
+    // The patterns below teach the enriched classifier to recognize decision-shaped phrasing that
+    // previously collided with playbook_analysis, general_pm_advice, risk_issue_dependency,
+    // closure_billing, and governance_audit (Sprint 20R shadow mapping's dominant collision buckets).
+    // Each is deliberately scoped to decision-specific connectors/verbs (comparación explícita,
+    // escalar/esperar, cerrar/continuar, facturar/cobrar vs esperar, aceptar/mitigar riesgo, cambiar
+    // proveedor, evidencia/criterio "para decidir") so it does not fire on the plain, non-decision
+    // phrasing those five families still own (see
+    // docs/conversational-brain-decision-support-classifier-boundary.md for the full before/after
+    // collision matrix). None of this changes production routing — decision_support still has no
+    // adapter mapping to a real handler (Sprint 10R's documented "unsupported" fallback holds).
+    { pattern: /\bconviene\b/, weight: 3, label: "conviene", intentType: "decision_recommendation_request" },
+    { pattern: /\b[a-z]\s+o\s+[a-z]\b/, weight: 5, label: "letra o letra (A o B)", intentType: "decision_options_request" },
+    { pattern: /estas dos opciones|estas alternativas|dos opciones|estos caminos/, weight: 5, label: "comparación explícita (estas opciones/alternativas)", intentType: "decision_options_request" },
+    { pattern: /mejor alternativa|cual es la mejor\b/, weight: 5, label: "mejor alternativa / cuál es la mejor", intentType: "decision_options_request" },
+    { pattern: /camino[\s\S]{0,15}recomiendas|recomiendas[\s\S]{0,15}tomar/, weight: 5, label: "camino recomiendas tomar", intentType: "decision_recommendation_request" },
+    { pattern: /camino tomarias/, weight: 5, label: "camino tomarías", intentType: "decision_recommendation_request" },
+    { pattern: /conviene escalar|escalar o esperar|presionar o esperar|escalar con gerencia o esperar|esperamos respuesta o escalamos/, weight: 5, label: "escalar/presionar o esperar", intentType: "decision_options_request" },
+    { pattern: /cerrar ya\b/, weight: 5, label: "cerrar ya", intentType: "decision_options_request" },
+    { pattern: /cerramos el proyecto o|cerrar ya o|dejamos pendiente|cerrar formalmente o esperar/, weight: 5, label: "cerrar ya o / cerramos ... o / dejamos pendiente", intentType: "decision_options_request" },
+    { pattern: /(factura|cobra)(r|mos)\b[\s\S]{0,25}\bo\b[\s\S]{0,25}\besper/, weight: 5, label: "facturar/cobrar ... o ... esperar", intentType: "decision_options_request" },
+    { pattern: /(cobrar|facturar) con esta evidencia/, weight: 5, label: "cobrar/facturar con esta evidencia", intentType: "decision_options_request" },
+    { pattern: /esperar (recepcion formal|aceptacion final)|con esta evidencia/, weight: 3, label: "esperar recepción/aceptación final / con esta evidencia", intentType: "decision_options_request" },
+    { pattern: /\b(aceptar|asumir)\b[\s\S]{0,20}riesgo|riesgo[\s\S]{0,20}\b(mitigar|aceptar|asumir)\b/, weight: 5, label: "aceptar/asumir riesgo ... mitigar", intentType: "decision_options_request" },
+    { pattern: /riesgo o mitigar|aceptar[\s\S]*mitigar|asumir[\s\S]*mitigar/, weight: 5, label: "riesgo o mitigar(lo)", intentType: "decision_options_request" },
+    { pattern: /cambiar (de )?proveedor|proveedor actual/, weight: 5, label: "cambiar proveedor / proveedor actual", intentType: "decision_options_request" },
+    { pattern: /evidencia necesito para decidir|criterio uso para decidir|que criterio[\s\S]*decidir|justificacion necesito|respaldo necesito para decidir/, weight: 5, label: "evidencia/criterio/justificación/respaldo para decidir", intentType: "decision_recommendation_request" },
+    { pattern: /para decidir\b|para escoger\b/, weight: 3, label: "para decidir/escoger", intentType: "decision_recommendation_request" },
+    { pattern: /en mi lugar/, weight: 5, label: "en mi lugar", intentType: "decision_recommendation_request" },
+    { pattern: /harias[\s\S]*en mi lugar/, weight: 5, label: "qué harías ... en mi lugar", intentType: "decision_recommendation_request" },
+    { pattern: /^que me recomiendas hacer$/, weight: 5, label: "qué me recomiendas hacer (bare)", intentType: "decision_recommendation_request" },
+    { pattern: /recomiendas hacer$/, weight: 5, label: "recomiendas hacer (fin de mensaje, sin más contexto)", intentType: "decision_recommendation_request" },
+    { pattern: /deberia proceder|debo proceder/, weight: 5, label: "debería/debo proceder", intentType: "decision_recommendation_request" },
+    { pattern: /manejo esta decision|esta decision entre/, weight: 5, label: "manejo esta decisión / esta decisión entre", intentType: "decision_needed_check" },
   ],
   general_pm_advice: [
     { pattern: /que hago si/, weight: 5, label: "qué hago si", intentType: "general_guidance" },

@@ -249,3 +249,15 @@ single largest gap before Sprint 20R." `recommendedIntegrationMode` is `do_not_i
 `recommendedNextSprint` is **"Sprint 21R — Decision Support Classifier Boundary Calibration"** — this
 sprint's own criteria above, item 2, confirmed by evidence rather than assumed. This handler's own
 behavior, its 54-test suite, and every metric in this document are unchanged by Sprint 20R.
+
+## Sprint 21R follow-up — Decision Support Classifier Boundary Calibration
+
+Sprint 21R calibrated the enriched classifier's `decision_support` pattern boundary (see
+`docs/conversational-brain-decision-support-classifier-boundary.md`) without touching this handler's
+source at all — `decisionSupportCandidateHandler.ts`, `decisionSupportAnalyzer.ts`, and
+`decisionSupportCandidateTypes.ts` are unmodified, and this document's own 54-test suite passes
+unchanged. `enrichedDecisionSupportDetectionRate` rose from 33.3% to 88.9% and
+`unsafeClassifierCollisionCount` fell from 21 to 5, but `shadowRoutableRate` (still 40%) and
+`candidateHandlerSafeRate` (still 100%) are unaffected — the low-confidence gap this document already
+flagged (item 3 in "Criteria to pass to Sprint 20R" above, `DecisionDraft` reuse) remains the next
+real blocker to shadow routability, not the classifier boundary anymore.

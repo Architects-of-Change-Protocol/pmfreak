@@ -1406,3 +1406,107 @@ responde exactamente eso — sin integrar nada a producción.
 - `git diff --name-only` — confirma que sólo se agregaron archivos nuevos y se editó el barrel aislado
   `decision-support/index.ts`; ningún archivo de producción, router, composer, handler existente,
   classifier de patrones, adaptador, o endpoint fue modificado.
+
+## 21. Sprint 21R — Decision Support Classifier Boundary Calibration
+
+> **Estado:** calibración del classifier enriquecido únicamente. Este sprint modifica
+> `src/lib/conversational-brain/intent-patterns.ts` (classifier enriquecido, no productivo);
+> `src/lib/playbook-engine/conversation/decision-support/decisionSupportShadowMappingEvaluation.ts` y
+> `decisionSupportShadowMappingTypes.ts` (nuevas métricas); `tests/fixtures/conversational-brain-golden-intents.ts`
+> (una entrada, `gpa-06`, con nota documentada); y los test files de Sprint 17R/18R/20R (sólo los
+> valores hardcodeados de regresión que este sprint mueve intencionalmente). Agrega
+> `tests/playbook-engine-conversation-decision-support-classifier-boundary.test.mjs` (99 tests) y
+> `docs/conversational-brain-decision-support-classifier-boundary.md`. No modifica
+> `intentClassifier.rules.ts`, `intentCompatibilityAdapter.ts`, `brainRouter.ts`,
+> `responseComposer.ts`, ningún `handlers/*.ts` existente, el endpoint, ni activa ningún feature flag.
+> No conecta `decision_support` a producción. No se creó ningún corpus nuevo.
+
+### 21.1 Por qué esta calibración y no otra cosa
+
+Sprint 20R midió, con números reales, que el Decision Support Candidate Handler es 100%
+estructuralmente seguro pero sólo 40% "shadow routable" — y que el bloqueador dominante no era el
+handler sino el classifier enriquecido: no reconocía frases de decisión específicas (comparación
+explícita, escalar/esperar, cerrar/continuar, facturar/cobrar vs. esperar, aceptar/mitigar riesgo,
+cambiar proveedor, evidencia/criterio "para decidir") como `decision_support`, así que colisionaban
+con `playbook_analysis`, `general_pm_advice`, `risk_issue_dependency`, `closure_billing`, o
+`governance_audit`. Este sprint calibra exactamente esa frontera.
+
+### 21.2 Qué se hizo
+
+1. **~24 patrones nuevos** agregados a `INTENT_FAMILY_PATTERNS.decision_support` en
+   `intent-patterns.ts`, cada uno anclado a un conector de decisión explícito (no vocabulario
+   genérico) para no colisionar con las frases "puras" (sin framing de decisión) que las otras cinco
+   familias siguen ganando.
+2. **Dos ajustes de precisión** en otras familias del mismo archivo: `task_action`'s patrón de
+   conversión ahora acepta también "esta decisión" (no sólo "esto"); `communication_draft` ganó un
+   patrón `ayudame a explicar` (espejo de su `ayudame a contestar/responder` existente).
+3. **Sin nueva lógica de tie-break**: `decision_support` no se agregó a `FAMILY_TIE_BREAK_ORDER`;
+   cada patrón fue pesado para que el score de decision_support supere estrictamente al de la familia
+   colisionante en las frases objetivo, o para que las colisiones con `task_action`/
+   `communication_draft` se resuelvan vía el tie-break ya existente (ambas ya listadas primero).
+4. **Nuevas métricas** en el evaluador de shadow mapping (Sprint 20R):
+   `enrichedDecisionSupportDetectedCount`/`Rate`, `decisionSupportBoundaryCapturedCount`/`Rate`,
+   `unsupportedSafeParkingCount`, `semanticBoundaryImprovementCount`, y cinco
+   `*CollisionReduction` — todas calculadas contra una constante `SPRINT_20R_BASELINE` documentada y
+   hardcodeada (nunca re-medida en runtime).
+5. **99 tests nuevos** — `tests/playbook-engine-conversation-decision-support-classifier-boundary.test.mjs`.
+6. **Una entrada de golden fixture actualizada** (`gpa-06`) con nota explícita de Sprint 21R.
+
+### 21.3 Resultados obtenidos
+
+| Métrica | Sprint 20R | Sprint 21R |
+|---|---|---|
+| `enrichedDecisionSupportDetectionRate` | 33.3% (15/45) | **88.9% (40/45)** |
+| `unsafeClassifierCollisionCount` | 21 | **5** |
+| `playbookCollisionCount` | 3 | **0** |
+| `generalPmCollisionCount` | 7 | **1** |
+| `riskCollisionCount` | 5 | **2** |
+| `closureCollisionCount` | 2 | **1** |
+| `governanceCollisionCount` | 3 | **0** |
+| `unsupportedSafeParkingCount` (nueva) | n/a | **40** (semántica capturada, no ruteo productivo) |
+| `shadowRoutableRate` | 40% | 40% (sin cambio — el límite ahora es confianza del handler, no el classifier) |
+| `candidateHandlerSafeRate` | 100% | 100% (sin cambio) |
+| `recommendedIntegrationMode` | `do_not_integrate` | `do_not_integrate` (sin cambio) |
+| `recommendedNextSprint` | "Sprint 21R — Decision Support Classifier Boundary Calibration" | "Sprint 21R — Clarification Response Strategy" (real: Sprint 22R) |
+
+### 21.4 Qué NO se hizo (por diseño de este sprint)
+
+- No se conectó `decision_support` a producción, al router, al composer, o al endpoint.
+- No se activó ningún feature flag.
+- No se modificó `intentClassifier.rules.ts` ni `intentCompatibilityAdapter.ts`.
+- No se calibró vocabulario de `general_pm_advice`.
+- No se implementó `DecisionDraft` reuse ni un clarification loop real.
+- 5 colisiones del corpus de 45 casos quedan documentadas como brechas restantes (dc-25, dc-26,
+  dc-32, dc-37, dc-40) — ninguna estaba en la lista de frases requeridas por este sprint.
+
+### 21.5 Protección contra regresiones
+
+- Golden corpus: `compatibilityRate` global **72.5%, sin cambios**; todas las categorías previamente
+  calibradas sin cambios. Una entrada (`gpa-06`) actualizada por drift real, documentada.
+- Sprint 17R: `policyAlignedRate` **74.3% → 82.9%** (movimiento esperado, sólo por decision_support
+  boundary); `currentSystemAcceptableRate` 84.3%, `architectureGapCount` 10, `clarificationGapCount`
+  10 — sin cambios.
+- Sprint 18R: `currentSafeMappingRate` **64.6% → 84.8%**, `futureRouteAlreadySupportedRate`
+  **49.4% → 84.8%** (ambos movimientos esperados); `requiresNewHandlerCount` 45,
+  `requiresClarificationCount` 24, `existingRouteRegressions` 0 — sin cambios.
+- Sprint 19R: código del handler sin modificar; su test suite de 54 tests sigue pasando sin cambios.
+
+### 21.6 Verificación ejecutada
+
+- `npx tsx --test tests/playbook-engine-conversation-decision-support-classifier-boundary.test.mjs` — ok (99/99, nuevo).
+- `npx tsx --test tests/playbook-engine-conversation-decision-support-shadow-mapping.test.mjs` — ok (52/52).
+- `npx tsx --test tests/playbook-engine-conversation-decision-support-candidate-handler.test.mjs` — ok (54/54).
+- `npx tsx --test tests/playbook-engine-conversation-decision-clarification-architecture.test.mjs` — ok (51/51).
+- `npx tsx --test tests/playbook-engine-conversation-general-pm-advice-boundary.test.mjs` — ok (45/45).
+- `npx tsx --test tests/playbook-engine-conversation-intent-golden-evaluation.test.mjs` — ok (21/21).
+- `npx tsx --test tests/playbook-engine-conversation-intent-compatibility.test.mjs` — ok (21/21).
+- `npx tsx --test tests/conversational-brain-intent-classifier.test.mjs` — ok (32/32).
+- `npx tsx --test tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` — ok (46/46).
+- Resto de `tests/playbook-engine-conversation-*.test.mjs` (brain-router, context-resolver,
+  demo-scenarios, gateway, intent-classifier, response-composer) — sin cambios de comportamiento.
+- `npm run lint:aoc-boundaries` — pasó.
+- `npm run typecheck` — mismos errores preexistentes no relacionados (módulos/tipos de Node/React/Next
+  faltantes en todo el repo); cero errores nuevos en los archivos de este sprint (verificado con
+  `grep` sobre la salida de `tsc --noEmit` filtrando por los paths tocados).
+- `git diff --name-only` — confirma que no se tocó `intentClassifier.rules.ts`,
+  `intentCompatibilityAdapter.ts`, el router, el composer, ningún handler productivo, ni el endpoint.

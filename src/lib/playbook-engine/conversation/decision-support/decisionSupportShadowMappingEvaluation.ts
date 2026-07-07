@@ -438,6 +438,35 @@ function rateOf(count: number, total: number): number {
   return total > 0 ? round1((count / total) * 100) : 0;
 }
 
+/**
+ * Sprint 20R pre-calibration baseline, as measured and documented in
+ * docs/conversational-brain-decision-support-shadow-mapping.md before Sprint 21R's classifier
+ * changes: `unsafeClassifierCollisionCount` and its five named-family sub-counts come directly from
+ * that doc's results table. `enrichedDecisionSupportDetectedCount` (15/45) was measured directly
+ * against the unmodified Sprint 20R `intent-patterns.ts` (before any Sprint 21R pattern change) —
+ * it is a distinct measurement from `unsafeClassifierCollisionCount` (which counts live collisions
+ * with a *different* production intent, not raw enriched-family detection), so it is recorded here
+ * rather than re-derived. Used only to compute the *Reduction/*ImprovementCount fields below —
+ * never mutated, never re-measured at runtime.
+ */
+const SPRINT_20R_BASELINE = {
+  unsafeClassifierCollisionCount: 21,
+  playbookCollisionCount: 3,
+  generalPmCollisionCount: 7,
+  riskCollisionCount: 5,
+  closureCollisionCount: 2,
+  governanceCollisionCount: 3,
+  enrichedDecisionSupportDetectedCount: 15,
+} as const;
+
+function reductionFrom(baseline: number, current: number): number {
+  return Math.max(0, baseline - current);
+}
+
+function improvementFrom(baseline: number, current: number): number {
+  return Math.max(0, current - baseline);
+}
+
 /** Share above which a bucket is considered dominant for the integration-mode heuristic below. */
 const CLASSIFIER_DOMINANCE_SHARE = 0.5;
 /** Minimum share of eligible cases an unsafe-classifier-collision slice must reach to matter at all. */
@@ -653,6 +682,8 @@ export function summarizeDecisionSupportShadowMappingEvaluation(
   let candidateHandlerEligibleCount = 0;
   let candidateHandlerSafeCount = 0;
   let shadowRoutableCount = 0;
+  let enrichedDecisionSupportDetectedCount = 0;
+  let unsupportedSafeParkingCount = 0;
   let currentMappingSafeCount = 0;
   let existingRouteRegressionCount = 0;
   let clarificationUnsafeMappingCount = 0;
@@ -661,7 +692,13 @@ export function summarizeDecisionSupportShadowMappingEvaluation(
     const categorySummary = byArchitectureCategory[result.architectureCategory];
     categorySummary.totalCases += 1;
 
-    if (result.eligibility.isDecisionSupportDesired) decisionSupportDesiredCount += 1;
+    if (result.eligibility.isDecisionSupportDesired) {
+      decisionSupportDesiredCount += 1;
+      if (result.enrichedFamily === "decision_support") {
+        enrichedDecisionSupportDetectedCount += 1;
+        if (result.mappedIntent === "unsupported") unsupportedSafeParkingCount += 1;
+      }
+    }
     if (result.eligibility.isClarificationDesired) clarificationDesiredCount += 1;
     if (result.eligibility.isExistingRouteCase) existingRouteCount += 1;
     if (result.eligibility.isCandidateHandlerEligible) {
@@ -791,6 +828,21 @@ export function summarizeDecisionSupportShadowMappingEvaluation(
     handlerMissingOptionsCount,
     handlerMissingEvidenceCount,
     handlerSafetyFailureCount,
+    enrichedDecisionSupportDetectedCount,
+    enrichedDecisionSupportDetectionRate: rateOf(enrichedDecisionSupportDetectedCount, decisionSupportDesiredCount),
+    decisionSupportBoundaryCapturedCount: enrichedDecisionSupportDetectedCount,
+    decisionSupportBoundaryCapturedRate: rateOf(enrichedDecisionSupportDetectedCount, decisionSupportDesiredCount),
+    unsupportedSafeParkingCount,
+    semanticBoundaryImprovementCount: improvementFrom(
+      SPRINT_20R_BASELINE.enrichedDecisionSupportDetectedCount,
+      enrichedDecisionSupportDetectedCount,
+    ),
+    unsafeClassifierCollisionReduction: reductionFrom(SPRINT_20R_BASELINE.unsafeClassifierCollisionCount, unsafeClassifierCollisionCount),
+    playbookCollisionReduction: reductionFrom(SPRINT_20R_BASELINE.playbookCollisionCount, playbookCollisionCount),
+    generalPmCollisionReduction: reductionFrom(SPRINT_20R_BASELINE.generalPmCollisionCount, generalPmCollisionCount),
+    riskCollisionReduction: reductionFrom(SPRINT_20R_BASELINE.riskCollisionCount, riskCollisionCount),
+    closureCollisionReduction: reductionFrom(SPRINT_20R_BASELINE.closureCollisionCount, closureCollisionCount),
+    governanceCollisionReduction: reductionFrom(SPRINT_20R_BASELINE.governanceCollisionCount, governanceCollisionCount),
     byArchitectureCategory,
     byCollisionType,
     byDecisionType,

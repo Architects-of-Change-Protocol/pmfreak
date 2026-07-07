@@ -331,3 +331,15 @@ sound on 100% of them, but live classifier collisions (`general_pm_advice` and `
 dominant) and low-confidence results (from the still-missing `DecisionDraft` context reuse) together
 keep only 40% "shadow routable." `recommendedNextSprint` is **"Sprint 21R — Decision Support Classifier
 Boundary Calibration"**, directly confirming item 2 above with live measurements.
+
+## Sprint 21R follow-up — Decision Support Classifier Boundary Calibration
+
+Sprint 21R resolved item 2 above — see `docs/conversational-brain-decision-support-classifier-boundary.md`.
+Re-running this review's own evaluator (`decisionClarificationArchitectureReview.ts`, unmodified)
+against this same 79-case corpus now shows `currentSafeMappingRate` 84.8% (was 64.6%) and
+`futureRouteAlreadySupportedRate` 84.8% (was 49.4%) — `requiresNewHandlerCount` (45),
+`requiresClarificationCount` (24), and `existingRouteShouldWinCases`' regression count (still 0) are
+unchanged, confirming this sprint only moved decision_support-boundary detection, not the corpus's own
+structure or the existing-route safety net. Per this document's own `recommendedImplementationOrder`,
+`general_pm_advice` vocabulary calibration and a Clarification Response Strategy remain the two steps
+still ahead — Sprint 21R deliberately did not touch either.

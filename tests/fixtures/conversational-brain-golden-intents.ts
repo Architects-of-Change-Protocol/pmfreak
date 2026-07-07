@@ -969,9 +969,10 @@ export const GOLDEN_INTENT_CASES: GoldenIntentCase[] = [
     input: "qué harías tú en mi lugar",
     category: "general_pm_advice",
     expectedProductionIntent: "unknown",
-    expectedEnrichedFamily: "general_pm_advice",
-    expectedMappedIntent: "general_pm_advice",
+    expectedEnrichedFamily: "decision_support",
+    expectedMappedIntent: "unsupported",
     shouldBeCompatible: false,
+    notes: "Sprint 21R calibration: enriched classifier now detects decision_support boundary (\"en mi lugar\" / \"harías ... en mi lugar\"); adapter mapping remains intentionally safe/unintegrated — semantic boundary captured, production routing still unavailable. Was general_pm_advice/general_pm_advice (still incompatible either way, since production stays \"unknown\"); global compatibilityRate and the general_pm_advice category rate (40%) are both unchanged by this move.",
   },
   {
     id: "gpa-07",

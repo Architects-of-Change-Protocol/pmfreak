@@ -249,3 +249,17 @@ Calibration** should, in order:
 4. Re-run this sprint's shadow mapping evaluation after both of the above to confirm
    `shadowRoutableRate` has actually risen before proposing any feature-flagged (default-off) router
    integration.
+
+## Sprint 21R follow-up — Decision Support Classifier Boundary Calibration
+
+Sprint 21R did exactly item 2 above — see `docs/conversational-brain-decision-support-classifier-boundary.md`
+for the full before/after. In this evaluator's own terms: `unsafeClassifierCollisionCount` fell from
+21 to 5 (`playbookCollisionCount` 3→0, `generalPmCollisionCount` 7→1, `riskCollisionCount` 5→2,
+`closureCollisionCount` 2→1, `governanceCollisionCount` 3→0), and `currentMappingSafeRate` rose from
+64.6% to 84.8%. `shadowRoutableRate` stayed at 40% and `candidateHandlerSafeRate` stayed at 100% —
+untouched, since Sprint 21R deliberately did not touch the handler or `DecisionDraft` context reuse
+(item 3 above). `recommendedIntegrationMode` is still `do_not_integrate` (the module's own,
+unmodified threshold). New metrics this sprint added to the evaluator/types
+(`enrichedDecisionSupportDetectedCount`, `unsupportedSafeParkingCount`,
+`semanticBoundaryImprovementCount`, and the five `*CollisionReduction` fields) are documented in the
+Sprint 21R doc above; none of them are treated as a production-routing success.
