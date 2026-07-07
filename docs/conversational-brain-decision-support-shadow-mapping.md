@@ -263,3 +263,19 @@ unmodified threshold). New metrics this sprint added to the evaluator/types
 (`enrichedDecisionSupportDetectedCount`, `unsupportedSafeParkingCount`,
 `semanticBoundaryImprovementCount`, and the five `*CollisionReduction` fields) are documented in the
 Sprint 21R doc above; none of them are treated as a production-routing success.
+
+## Sprint 22R follow-up — Clarification Response Strategy
+
+Sprint 22R built an isolated Clarification Response Strategy
+(`src/lib/playbook-engine/conversation/clarification/`, see
+`docs/conversational-brain-clarification-response-strategy.md`) that answers the *other* half of
+this document's own scope — `needs_clarification` cases, which this evaluator reports but never runs
+through the decision-support candidate handler. This sprint did not touch
+`decisionSupportShadowMappingEvaluation.ts`, `decisionSupportShadowMappingTypes.ts`, or any file in
+`decision-support/` — re-running `tests/playbook-engine-conversation-decision-support-shadow-mapping.test.mjs`
+confirms every metric above (`candidateHandlerCoverageRate`/`candidateHandlerSafeRate` 100%,
+`shadowRoutableRate` 40%, `recommendedIntegrationMode` `do_not_integrate`) is unchanged. The new
+strategy's own offline evaluator measured `acceptableResponseRate` 100% and `safetyPassRate` 100%
+against the Sprint 18R/17R clarification corpora, with `recommendedNextSprint` **"Sprint 23R —
+Decision Support Adapter Mapping Plan"** — i.e. this document's own `do_not_integrate` finding is now
+the largest remaining gap in the series, not clarification response quality.

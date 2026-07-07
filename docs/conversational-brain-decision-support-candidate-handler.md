@@ -261,3 +261,15 @@ unchanged. `enrichedDecisionSupportDetectionRate` rose from 33.3% to 88.9% and
 `candidateHandlerSafeRate` (still 100%) are unaffected — the low-confidence gap this document already
 flagged (item 3 in "Criteria to pass to Sprint 20R" above, `DecisionDraft` reuse) remains the next
 real blocker to shadow routability, not the classifier boundary anymore.
+
+## Sprint 22R follow-up — Clarification Response Strategy
+
+Sprint 22R built the Clarification Response Strategy this document's own "Criteria to pass to Sprint
+20R" pointed toward as a distinct, unbuilt gap (`needs_clarification`) — see
+`docs/conversational-brain-clarification-response-strategy.md`. It did not touch this handler's
+source at all: `decisionSupportCandidateHandler.ts`, `decisionSupportAnalyzer.ts`, and
+`decisionSupportCandidateTypes.ts` are unmodified, and this document's own 54-test suite
+(`tests/playbook-engine-conversation-decision-support-candidate-handler.test.mjs`) passes unchanged.
+The new strategy lives in a sibling package
+(`src/lib/playbook-engine/conversation/clarification/`), not this one, and is equally disconnected
+from production — no router, composer, handler, or endpoint wiring, no feature flag.

@@ -343,3 +343,20 @@ unchanged, confirming this sprint only moved decision_support-boundary detection
 structure or the existing-route safety net. Per this document's own `recommendedImplementationOrder`,
 `general_pm_advice` vocabulary calibration and a Clarification Response Strategy remain the two steps
 still ahead — Sprint 21R deliberately did not touch either.
+
+## Sprint 22R follow-up — Clarification Response Strategy
+
+Sprint 22R built the Clarification Response Strategy this document's own `futureClarificationStrategyRequirements`
+described but did not implement — see
+`docs/conversational-brain-clarification-response-strategy.md`. It satisfies all four listed
+requirements: it never executes a domain handler, it returns a real clarifying question instead of a
+canned `general_pm_advice` answer, its types carry forward-looking hooks
+(`previousIntent`/`previousRoute`/`previousClarificationQuestion`) for a *future* stateful loop to
+preserve context across turns, and it lets the user pick an operational category, a project, or
+supply missing context — matching the `desiredClarificationResponse` shape documented above. This
+sprint did not touch `decisionClarificationArchitectureReview.ts` or this document's 79-case corpus —
+re-running `tests/playbook-engine-conversation-decision-clarification-architecture.test.mjs` confirms
+`currentSafeMappingRate` 84.8%, `futureRouteAlreadySupportedRate` 84.8%, `requiresNewHandlerCount` 45,
+and `requiresClarificationCount` 24 are all unchanged. It also did **not** implement a persistent,
+multi-turn clarification loop — that remains a distinct, still-unbuilt Context Resolver/Router
+integration question, explicitly out of this sprint's scope.

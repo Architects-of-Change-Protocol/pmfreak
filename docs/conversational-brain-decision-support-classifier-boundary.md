@@ -268,3 +268,18 @@ the four gap buckets this evaluator tracks, having been overtaken in relative si
 classifier-boundary bucket this sprint targeted shrank so much (10 → 1). A **Sprint 23R — Decision
 Support Adapter Mapping Plan** remains the logical sprint after that, once a real clarification
 strategy exists to route the remaining `needs_clarification` cases correctly.
+
+## Sprint 22R follow-up — Clarification Response Strategy
+
+Sprint 22R built exactly that clarification response strategy — see
+`docs/conversational-brain-clarification-response-strategy.md` — without touching this document's
+classifier calibration at all. Re-running this file's own regression suite
+(`tests/playbook-engine-conversation-decision-support-classifier-boundary.test.mjs`) confirms every
+metric above is unchanged: `enrichedDecisionSupportDetectionRate` 88.9%,
+`unsafeClassifierCollisionCount` 5 (playbook 0 / general_pm 1 / risk 2 / closure 1 / governance 0),
+`recommendedIntegrationMode` `do_not_integrate`. The new strategy's own offline evaluator measured
+`acceptableResponseRate` 100% and `safetyPassRate` 100% against the Sprint 18R/17R clarification
+corpora on its first real run, and its own `recommendedNextSprint` is **"Sprint 23R — Decision
+Support Adapter Mapping Plan"** — i.e. the next architectural step is resolving `decision_support`'s
+still-pending adapter mapping (this document's own `do_not_integrate` finding), not further
+clarification-response hardening.
