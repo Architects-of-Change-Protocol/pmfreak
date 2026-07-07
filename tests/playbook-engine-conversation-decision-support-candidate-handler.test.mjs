@@ -507,25 +507,29 @@ test("this sprint does not change the golden evaluation's per-category results f
   }
 });
 
-test("this sprint does not change the Sprint 17R boundary review's structural metrics", () => {
+test("Sprint 21R calibration only moves policyAlignedRate (via decision_support boundary detection), not the other Sprint 17R structural metrics", () => {
   const results = runGeneralPmAdviceBoundaryReview(GENERAL_PM_ADVICE_BOUNDARY_CASES);
   const summary = summarizeGeneralPmAdviceBoundaryReview(results);
   assert.equal(summary.totalCases, 70);
-  assert.equal(summary.policyAlignedRate, 74.3, `expected policyAlignedRate to stay 74.3, got ${summary.policyAlignedRate}`);
+  // Sprint 21R calibration: policyAlignedRate rose from 74.3 to 82.9 — see
+  // docs/conversational-brain-decision-support-classifier-boundary.md.
+  assert.equal(summary.policyAlignedRate, 82.9, `expected policyAlignedRate to move to 82.9 (Sprint 21R decision_support boundary calibration), got ${summary.policyAlignedRate}`);
   assert.equal(summary.currentSystemAcceptableRate, 84.3, `expected currentSystemAcceptableRate to stay 84.3, got ${summary.currentSystemAcceptableRate}`);
   assert.equal(summary.architectureGapCount, 10);
   assert.equal(summary.clarificationGapCount, 10);
 });
 
-test("this sprint does not change the Sprint 18R decision/clarification architecture review's structural metrics", () => {
+test("Sprint 21R calibration only moves currentSafeMappingRate/futureRouteAlreadySupportedRate (via decision_support boundary detection), not the other Sprint 18R structural metrics", () => {
   const results = runDecisionClarificationArchitectureReview(DECISION_CLARIFICATION_CASES);
   const summary = summarizeDecisionClarificationArchitectureReview(results);
   assert.equal(summary.totalCases, 79);
-  assert.equal(summary.currentSafeMappingRate, 64.6, `expected currentSafeMappingRate to stay 64.6, got ${summary.currentSafeMappingRate}`);
+  // Sprint 21R calibration: currentSafeMappingRate rose from 64.6 to 84.8 — see
+  // docs/conversational-brain-decision-support-classifier-boundary.md.
+  assert.equal(summary.currentSafeMappingRate, 84.8, `expected currentSafeMappingRate to move to 84.8 (Sprint 21R decision_support boundary calibration), got ${summary.currentSafeMappingRate}`);
   assert.equal(
     summary.futureRouteAlreadySupportedRate,
-    49.4,
-    `expected futureRouteAlreadySupportedRate to stay 49.4, got ${summary.futureRouteAlreadySupportedRate}`,
+    84.8,
+    `expected futureRouteAlreadySupportedRate to move to 84.8 (Sprint 21R decision_support boundary calibration), got ${summary.futureRouteAlreadySupportedRate}`,
   );
   assert.equal(summary.requiresNewHandlerCount, 45);
   assert.equal(summary.requiresClarificationCount, 24);

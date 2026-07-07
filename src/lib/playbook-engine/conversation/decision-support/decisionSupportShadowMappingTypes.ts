@@ -164,6 +164,41 @@ export type DecisionSupportShadowMappingSummary = {
   handlerMissingOptionsCount: number;
   handlerMissingEvidenceCount: number;
   handlerSafetyFailureCount: number;
+  /** Sprint 21R — count of decision_support-desired cases where the enriched classifier's own
+   * intentFamily is "decision_support", independent of what the adapter maps that family to today. */
+  enrichedDecisionSupportDetectedCount: number;
+  /** enrichedDecisionSupportDetectedCount / decisionSupportDesiredCount, as a 0-100 percentage. */
+  enrichedDecisionSupportDetectionRate: number;
+  /** Sprint 21R — identical count to enrichedDecisionSupportDetectedCount, named for the "boundary
+   * captured" framing used in the Sprint 21R doc: the semantic decision_support boundary was
+   * correctly recognized, even though production routing for it does not exist yet. */
+  decisionSupportBoundaryCapturedCount: number;
+  /** decisionSupportBoundaryCapturedCount / decisionSupportDesiredCount, as a 0-100 percentage. */
+  decisionSupportBoundaryCapturedRate: number;
+  /** Sprint 21R — of the cases where the enriched classifier now detects decision_support, how many
+   * still map (via the Sprint 10R adapter) to "unsupported". This is NOT a production success — it is
+   * the documented safe fallback holding for a family with no production route yet. Never treat this
+   * as routable; see recommendedIntegrationMode below, which is unaffected by this count. */
+  unsupportedSafeParkingCount: number;
+  /** Sprint 21R — enrichedDecisionSupportDetectedCount minus the Sprint 20R pre-calibration baseline
+   * (15/45, measured directly against the unmodified Sprint 20R patterns before this sprint's
+   * changes) — how many additional decision_support_* cases the enriched classifier now correctly
+   * recognizes as decision_support that it previously missed or misrouted to another family. Clamped
+   * to 0 so a future regression reads as 0, not negative. */
+  semanticBoundaryImprovementCount: number;
+  /** Sprint 20R baseline (21) minus this run's unsafeClassifierCollisionCount. Positive means fewer
+   * live classifier collisions than Sprint 20R measured; clamped to 0. */
+  unsafeClassifierCollisionReduction: number;
+  /** Sprint 20R baseline (3) minus this run's playbookCollisionCount. Clamped to 0. */
+  playbookCollisionReduction: number;
+  /** Sprint 20R baseline (7) minus this run's generalPmCollisionCount. Clamped to 0. */
+  generalPmCollisionReduction: number;
+  /** Sprint 20R baseline (5) minus this run's riskCollisionCount. Clamped to 0. */
+  riskCollisionReduction: number;
+  /** Sprint 20R baseline (2) minus this run's closureCollisionCount. Clamped to 0. */
+  closureCollisionReduction: number;
+  /** Sprint 20R baseline (3) minus this run's governanceCollisionCount. Clamped to 0. */
+  governanceCollisionReduction: number;
   byArchitectureCategory: Record<DecisionClarificationArchitectureCategory, DecisionSupportShadowMappingCategorySummary>;
   byCollisionType: Record<DecisionSupportShadowCollisionType, number>;
   byDecisionType: Record<DecisionSupportDecisionType, number>;

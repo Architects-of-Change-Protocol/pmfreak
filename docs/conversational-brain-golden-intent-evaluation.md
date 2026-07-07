@@ -341,3 +341,17 @@ This directly confirms item (2) above (resolve `general_pm_advice`/`playbook_ana
 collisions) as the correct next step, with live measurements rather than an assumption. See
 `docs/conversational-brain-decision-support-shadow-mapping.md`'s own "Criteria to pass to Sprint 21R"
 for the full sequencing.
+
+## Sprint 21R — Decision Support Classifier Boundary Calibration (one fixture entry updated)
+
+Sprint 21R calibrated `intent-patterns.ts`'s `decision_support` boundary (see
+`docs/conversational-brain-decision-support-classifier-boundary.md`). This golden corpus's global
+`compatibilityRate` stayed **72.5%**, and every previously-calibrated category's rate is unchanged
+(`project_status`/`closure_billing`/`risk_issue_dependency`/`task_action`/`communication_draft` 100%,
+`governance_audit` 90%, `playbook_analysis` 88.9%; `general_pm_advice` also stayed at 40%, though it
+is not a protected category). One entry drifted and was updated: `gpa-06` ("qué harías tú en mi
+lugar") now records `expectedEnrichedFamily: "decision_support"` and
+`expectedMappedIntent: "unsupported"` (was `general_pm_advice`/`general_pm_advice`), with a note
+explaining the Sprint 21R calibration and that `shouldBeCompatible` stays `false` either way (the
+production classifier still returns `unknown` for this input). This is drift correction, not score
+inflation — the case was already incompatible before and after.

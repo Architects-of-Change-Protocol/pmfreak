@@ -199,8 +199,10 @@ test("no result ever indicates an executed action", () => {
 // ─── Collision detection ─────────────────────────────────────────────────────────
 
 test("cases mapped to recommendation_request count as collides_with_playbook_analysis", () => {
+  // Sprint 21R calibration eliminated every live decision_support/playbook_analysis collision in this
+  // corpus (playbookCollisionCount: 3 -> 0) — this test now documents that the rule still classifies
+  // correctly if such a collision ever reappears, rather than asserting one must exist.
   const named = results.filter((r) => r.mappedIntent === "recommendation_request" && r.eligibility.isDecisionSupportDesired);
-  assert.ok(named.length > 0, "expected at least one live playbook collision in this corpus");
   for (const r of named) assert.equal(r.collisionType, "collides_with_playbook_analysis");
 });
 
@@ -225,10 +227,12 @@ test("cases mapped to closure_question or billing_question count as collides_wit
 });
 
 test("cases mapped to governance_question or audit_question count as collides_with_governance_audit", () => {
+  // Sprint 21R calibration eliminated every live decision_support/governance_audit collision in this
+  // corpus (governanceCollisionCount: 3 -> 0) — this test now documents that the rule still classifies
+  // correctly if such a collision ever reappears, rather than asserting one must exist.
   const named = results.filter(
     (r) => (r.mappedIntent === "governance_question" || r.mappedIntent === "audit_question") && r.eligibility.isDecisionSupportDesired,
   );
-  assert.ok(named.length > 0, "expected at least one live governance/audit collision in this corpus");
   for (const r of named) assert.equal(r.collisionType, "collides_with_governance_audit");
 });
 
@@ -349,11 +353,15 @@ test("this sprint does not change the golden evaluation's per-category results f
   }
 });
 
-test("this sprint does not change the Sprint 17R boundary review's structural metrics", () => {
+test("Sprint 21R calibration only moves policyAlignedRate (via decision_support boundary detection), not the other Sprint 17R structural metrics", () => {
   const boundaryResults = runGeneralPmAdviceBoundaryReview(GENERAL_PM_ADVICE_BOUNDARY_CASES);
   const boundarySummary = summarizeGeneralPmAdviceBoundaryReview(boundaryResults);
   assert.equal(boundarySummary.totalCases, 70);
-  assert.equal(boundarySummary.policyAlignedRate, 74.3, `expected policyAlignedRate to stay 74.3, got ${boundarySummary.policyAlignedRate}`);
+  // Sprint 21R calibration: policyAlignedRate rose from 74.3 to 82.9 — every one of these newly-aligned
+  // cases has policyTargetKind "architecture_candidate" (i.e. boundaryCategory "decision_support_candidate"),
+  // so the enriched classifier now correctly detects decision_support where it previously missed it or
+  // collided with another family. No other boundary category's alignment changed.
+  assert.equal(boundarySummary.policyAlignedRate, 82.9, `expected policyAlignedRate to move to 82.9 (Sprint 21R decision_support boundary calibration), got ${boundarySummary.policyAlignedRate}`);
   assert.equal(
     boundarySummary.currentSystemAcceptableRate,
     84.3,
@@ -363,19 +371,24 @@ test("this sprint does not change the Sprint 17R boundary review's structural me
   assert.equal(boundarySummary.clarificationGapCount, 10);
 });
 
-test("this sprint does not change the Sprint 18R decision/clarification architecture review's structural metrics", () => {
+test("Sprint 21R calibration only moves currentSafeMappingRate/futureRouteAlreadySupportedRate (via decision_support boundary detection), not the other Sprint 18R structural metrics", () => {
   const architectureResults = runDecisionClarificationArchitectureReview(DECISION_CLARIFICATION_CASES);
   const architectureSummary = summarizeDecisionClarificationArchitectureReview(architectureResults);
   assert.equal(architectureSummary.totalCases, 79);
+  // Sprint 21R calibration: currentSafeMappingRate rose from 64.6 to 84.8 because many decision_support_*
+  // cases that used to collide with another live production intent (breaking the documented
+  // decision_support -> unsupported safe fallback) now correctly land on enrichedFamily "decision_support",
+  // which still maps to "unsupported" today — the same safe fallback, now reached more often. See
+  // docs/conversational-brain-decision-support-classifier-boundary.md.
   assert.equal(
     architectureSummary.currentSafeMappingRate,
-    64.6,
-    `expected currentSafeMappingRate to stay 64.6, got ${architectureSummary.currentSafeMappingRate}`,
+    84.8,
+    `expected currentSafeMappingRate to move to 84.8 (Sprint 21R decision_support boundary calibration), got ${architectureSummary.currentSafeMappingRate}`,
   );
   assert.equal(
     architectureSummary.futureRouteAlreadySupportedRate,
-    49.4,
-    `expected futureRouteAlreadySupportedRate to stay 49.4, got ${architectureSummary.futureRouteAlreadySupportedRate}`,
+    84.8,
+    `expected futureRouteAlreadySupportedRate to move to 84.8 (Sprint 21R decision_support boundary calibration), got ${architectureSummary.futureRouteAlreadySupportedRate}`,
   );
   assert.equal(architectureSummary.requiresNewHandlerCount, 45);
   assert.equal(architectureSummary.requiresClarificationCount, 24);
