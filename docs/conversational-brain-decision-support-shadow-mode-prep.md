@@ -365,3 +365,15 @@ Sprint 25R itself uses. This document's own 51-test suite still passes unchanged
 `blockedBySafetyGateCount` 0. Sprint 28R did not modify `decisionSupportShadowModePrep.ts` or
 `decisionSupportShadowModePrepTypes.ts`. See
 `docs/conversational-brain-decision-support-shadow-storage-fake-adapter.md`.
+
+---
+
+## Nota — Sprint 29R
+
+Sprint 29R creó una **Persistence Readiness Review**
+(`docs/conversational-brain-decision-support-shadow-persistence-readiness.md`). No cambió producción.
+No cambió routing. No activó ningún feature flag. No creó DB/migrations/tables/SQL files. No creó
+storage adapter real. No creó repository real. No implementó un loop de clarificación persistente. No
+conectó `decision_support` al router. Decisión explícita: `do_not_build_real_persistence_yet`. Siguiente
+sprint recomendado: **Sprint 30R — Controlled Shadow Replay Evaluation**.
+

@@ -275,3 +275,35 @@ export type {
   DecisionSupportShadowStorageFakeAdapterEvaluationSummary,
   DecisionSupportShadowStorageFakeAdapterExplain,
 } from "./decisionSupportShadowCaptureStorageFakeAdapter";
+
+export {
+  DECISION_SUPPORT_SHADOW_PERSISTENCE_READINESS_VERSION,
+  createDecisionSupportShadowPersistenceReadinessInputMetrics,
+  listDecisionSupportShadowPersistenceReadinessDomains,
+  assessDecisionSupportShadowPersistenceReadinessDomain,
+  buildDecisionSupportShadowPersistenceReadinessReview,
+  summarizeDecisionSupportShadowPersistenceReadinessReview,
+  createDecisionSupportShadowPersistenceReadinessDecisionMatrix,
+  explainDecisionSupportShadowPersistenceReadinessReview,
+} from "./decisionSupportShadowCapturePersistenceReadiness";
+export type {
+  DecisionSupportShadowPersistenceReadinessProfile,
+  DecisionSupportShadowPersistenceReadinessMode,
+  DecisionSupportShadowPersistenceReadinessDecision,
+  DecisionSupportShadowPersistenceReadinessDomain,
+  DecisionSupportShadowPersistenceReadinessRiskLevel,
+  DecisionSupportShadowPersistenceReadinessStatus,
+  DecisionSupportShadowPersistenceReadinessBlocker,
+  DecisionSupportShadowPersistenceReadinessPrerequisite,
+  DecisionSupportShadowPersistenceReadinessDomainAssessment,
+  DecisionSupportShadowPersistenceReadinessDecisionMatrix,
+  DecisionSupportShadowPersistenceReadinessCaptureHarnessMetrics,
+  DecisionSupportShadowPersistenceReadinessStoragePolicyMetrics,
+  DecisionSupportShadowPersistenceReadinessAdapterPlanMetrics,
+  DecisionSupportShadowPersistenceReadinessFakeAdapterMetrics,
+  DecisionSupportShadowPersistenceReadinessInputMetrics,
+  DecisionSupportShadowPersistenceReadinessReview,
+  DecisionSupportShadowPersistenceReadinessOptions,
+  DecisionSupportShadowPersistenceReadinessEvaluationSummary,
+  DecisionSupportShadowPersistenceReadinessExplain,
+} from "./decisionSupportShadowCapturePersistenceReadiness";
