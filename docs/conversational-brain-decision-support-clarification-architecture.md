@@ -412,3 +412,13 @@ against all 79 cases. This file's own 51-test suite still passes unchanged: `cur
 84.8%, `futureRouteAlreadySupportedRate` 84.8%, `requiresNewHandlerCount` 45,
 `requiresClarificationCount` 24. Sprint 27R did not modify `decisionClarificationArchitectureReview.ts`
 or this corpus. See `docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md`.
+
+## Sprint 28R note
+
+Sprint 28R's fake storage adapter writes every one of this corpus's 79 mapped drafts into a private,
+in-memory adapter instance and accepts 100% of them — `fakeWriteAcceptedRate` 100%, every
+real/db/supabase/forbidden-content-stored counter 0. This file's own 51-test suite still passes
+unchanged: `currentSafeMappingRate` 84.8%, `futureRouteAlreadySupportedRate` 84.8%,
+`requiresNewHandlerCount` 45, `requiresClarificationCount` 24. Sprint 28R did not modify
+`decisionClarificationArchitectureReview.ts` or this corpus. See
+`docs/conversational-brain-decision-support-shadow-storage-fake-adapter.md`.

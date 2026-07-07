@@ -325,3 +325,11 @@ Sprint 27R built a storage adapter plan on top of the Sprint 26R storage policy,
 `intent-patterns.ts` or this boundary's calibrated patterns. This document's own 99-test suite still
 passes unchanged: `enrichedDecisionSupportDetectionRate` (88.9%) and `unsafeClassifierCollisionCount`
 (5) are identical. See `docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md`.
+
+## Sprint 28R note
+
+Sprint 28R built a fake in-memory storage adapter on top of the Sprint 27R adapter plan, without
+touching `intent-patterns.ts` or this boundary's calibrated patterns. This document's own 99-test
+suite still passes unchanged: `enrichedDecisionSupportDetectionRate` (88.9%) and
+`unsafeClassifierCollisionCount` (5) are identical. See
+`docs/conversational-brain-decision-support-shadow-storage-fake-adapter.md`.

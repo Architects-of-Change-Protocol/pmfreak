@@ -322,3 +322,13 @@ Sprint 27R's storage adapter plan's draft mapper never includes `fullDecisionCan
 54-test suite still passes unchanged; Sprint 27R did not modify `decisionSupportCandidateHandler.ts`,
 `decisionSupportAnalyzer.ts`, or `decisionSupportCandidateTypes.ts`. See
 `docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md`.
+
+## Sprint 28R note
+
+Sprint 28R's fake storage adapter rejects (`rejected_by_validation`) any draft carrying a
+`fullDecisionCandidate` field — one of the 11 synthetic invalid drafts every evaluation run writes and
+expects rejected — consistent with this handler's own summary already restricting a mapped
+`candidateSummary` to counts/labels only. This file's own 54-test suite still passes unchanged;
+Sprint 28R did not modify `decisionSupportCandidateHandler.ts`, `decisionSupportAnalyzer.ts`, or
+`decisionSupportCandidateTypes.ts`. See
+`docs/conversational-brain-decision-support-shadow-storage-fake-adapter.md`.

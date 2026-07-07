@@ -379,3 +379,14 @@ the first place. This file's own 77-test suite still passes unchanged: `acceptab
 modify `clarificationResponseStrategy.ts`, `clarificationResponseAnalyzer.ts`,
 `clarificationResponseTypes.ts`, or `clarificationResponseEvaluation.ts`. See
 `docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md`.
+
+## Sprint 28R note
+
+Sprint 28R's fake storage adapter rejects (`rejected_by_validation`) any draft carrying a
+`responseText` field — one of the 11 synthetic invalid drafts every evaluation run writes and expects
+rejected — consistent with this strategy never producing full response text in the first place. This
+file's own 77-test suite still passes unchanged: `acceptableResponseRate` 100%, `safetyPassRate`
+100%, `routeOptionsCoverageRate` 100%, `overQuestioningCount` 0. Sprint 28R did not modify
+`clarificationResponseStrategy.ts`, `clarificationResponseAnalyzer.ts`,
+`clarificationResponseTypes.ts`, or `clarificationResponseEvaluation.ts`. See
+`docs/conversational-brain-decision-support-shadow-storage-fake-adapter.md`.

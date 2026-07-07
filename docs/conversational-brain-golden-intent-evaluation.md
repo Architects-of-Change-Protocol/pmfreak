@@ -431,3 +431,11 @@ touching the golden evaluation corpus, the classifier, or the adapter. Re-runnin
 `runGoldenIntentEvaluation()` confirms the global `compatibilityRate` is unchanged at **72.5%**. See
 `docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md` for the full plan and
 results.
+
+## Sprint 28R note
+
+Sprint 28R built a fake in-memory storage adapter on top of the Sprint 27R adapter plan, without
+touching the golden evaluation corpus, the classifier, or the adapter. Re-running
+`runGoldenIntentEvaluation()` confirms the global `compatibilityRate` is unchanged at **72.5%**. See
+`docs/conversational-brain-decision-support-shadow-storage-fake-adapter.md` for the full fake adapter
+and results.

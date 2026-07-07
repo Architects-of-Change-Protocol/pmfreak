@@ -1775,3 +1775,28 @@ Adapter Fake Implementation"**. No se creó ninguna base de datos, migración, a
 storage adapter real, ni repository real; no se implementó ningún feature flag real; no se conectó
 `decision_support` al router; no se cambió ningún comportamiento de producción — ver
 `docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md` para el plan completo.
+
+## §28R — Decision Support Shadow Capture Storage Adapter Fake Implementation
+
+Sprint 28R construyó `decisionSupportShadowCaptureStorageFakeAdapter.ts`, la primera implementación
+real (aunque fake, solo en memoria) de los cinco métodos que el Sprint 27R dejó `futureOnly`:
+`writeDraft`/`deleteByCaptureId`/`deleteByWorkspace`/`purgeExpired`/`listByPolicyVersion`, todos
+implementados contra un array privado en memoria (`records`) que vive solo dentro del closure de una
+instancia de adapter — nunca una base de datos, migración, tabla, o cliente de Supabase.
+`writeDraft()` revalida cada draft con el validador del Sprint 27R, re-chequea de forma independiente
+(defensa en profundidad) los nueve campos prohibidos y cualquier campo dentro de `draft.fields`
+clasificado como `"prohibited"` por `classifyDecisionSupportShadowStorageField()` (Sprint 26R,
+reutilizado directamente), y rechaza `storageEnabled`/`realPersistenceAllowed: true` como una
+violación de política distinta de una violación de contenido. Contra el corpus del Sprint 18R (79
+casos): `fakeWriteAttemptCount`/`fakeWriteAcceptedCount` 79/79, `fakeWriteRejectedCount` 0,
+`fakeWriteAcceptedRate`/`validDraftRate` 100%/100%, `invalidDraftRejectedCount` 11 (de 11 drafts
+inválidos sintéticos escritos y rechazados en cada evaluación),
+`policyViolationRejectedCount` 2, todos los conteos real/db/supabase/external/forbidden-content-stored
+en 0, `fakeAdapterSafetyRate` 100%, `readinessStatus` **`ready_for_persistence_readiness_review`**.
+`recommendedNextSprint`: **"Sprint 29R — Shadow Capture Storage Adapter Persistence Readiness
+Review"**. No se creó ninguna base de datos, migración, archivo SQL, tabla, storage adapter real, ni
+repository real — cada registro almacenado vive únicamente en el closure de una instancia de adapter y
+desaparece al llamar `clear()` o al terminar el proceso; no se implementó ningún feature flag real; no
+se conectó `decision_support` al router; no se cambió ningún comportamiento de producción — ver
+`docs/conversational-brain-decision-support-shadow-storage-fake-adapter.md` para el adapter fake
+completo.
