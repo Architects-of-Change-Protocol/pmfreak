@@ -333,3 +333,17 @@ showing anything to a user. The Sprint 29R prerequisites for *real persistence* 
 isolation, access control, deletion/retention, audit, observability, rollback, security review, DSR
 policy) remain untouched and still block any real persistence — Sprint 31R's integration plan is
 explicitly scoped to *clarification-gated decision support*, not to persistence.
+
+---
+
+## Nota — Sprint 31R
+
+Sprint 31R creó un **Clarification-Gated Decision Support Integration Plan**
+(`docs/conversational-brain-decision-support-clarification-gated-integration-plan.md`), clasificando
+los 79 casos del corpus Sprint 18R (vía el replay del Sprint 30R) en cuatro tipos de ruta de integración
+y construyendo un contrato de ruta y requisitos de clarification gate para cada uno. No cambió
+producción. No cambió routing. No activó ningún feature flag. No creó DB/migrations/tables/SQL files.
+No creó storage adapter real. No creó repository real. No implementó un loop de clarificación
+persistente. No conectó `decision_support` al router. No mostró output de `decision_support` al
+usuario. Decisión explícita: `ready_for_user_visible_dry_run_plan`. Siguiente sprint recomendado:
+**Sprint 32R — Decision Support Response QA / User-Visible Dry Run Plan**.
