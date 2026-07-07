@@ -301,3 +301,15 @@ production handler, `intentCompatibilityAdapter.ts`, `intentClassifier.rules.ts`
 created. No feature flag was activated. No email/task/execution ever happened. No stored record was
 shown to or persisted for a user beyond a single test's own in-process fake adapter instance.
 Recommendation: **Sprint 29R — Shadow Capture Storage Adapter Persistence Readiness Review**.
+
+---
+
+## Nota — Sprint 29R
+
+Sprint 29R creó una **Persistence Readiness Review**
+(`docs/conversational-brain-decision-support-shadow-persistence-readiness.md`). No cambió producción.
+No cambió routing. No activó ningún feature flag. No creó DB/migrations/tables/SQL files. No creó
+storage adapter real. No creó repository real. No implementó un loop de clarificación persistente. No
+conectó `decision_support` al router. Decisión explícita: `do_not_build_real_persistence_yet`. Siguiente
+sprint recomendado: **Sprint 30R — Controlled Shadow Replay Evaluation**.
+

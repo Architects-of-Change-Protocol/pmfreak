@@ -322,3 +322,15 @@ explicitly out of scope (see this sprint's non-goals in
 `docs/conversational-brain-decision-support-shadow-storage-fake-adapter.md`). This document's own
 45-test suite still passes unchanged: `policyAlignedRate` 82.9%, `currentSystemAcceptableRate` 84.3%.
 Sprint 28R did not modify `generalPmAdviceBoundaryReview.ts` or this boundary corpus.
+
+---
+
+## Nota — Sprint 29R
+
+Sprint 29R creó una **Persistence Readiness Review**
+(`docs/conversational-brain-decision-support-shadow-persistence-readiness.md`). No cambió producción.
+No cambió routing. No activó ningún feature flag. No creó DB/migrations/tables/SQL files. No creó
+storage adapter real. No creó repository real. No implementó un loop de clarificación persistente. No
+conectó `decision_support` al router. Decisión explícita: `do_not_build_real_persistence_yet`. Siguiente
+sprint recomendado: **Sprint 30R — Controlled Shadow Replay Evaluation**.
+

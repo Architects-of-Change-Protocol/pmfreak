@@ -333,3 +333,15 @@ Sprint 28R's fake storage adapter does not import `decisionSupportShadowMappingE
 `candidateHandlerSafeRate` 100%, `shadowRoutableRate` 40%, `unsafeClassifierCollisionCount` 5,
 `recommendedIntegrationMode` `do_not_integrate`. See
 `docs/conversational-brain-decision-support-shadow-storage-fake-adapter.md`.
+
+---
+
+## Nota — Sprint 29R
+
+Sprint 29R creó una **Persistence Readiness Review**
+(`docs/conversational-brain-decision-support-shadow-persistence-readiness.md`). No cambió producción.
+No cambió routing. No activó ningún feature flag. No creó DB/migrations/tables/SQL files. No creó
+storage adapter real. No creó repository real. No implementó un loop de clarificación persistente. No
+conectó `decision_support` al router. Decisión explícita: `do_not_build_real_persistence_yet`. Siguiente
+sprint recomendado: **Sprint 30R — Controlled Shadow Replay Evaluation**.
+
