@@ -313,3 +313,12 @@ consistent with the Sprint 25R capture harness never retaining this handler's fu
 file's own 54-test suite still passes unchanged; Sprint 26R did not modify
 `decisionSupportCandidateHandler.ts`, `decisionSupportAnalyzer.ts`, or
 `decisionSupportCandidateTypes.ts`. See `docs/conversational-brain-decision-support-shadow-storage-policy.md`.
+
+## Sprint 27R note
+
+Sprint 27R's storage adapter plan's draft mapper never includes `fullDecisionCandidate` or its
+`recommendation.rationale`/`recommendedPath`/`suggestedNextStep` text — only the minimized
+`candidateSummary` this handler's own summary already restricts to counts/labels. This file's own
+54-test suite still passes unchanged; Sprint 27R did not modify `decisionSupportCandidateHandler.ts`,
+`decisionSupportAnalyzer.ts`, or `decisionSupportCandidateTypes.ts`. See
+`docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md`.

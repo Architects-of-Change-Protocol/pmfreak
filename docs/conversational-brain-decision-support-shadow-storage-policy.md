@@ -373,3 +373,16 @@ handler, every feature flag, the DB/Supabase/Gmail integrations, `intentClassifi
 `src/lib/playbook-engine/conversation/decision-support/index.ts` was updated to export the new module
 (an isolated barrel, not re-exported from `src/lib/playbook-engine/conversation/index.ts` — the
 production barrel is unmodified, verified directly by a test that reads its source).
+
+## Sprint 27R note
+
+Sprint 27R built `decisionSupportShadowCaptureStorageAdapterPlan.ts`, an adapter plan/contract that
+maps real capture records assessed by this policy into a policy-clean storage draft, validates that
+draft against 23 gates, and simulates the adapter's contract with a no-op — still no database,
+migration, table, or real storage adapter. This document's own 92-test suite (field classification,
+retention/deletion policy, readiness gates, record assessment) still passes unchanged:
+`captureHarnessCleanRate` 100%, `blockingReadinessGateFailureCount` 0, `storageReadinessStatus`
+`ready_for_storage_adapter_design`. Sprint 27R did not modify
+`decisionSupportShadowCaptureStoragePolicy.ts` or `decisionSupportShadowCaptureStoragePolicyTypes.ts`.
+See `docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md` for the full adapter
+plan.

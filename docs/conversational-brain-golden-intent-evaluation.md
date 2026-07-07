@@ -423,3 +423,11 @@ Sprint 26R built an offline storage policy on top of the Sprint 25R capture harn
 the golden evaluation corpus, the classifier, or the adapter. Re-running `runGoldenIntentEvaluation()`
 confirms the global `compatibilityRate` is unchanged at **72.5%**. See
 `docs/conversational-brain-decision-support-shadow-storage-policy.md` for the full policy and results.
+
+## Sprint 27R note
+
+Sprint 27R built an offline storage adapter plan on top of the Sprint 26R storage policy, without
+touching the golden evaluation corpus, the classifier, or the adapter. Re-running
+`runGoldenIntentEvaluation()` confirms the global `compatibilityRate` is unchanged at **72.5%**. See
+`docs/conversational-brain-decision-support-shadow-storage-adapter-plan.md` for the full plan and
+results.
