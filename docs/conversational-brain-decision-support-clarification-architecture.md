@@ -384,3 +384,12 @@ Sprint 24R built the shadow mode prep contract for `hybrid_shadow_then_clarify`
 `requiresClarificationCount` 24. Sprint 24R did not modify
 `decisionClarificationArchitectureReview.ts` or this corpus. See
 `docs/conversational-brain-decision-support-shadow-mode-prep.md`.
+
+## Sprint 25R update
+
+Sprint 25R's shadow capture harness evaluates against this document's own 79-case corpus too (via the
+Sprint 24R shadow mode prep contract), in both `dry_run` and `test_only_in_memory` modes. This file's
+own 51-test suite still passes unchanged: `currentSafeMappingRate` 84.8%,
+`futureRouteAlreadySupportedRate` 84.8%, `requiresNewHandlerCount` 45, `requiresClarificationCount`
+24. Sprint 25R did not modify `decisionClarificationArchitectureReview.ts` or this corpus. See
+`docs/conversational-brain-decision-support-shadow-capture-harness.md`.

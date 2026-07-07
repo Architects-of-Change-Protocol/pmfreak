@@ -300,3 +300,12 @@ feeds) but does not import or modify `decisionSupportShadowMappingEvaluation.ts`
 `decisionSupportShadowMappingTypes.ts` directly. This file's own 52-test suite still passes unchanged:
 `candidateHandlerSafeRate` 100%, `shadowRoutableRate` 40%, `recommendedIntegrationMode`
 `do_not_integrate`. See `docs/conversational-brain-decision-support-shadow-mode-prep.md`.
+
+## Sprint 25R update
+
+Sprint 25R's shadow capture harness does not import or modify `decisionSupportShadowMappingEvaluation.ts`
+or `decisionSupportShadowMappingTypes.ts` directly — it reuses this evaluator's signal only
+transitively, through the Sprint 24R shadow mode prep contract. This file's own 52-test suite still
+passes unchanged: `candidateHandlerSafeRate` 100%, `shadowRoutableRate` 40%,
+`recommendedIntegrationMode` `do_not_integrate`. See
+`docs/conversational-brain-decision-support-shadow-capture-harness.md`.

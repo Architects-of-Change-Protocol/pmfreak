@@ -283,3 +283,13 @@ still passes unchanged: `bestStrategy`/`recommendedSprint24Strategy` remain
 100% safe-outcome rate, 0 critical risk, 100% existing-route preservation) is identical. Sprint 24R did
 not modify this file, `decisionSupportAdapterMappingPlanTypes.ts`, the router, the adapter, or any
 feature flag.
+
+## Sprint 25R update
+
+Sprint 25R built an offline/test-only shadow capture harness on top of the Sprint 24R shadow mode prep
+contract, which itself reuses this plan's evidence — this file was not imported directly by the new
+harness, only transitively through `decisionSupportShadowModePrep.ts`. This document's own 45-test
+suite still passes unchanged: `bestStrategy`/`recommendedSprint24Strategy` remain
+`hybrid_shadow_then_clarify`, and `hybrid_shadow_then_clarify`'s strategy summary is identical. Sprint
+25R did not modify this file, `decisionSupportAdapterMappingPlanTypes.ts`, the router, the adapter, or
+any feature flag. See `docs/conversational-brain-decision-support-shadow-capture-harness.md`.
