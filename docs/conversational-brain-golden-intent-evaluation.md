@@ -2,7 +2,7 @@
 
 > Full context, rationale, and the current baseline numbers live in the Sprint 11R (§11),
 > Sprint 12R (§12), Sprint 13R (§13), Sprint 14R (§14), Sprint 15R (§15), Sprint 16R (§16), Sprint
-> 17R (§17), Sprint 18R (§18), and Sprint 19R (§19) sections of
+> 17R (§17), Sprint 18R (§18), Sprint 19R (§19), and Sprint 20R (§20) sections of
 > `docs/conversational-brain-pipeline-reconciliation.md`. This file is a short, standalone
 > quick-reference for running and interpreting the evaluation.
 
@@ -316,3 +316,28 @@ which row of the adapter's mapping table (`intentCompatibilityAdapter.ts`) needs
 integration is scoped. `general_pm_advice` vocabulary calibration and a Clarification Response
 Strategy remain the next steps after that, per Sprint 18R's `recommendedImplementationOrder`. See §19
 of the reconciliation doc for the full criteria before proposing any router/handler change.
+
+## Sprint 20R — Decision Support Shadow Mapping Evaluation (no calibration, no routing change)
+
+Sprint 20R answered item (1) above with a dedicated offline evaluator
+(`decisionSupportShadowMappingEvaluation.ts`) rather than by hand — see
+`docs/conversational-brain-decision-support-shadow-mapping.md` for the full results. It does not touch
+this golden corpus, `intentClassifier.rules.ts`, `intent-patterns.ts`,
+`intentCompatibilityAdapter.ts`, the router, the composer, or any production handler, and it is not
+connected to `POST /api/command-center/chat`. Confirmed via
+`tests/playbook-engine-conversation-decision-support-shadow-mapping.test.mjs`:
+
+| Metric | Value |
+|---|---|
+| Global `compatibilityRate` (this doc's corpus) | **72.5% — unchanged** |
+| Sprint 17R boundary review's own metrics | **unchanged** (`policyAlignedRate` 74.3%, `currentSystemAcceptableRate` 84.3%, `architectureGapCount` 10, `clarificationGapCount` 10) |
+| Sprint 18R architecture review's own metrics | **unchanged** (`currentSafeMappingRate` 64.6%, `futureRouteAlreadySupportedRate` 49.4%, `requiresNewHandlerCount` 45, `requiresClarificationCount` 24) |
+| Sprint 19R candidate handler's own 54-test suite | **unchanged** |
+| New: `candidateHandlerCoverageRate` / `candidateHandlerSafeRate` | **100% / 100%** — the handler's eligibility surface exactly matches the architecture boundary, and is structurally/safety sound on every eligible case |
+| New: `shadowRoutableRate` | **40%** — held back by live classifier collisions (`general_pm_advice` largest) and low-confidence results from the still-missing `DecisionDraft` context reuse |
+| New: `recommendedIntegrationMode` / `recommendedNextSprint` | `do_not_integrate` / **"Sprint 21R — Decision Support Classifier Boundary Calibration"** |
+
+This directly confirms item (2) above (resolve `general_pm_advice`/`playbook_analysis` classifier
+collisions) as the correct next step, with live measurements rather than an assumption. See
+`docs/conversational-brain-decision-support-shadow-mapping.md`'s own "Criteria to pass to Sprint 21R"
+for the full sequencing.

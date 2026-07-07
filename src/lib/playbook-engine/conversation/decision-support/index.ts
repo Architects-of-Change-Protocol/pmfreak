@@ -51,3 +51,21 @@ export type {
   FormatDecisionSupportCandidateResponseOptions,
   DecisionSupportCandidateHandlerExplain,
 } from "./decisionSupportCandidateHandler";
+
+export {
+  runDecisionSupportShadowMappingEvaluation,
+  summarizeDecisionSupportShadowMappingEvaluation,
+  explainDecisionSupportShadowMappingEvaluation,
+} from "./decisionSupportShadowMappingEvaluation";
+export type {
+  DecisionSupportShadowMappingOptions,
+  DecisionSupportShadowMappingInput,
+  DecisionSupportShadowEligibility,
+  DecisionSupportShadowCollisionType,
+  DecisionSupportShadowIntegrationMode,
+  DecisionSupportShadowMappingResult,
+  DecisionSupportShadowMappingCategorySummary,
+  DecisionSupportShadowMappingNextSprintRecommendation,
+  DecisionSupportShadowMappingSummary,
+  DecisionSupportShadowMappingExplain,
+} from "./decisionSupportShadowMappingTypes";

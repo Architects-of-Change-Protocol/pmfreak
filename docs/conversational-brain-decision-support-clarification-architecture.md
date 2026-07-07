@@ -318,3 +318,16 @@ Before either future PR starts, it should:
    `decision_support_vs_general_pm` (5/8 unsafe).
 3. Only after the handler exists should `general_pm_advice` vocabulary calibration proceed, re-running
    this review and the Sprint 17R boundary review to confirm neither regresses.
+
+## Sprint 20R follow-up — Decision Support Shadow Mapping Evaluation
+
+Sprint 20R measured, offline, how the Sprint 19R candidate handler behaves against this sprint's own
+79-case corpus, reusing `runDecisionClarificationArchitectureReview()` unmodified — see
+`docs/conversational-brain-decision-support-shadow-mapping.md`. It confirms this sprint's own numbers
+above (`currentSafeMappingRate` 64.6%, `futureRouteAlreadySupportedRate` 49.4%,
+`requiresNewHandlerCount` 45, `requiresClarificationCount` 24, `existingRouteRegressions` 0) are all
+unchanged, and adds: of the 45 `requiresNewHandler` cases, the candidate handler is structurally/safety
+sound on 100% of them, but live classifier collisions (`general_pm_advice` and `playbook_analysis`
+dominant) and low-confidence results (from the still-missing `DecisionDraft` context reuse) together
+keep only 40% "shadow routable." `recommendedNextSprint` is **"Sprint 21R — Decision Support Classifier
+Boundary Calibration"**, directly confirming item 2 above with live measurements.

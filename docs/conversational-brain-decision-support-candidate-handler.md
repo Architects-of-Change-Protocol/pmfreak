@@ -234,3 +234,18 @@ A future integration sprint should, in order:
 3. Wire `DecisionDraft` reuse into the analyzer before considering any real routing change.
 4. Only then propose a feature-flagged (default-off) router integration, following the same staged
    shadow-mode discipline as every prior sprint in this series.
+
+## Sprint 20R follow-up — Decision Support Shadow Mapping Evaluation
+
+Sprint 20R answered this document's own "Criteria to pass to Sprint 20R" with real measurements rather
+than assumptions: `docs/conversational-brain-decision-support-shadow-mapping.md` reuses this handler
+unmodified against the full Sprint 18R corpus. Findings: `candidateHandlerCoverageRate` 100% (this
+handler's eligibility surface exactly matches the `decision_support_*` architecture categories),
+`candidateHandlerSafeRate` 100% (zero safety/structural failures on any of the 45 eligible cases), but
+`shadowRoutableRate` only 40% — driven in equal measure by (a) live classifier collisions, mostly with
+`general_pm_advice` and `playbook_analysis`, and (b) 19/45 cases landing on `"low"` confidence for lack
+of real project context, exactly the `DecisionDraft`-reuse gap this document already flagged as "the
+single largest gap before Sprint 20R." `recommendedIntegrationMode` is `do_not_integrate` and
+`recommendedNextSprint` is **"Sprint 21R — Decision Support Classifier Boundary Calibration"** — this
+sprint's own criteria above, item 2, confirmed by evidence rather than assumed. This handler's own
+behavior, its 54-test suite, and every metric in this document are unchanged by Sprint 20R.
