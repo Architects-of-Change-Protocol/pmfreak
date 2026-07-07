@@ -383,3 +383,20 @@ this golden corpus):
 
 See `docs/conversational-brain-clarification-response-strategy.md` for the full strategy-type
 taxonomy, missing-slot inference, route options, response format, and evaluation results.
+
+## Sprint 23R — Decision Support Adapter Mapping Plan
+
+Sprint 23R did not re-run or modify this golden corpus's own evaluator; it re-verified
+`compatibilityRate` (72.5%) and every previously-calibrated category rate unchanged as part of its own
+regression suite. New corpus-independent metrics this sprint added (from
+`decisionSupportAdapterMappingPlan.ts`, simulating eight mapping strategies against the Sprint 18R
+corpus):
+
+| Metric | Value |
+|---|---|
+| `bestStrategy` / `recommendedSprint24Strategy` | `hybrid_shadow_then_clarify` |
+| `worstStrategy` | `map_to_general_pm_advice` |
+| `recommendedNextSprint` | "Sprint 24R — Decision Support Shadow Mode Prep" |
+
+See `docs/conversational-brain-decision-support-adapter-mapping-plan.md` for the full strategy
+comparison table and safety analysis.

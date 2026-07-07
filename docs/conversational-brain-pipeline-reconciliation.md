@@ -1597,3 +1597,94 @@ Per el heurístico propio (sin modificar) del nuevo evaluador, el siguiente spri
 clarificación ya sólidas en su primera corrida real, la brecha arquitectónica más grande que queda
 abierta en esta serie es que `decision_support` todavía no tiene una ruta de producción real
 (`recommendedIntegrationMode: do_not_integrate` de Sprint 21R, con `shadowRoutableRate` en 40%).
+
+## 23. Sprint 23R — Decision Support Adapter Mapping Plan
+
+> **Estado:** módulo aislado nuevo. Ver `git log` — este sprint agrega
+> `src/lib/playbook-engine/conversation/decision-support/decisionSupportAdapterMappingPlanTypes.ts`,
+> `src/lib/playbook-engine/conversation/decision-support/decisionSupportAdapterMappingPlan.ts`,
+> `tests/playbook-engine-conversation-decision-support-adapter-mapping-plan.test.mjs` (45 tests),
+> `docs/conversational-brain-decision-support-adapter-mapping-plan.md`, esta sección, y actualiza el
+> barrel aislado `decision-support/index.ts`; no modifica `intentClassifier.rules.ts`,
+> `intent-patterns.ts`, `intentCompatibilityAdapter.ts`, el router, el composer, ningún handler
+> productivo, ni el endpoint; no activa ningún feature flag.
+
+### 23.1 Qué se creó
+
+Siguiendo la recomendación propia de Sprint 22R ("Sprint 23R — Decision Support Adapter Mapping
+Plan"), este sprint construye un planner/simulador offline que compara ocho estrategias candidatas
+para cómo `intentCompatibilityAdapter.ts` podría eventualmente mapear `decision_support` (y
+`needs_clarification`): `keep_unsupported`, `map_to_general_pm_advice`,
+`map_to_recommendation_request`, `shadow_candidate_handler_only`, `feature_flag_default_off`,
+`clarify_before_decision_support`, `hybrid_shadow_then_clarify`, y `do_not_map`. Reutiliza el
+evaluador de sombra del Sprint 20R/21R y el candidate handler del Sprint 19R, además de la estrategia
+de clarificación del Sprint 22R, contra el corpus de 79 casos del Sprint 18R — sin tocar ninguno de
+esos módulos.
+
+### 23.2 Resultados obtenidos
+
+| Métrica | Valor |
+|---|---|
+| `totalCases` / `strategiesEvaluated` | 79 / 8 |
+| `bestStrategy` | **`hybrid_shadow_then_clarify`** |
+| `worstStrategy` | `map_to_general_pm_advice` |
+| `safestNonProductionStrategy` / `safestFutureIntegrationStrategy` | `hybrid_shadow_then_clarify` / `hybrid_shadow_then_clarify` |
+| `recommendedSprint24Strategy` | **`hybrid_shadow_then_clarify`** |
+| `recommendedNextSprint` | **"Sprint 24R — Decision Support Shadow Mode Prep"** |
+
+Ver `docs/conversational-brain-decision-support-adapter-mapping-plan.md` para la tabla comparativa
+completa de las 8 estrategias.
+
+### 23.3 Qué NO se hizo (por diseño de este sprint)
+
+- No se modificó `intentCompatibilityAdapter.ts` ni su tabla de mapeo real.
+- No se conectó `decision_support` al router, composer, handlers, o endpoint.
+- No se activó ningún feature flag.
+- No se ejecutó ninguna acción real — todos los 632 resultados simulados (79 casos × 8 estrategias)
+  llevan `shouldExecuteAction: false`.
+- No se implementó un clarification loop persistente/multi-turno.
+- No se creó un Context Resolver, Router, o Composer nuevos.
+- No se calibró vocabulario de `general_pm_advice`.
+
+### 23.4 Protección contra regresiones
+
+- Golden corpus: `compatibilityRate` global **72.5%, sin cambios**.
+- Sprint 17R: `policyAlignedRate` **82.9%**, `currentSystemAcceptableRate` **84.3%** — sin cambios.
+- Sprint 18R: `currentSafeMappingRate` **84.8%**, `futureRouteAlreadySupportedRate` **84.8%**,
+  `requiresNewHandlerCount` **45**, `requiresClarificationCount` **24** — sin cambios.
+- Sprint 19R: código del handler de decision-support sin modificar; su test suite de 54 tests sigue
+  pasando sin cambios.
+- Sprint 20R/21R: `candidateHandlerSafeRate` **100%**, `shadowRoutableRate` **40%**,
+  `unsafeClassifierCollisionCount` **5** (playbook 0 / general_pm 1 / risk 2 / closure 1 /
+  governance 0), `recommendedIntegrationMode` `do_not_integrate` — sin cambios.
+- Sprint 22R: `acceptableResponseRate` **100%**, `safetyPassRate` **100%**,
+  `routeOptionsCoverageRate` **100%**, `overQuestioningCount` **0** — sin cambios.
+
+### 23.5 Verificación ejecutada
+
+- `npx tsx --test tests/playbook-engine-conversation-decision-support-adapter-mapping-plan.test.mjs` — ok (45/45, nuevo).
+- `npx tsx --test tests/playbook-engine-conversation-clarification-response-strategy.test.mjs` — ok (77/77).
+- `npx tsx --test tests/playbook-engine-conversation-decision-support-classifier-boundary.test.mjs` — ok (99/99).
+- `npx tsx --test tests/playbook-engine-conversation-decision-support-shadow-mapping.test.mjs` — ok (52/52).
+- `npx tsx --test tests/playbook-engine-conversation-decision-support-candidate-handler.test.mjs` — ok (54/54).
+- `npx tsx --test tests/playbook-engine-conversation-decision-clarification-architecture.test.mjs` — ok (51/51).
+- `npx tsx --test tests/playbook-engine-conversation-general-pm-advice-boundary.test.mjs` — ok (45/45).
+- `npx tsx --test tests/playbook-engine-conversation-intent-golden-evaluation.test.mjs` — ok (21/21).
+- `npx tsx --test tests/playbook-engine-conversation-intent-compatibility.test.mjs` — ok (21/21).
+- `npx tsx --test tests/conversational-brain-intent-classifier.test.mjs` — ok (32/32).
+- `npx tsx --test tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs` — ok (46/46).
+- `npm run lint:aoc-boundaries` — pasó.
+- `npx tsc --noEmit` repo-wide no pudo evaluarse (`node_modules` no está instalado en este entorno —
+  preexistente, no relacionado); los dos archivos nuevos de este sprint, revisados de forma aislada,
+  no producen ningún error de tipos.
+- `git diff --name-only` — confirma que no se tocó `intentClassifier.rules.ts`,
+  `intent-patterns.ts`, `intentCompatibilityAdapter.ts`, el router, el composer, ningún handler
+  productivo, ni el endpoint.
+
+### 23.6 Recomendación siguiente
+
+Per el heurístico propio (sin modificar) del nuevo planner, el siguiente sprint debería ser
+**Sprint 24R — Decision Support Shadow Mode Prep**: `hybrid_shadow_then_clarify` limpia todos los
+umbrales de seguridad (0 outcomes inseguros, 0 riesgo crítico, 100% preservación de rutas existentes)
+combinando el candidate handler en modo sombra para los casos con confianza alta/media y la estrategia
+de clarificación para el resto — sin requerir ningún cambio de producción en este sprint.

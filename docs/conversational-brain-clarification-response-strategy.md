@@ -323,3 +323,17 @@ do_not_integrate`, driven by `shadowRoutableRate` at 40%). A future sprint shoul
 whether — to wire a feature-flagged, default-off `decision_support` route, informed by the Sprint
 19R/20R/21R candidate handler work, before returning to build a real persistent clarification loop on
 top of this sprint's response strategy.
+
+## Sprint 23R follow-up — Decision Support Adapter Mapping Plan
+
+Sprint 23R built exactly that adapter mapping plan — see
+`docs/conversational-brain-decision-support-adapter-mapping-plan.md` — calling
+`handleClarificationResponseCandidate()` from this strategy unmodified as one of its eight simulated
+strategies' building blocks (`clarify_before_decision_support` and `hybrid_shadow_then_clarify`). It
+did not touch `clarificationResponseStrategy.ts`, `clarificationResponseAnalyzer.ts`,
+`clarificationResponseTypes.ts`, or `clarificationResponseEvaluation.ts` — this document's own
+77-test suite continues to pass, and `acceptableResponseRate`/`safetyPassRate`/
+`routeOptionsCoverageRate` all remain 100%. The new plan's recommended strategy,
+`hybrid_shadow_then_clarify`, uses this strategy for every `needs_clarification`-desired case and every
+low-confidence `decision_support` case, with `recommendedNextSprint`: **"Sprint 24R — Decision Support
+Shadow Mode Prep"**.

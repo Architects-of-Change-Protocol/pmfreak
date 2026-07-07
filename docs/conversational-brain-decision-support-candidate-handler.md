@@ -273,3 +273,15 @@ source at all: `decisionSupportCandidateHandler.ts`, `decisionSupportAnalyzer.ts
 The new strategy lives in a sibling package
 (`src/lib/playbook-engine/conversation/clarification/`), not this one, and is equally disconnected
 from production — no router, composer, handler, or endpoint wiring, no feature flag.
+
+## Sprint 23R follow-up — Decision Support Adapter Mapping Plan
+
+Sprint 23R built an offline adapter mapping plan — see
+`docs/conversational-brain-decision-support-adapter-mapping-plan.md` — that calls
+`handleDecisionSupportCandidate()` from this handler unmodified, via the Sprint 20R/21R shadow
+evaluator, as part of simulating eight mapping strategies. `decisionSupportCandidateHandler.ts`,
+`decisionSupportAnalyzer.ts`, and `decisionSupportCandidateTypes.ts` remain unmodified, and this
+document's own 54-test suite still passes unchanged. The new plan's recommended strategy,
+`hybrid_shadow_then_clarify`, routes this handler's confident/safe results (`isShadowRoutable`) to
+shadow mode and everything else to the Sprint 22R clarification strategy — still no router, composer,
+handler, or endpoint wiring, and no feature flag activated.

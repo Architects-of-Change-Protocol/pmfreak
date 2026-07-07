@@ -360,3 +360,17 @@ re-running `tests/playbook-engine-conversation-decision-clarification-architectu
 and `requiresClarificationCount` 24 are all unchanged. It also did **not** implement a persistent,
 multi-turn clarification loop — that remains a distinct, still-unbuilt Context Resolver/Router
 integration question, explicitly out of this sprint's scope.
+
+## Sprint 23R follow-up — Decision Support Adapter Mapping Plan
+
+Sprint 23R built an offline plan — see
+`docs/conversational-brain-decision-support-adapter-mapping-plan.md` — that simulates eight
+strategies for how this document's `decision_support`/`needs_clarification` policy could eventually
+be realized by the adapter, reusing `runDecisionClarificationArchitectureReview()` (via the Sprint
+20R/21R shadow evaluator) unmodified. This sprint did not touch
+`decisionClarificationArchitectureReview.ts` or this document's 79-case corpus — the same four
+metrics above remain unchanged. The plan documents, with simulated evidence, why the two "map to an
+existing production intent" strategies are unsafe (they reintroduce exactly the
+`decision_support_vs_playbook`/`decision_support_vs_general_pm` collisions this document's corpus was
+built to surface) and recommends `hybrid_shadow_then_clarify` — shadow-routing confident candidates,
+clarifying the rest — for Sprint 24R.

@@ -69,3 +69,25 @@ export type {
   DecisionSupportShadowMappingSummary,
   DecisionSupportShadowMappingExplain,
 } from "./decisionSupportShadowMappingTypes";
+
+export {
+  ALL_DECISION_SUPPORT_ADAPTER_MAPPING_STRATEGIES,
+  listDecisionSupportAdapterMappingStrategies,
+  simulateDecisionSupportAdapterMapping,
+  runDecisionSupportAdapterMappingPlan,
+  summarizeDecisionSupportAdapterMappingPlan,
+  explainDecisionSupportAdapterMappingPlan,
+} from "./decisionSupportAdapterMappingPlan";
+export type {
+  DecisionSupportAdapterMappingStrategy,
+  DecisionSupportAdapterMappingPlanOptions,
+  DecisionSupportAdapterMappingPlanInput,
+  DecisionSupportAdapterMappingSimulatedIntent,
+  DecisionSupportAdapterMappingRiskLevel,
+  DecisionSupportAdapterMappingOutcome,
+  DecisionSupportAdapterMappingResult,
+  DecisionSupportAdapterMappingStrategySummary,
+  DecisionSupportAdapterMappingNextSprintRecommendation,
+  DecisionSupportAdapterMappingPlanSummary,
+  DecisionSupportAdapterMappingPlanExplain,
+} from "./decisionSupportAdapterMappingPlanTypes";
