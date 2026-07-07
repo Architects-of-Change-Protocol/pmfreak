@@ -91,3 +91,30 @@ export type {
   DecisionSupportAdapterMappingPlanSummary,
   DecisionSupportAdapterMappingPlanExplain,
 } from "./decisionSupportAdapterMappingPlanTypes";
+
+export {
+  DECISION_SUPPORT_SHADOW_MODE_PREP_VERSION,
+  prepareDecisionSupportShadowModeRun,
+  evaluateDecisionSupportShadowModeRun,
+  runDecisionSupportShadowModePrepEvaluation,
+  summarizeDecisionSupportShadowModePrepEvaluation,
+  explainDecisionSupportShadowModePrep,
+} from "./decisionSupportShadowModePrep";
+export type {
+  DecisionSupportShadowModeStrategy,
+  DecisionSupportShadowModeStatus,
+  DecisionSupportShadowModeCandidateKind,
+  DecisionSupportShadowModeGate,
+  DecisionSupportShadowModeGateSeverity,
+  DecisionSupportShadowModeGateResult,
+  DecisionSupportShadowModeInputSource,
+  DecisionSupportShadowModeInput,
+  DecisionSupportShadowModeContext,
+  DecisionSupportShadowModeAuditMetadata,
+  DecisionSupportShadowModeRun,
+  DecisionSupportShadowModeEvaluationResult,
+  DecisionSupportShadowModeNextSprintRecommendation,
+  DecisionSupportShadowModePrepEvaluationOptions,
+  DecisionSupportShadowModePrepEvaluationSummary,
+  DecisionSupportShadowModePrepExplain,
+} from "./decisionSupportShadowModePrep";

@@ -295,3 +295,11 @@ above is unchanged: `enrichedDecisionSupportDetectionRate` 88.9%, `unsafeClassif
 `do_not_integrate`. The new plan's own recommendation, `hybrid_shadow_then_clarify`, is the
 `recommendedSprint24Strategy`, with `recommendedNextSprint`: **"Sprint 24R — Decision Support Shadow
 Mode Prep"**.
+
+## Sprint 24R update
+
+Sprint 24R built the shadow mode prep contract for `hybrid_shadow_then_clarify`
+(`decisionSupportShadowModePrep.ts`) without touching `intent-patterns.ts` or this boundary's
+calibrated patterns — this document's own 99-test suite still passes unchanged, and
+`enrichedDecisionSupportDetectionRate` (88.9%) and `unsafeClassifierCollisionCount` (5) are identical.
+See `docs/conversational-brain-decision-support-shadow-mode-prep.md` for the full contract.
