@@ -722,7 +722,7 @@ export function assessDecisionSupportClarificationGatedIntegrationCase(
   }
 
   let gateReady = false;
-  let safeForIntegrationPlan = true;
+  const safeForIntegrationPlan = true;
   let safeForUserVisibleDryRun = false;
   let shouldPreserveExistingRoute = false;
   let shouldPreserveUnsupported = false;
