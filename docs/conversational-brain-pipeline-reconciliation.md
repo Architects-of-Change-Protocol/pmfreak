@@ -1688,3 +1688,19 @@ Per el heurístico propio (sin modificar) del nuevo planner, el siguiente sprint
 umbrales de seguridad (0 outcomes inseguros, 0 riesgo crítico, 100% preservación de rutas existentes)
 combinando el candidate handler en modo sombra para los casos con confianza alta/media y la estrategia
 de clarificación para el resto — sin requerir ningún cambio de producción en este sprint.
+
+## §24R — Decision Support Shadow Mode Prep
+
+Sprint 24R construyó `decisionSupportShadowModePrep.ts`, el contrato técnico offline y determinístico
+para correr `hybrid_shadow_then_clarify` en un futuro shadow mode: define qué inputs recibe, qué gates
+de elegibilidad/seguridad aplica (12 gates, 8 bloqueantes), cuándo corre el Decision Support Candidate
+Handler (Sprint 19R) vs. la Clarification Response Strategy (Sprint 22R), qué metadata captura, y qué
+se devuelve a un caller offline. Contra el corpus del Sprint 18R (79 casos): `shadowEligibleCount` 69,
+`decisionCandidateGeneratedCount` 18, `clarificationCandidateGeneratedCount` 51,
+`existingRoutePreservedCount` 10, `acceptableShadowPrepRunRate` 100%, `allBlockingGatesPassedRate`
+100%, y todos los conteos de side-effect (`shouldReturnCandidateToUser`/`shouldPersistShadowResult`/
+`shouldExecuteAction`/`shouldSendEmail`/`shouldCreateTask`/`shouldWriteToDb`) en 0.
+`recommendedNextSprint`: **"Sprint 25R — Decision Support Shadow Capture Harness"**. No se activó
+shadow mode real, no se conectó `decision_support` al router, no se activó ningún feature flag, y no
+se persistió ningún shadow output — ver
+`docs/conversational-brain-decision-support-shadow-mode-prep.md` para el contrato completo.

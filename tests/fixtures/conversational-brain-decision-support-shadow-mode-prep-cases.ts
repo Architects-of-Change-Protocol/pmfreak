@@ -1,0 +1,438 @@
+/**
+ * Sprint 24R — Decision Support Shadow Mode Prep: fixture corpus.
+ *
+ * A small, hand-authored corpus distinct from the Sprint 18R architecture corpus
+ * (`conversational-brain-decision-clarification-cases.ts`), used to exercise
+ * `prepareDecisionSupportShadowModeRun()`'s per-branch behavior directly: high/medium/low-confidence
+ * decision_support cases, needs_clarification cases, existing-route preservation (including the
+ * "same input, different metadata" pairs the sprint spec calls for — "redactame un correo" /
+ * "creá una tarea" each appear once as an existing-route case and once as a not_applicable case),
+ * and forced safety-gate failures via `DecisionSupportShadowModeContext` overrides.
+ *
+ * `expectedShouldReturnCandidateToUser`, `expectedShouldPersistShadowResult`, and
+ * `expectedShouldExecuteAction` are always `false` in this corpus — Sprint 24R never shows a
+ * candidate to a user, never persists shadow output, and never executes an action, for any case.
+ */
+
+import type {
+  DecisionClarificationArchitectureCategory,
+  DecisionClarificationDesiredFutureRoute,
+  DecisionClarificationTargetKind,
+} from "../../src/lib/playbook-engine/conversation/classifier/decisionClarificationArchitectureReview";
+import type { DecisionSupportContext } from "../../src/lib/playbook-engine/conversation/decision-support/decisionSupportCandidateTypes";
+import type {
+  DecisionSupportShadowModeCandidateKind,
+  DecisionSupportShadowModeContext,
+  DecisionSupportShadowModeStatus,
+} from "../../src/lib/playbook-engine/conversation/decision-support/decisionSupportShadowModePrepTypes";
+
+export type DecisionSupportShadowModePrepCase = {
+  id: string;
+  input: string;
+  projectName?: string;
+  availableContext?: DecisionSupportContext;
+  desiredFutureRoute?: DecisionClarificationDesiredFutureRoute;
+  architectureCategory?: DecisionClarificationArchitectureCategory;
+  targetKind?: DecisionClarificationTargetKind;
+  /** Only set for the "forced safety gate failure" cases — passed as `context` to
+   * `prepareDecisionSupportShadowModeRun()` instead of the default `{}`. */
+  forcedContext?: DecisionSupportShadowModeContext;
+  expectedStatus: DecisionSupportShadowModeStatus;
+  expectedCandidateKind: DecisionSupportShadowModeCandidateKind;
+  expectedShouldReturnCandidateToUser: false;
+  expectedShouldPersistShadowResult: false;
+  expectedShouldExecuteAction: false;
+  expectedPreservesExistingRoute?: boolean;
+  notes: string;
+};
+
+export const DECISION_SUPPORT_SHADOW_MODE_PREP_CASES: DecisionSupportShadowModePrepCase[] = [
+  // ─── decision_support: high confidence (named options + context signal) ────────────
+  {
+    id: "sm-01",
+    input: "conviene facturar ya o esperar recepción formal",
+    projectName: "Proyecto Delta",
+    availableContext: { knownEvidence: ["acta de aceptación pendiente de firma"] },
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    expectedStatus: "shadow_candidate_generated",
+    expectedCandidateKind: "decision_support_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "bill_or_wait, two canned options, plus availableContext.knownEvidence -> high confidence.",
+  },
+  {
+    id: "sm-02",
+    input: "deberíamos aceptar este riesgo o mitigarlo",
+    projectName: "Proyecto Delta",
+    availableContext: { knownRisks: ["retraso del proveedor de infraestructura"] },
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    expectedStatus: "shadow_candidate_generated",
+    expectedCandidateKind: "decision_support_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "accept_or_mitigate_risk, two canned options, plus availableContext.knownRisks -> high confidence.",
+  },
+
+  // ─── decision_support: medium confidence (named options, no context) ───────────────
+  {
+    id: "sm-03",
+    input: "deberíamos hacer A o B",
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    expectedStatus: "shadow_candidate_generated",
+    expectedCandidateKind: "decision_support_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "choose_between_options, two options extracted from ' o ' connector, no context -> medium confidence (still shadow-routed).",
+  },
+  {
+    id: "sm-04",
+    input: "conviene escalar esto o esperar",
+    projectName: "Proyecto Delta",
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    expectedStatus: "shadow_candidate_generated",
+    expectedCandidateKind: "decision_support_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "escalate_or_wait, two canned options, projectName only (no availableContext signal) -> medium confidence.",
+  },
+  {
+    id: "sm-05",
+    input: "deberíamos cerrar ya o pedir más evidencia",
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    expectedStatus: "shadow_candidate_generated",
+    expectedCandidateKind: "decision_support_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "close_or_continue, two canned options, no project/context at all -> medium confidence, still shadow-routed.",
+  },
+  {
+    id: "sm-06",
+    input: "deberíamos cambiar de proveedor o seguir con el actual",
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    expectedStatus: "shadow_candidate_generated",
+    expectedCandidateKind: "decision_support_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "change_vendor_or_continue, two canned options -> medium confidence.",
+  },
+  {
+    id: "sm-07",
+    input: "deberíamos aprobar esto o pedir más evidencia",
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    expectedStatus: "shadow_candidate_generated",
+    expectedCandidateKind: "decision_support_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "approve_or_request_evidence, two canned options -> medium confidence.",
+  },
+
+  // ─── decision_support: low confidence (no named options, no context) ───────────────
+  {
+    id: "sm-08",
+    input: "qué opción debería escoger",
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    expectedStatus: "clarification_candidate_generated",
+    expectedCandidateKind: "clarification_response_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "No named options detected (falls to general_decision_support, generic placeholder) -> low confidence -> clarification fallback, never shown to the user.",
+  },
+  {
+    id: "sm-09",
+    input: "qué decisión está bloqueando el avance",
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    expectedStatus: "clarification_candidate_generated",
+    expectedCandidateKind: "clarification_response_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "identify_missing_decision, a single generic option -> low confidence -> clarification fallback.",
+  },
+  {
+    id: "sm-10",
+    input: "qué debería priorizar ahora",
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    expectedStatus: "clarification_candidate_generated",
+    expectedCandidateKind: "clarification_response_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "prioritize_next_step, a single generic option -> low confidence -> clarification fallback.",
+  },
+
+  // ─── needs_clarification ────────────────────────────────────────────────────────────
+  {
+    id: "sm-11",
+    input: "qué hacemos",
+    desiredFutureRoute: "needs_clarification",
+    architectureCategory: "clarification_clear",
+    targetKind: "clarification_strategy",
+    expectedStatus: "clarification_candidate_generated",
+    expectedCandidateKind: "clarification_response_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "Ambiguous 'qué hacemos' -- canonical needs_clarification case, via desiredFutureRoute.",
+  },
+  {
+    id: "sm-12",
+    input: "ayuda",
+    desiredFutureRoute: "needs_clarification",
+    architectureCategory: "clarification_clear",
+    targetKind: "clarification_strategy",
+    expectedStatus: "clarification_candidate_generated",
+    expectedCandidateKind: "clarification_response_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "generic_ambiguous -- bare 'ayuda'.",
+  },
+  {
+    id: "sm-13",
+    input: "revisá esto",
+    desiredFutureRoute: "needs_clarification",
+    architectureCategory: "clarification_clear",
+    targetKind: "clarification_strategy",
+    expectedStatus: "clarification_candidate_generated",
+    expectedCandidateKind: "clarification_response_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "review_without_context.",
+  },
+  {
+    id: "sm-14",
+    input: "cómo está esto",
+    architectureCategory: "clarification_vs_status",
+    targetKind: "clarification_strategy",
+    expectedStatus: "clarification_candidate_generated",
+    expectedCandidateKind: "clarification_response_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "No desiredFutureRoute set -- exercises the architectureCategory.startsWith('clarification_') branch on its own.",
+  },
+
+  // ─── existing_route_should_win (targetKind = existing_production_route) ────────────
+  {
+    id: "sm-15",
+    input: "redactame un correo",
+    desiredFutureRoute: "communication_draft",
+    architectureCategory: "existing_route_should_win",
+    targetKind: "existing_production_route",
+    expectedStatus: "existing_route_preserved",
+    expectedCandidateKind: "existing_route_preserved",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    expectedPreservesExistingRoute: true,
+    notes: "Same input as sm-25 below, but with existing-route metadata -- must preserve the existing communication_draft route untouched.",
+  },
+  {
+    id: "sm-16",
+    input: "creá una tarea",
+    desiredFutureRoute: "task_or_action_request",
+    architectureCategory: "existing_route_should_win",
+    targetKind: "existing_production_route",
+    expectedStatus: "existing_route_preserved",
+    expectedCandidateKind: "existing_route_preserved",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    expectedPreservesExistingRoute: true,
+    notes: "Same input as sm-26 below, but with existing-route metadata -- must preserve the existing task_or_action_request route untouched.",
+  },
+  {
+    id: "sm-17",
+    input: "qué falta para facturar el proyecto Delta",
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "existing_route_should_win",
+    targetKind: "existing_production_route",
+    expectedStatus: "existing_route_preserved",
+    expectedCandidateKind: "existing_route_preserved",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    expectedPreservesExistingRoute: true,
+    notes: "Even with desiredFutureRoute set to decision_support, existing-route preservation is checked first and always wins.",
+  },
+
+  // ─── not_applicable ──────────────────────────────────────────────────────────────────
+  {
+    id: "sm-18",
+    input: "cuál es el estado del proyecto Delta",
+    desiredFutureRoute: "project_status_question",
+    expectedStatus: "not_applicable",
+    expectedCandidateKind: "none",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "Neither decision_support, needs_clarification, nor an existing route -- shadow mode prep is not applicable.",
+  },
+  {
+    id: "sm-19",
+    input: "qué recomienda el playbook para este proyecto",
+    desiredFutureRoute: "recommendation_request",
+    expectedStatus: "not_applicable",
+    expectedCandidateKind: "none",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "playbook_analysis-shaped question, no shadow-mode metadata -- not applicable.",
+  },
+  {
+    id: "sm-20",
+    input: "redactame un correo",
+    desiredFutureRoute: "communication_draft",
+    expectedStatus: "not_applicable",
+    expectedCandidateKind: "none",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "Same input as sm-15, but WITHOUT existing-route metadata -- demonstrates that outcome depends on fixture metadata, not the raw text.",
+  },
+  {
+    id: "sm-21",
+    input: "creá una tarea",
+    desiredFutureRoute: "task_or_action_request",
+    expectedStatus: "not_applicable",
+    expectedCandidateKind: "none",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "Same input as sm-16, but WITHOUT existing-route metadata -- demonstrates that outcome depends on fixture metadata, not the raw text.",
+  },
+
+  // ─── forced safety gate failures via context ────────────────────────────────────────
+  {
+    id: "sm-22",
+    input: "conviene facturar ya o esperar recepción formal",
+    availableContext: { knownEvidence: ["acta de aceptación pendiente de firma"] },
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    forcedContext: { featureFlagEnabled: true },
+    expectedStatus: "blocked_by_safety_gate",
+    expectedCandidateKind: "none",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "Forcing featureFlagEnabled: true does not activate anything -- the default_off gate fails and the run is blocked.",
+  },
+  {
+    id: "sm-23",
+    input: "conviene facturar ya o esperar recepción formal",
+    availableContext: { knownEvidence: ["acta de aceptación pendiente de firma"] },
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    forcedContext: { allowUserVisibleOutput: true },
+    expectedStatus: "blocked_by_safety_gate",
+    expectedCandidateKind: "none",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "Forcing allowUserVisibleOutput: true does not show anything -- the no_user_visible_output gate fails and the run is blocked.",
+  },
+  {
+    id: "sm-24",
+    input: "conviene facturar ya o esperar recepción formal",
+    availableContext: { knownEvidence: ["acta de aceptación pendiente de firma"] },
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    forcedContext: { allowPersistence: true },
+    expectedStatus: "blocked_by_safety_gate",
+    expectedCandidateKind: "none",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "Forcing allowPersistence: true does not persist anything -- the no_persistence gate fails and the run is blocked.",
+  },
+  {
+    id: "sm-25",
+    input: "conviene facturar ya o esperar recepción formal",
+    availableContext: { knownEvidence: ["acta de aceptación pendiente de firma"] },
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    forcedContext: { allowExecution: true },
+    expectedStatus: "blocked_by_safety_gate",
+    expectedCandidateKind: "none",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "Forcing allowExecution: true does not execute anything -- the no_execution gate fails and the run is blocked.",
+  },
+  {
+    id: "sm-26",
+    input: "conviene facturar ya o esperar recepción formal",
+    availableContext: { knownEvidence: ["acta de aceptación pendiente de firma"] },
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    forcedContext: { allowProductionRouteChange: true },
+    expectedStatus: "blocked_by_safety_gate",
+    expectedCandidateKind: "none",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "Forcing allowProductionRouteChange: true does not change any route -- the no_production_route gate fails and the run is blocked.",
+  },
+
+  // ─── additional coverage ────────────────────────────────────────────────────────────
+  {
+    id: "sm-27",
+    input: "no sé qué decisión tomar sobre el proyecto Delta",
+    projectName: "Proyecto Delta",
+    desiredFutureRoute: "decision_support",
+    architectureCategory: "decision_support_clear",
+    targetKind: "future_architecture",
+    expectedStatus: "clarification_candidate_generated",
+    expectedCandidateKind: "clarification_response_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "Project-specific decision (projectName only, no availableContext, no named options) -- still low confidence -> clarification fallback.",
+  },
+  {
+    id: "sm-28",
+    input: "necesito ayuda con esto",
+    architectureCategory: "clarification_vs_general_pm",
+    targetKind: "clarification_strategy",
+    expectedStatus: "clarification_candidate_generated",
+    expectedCandidateKind: "clarification_response_candidate",
+    expectedShouldReturnCandidateToUser: false,
+    expectedShouldPersistShadowResult: false,
+    expectedShouldExecuteAction: false,
+    notes: "Clarification-desired via architectureCategory prefix only, no desiredFutureRoute set.",
+  },
+];

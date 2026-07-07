@@ -374,3 +374,13 @@ existing production intent" strategies are unsafe (they reintroduce exactly the
 `decision_support_vs_playbook`/`decision_support_vs_general_pm` collisions this document's corpus was
 built to surface) and recommends `hybrid_shadow_then_clarify` — shadow-routing confident candidates,
 clarifying the rest — for Sprint 24R.
+
+## Sprint 24R update
+
+Sprint 24R built the shadow mode prep contract for `hybrid_shadow_then_clarify`
+(`decisionSupportShadowModePrep.ts`), evaluated against this document's own 79-case corpus via
+`DecisionSupportShadowModeInput`. This file's own 51-test suite still passes unchanged:
+`currentSafeMappingRate` 84.8%, `futureRouteAlreadySupportedRate` 84.8%, `requiresNewHandlerCount` 45,
+`requiresClarificationCount` 24. Sprint 24R did not modify
+`decisionClarificationArchitectureReview.ts` or this corpus. See
+`docs/conversational-brain-decision-support-shadow-mode-prep.md`.

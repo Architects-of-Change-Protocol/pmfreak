@@ -285,3 +285,12 @@ document's own 54-test suite still passes unchanged. The new plan's recommended 
 `hybrid_shadow_then_clarify`, routes this handler's confident/safe results (`isShadowRoutable`) to
 shadow mode and everything else to the Sprint 22R clarification strategy — still no router, composer,
 handler, or endpoint wiring, and no feature flag activated.
+
+## Sprint 24R update
+
+Sprint 24R's shadow mode prep contract (`decisionSupportShadowModePrep.ts`) calls
+`handleDecisionSupportCandidate()` exactly as-is for every `decision_support`-desired, non-existing-route
+input, and shadow-routes to its result only when it passes the same safety/structural checks documented
+here and confidence is medium/high. This file's own 54-test suite still passes unchanged; this sprint
+did not modify `decisionSupportCandidateHandler.ts`, `decisionSupportAnalyzer.ts`, or
+`decisionSupportCandidateTypes.ts`. See `docs/conversational-brain-decision-support-shadow-mode-prep.md`.

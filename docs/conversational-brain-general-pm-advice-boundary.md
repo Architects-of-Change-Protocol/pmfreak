@@ -282,3 +282,11 @@ reintroduce the `general_pm_advice` collision this document's boundary policy ex
 (`safeOutcomeRate` drops to 12.7% under that strategy, with 12 cases at critical risk). It did not
 touch this boundary corpus, `generalPmAdviceBoundaryReview.ts`, or `intentCompatibilityAdapter.ts` —
 `policyAlignedRate` 82.9% and `currentSystemAcceptableRate` 84.3% are unchanged.
+
+## Sprint 24R update
+
+Sprint 24R's shadow mode prep contract does not calibrate `general_pm_advice` vocabulary — that
+remains explicitly out of scope (see this sprint's non-goals in
+`docs/conversational-brain-decision-support-shadow-mode-prep.md`). This document's own 45-test suite
+still passes unchanged: `policyAlignedRate` 82.9%, `currentSystemAcceptableRate` 84.3%. Sprint 24R did
+not modify `generalPmAdviceBoundaryReview.ts` or this boundary corpus.

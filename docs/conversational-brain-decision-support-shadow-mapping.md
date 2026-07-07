@@ -291,3 +291,12 @@ above is unchanged, including `recommendedIntegrationMode` `do_not_integrate`. T
 eight mapping strategies against this evaluator's own `isShadowRoutable` signal and recommends
 `hybrid_shadow_then_clarify` for Sprint 24R, with `recommendedNextSprint`: **"Sprint 24R — Decision
 Support Shadow Mode Prep"**.
+
+## Sprint 24R update
+
+Sprint 24R's shadow mode prep contract reuses this evaluator's underlying signal indirectly (via the
+Sprint 19R candidate handler and the Sprint 23R adapter mapping plan, which this evaluator itself
+feeds) but does not import or modify `decisionSupportShadowMappingEvaluation.ts` or
+`decisionSupportShadowMappingTypes.ts` directly. This file's own 52-test suite still passes unchanged:
+`candidateHandlerSafeRate` 100%, `shadowRoutableRate` 40%, `recommendedIntegrationMode`
+`do_not_integrate`. See `docs/conversational-brain-decision-support-shadow-mode-prep.md`.

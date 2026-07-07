@@ -400,3 +400,11 @@ corpus):
 
 See `docs/conversational-brain-decision-support-adapter-mapping-plan.md` for the full strategy
 comparison table and safety analysis.
+
+## Sprint 24R
+
+Sprint 24R built the `hybrid_shadow_then_clarify` shadow mode prep contract
+(`decisionSupportShadowModePrep.ts`) without touching the golden evaluation corpus, the classifier, or
+the adapter. Re-running `runGoldenIntentEvaluation()` confirms the global `compatibilityRate` is
+unchanged at **72.5%**. See `docs/conversational-brain-decision-support-shadow-mode-prep.md` for the
+full contract and results.

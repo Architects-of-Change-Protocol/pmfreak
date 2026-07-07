@@ -270,3 +270,16 @@ handler, every feature flag, the DB/Supabase/Gmail integrations, `intentClassifi
 `intentCompatibilityAdapter.ts`, and `intent-patterns.ts`. `src/lib/playbook-engine/conversation/decision-support/index.ts`
 was updated to export the new module (an isolated barrel, not re-exported from
 `src/lib/playbook-engine/conversation/index.ts` — the production barrel is unmodified).
+
+## Sprint 24R update
+
+Sprint 24R built `decisionSupportShadowModePrep.ts`, the technical contract for running
+`hybrid_shadow_then_clarify` in a future shadow mode, reusing this plan's evidence and cross-checking
+each shadow-mode-prep run against `runDecisionSupportAdapterMappingPlan()`'s own
+`hybrid_shadow_then_clarify` simulation for the same case (an informational check only — see
+`docs/conversational-brain-decision-support-shadow-mode-prep.md`). This document's own 45-test suite
+still passes unchanged: `bestStrategy`/`recommendedSprint24Strategy` remain
+`hybrid_shadow_then_clarify`, and every strategy summary (including `hybrid_shadow_then_clarify`'s
+100% safe-outcome rate, 0 critical risk, 100% existing-route preservation) is identical. Sprint 24R did
+not modify this file, `decisionSupportAdapterMappingPlanTypes.ts`, the router, the adapter, or any
+feature flag.

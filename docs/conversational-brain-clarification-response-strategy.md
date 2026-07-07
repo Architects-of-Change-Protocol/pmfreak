@@ -337,3 +337,14 @@ did not touch `clarificationResponseStrategy.ts`, `clarificationResponseAnalyzer
 `hybrid_shadow_then_clarify`, uses this strategy for every `needs_clarification`-desired case and every
 low-confidence `decision_support` case, with `recommendedNextSprint`: **"Sprint 24R — Decision Support
 Shadow Mode Prep"**.
+
+## Sprint 24R update
+
+Sprint 24R's shadow mode prep contract (`decisionSupportShadowModePrep.ts`) calls
+`handleClarificationResponseCandidate()` exactly as-is — for every `needs_clarification`-desired input,
+and as the fallback whenever a `decision_support`-desired input's candidate result is low-confidence or
+fails a safety check — and requires it to pass the same safety/acceptability checks documented here
+before a run is considered "acceptable." This file's own 77-test suite still passes unchanged; this
+sprint did not modify `clarificationResponseStrategy.ts`, `clarificationResponseAnalyzer.ts`,
+`clarificationResponseTypes.ts`, or `clarificationResponseEvaluation.ts`. See
+`docs/conversational-brain-decision-support-shadow-mode-prep.md` for the full contract.
