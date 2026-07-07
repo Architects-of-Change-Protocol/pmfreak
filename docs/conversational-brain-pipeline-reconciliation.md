@@ -1726,3 +1726,27 @@ Plan"**. No se escribió ninguna base de datos ni Supabase, no se mostró ningú
 usuario, no se retuvo input crudo ni candidatos completos, no se conectó `decision_support` al router,
 y no se activó ningún feature flag — ver
 `docs/conversational-brain-decision-support-shadow-capture-harness.md` para el contrato completo.
+
+## §26R — Decision Support Shadow Capture Storage Policy / Default-Off Persistence Plan
+
+Sprint 26R construyó `decisionSupportShadowCaptureStoragePolicy.ts`, una política pura,
+offline/determinística — no una implementación de storage — que clasifica cada campo que un capture
+record (Sprint 25R) podría llegar a cargar hacia un futuro storage persistente:
+`allowed`/`prohibited`/`allowed_with_hashing`/`allowed_with_redaction`/`allowed_with_minimization`/
+`allowed_only_test_memory`/`allowed_only_future_default_off`/`requires_explicit_policy_exception` (30
+campos permitidos, 24 prohibidos explícitos + 3 reglas dinámicas de prohibición, 1 campo
+[`inputPreview`] que requiere excepción explícita). Define una retention policy estricta
+(`ephemeral_only`, 0 días hoy, propuesta futura de 7/30 días documentada pero no activada), una
+deletion policy (`hardDeleteRequired`, sin soft delete, purga obligatoria de cualquier raw payload/full
+candidate que aparezca por bug futuro), y un default-off persistence plan que nombra — sin implementar
+— un futuro feature flag (`ENABLE_DECISION_SUPPORT_SHADOW_CAPTURE_STORAGE`, default `false`). Evalúa
+21 readiness gates (14 bloqueantes, 5 de advertencia, 2 informativos) contra capture records reales del
+harness Sprint 25R sobre el corpus del Sprint 18R (79 casos): `prohibitedFieldObservedCount` 0, todos
+los conteos de violación (`rawInputViolationCount`/`fullCandidateViolationCount`/
+`userVisibleOutputViolationCount`/`dbWriteViolationCount`/`supabaseWriteViolationCount`/
+`sideEffectViolationCount`) en 0, `captureHarnessCleanRate` 100%, `blockingReadinessGateFailureCount`
+0, `storageReadinessStatus` **`ready_for_storage_adapter_design`**. `recommendedNextSprint`: **"Sprint
+27R — Shadow Capture Storage Adapter Plan"**. No se creó ninguna base de datos, migración, storage
+adapter, ni cliente de Supabase; no se implementó ningún feature flag real; no se conectó
+`decision_support` al router; no se cambió ningún comportamiento de producción — ver
+`docs/conversational-brain-decision-support-shadow-storage-policy.md` para la política completa.

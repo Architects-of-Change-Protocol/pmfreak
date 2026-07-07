@@ -309,3 +309,11 @@ transitively, through the Sprint 24R shadow mode prep contract. This file's own 
 passes unchanged: `candidateHandlerSafeRate` 100%, `shadowRoutableRate` 40%,
 `recommendedIntegrationMode` `do_not_integrate`. See
 `docs/conversational-brain-decision-support-shadow-capture-harness.md`.
+
+## Sprint 26R note
+
+Sprint 26R's storage policy does not import `decisionSupportShadowMappingEvaluation.ts` or
+`decisionSupportShadowMappingTypes.ts` directly. This file's own 52-test suite still passes unchanged:
+`candidateHandlerSafeRate` 100%, `shadowRoutableRate` 40%, `unsafeClassifierCollisionCount` 5,
+`recommendedIntegrationMode` `do_not_integrate`. See
+`docs/conversational-brain-decision-support-shadow-storage-policy.md`.

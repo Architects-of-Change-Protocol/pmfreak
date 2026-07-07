@@ -416,3 +416,10 @@ contract, without touching the golden evaluation corpus, the classifier, or the 
 `runGoldenIntentEvaluation()` confirms the global `compatibilityRate` is unchanged at **72.5%**. See
 `docs/conversational-brain-decision-support-shadow-capture-harness.md` for the full contract and
 results.
+
+## Sprint 26R note
+
+Sprint 26R built an offline storage policy on top of the Sprint 25R capture harness, without touching
+the golden evaluation corpus, the classifier, or the adapter. Re-running `runGoldenIntentEvaluation()`
+confirms the global `compatibilityRate` is unchanged at **72.5%**. See
+`docs/conversational-brain-decision-support-shadow-storage-policy.md` for the full policy and results.

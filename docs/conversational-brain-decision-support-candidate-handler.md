@@ -304,3 +304,12 @@ structural fields only (`decisionType`, `decisionConfidence`, `decisionOptionCou
 still passes unchanged; this sprint did not modify `decisionSupportCandidateHandler.ts`,
 `decisionSupportAnalyzer.ts`, or `decisionSupportCandidateTypes.ts`. See
 `docs/conversational-brain-decision-support-shadow-capture-harness.md`.
+
+## Sprint 26R note
+
+Sprint 26R's storage policy classifies `fullDecisionCandidate` and any `recommendation.rationale`/
+`recommendedPath`/`suggestedNextStep`-shaped full-candidate field as permanently prohibited —
+consistent with the Sprint 25R capture harness never retaining this handler's full output. This
+file's own 54-test suite still passes unchanged; Sprint 26R did not modify
+`decisionSupportCandidateHandler.ts`, `decisionSupportAnalyzer.ts`, or
+`decisionSupportCandidateTypes.ts`. See `docs/conversational-brain-decision-support-shadow-storage-policy.md`.
