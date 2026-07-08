@@ -368,3 +368,28 @@ wiring the router, without wiring the composer, without activating a production 
 showing anything to a real user until that future harness explicitly reviews it. The Sprint 29R
 prerequisites for *real persistence* specifically remain untouched and still block any real persistence —
 Sprint 34R's scope is explicitly *quality scoring*, not persistence or user-visible activation.
+
+## Nota — Sprint 35R
+
+Sprint 35R creó User-Visible Dry Run Evaluation Harness
+(`src/lib/playbook-engine/conversation/decision-support/decisionSupportUserVisibleDryRunEvaluationHarness.ts`),
+un harness offline y determinístico que renderiza previews sintéticos internos de cómo se verían los
+drafts de `decision_support` si eventualmente fueran presentados al usuario, valida cada preview contra un
+display contract por preview kind, y recomienda el siguiente sprint.
+
+- No cambió producción.
+- No cambió routing.
+- No activó feature flag.
+- No creó DB/migrations/tables/SQL files.
+- No creó storage adapter real.
+- No creó repository real.
+- No implementó persistent clarification loop.
+- No conectó `decision_support` al router.
+- No mostró output de `decision_support` al usuario.
+- No creó emails/drafts/tasks.
+- No ejecutó acciones.
+- Decisión explícita: `ready_for_default_off_route_composer_integration_adapter`.
+- Siguiente sprint recomendado: Sprint 36R — Default-Off Route/Composer Integration Adapter.
+
+Ver `docs/conversational-brain-decision-support-user-visible-dry-run-evaluation-harness.md` para el
+detalle completo.
