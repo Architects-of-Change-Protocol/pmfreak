@@ -378,3 +378,14 @@ adapter real ni repository real, no implementó un persistent clarification loop
 emails/drafts/tasks, y no ejecutó acciones. Decisión explícita: `ready_for_response_draft_harness`.
 Siguiente sprint recomendado: Sprint 33R — Decision Support Response Draft Harness.
 
+
+
+## Nota — Sprint 33R
+
+Sprint 33R creó el Decision Support Response Draft Harness
+(`docs/conversational-brain-decision-support-response-draft-harness.md`). No cambió producción. No
+cambió routing. No activó feature flag. No creó DB/migrations/tables/SQL files. No creó storage adapter
+real. No creó repository real. No implementó persistent clarification loop. No conectó `decision_support`
+al router. No mostró output `decision_support` al usuario. No creó emails/drafts/tasks. No ejecutó
+acciones. Decisión explícita: `ready_for_response_draft_quality_evaluation`. Siguiente sprint
+recomendado: Sprint 34R — Decision Support Response Draft Quality Evaluation.

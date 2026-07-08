@@ -413,3 +413,37 @@ export type {
   DecisionSupportResponseQaDryRunPlanSummary,
   DecisionSupportResponseQaDryRunPlanExplain,
 } from "./decisionSupportResponseQaDryRunPlan";
+
+export {
+  DECISION_SUPPORT_RESPONSE_DRAFT_HARNESS_VERSION,
+  createDecisionSupportResponseDraftHarnessConfig,
+  listDecisionSupportResponseDraftHarnessAllowedNextActions,
+  listDecisionSupportResponseDraftHarnessProhibitedActions,
+  createDecisionSupportResponseDraftFromQaCase,
+  validateDecisionSupportResponseDraft,
+  runDecisionSupportResponseDraftHarness,
+  summarizeDecisionSupportResponseDraftHarness,
+  explainDecisionSupportResponseDraftHarness,
+} from "./decisionSupportResponseDraftHarness";
+export type {
+  DecisionSupportResponseDraftHarnessProfile,
+  DecisionSupportResponseDraftHarnessMode,
+  DecisionSupportResponseDraftHarnessDecision,
+  DecisionSupportResponseDraftHarnessDraftKind,
+  DecisionSupportResponseDraftHarnessDraftStatus,
+  DecisionSupportResponseDraftHarnessQaStatus,
+  DecisionSupportResponseDraftHarnessRiskLevel,
+  DecisionSupportResponseDraftHarnessViolationType,
+  DecisionSupportResponseDraftHarnessConfig,
+  DecisionSupportResponseDraftHarnessDraftSections,
+  DecisionSupportResponseDraftHarnessDraftContract,
+  DecisionSupportResponseDraftHarnessDraftSafety,
+  DecisionSupportResponseDraftHarnessDraft,
+  DecisionSupportResponseDraftHarnessValidationResult,
+  DecisionSupportResponseDraftHarnessCaseResult,
+  DecisionSupportResponseDraftHarnessOptions,
+  DecisionSupportResponseDraftHarnessResult,
+  DecisionSupportResponseDraftHarnessSummaryOptions,
+  DecisionSupportResponseDraftHarnessSummary,
+  DecisionSupportResponseDraftHarnessExplain,
+} from "./decisionSupportResponseDraftHarness";
