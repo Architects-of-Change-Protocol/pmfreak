@@ -301,3 +301,12 @@ decision must stay `ready_for_production_wiring_readiness_feature_flag_gate`. If
 38R can implement a default-off feature flag implementation shell — still never activated, still never
 wired to the real router/composer/endpoint, and still never shown to a real user until a future, explicitly
 governed sprint turns it on for a real workspace.
+
+## Sprint 38R note
+
+- Sprint 38R (`docs/conversational-brain-decision-support-default-off-feature-flag-implementation-shell.md`) built a **Default-Off Feature Flag Implementation Shell** directly on top of Sprint 37R's production wiring readiness / feature flag gate.
+- It builds a formal, no-op feature flag shell (types, resolver, handoff, rollback-reference functions) — never a real production feature flag, never activated, never reading `process.env` or any runtime configuration source.
+- It never wires the router, composer, or endpoint to `decision_support`, never shows output to a real user, and never persists anything real.
+- Running it against the real Sprint 18R corpus (79 cases) reused this module's own evaluation transitively and stayed clean: `shellAcceptedCount: 79`, `violationCount: 0`, decision `ready_for_default_off_router_guard_shell`.
+- Recommended next sprint: **Sprint 39R — Default-Off Router Guard Shell**.
+- This module and its findings do not change anything documented in this file — this note exists only to point forward to Sprint 38R's own doc for readers following the sprint chain.
