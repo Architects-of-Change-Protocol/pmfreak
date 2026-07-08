@@ -306,3 +306,17 @@ stay ≥ 90; and the Sprint 35R user-visible dry run evaluation harness decision
 production wiring readiness review and a default-off feature flag gate contract — still without activating
 a production feature flag, and still without showing anything to a real user until that future gate is
 explicitly turned on for a real workspace.
+
+
+## Nota Sprint 37R
+
+Sprint 37R creó el **Production Wiring Readiness / Feature Flag Gate**
+(`docs/conversational-brain-decision-support-production-wiring-readiness-feature-flag-gate.md`). No cambió
+producción. No cambió routing real. No cambió composer real. No cambió endpoint. No implementó feature flag
+real. No activó feature flag. No leyó `process.env`. No creó DB/migrations/tables/SQL files. No creó
+storage adapter real. No creó repository real. No implementó persistent clarification loop. No conectó
+`decision_support` al router real. No conectó `decision_support` al composer real. No mostró output de
+`decision_support` al usuario. No creó emails/drafts/tasks. No ejecutó acciones. No reclamó aprobación real.
+Decisión explícita: `ready_for_default_off_feature_flag_implementation_shell`. Siguiente sprint
+recomendado: Sprint 38R — Default-Off Feature Flag Implementation Shell.
+
