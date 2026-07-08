@@ -357,3 +357,14 @@ wiring the composer, without activating a production feature flag, and without s
 real user until that dry run explicitly reviews it. The Sprint 29R prerequisites for *real persistence*
 specifically remain untouched and still block any real persistence — Sprint 32R's scope is explicitly
 *response QA / user-visible dry run readiness*, not persistence.
+
+## Nota Sprint 32R
+
+Sprint 32R creó el Decision Support Response QA / User-Visible Dry Run Plan
+(`docs/conversational-brain-decision-support-response-qa-dry-run-plan.md`). No cambió producción, no
+cambió routing, no activó ningún feature flag, no creó DB/migrations/tables/SQL files, no creó storage
+adapter real ni repository real, no implementó un persistent clarification loop, no conectó
+`decision_support` al router, no mostró output de `decision_support` al usuario, no creó
+emails/drafts/tasks, y no ejecutó acciones. Decisión explícita: `ready_for_response_draft_harness`.
+Siguiente sprint recomendado: Sprint 33R — Decision Support Response Draft Harness.
+
