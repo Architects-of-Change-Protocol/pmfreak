@@ -484,3 +484,13 @@ recomendado: Sprint 38R — Default-Off Feature Flag Implementation Shell.
 - Running it against the real Sprint 18R corpus (79 cases) reused this module's own evaluation transitively and stayed clean: `shellAcceptedCount: 79`, `violationCount: 0`, decision `ready_for_default_off_router_guard_shell`.
 - Recommended next sprint: **Sprint 39R — Default-Off Router Guard Shell**.
 - This module and its findings do not change anything documented in this file — this note exists only to point forward to Sprint 38R's own doc for readers following the sprint chain.
+
+## Sprint 39R note
+
+- Sprint 39R (`docs/conversational-brain-decision-support-default-off-router-guard-shell.md`) built a **Default-Off Router Guard Shell** directly on top of Sprint 38R's default-off feature flag implementation shell.
+- It did not change production, real routing, the real router, or a real route; it did not import the real router or mutate a real route. It did not change the real composer or the endpoint, did not activate the feature flag, and did not read `process.env`. It did not implement a real production router guard.
+- It did not create a DB, migrations, tables, or SQL files, a real storage adapter, or a real repository, and it did not implement a persistent clarification loop. It did not connect `decision_support` to the real router or the real composer, and it did not show `decision_support` output to the user.
+- It did not create emails, drafts, or tasks, did not execute actions, and did not claim real approval.
+- Running it against the real Sprint 18R corpus (79 cases) reused this module's own evaluation transitively and stayed clean: `routerGuardAcceptedCount: 79`, `violationCount: 0`, decision `ready_for_default_off_composer_guard_shell`.
+- Recommended next sprint: **Sprint 40R — Default-Off Composer Guard Shell**.
+- This module and its findings do not change anything documented in this file — this note exists only to point forward to Sprint 39R's own doc for readers following the sprint chain.
