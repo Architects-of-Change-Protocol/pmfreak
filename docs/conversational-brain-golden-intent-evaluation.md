@@ -501,3 +501,27 @@ real. No creó repository real. No implementó persistent clarification loop. No
 al router. No mostró output `decision_support` al usuario. No creó emails/drafts/tasks. No ejecutó
 acciones. Decisión explícita: `ready_for_response_draft_quality_evaluation`. Siguiente sprint
 recomendado: Sprint 34R — Decision Support Response Draft Quality Evaluation.
+
+## Nota — Sprint 34R
+
+Sprint 34R creó Decision Support Response Draft Quality Evaluation
+(`src/lib/playbook-engine/conversation/decision-support/decisionSupportResponseDraftQualityEvaluation.ts`),
+una evaluación offline, determinística y basada en reglas de la calidad de los drafts sintéticos
+generados por el Sprint 33R Response Draft Harness, a través de catorce dimensiones de calidad.
+
+- No cambió producción.
+- No cambió routing.
+- No activó feature flag.
+- No creó DB/migrations/tables/SQL files.
+- No creó storage adapter real.
+- No creó repository real.
+- No implementó persistent clarification loop.
+- No conectó `decision_support` al router.
+- No mostró output de `decision_support` al usuario.
+- No creó emails/drafts/tasks.
+- No ejecutó acciones.
+- Decisión explícita: `ready_for_user_visible_dry_run_evaluation_harness`.
+- Siguiente sprint recomendado: Sprint 35R — User-Visible Dry Run Evaluation Harness.
+
+Ver `docs/conversational-brain-decision-support-response-draft-quality-evaluation.md` para el detalle
+completo.
