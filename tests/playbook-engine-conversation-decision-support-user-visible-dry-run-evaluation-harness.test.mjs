@@ -747,6 +747,123 @@ test("decision: continue_dry_run_harness_only when the Sprint 34R evaluation dec
   assert.equal(summary.decision, "continue_dry_run_harness_only");
 });
 
+// ─── Codex review hardening (post-merge fixes) ─────────────────────────────────────
+
+test("decision: a stricter configured minPreviewQualityScore that the observed minimum fails to clear blocks even though the average still clears it", () => {
+  // Documented corpus: average 91.88 clears a 90 floor, but the observed minimum (88.43) does not —
+  // the decision must not silently stay ready just because the hardcoded 85/90 floors are satisfied.
+  const strictHarness = runDecisionSupportUserVisibleDryRunEvaluationHarness({
+    cases: DECISION_CLARIFICATION_CASES,
+    now: NOW,
+    config: { minPreviewQualityScore: 90 },
+  });
+  const strictSummary = summarizeDecisionSupportUserVisibleDryRunEvaluationHarness(strictHarness);
+  assert.ok(strictSummary.averagePreviewQualityScore >= 90);
+  assert.ok(strictSummary.minPreviewQualityScore < 90);
+  assert.equal(strictSummary.decision, "blocked_by_low_preview_quality");
+});
+
+test("decision: a stricter configured minDisplayContractScore that a case's own contract score fails to clear rejects that case (and blocks the decision)", () => {
+  // A per-case displayContractScore below the configured floor fails displayContractPassed directly
+  // (checkDisplayContract), which rejects that preview and trips the more specific
+  // blocked_by_preview_contract_gap path before the average/minimum floor check is ever reached.
+  const strictHarness = runDecisionSupportUserVisibleDryRunEvaluationHarness({
+    cases: DECISION_CLARIFICATION_CASES,
+    now: NOW,
+    config: { minDisplayContractScore: 93 },
+  });
+  const strictSummary = summarizeDecisionSupportUserVisibleDryRunEvaluationHarness(strictHarness);
+  assert.ok(strictSummary.minDisplayContractScore < 93);
+  assert.ok(strictSummary.previewRejectedCount > 0);
+  assert.notEqual(strictSummary.decision, "ready_for_default_off_route_composer_integration_adapter");
+});
+
+test("validateDecisionSupportUserVisibleDryRunPreview fails a contract that clears blocksProductionEligibility but leaves another blocks* flag false", () => {
+  const preview = renderFromFixture("uvdr-render-clarification-first");
+  const mutated = { ...preview, displayContract: { ...preview.displayContract, blocksExecution: false } };
+  const validation = validateDecisionSupportUserVisibleDryRunPreview(mutated);
+  assert.equal(validation.valid, false);
+  assert.equal(validation.noProductionEligibilityPassed, false);
+  assert.ok(validation.violations.includes("unsafe_display_format"));
+});
+
+test("validateDecisionSupportUserVisibleDryRunPreview ignores an adapter-supplied contract that weakens requiredSections for the preview kind", () => {
+  const preview = renderFromFixture("uvdr-render-blocked-unsafe");
+  const withoutBlockedNotice = { ...preview, displaySections: preview.displaySections.filter((s) => s.kind !== "blocked_notice") };
+  // The embedded contract is tampered to only require the sections still present — the validator must
+  // still require blocked_notice because it derives requirements from previewKind, not from this object.
+  const tamperedContract = { ...withoutBlockedNotice.displayContract, requiredSections: ["internal_dry_run_notice", "non_execution_notice"] };
+  const mutated = { ...withoutBlockedNotice, displayContract: tamperedContract };
+  const validation = validateDecisionSupportUserVisibleDryRunPreview(mutated);
+  assert.equal(validation.valid, false);
+  assert.equal(validation.displayContractPassed, false);
+});
+
+test("harness rejects a case whose source Sprint 34R quality evaluation is not pass/safeForUserVisibleDryRunHarness even though its rendered preview validates cleanly", () => {
+  const baseEvaluation = runDecisionSupportResponseDraftQualityEvaluation({ cases: DECISION_CLARIFICATION_CASES, now: NOW });
+  const targetIndex = baseEvaluation.caseEvaluations.findIndex((c) => c.draftKind === "clarification_first_draft");
+  assert.ok(targetIndex >= 0);
+  const mutatedEvaluation = {
+    ...baseEvaluation,
+    caseEvaluations: baseEvaluation.caseEvaluations.map((c, i) => (i === targetIndex ? { ...c, pass: false, safeForUserVisibleDryRunHarness: false } : c)),
+  };
+  const harness = runDecisionSupportUserVisibleDryRunEvaluationHarness({ evaluation: mutatedEvaluation, now: NOW });
+  const caseResult = harness.caseResults[targetIndex];
+  assert.equal(caseResult.validation.valid, true, "the rendered preview shape itself should still validate cleanly");
+  assert.equal(caseResult.previewAccepted, false);
+  assert.equal(caseResult.previewRejected, true);
+  assert.equal(caseResult.safeForDefaultOffRouteComposerAdapter, false);
+  assert.ok(caseResult.warnings.some((w) => w.includes("not pass / safeForUserVisibleDryRunHarness")));
+});
+
+test("harness passes a stricter configured minDisplayContractScore into per-case validation rather than always using the default floor", () => {
+  const harness = runDecisionSupportUserVisibleDryRunEvaluationHarness({
+    cases: DECISION_CLARIFICATION_CASES,
+    now: NOW,
+    config: { minDisplayContractScore: 93 },
+  });
+  const routePreservationCase = harness.caseResults.find((c) => c.preview.previewKind === "route_preservation_preview");
+  assert.ok(routePreservationCase, "corpus must contain at least one route_preservation_preview case");
+  assert.equal(routePreservationCase.preview.displayContractScore, 92);
+  assert.equal(routePreservationCase.validation.displayContractPassed, false);
+  assert.equal(routePreservationCase.validation.valid, false);
+  assert.equal(routePreservationCase.previewAccepted, false);
+});
+
+test("summary: criticalViolationCount counts only the violations classified critical, not every violation on a critical-risk preview", () => {
+  const preview = renderFromFixture("uvdr-render-clarification-first");
+  const mixed = {
+    ...preview,
+    displaySections: preview.displaySections
+      .filter((s) => s.kind !== "clarifying_question")
+      .map((s, i) => (i === 0 ? { ...s, containsPii: true } : s)),
+  };
+  const validation = validateDecisionSupportUserVisibleDryRunPreview(mixed);
+  assert.ok(validation.violations.includes("pii_leak"));
+  assert.ok(validation.violations.includes("missing_clarifying_question"));
+  assert.equal(validation.riskLevel, "critical");
+
+  const caseResult = {
+    caseId: "mixed-1",
+    sourceDraftId: preview.sourceDraftId,
+    sourceDraftKind: preview.sourceDraftKind,
+    sourceRouteKind: preview.sourceRouteKind,
+    preview: { ...mixed, status: "blocked" },
+    validation,
+    previewRendered: true,
+    previewAccepted: false,
+    previewRejected: false,
+    previewBlocked: true,
+    safeForDefaultOffRouteComposerAdapter: false,
+    safeForUserVisibleOutputNow: false,
+    safeForProduction: false,
+    warnings: [],
+  };
+  const summary = summarizeDecisionSupportUserVisibleDryRunEvaluationHarness([caseResult], { sprint34EvaluationDecision: "ready_for_user_visible_dry_run_evaluation_harness" });
+  assert.equal(summary.violationCount, validation.violations.length);
+  assert.equal(summary.criticalViolationCount, 1, "only pii_leak is critical — missing_clarifying_question must not inflate the count");
+});
+
 // ─── Explain ────────────────────────────────────────────────────────────────────────
 
 test("explainDecisionSupportUserVisibleDryRunEvaluationHarness returns a structured explanation", () => {

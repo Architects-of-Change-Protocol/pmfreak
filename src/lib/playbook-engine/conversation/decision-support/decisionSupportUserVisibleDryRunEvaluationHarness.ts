@@ -441,10 +441,14 @@ function missingRequiredSectionViolation(kind: DecisionSupportUserVisibleDryRunD
 function checkDisplayContract(preview: DecisionSupportUserVisibleDryRunPreview, minDisplayContractScore: number): CheckResult {
   const violations: DecisionSupportUserVisibleDryRunViolationType[] = [];
   const present = sectionKinds(preview);
-  for (const required of preview.displayContract.requiredSections) {
+  // Required/prohibited sections are derived fresh from the canonical per-preview-kind template rather
+  // than trusted off `preview.displayContract` — an adapter-supplied or malformed preview could otherwise
+  // carry a weakened embedded contract (fewer required sections, missing prohibitions) and still pass.
+  const canonical = DISPLAY_CONTRACT_TEMPLATES[preview.previewKind];
+  for (const required of canonical.requiredSections) {
     if (!present.has(required) || !hasSection(preview, required)) violations.push(missingRequiredSectionViolation(required));
   }
-  for (const prohibited of preview.displayContract.prohibitedSections) {
+  for (const prohibited of canonical.prohibitedSections) {
     if (present.has(prohibited)) violations.push("unsafe_display_format");
   }
   if (preview.displayContract.displayContractStatus !== "compatible") violations.push("unsafe_display_format");
@@ -495,7 +499,19 @@ function checkNoVisibilityAttempt(preview: DecisionSupportUserVisibleDryRunPrevi
 function checkNoProductionEligibility(preview: DecisionSupportUserVisibleDryRunPreview): CheckResult {
   const violations: DecisionSupportUserVisibleDryRunViolationType[] = [];
   if (preview.productionEligibleNow) violations.push("unsafe_display_format");
-  if (preview.displayContract.blocksProductionEligibility !== true) violations.push("unsafe_display_format");
+  // Every blocks* flag must actually be true — an adapter-supplied contract that clears
+  // blocksProductionEligibility while leaving blocksExecution/blocksPersistence/blocksExternalCalls/
+  // blocksDirectDecision false would otherwise be accepted as display-compatible.
+  const contract = preview.displayContract;
+  if (
+    contract.blocksProductionEligibility !== true ||
+    contract.blocksExecution !== true ||
+    contract.blocksPersistence !== true ||
+    contract.blocksExternalCalls !== true ||
+    contract.blocksDirectDecision !== true
+  ) {
+    violations.push("unsafe_display_format");
+  }
   return { passed: violations.length === 0, violations: [...new Set(violations)] };
 }
 
@@ -648,16 +664,33 @@ function statusForValidation(validation: DecisionSupportUserVisibleDryRunPreview
   return validation.qaStatus === "blocked" ? "blocked" : "rejected";
 }
 
-function buildCaseResult(qualityCaseEvaluation: DecisionSupportResponseDraftQualityCaseEvaluation): DecisionSupportUserVisibleDryRunEvaluationCaseResult {
+function buildCaseResult(
+  qualityCaseEvaluation: DecisionSupportResponseDraftQualityCaseEvaluation,
+  config: DecisionSupportUserVisibleDryRunEvaluationHarnessConfig,
+): DecisionSupportUserVisibleDryRunEvaluationCaseResult {
   const rendered = renderDecisionSupportUserVisibleDryRunPreview(qualityCaseEvaluation);
-  const validation = validateDecisionSupportUserVisibleDryRunPreview(rendered);
-  const status = statusForValidation(validation);
+  const validation = validateDecisionSupportUserVisibleDryRunPreview(rendered, { config });
+  const baseStatus = statusForValidation(validation);
+
+  // A case whose source Sprint 34R quality evaluation is not itself pass/safeForUserVisibleDryRunHarness
+  // (e.g. a custom corpus regression) must never be accepted here just because its rendered template
+  // happens to satisfy the display-shape gates — requireQualityEvaluationPass is a real precondition, not
+  // a nominal one. A leak/side-effect block found on the preview itself still wins over this rejection.
+  const sourceQualitySafe = qualityCaseEvaluation.pass === true && qualityCaseEvaluation.safeForUserVisibleDryRunHarness === true;
+  const status = baseStatus === "blocked" ? "blocked" : sourceQualitySafe ? baseStatus : "rejected";
   const preview: DecisionSupportUserVisibleDryRunPreview = { ...rendered, status };
 
   const warnings: string[] = [];
+  if (!sourceQualitySafe) {
+    warnings.push(
+      `Case ${qualityCaseEvaluation.caseId}: source Sprint 34R quality evaluation is not pass / safeForUserVisibleDryRunHarness — this preview is rejected regardless of its own display-shape validation.`,
+    );
+  }
   if (!validation.valid) {
     warnings.push(`Case ${qualityCaseEvaluation.caseId}: preview ${preview.previewKind} is ${validation.qaStatus} — ${validation.recommendation}`);
   }
+
+  const accepted = validation.valid && sourceQualitySafe;
 
   return {
     caseId: qualityCaseEvaluation.caseId,
@@ -667,10 +700,10 @@ function buildCaseResult(qualityCaseEvaluation: DecisionSupportResponseDraftQual
     preview,
     validation,
     previewRendered: true,
-    previewAccepted: validation.valid,
-    previewRejected: !validation.valid && status === "rejected",
+    previewAccepted: accepted,
+    previewRejected: !accepted && status === "rejected",
     previewBlocked: status === "blocked",
-    safeForDefaultOffRouteComposerAdapter: validation.valid,
+    safeForDefaultOffRouteComposerAdapter: accepted,
     safeForUserVisibleOutputNow: false,
     safeForProduction: false,
     warnings,
@@ -694,7 +727,7 @@ export function runDecisionSupportUserVisibleDryRunEvaluationHarness(
   const evaluation = options.evaluation ?? runDecisionSupportResponseDraftQualityEvaluation({ cases: options.cases, now });
   const evaluationSummary = summarizeDecisionSupportResponseDraftQualityEvaluation(evaluation);
 
-  const caseResults = evaluation.caseEvaluations.map((c) => buildCaseResult(c));
+  const caseResults = evaluation.caseEvaluations.map((c) => buildCaseResult(c, config));
 
   const allowedNextActions = listDecisionSupportUserVisibleDryRunEvaluationHarnessAllowedNextActions();
   const prohibitedActions = listDecisionSupportUserVisibleDryRunEvaluationHarnessProhibitedActions();
@@ -822,7 +855,12 @@ function computeDecision(fields: {
     return "blocked_by_preview_contract_gap";
   }
 
-  if (fields.averagePreviewQualityScore < fields.configMinPreviewQualityScore || fields.averageDisplayContractScore < fields.configMinDisplayContractScore) {
+  if (
+    fields.averagePreviewQualityScore < fields.configMinPreviewQualityScore ||
+    fields.averageDisplayContractScore < fields.configMinDisplayContractScore ||
+    fields.minPreviewQualityScoreObserved < fields.configMinPreviewQualityScore ||
+    fields.minDisplayContractScoreObserved < fields.configMinDisplayContractScore
+  ) {
     return "blocked_by_low_preview_quality";
   }
 
@@ -841,8 +879,8 @@ function computeDecision(fields: {
     fields.safeForProductionCount === 0 &&
     fields.averagePreviewQualityScore >= 90 &&
     fields.averageDisplayContractScore >= 90 &&
-    fields.minPreviewQualityScoreObserved >= 85 &&
-    fields.minDisplayContractScoreObserved >= 85 &&
+    fields.minPreviewQualityScoreObserved >= fields.configMinPreviewQualityScore &&
+    fields.minDisplayContractScoreObserved >= fields.configMinDisplayContractScore &&
     fields.internalDryRunNoticePassedCount === fields.totalCases &&
     fields.displayContractPassedCount === fields.totalCases &&
     fields.nonExecutionNoticePassedCount === fields.totalCases &&
@@ -938,7 +976,7 @@ export function summarizeDecisionSupportUserVisibleDryRunEvaluationHarness(
 
   const allViolations = caseResults.flatMap((c) => c.validation.violations);
   const violationCount = allViolations.length;
-  const criticalViolationCount = caseResults.filter((c) => c.validation.riskLevel === "critical").flatMap((c) => c.validation.violations).length;
+  const criticalViolationCount = allViolations.filter((v) => CRITICAL_VIOLATIONS.has(v)).length;
   const visibilityViolationCount = allViolations.filter((v) => VISIBILITY_VIOLATIONS.has(v)).length;
   const leakageOrSideEffectViolationCount = allViolations.filter((v) => LEAKAGE_OR_SIDE_EFFECT_VIOLATIONS.has(v)).length;
 
