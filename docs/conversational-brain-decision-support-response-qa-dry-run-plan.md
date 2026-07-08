@@ -386,3 +386,14 @@ showing anything to a real user until a future user-visible dry run explicitly r
 29R prerequisites for *real persistence* specifically remain untouched and still block any real
 persistence — Sprint 32R's scope is explicitly *response QA*, not persistence or user-visible
 activation.
+
+
+## Nota — Sprint 33R
+
+Sprint 33R creó el Decision Support Response Draft Harness
+(`docs/conversational-brain-decision-support-response-draft-harness.md`). No cambió producción. No
+cambió routing. No activó feature flag. No creó DB/migrations/tables/SQL files. No creó storage adapter
+real. No creó repository real. No implementó persistent clarification loop. No conectó `decision_support`
+al router. No mostró output `decision_support` al usuario. No creó emails/drafts/tasks. No ejecutó
+acciones. Decisión explícita: `ready_for_response_draft_quality_evaluation`. Siguiente sprint
+recomendado: Sprint 34R — Decision Support Response Draft Quality Evaluation.
