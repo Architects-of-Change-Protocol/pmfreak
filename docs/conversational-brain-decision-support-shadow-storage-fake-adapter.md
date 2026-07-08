@@ -412,3 +412,31 @@ display contract por preview kind, y recomienda el siguiente sprint.
 
 Ver `docs/conversational-brain-decision-support-user-visible-dry-run-evaluation-harness.md` para el
 detalle completo.
+
+## Nota — Sprint 36R
+
+Sprint 36R creó Default-Off Route/Composer Integration Adapter
+(`src/lib/playbook-engine/conversation/decision-support/decisionSupportDefaultOffRouteComposerIntegrationAdapter.ts`),
+un adapter offline y determinístico, default-off, que conecta cada preview validado por Sprint 35R con un
+route guard contract y un composer guard contract sintéticos, simulando cómo se comportaría un futuro
+wiring de router/composer sin tocar nunca el router, composer o endpoint reales.
+
+- No cambió producción.
+- No cambió routing real.
+- No cambió composer real.
+- No cambió endpoint.
+- No activó feature flag.
+- No creó DB/migrations/tables/SQL files.
+- No creó storage adapter real.
+- No creó repository real.
+- No implementó persistent clarification loop.
+- No conectó `decision_support` al router real.
+- No conectó `decision_support` al composer real.
+- No mostró output de `decision_support` al usuario.
+- No creó emails/drafts/tasks.
+- No ejecutó acciones.
+- Decisión explícita: `ready_for_production_wiring_readiness_feature_flag_gate`.
+- Siguiente sprint recomendado: Sprint 37R — Production Wiring Readiness / Feature Flag Gate.
+
+Ver `docs/conversational-brain-decision-support-default-off-route-composer-integration-adapter.md` para el
+detalle completo.
