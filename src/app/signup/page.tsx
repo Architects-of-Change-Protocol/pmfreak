@@ -25,12 +25,6 @@ export default async function SignupPage({
 
         <input name="companyName" placeholder="Company name" required className="w-full rounded-xl border-2 border-black px-4 py-3 text-sm" />
 
-        <select name="role" className="w-full rounded-xl border-2 border-black px-4 py-3 text-sm">
-          <option value="admin">admin</option>
-          <option value="pm">pm</option>
-          <option value="viewer">viewer</option>
-        </select>
-
         <input name="email" type="email" placeholder="Email" required className="w-full rounded-xl border-2 border-black px-4 py-3 text-sm" />
 
         <input name="password" type="password" placeholder="Password" required className="w-full rounded-xl border-2 border-black px-4 py-3 text-sm" />
