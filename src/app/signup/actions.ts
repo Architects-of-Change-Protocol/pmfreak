@@ -4,14 +4,10 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isSafeContinuationRoute } from "@/lib/auth/validate-continuation-route";
 import { resolvePostAuthDestination } from "@/lib/auth/resolve-post-auth-destination";
+import { buildSignupProfile } from "./build-signup-profile";
 
 export async function signupAction(formData: FormData) {
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "").trim();
-  const fullName = String(formData.get("fullName") ?? "").trim();
-  const companyName = String(formData.get("companyName") ?? "").trim();
-  const role = String(formData.get("role") ?? "pm").trim();
-  const requestedRoute = String(formData.get("next") ?? "").trim() || null;
+  const { email, password, fullName, companyName, requestedRoute, role } = buildSignupProfile(formData);
 
   if (!email || !password || !fullName || !companyName) {
     redirect("/signup?error=Please+complete+all+required+fields");
@@ -28,7 +24,7 @@ export async function signupAction(formData: FormData) {
       data: {
         full_name: fullName,
         company_name: companyName,
-        role: role || "pm",
+        role,
         onboarding_completed: false,
       },
     },
