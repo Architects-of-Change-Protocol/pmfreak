@@ -507,3 +507,223 @@ PMFreak AOC Governed Action Gate v1
 
 The governed action gate should only be implemented after this
 display/inbox layer is stable and reviewed.
+
+# PMFreak AOC Governed Action Gate v1
+
+Feature ID:
+
+```
+pmfreak.integration.aoc.governed_action_gate.v1
+```
+
+Repo:
+
+```
+PMFreak
+```
+
+## Purpose
+
+Evaluate whether a proposed PMFreak agent action passes the AOC
+governance gate.
+
+## Runtime direction
+
+```
+PMFreak consumes AOC Governance.
+```
+
+```
+PMFreak agent proposes an action.
+PMFreak builds or receives an AOC governance request.
+PMFreak evaluates the request through local_mock or remote_http.
+PMFreak receives a governance response.
+PMFreak may normalize the response into a decision inbox item.
+PMFreak Governed Action Gate evaluates the response or inbox item.
+PMFreak returns a gate result.
+PMFreak does not execute the action in this PR.
+```
+
+This is the first controlled gate layer on top of the governance request
+client, remote transport and decision inbox above. It does not build its
+own governance requests, does not evaluate them itself, and does not
+create a new decision inbox — it only evaluates an already-received
+`PMFreakAocGovernanceResponse` and/or an already-normalized
+`PMFreakAocDecisionInboxItem` into a gate result. The one exception is
+`evaluatePMFreakAocGovernedActionAttemptGate`, which uses the *existing*,
+already-non-mutating `PMFreakAocGovernanceRequestClient` to build and
+evaluate a request from an action attempt before evaluating the gate
+result — it does not create a new client or transport.
+
+## Gate verdicts
+
+```
+passed
+blocked
+held
+needs_evidence
+needs_approval
+needs_review
+error
+```
+
+## Decision → verdict mapping
+
+```
+allow                        → passed
+deny                         → blocked
+hold                         → held
+require_evidence             → needs_evidence
+require_pm_approval          → needs_approval
+require_customer_validation  → needs_review
+require_billing_review       → needs_review
+require_contract_review      → needs_review
+require_security_review      → needs_review
+require_executive_approval   → needs_approval
+```
+
+`canProceed` is `true` only for `passed`. Every other verdict — including
+`held`, which blocks nothing on the AOC side but is not yet safe to act
+on — sets `canProceed` to `false`.
+
+## Example
+
+```
+Billing Readiness Agent wants to mark a milestone as ready for billing.
+
+AOC decision: require_evidence
+Gate result: needs_evidence
+Can proceed: false
+Safe next step: Attach or link the missing evidence references before attempting this action.
+```
+
+```ts
+import {
+  createPMFreakAocGovernanceRequestClient,
+  demoPMFreakAocBillingReadinessActionAttempt,
+  evaluatePMFreakAocGovernedActionAttemptGate,
+} from "@/features/pmfreak-integrations/aoc-governance-request-client";
+
+const client = createPMFreakAocGovernanceRequestClient();
+
+const { gateResult } = await evaluatePMFreakAocGovernedActionAttemptGate({
+  actionAttempt: demoPMFreakAocBillingReadinessActionAttempt(),
+  governanceClient: client,
+});
+
+// gateResult.verdict === "needs_evidence" (or "passed" if evidence/approvals are already satisfied)
+// gateResult.canProceed === false
+// PMFreak does not mark the milestone billing-ready here — it only returns a gate result.
+```
+
+## Safety
+
+- This feature is gate-only.
+- This feature does not execute PMFreak actions.
+- This feature does not mutate PMFreak data.
+- This feature does not write decisions back.
+- This feature does not send communications.
+- This feature does not create invoices.
+- This feature does not certify invoice validity.
+- This feature does not certify customer acceptance.
+- This feature does not certify compliance.
+- This feature does not provide legal advice.
+
+### Interpreting a `passed` gate result
+
+A `passed` gate result means the proposed action passed the AOC
+governance gate for the provided request context. It does **not** mean:
+
+- the action was executed
+- the action is legally approved
+- the project is compliant
+- the invoice is valid
+- the customer accepted delivery
+- the contract was satisfied
+
+As with the base client and decision inbox, every safety property above
+is also enforced structurally:
+`PMFreakAocGovernedActionGateConfig.allowActionExecution`,
+`allowProductionMutations`, `allowDecisionWriteback`,
+`allowInvoiceCreation`, `allowCommunications`, `allowLegalCertification`,
+`allowComplianceCertification` and `treatAllowAsExecutable` are typed
+`false`, and `createPMFreakAocGovernedActionGateConfig` forces any
+attempt to set them `true` back to `false` (with a warning).
+`PMFREAK_AOC_GOVERNED_ACTION_GATE_FORBIDDEN_OPERATIONS` (split into
+execution- and mutation-scoped subsets for
+`assertPMFreakAocGovernedActionGateDoesNotExecute` and
+`assertPMFreakAocGovernedActionGateDoesNotMutate`) lists the operation
+names (`execute_action`, `mark_milestone_billing_ready`,
+`create_invoice`, `writeback_decision`, `certify_compliance`, etc.) those
+guards reject. Every gate result also carries its own `gateOnly: true` /
+`actionExecutionCapable: false` / `mutationCapable: false` /
+`writebackCapable: false` flags. Every output can be checked with
+`assertNoPMFreakAocGovernedActionGateOverclaim` /
+`evaluatePMFreakAocGovernedActionGateClaimSafety`, which extend the
+decision inbox module's prohibited-overclaim phrase scan with a few
+gate-specific phrases (`automatically executed`, `invoice approved`,
+`customer accepted`).
+
+## Module contents
+
+| File | Responsibility |
+| --- | --- |
+| `pmfreak-aoc-governed-action-gate-constants.ts` | Feature ID/name/version, capabilities, forbidden operations, safe labels, disclaimers |
+| `pmfreak-aoc-governed-action-gate-types.ts` | `PMFreakAocGovernedActionGateVerdict` / `Severity` / `ReasonCode` / `TraceStep` / `Source` |
+| `pmfreak-aoc-governed-action-gate-descriptor.ts` | `PMFreakAocGovernedActionGateDescriptor` + factory |
+| `pmfreak-aoc-governed-action-gate-config.ts` | `PMFreakAocGovernedActionGateConfig` + safe-by-default factory |
+| `pmfreak-aoc-governed-action-gate-input.ts` | `PMFreakAocGovernedActionGateInput` + deterministic `createPMFreakAocGovernedActionGateInput` |
+| `pmfreak-aoc-governed-action-gate-result.ts` | `PMFreakAocGovernedActionGateResult` + deterministic ID builder |
+| `pmfreak-aoc-governed-action-gate-verdict.ts` | `mapPMFreakAocDecisionToGateVerdict`, `mapPMFreakAocGateVerdictToSeverity` |
+| `pmfreak-aoc-governed-action-gate-policy.ts` | `createPMFreakAocGateFlagsFromVerdict` |
+| `pmfreak-aoc-governed-action-gate-reason.ts` | `createPMFreakAocGateReasonCodes` |
+| `pmfreak-aoc-governed-action-gate-next-step.ts` | `createPMFreakAocGateSafeNextStep` |
+| `pmfreak-aoc-governed-action-gate-trace.ts` | `createPMFreakAocGovernedActionGateTrace` |
+| `pmfreak-aoc-governed-action-gate-from-response.ts` | `evaluatePMFreakAocGovernedActionGateFromGovernanceResponse` |
+| `pmfreak-aoc-governed-action-gate-from-inbox-item.ts` | `evaluatePMFreakAocGovernedActionGateFromDecisionInboxItem` |
+| `pmfreak-aoc-governed-action-gate-evaluator.ts` | `evaluatePMFreakAocGovernedActionGate` (main dispatcher) + `evaluatePMFreakAocGovernedActionAttemptGate` (reuses the existing governance client) |
+| `pmfreak-aoc-governed-action-gate-batch.ts` | `batchEvaluatePMFreakAocGovernedActionGateResults` |
+| `pmfreak-aoc-governed-action-gate-summary.ts` | `summarizePMFreakAocGovernedActionGateResults` |
+| `pmfreak-aoc-governed-action-gate-detail-view-model.ts` | `createPMFreakAocGovernedActionGateDetailViewModel` |
+| `pmfreak-aoc-governed-action-gate-no-execution-guard.ts` | Rejects execution-scoped forbidden operations |
+| `pmfreak-aoc-governed-action-gate-no-mutation-guard.ts` | Rejects mutation-scoped forbidden operations |
+| `pmfreak-aoc-governed-action-gate-redaction.ts` | `redactPMFreakAocGovernedActionGateValue`, reusing the base module's redaction |
+| `pmfreak-aoc-governed-action-gate-claim-safety.ts` | Prohibited-overclaim scan extending the decision inbox module's phrase corpus |
+| `pmfreak-aoc-governed-action-gate-fixtures.ts` | Deterministic, fake-only demo gate results/inputs/batches |
+
+## UI integration
+
+This PR implements pure, deterministic models and a view-model factory
+only — no React/UI components, for the same reason as the decision
+inbox layer: no single, stable dashboard/panel convention exists yet for
+a gate-result-style feature. A future UI layer can consume this module
+directly:
+
+```ts
+const detail = createPMFreakAocGovernedActionGateDetailViewModel(gateResult);
+// detail.gateBadge -> render as a status chip (verdict/severity)
+// detail.sections -> render as a detail panel (Gate Result/AOC Decision/Action Context/Evidence/Approvals/Reasons/Trace/Safety)
+// detail.canProceed -> gate a "Continue" affordance in a future execution-adapter PR, never here
+```
+
+## Determinism
+
+No `Date.now()`, `Math.random()`, `crypto.randomUUID()`, `fetch`,
+`axios`, `XMLHttpRequest`, LLM SDK, OCR, or PDF-parsing call exists
+anywhere in this feature's files (enforced by
+`tests/pmfreak-aoc-governed-action-gate-determinism.test.ts`). Gate
+input/result IDs are derived deterministically from the first available
+identifier on the input (governance response ID, request ID, inbox item
+ID, or action attempt ID):
+`pmfreak.aoc.gate.input.<safe-id>.v1` / `pmfreak.aoc.gate.result.<safe-id>.v1`.
+
+## Next possible PRs
+
+```
+PMFreak AOC Gate Result UI v1
+PMFreak Human Approval Handoff v1
+PMFreak AOC Governed Action Execution Adapter v1
+```
+
+A governed execution adapter should only be implemented after this gate
+is stable, reviewed and explicitly approved.
