@@ -148,18 +148,170 @@ const { request, response } = await client.buildAndEvaluate({
 | `pmfreak-aoc-health.ts` | `PMFreakAocGovernanceClientHealth` model |
 | `pmfreak-aoc-fixtures.ts` | Deterministic, fake-only demo fixtures |
 | `pmfreak-aoc-claim-safety.ts` | Prohibited-overclaim scan and safe-phrase corpus |
+| `pmfreak-aoc-remote-governance-transport-constants.ts` | Remote transport ID/name, default endpoint path, capabilities, forbidden operations, safe labels, disclaimers |
+| `pmfreak-aoc-remote-governance-transport-types.ts` | `PMFreakAocRemoteGovernanceAuthMode` |
+| `pmfreak-aoc-remote-governance-transport-descriptor.ts` | `PMFreakAocRemoteGovernanceTransportDescriptor` + factory |
+| `pmfreak-aoc-remote-governance-transport-config.ts` | `PMFreakAocRemoteGovernanceTransportConfig` + safe-by-default factory |
+| `pmfreak-aoc-remote-governance-endpoint-types.ts` | Local compatibility DTOs for the AOC endpoint envelope (not imported from AOC Enterprise) |
+| `pmfreak-aoc-remote-governance-request-serializer.ts` | Pure `serializePMFreakAocRemoteGovernanceRequest` (URL/headers/body) |
+| `pmfreak-aoc-remote-governance-response-parser.ts` | Safe `parsePMFreakAocRemoteGovernanceEndpointBody` (never throws raw parse errors) |
+| `pmfreak-aoc-remote-governance-response-validator.ts` | Pure `validatePMFreakAocRemoteAocGovernanceResponse` |
+| `pmfreak-aoc-remote-governance-response-mapper.ts` | Pure `mapAocEndpointResponseToPMFreakAocGovernanceResponse` |
+| `pmfreak-aoc-remote-governance-transport.ts` | `createRemoteHttpPMFreakAocGovernanceTransport` — the `remote_http` transport |
+| `pmfreak-aoc-remote-governance-errors.ts` | `PMFreakAocRemoteGovernanceTransportError` and its safe error codes |
+| `pmfreak-aoc-remote-governance-health.ts` | `PMFreakAocRemoteGovernanceTransportHealth` model |
+| `pmfreak-aoc-remote-governance-redaction.ts` | Deterministic redaction of emails/secrets/tokens/bearer-tokens/connection-strings for transport payloads |
+| `pmfreak-aoc-remote-governance-claim-safety.ts` | Prohibited-overclaim scan reusing the base module's phrase corpus |
+| `pmfreak-aoc-remote-governance-fixtures.ts` | Deterministic, fake-only demo endpoint bodies + `fetchImpl` mock helpers |
 
 ## Determinism
 
-No `Date.now()`, `Math.random()`, `crypto.randomUUID()`, `fetch`, `axios`,
+No `Date.now()`, `Math.random()`, `crypto.randomUUID()`, `axios`,
 `XMLHttpRequest`, LLM SDK, OCR, or PDF-parsing call exists anywhere in this
-module (enforced by `tests/pmfreak-aoc-determinism.test.ts`). Request and
+module (enforced by `tests/pmfreak-aoc-determinism.test.ts` and
+`tests/pmfreak-aoc-remote-governance-determinism.test.ts`). Request and
 response IDs are derived deterministically from the action attempt ID /
 request ID (`pmfreak.aoc.request.<safe-action-attempt-id>.v1` /
-`pmfreak.aoc.response.<safe-request-id>.v1`).
+`pmfreak.aoc.response.<safe-request-id>.v1`). The only literal `fetch(`
+call site in this module is inside `pmfreak-aoc-remote-governance-transport.ts`,
+guarded behind the `fetchImpl` option — tests inject a mock `fetchImpl` and
+never perform a real network call.
+
+# PMFreak AOC Remote Governance Transport v1
+
+Transport ID:
+
+```
+pmfreak.integration.aoc.remote_governance_transport.v1
+```
+
+Repo:
+
+```
+PMFreak
+```
+
+## Purpose
+
+Send PMFreak governance requests to the AOC Enterprise Remote Governance
+Endpoint (`aoc.integration.pmfreak.remote_governance_endpoint.v1`) and
+receive governed decisions back. This is the real, opt-in `remote_http`
+implementation of the `PMFreakAocGovernanceTransport` interface — it
+replaces neither `local_mock` (still the default) nor
+`unsupported_remote` (still available as a network-free placeholder).
+
+## Runtime direction
+
+```
+PMFreak consumes AOC Governance.
+```
+
+```
+PMFreak agent attempts an action
+  ↓
+PMFreak builds an AOC governance request
+  ↓
+PMFreak remote transport serializes the request
+  ↓
+PMFreak remote transport sends a POST to the AOC endpoint
+  ↓
+AOC evaluates and returns a governed decision
+  ↓
+PMFreak validates and maps the response
+  ↓
+PMFreak receives the decision
+```
+
+PMFreak still does not execute the action in this PR.
+
+## Default endpoint path
+
+```
+/api/aoc/pmfreak/governance/evaluate
+```
+
+## Usage
+
+- The default client transport remains `local_mock` — nothing changes for
+  existing callers.
+- `remote_http` is opt-in only: it is never selected automatically by
+  `createPMFreakAocGovernanceRequestClient`.
+- `remote_http` requires `aocBaseUrl` — `createPMFreakAocRemoteGovernanceTransportConfig`
+  throws a safe `invalid_config` error without it.
+- Tests use `fetchImpl` mocks (`pmfreak-aoc-remote-governance-fixtures.ts`)
+  and never call a real network.
+
+## Auth modes
+
+```
+none_demo             — no auth header (default)
+shared_secret_header  — a configured header name/value
+bearer_token          — Authorization: Bearer <token>
+unsupported           — safe config error if used to send a request
+```
+
+## Safety
+
+- This transport does not execute PMFreak actions.
+- This transport does not mutate PMFreak data.
+- This transport does not write back decisions.
+- This transport does not send communications.
+- This transport does not create invoices.
+- This transport does not certify invoice validity.
+- This transport does not certify customer acceptance.
+- This transport does not certify compliance.
+- This transport does not provide legal advice.
+
+As with the base client, every one of the above is also enforced
+structurally: `PMFreakAocRemoteGovernanceTransportConfig.allowActionExecution`,
+`allowProductionMutations`, `allowDecisionWriteback`, `allowInvoiceCreation`
+and `allowCommunications` are typed `false`, and
+`createPMFreakAocRemoteGovernanceTransportConfig` forces any attempt to set
+them `true` back to `false` (with a warning, never leaking the attempted
+secret/token value). Errors, headers and logs never include secrets, bearer
+tokens, authorization headers, connection strings, or raw request/response
+bodies — see `pmfreak-aoc-remote-governance-errors.ts` and
+`pmfreak-aoc-remote-governance-redaction.ts`.
+
+## Usage with the existing client
+
+```ts
+import {
+  createRemoteHttpPMFreakAocGovernanceTransport,
+  createPMFreakAocGovernanceRequestClient,
+} from "@/features/pmfreak-integrations/aoc-governance-request-client";
+
+const remoteTransport = createRemoteHttpPMFreakAocGovernanceTransport(
+  {
+    aocBaseUrl: "https://aoc.example.com",
+    authMode: "shared_secret_header",
+    sharedSecretHeaderName: "x-aoc-governance-secret",
+    sharedSecretValue: "[configured-outside-code]",
+  },
+  {
+    fetchImpl,
+  }
+);
+
+const client = createPMFreakAocGovernanceRequestClient({
+  config: {
+    transportKind: "remote_http",
+  },
+  transport: remoteTransport,
+});
+
+const { request, response } = await client.buildAndEvaluate({
+  actionAttempt: demoPMFreakAocBillingReadinessActionAttempt(),
+});
+
+// response.evaluatedBy === "aoc"
+// PMFreak does not execute the action here — it only received the decision.
+```
+
+No real secret is included above — `sharedSecretValue` must be supplied by
+the caller from outside this module (an env var, a secret manager, etc.).
 
 ## Next possible PRs
 
 - PMFreak AOC Decision Display / Inbox v1
 - PMFreak AOC Governed Action Gate v1
-- PMFreak AOC Remote Governance Transport v1
