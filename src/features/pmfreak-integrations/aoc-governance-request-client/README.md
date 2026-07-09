@@ -727,3 +727,214 @@ PMFreak AOC Governed Action Execution Adapter v1
 
 A governed execution adapter should only be implemented after this gate
 is stable, reviewed and explicitly approved.
+
+# PMFreak AOC Gate Result UI v1
+
+Feature ID:
+
+```
+pmfreak.integration.aoc.gate_result_ui.v1
+```
+
+Repo:
+
+```
+PMFreak
+```
+
+## Purpose
+
+Display PMFreak AOC governed action gate results safely.
+
+## Runtime direction
+
+```
+PMFreak consumes AOC Governance.
+```
+
+```
+PMFreak receives a governed action gate result.
+PMFreak creates a UI-safe display model.
+PMFreak may render a banner, card, detail panel, blocker panel, requirement list, trace and safety disclaimer.
+PMFreak does not execute the action in this PR.
+```
+
+This is a presentation layer on top of the governed action gate above. It
+does not build governance requests, does not evaluate them, does not
+create a new decision inbox and does not create a new gate — it only
+turns an already-computed `PMFreakAocGovernedActionGateResult` into
+UI-safe view models.
+
+## Supported verdicts
+
+```
+passed
+blocked
+held
+needs_evidence
+needs_approval
+needs_review
+error
+```
+
+## Interpreting a `passed` gate result
+
+`passed` means the proposed action passed the AOC governance gate for
+the provided request context. It does **not** mean:
+
+- the action was executed
+- the action is legally approved
+- the project is compliance-certified
+- the invoice is valid
+- the customer accepted delivery
+
+## Example
+
+```ts
+import {
+  createPMFreakAocGateResultBannerViewModel,
+  createPMFreakAocGateResultCardViewModel,
+  createPMFreakAocGateResultDetailPanelViewModel,
+  createPMFreakAocGateResultUIDisplayModel,
+  demoPMFreakAocGovernedActionGateNeedsEvidenceResult,
+} from "@/features/pmfreak-integrations/aoc-governance-request-client";
+
+const result = await demoPMFreakAocGovernedActionGateNeedsEvidenceResult();
+
+const display = createPMFreakAocGateResultUIDisplayModel({ result });
+// display.badge.label === "Needs Evidence"
+// display.canProceed === false
+// display.safeNextStep === "Attach or link the missing evidence references before attempting this action."
+
+const banner = createPMFreakAocGateResultBannerViewModel({ result });
+const card = createPMFreakAocGateResultCardViewModel({ result });
+const detail = createPMFreakAocGateResultDetailPanelViewModel({ result });
+// detail.sections includes Gate Result, AOC Decision, Action Context, Requirements, Reasons, Trace, Warnings, Errors, Safety
+
+// PMFreak does not execute the action here — it only displays the gate result.
+```
+
+## Safety
+
+- This feature is presentation-only.
+- This feature does not execute PMFreak actions.
+- This feature does not mutate PMFreak data.
+- This feature does not write decisions back.
+- This feature does not send communications.
+- This feature does not create invoices.
+- This feature does not certify invoice validity.
+- This feature does not certify customer acceptance.
+- This feature does not certify compliance.
+- This feature does not provide legal advice.
+
+As with the governed action gate, every safety property above is also
+enforced structurally: `PMFreakAocGateResultUIConfig.allowActionExecution`,
+`allowProductionMutations`, `allowDecisionWriteback`, `allowInvoiceCreation`,
+`allowCommunications`, `allowLegalCertification`,
+`allowComplianceCertification`, `showExecutionButtons`,
+`showMutationButtons`, `showInvoiceButtons` and `showCommunicationButtons`
+are typed `false`, and `createPMFreakAocGateResultUIConfig` forces any
+attempt to set them `true` back to `false` (with a warning).
+`PMFREAK_AOC_GATE_RESULT_UI_FORBIDDEN_OPERATIONS` (split into action- and
+mutation-scoped subsets for `assertPMFreakAocGateResultUIDoesNotAct` and
+`assertPMFreakAocGateResultUIDoesNotMutate`) lists the operation names
+(`execute_action`, `mark_milestone_billing_ready`, `create_invoice`,
+`writeback_decision`, `certify_compliance`, etc.) those guards reject.
+Every view model also carries its own `presentationOnly: true` flag (and
+the display model additionally carries `actionExecutionCapable: false` /
+`mutationCapable: false` / `writebackCapable: false` /
+`invoiceCreationCapable: false` / `communicationCapable: false`). Every
+output can be checked with `assertNoPMFreakAocGateResultUIOverclaim` /
+`evaluatePMFreakAocGateResultUIClaimSafety`, which extend the governed
+action gate module's prohibited-overclaim phrase scan with UI-specific
+phrases (`click to execute`, `execute now`, `approve invoice`,
+`legally approved`, `compliance passed`, etc.).
+
+## Action hints
+
+Action hints are informational only. Every hint returned by
+`createPMFreakAocGateResultUIActionHints` is `enabled: false`,
+`executesAction: false`, `mutatesState: false`, `createsInvoice: false`
+and `sendsCommunication: false` — they describe what a user could do
+next, they never do it.
+
+## Module contents
+
+| File | Responsibility |
+| --- | --- |
+| `pmfreak-aoc-gate-result-ui-constants.ts` | Feature ID/name/version, capabilities, forbidden operations (full + action/mutation subsets), safe labels, disclaimers |
+| `pmfreak-aoc-gate-result-ui-types.ts` | `PMFreakAocGateResultUITone` / `IconHint` |
+| `pmfreak-aoc-gate-result-ui-descriptor.ts` | `PMFreakAocGateResultUIDescriptor` + factory |
+| `pmfreak-aoc-gate-result-ui-config.ts` | `PMFreakAocGateResultUIConfig` + safe-by-default factory |
+| `pmfreak-aoc-gate-result-ui-labels.ts` | `mapPMFreakAocGateVerdictToUILabel`, `mapPMFreakAocGateVerdictToUITone` |
+| `pmfreak-aoc-gate-result-ui-badge.ts` | `PMFreakAocGateResultUIBadge` + `createPMFreakAocGateResultUIBadge` |
+| `pmfreak-aoc-gate-result-ui-display-model.ts` | `PMFreakAocGateResultUIDisplayModel` + `createPMFreakAocGateResultUIDisplayModel` |
+| `pmfreak-aoc-gate-result-ui-banner-view-model.ts` | `createPMFreakAocGateResultBannerViewModel` |
+| `pmfreak-aoc-gate-result-ui-card-view-model.ts` | `createPMFreakAocGateResultCardViewModel` |
+| `pmfreak-aoc-gate-result-ui-detail-panel-view-model.ts` | `createPMFreakAocGateResultDetailPanelViewModel` |
+| `pmfreak-aoc-gate-result-ui-blocker-view-model.ts` | `createPMFreakAocGateResultBlockerViewModel` |
+| `pmfreak-aoc-gate-result-ui-requirement-list.ts` | `createPMFreakAocGateRequirementListViewModel` |
+| `pmfreak-aoc-gate-result-ui-trace-view-model.ts` | `createPMFreakAocGateTraceViewModel` |
+| `pmfreak-aoc-gate-result-ui-safety-disclaimer.ts` | `createPMFreakAocGateSafetyDisclaimerViewModel` |
+| `pmfreak-aoc-gate-result-ui-action-hint.ts` | `createPMFreakAocGateResultUIActionHints` |
+| `pmfreak-aoc-gate-result-ui-empty-state.ts` | `createPMFreakAocGateResultUIEmptyState` |
+| `pmfreak-aoc-gate-result-ui-error-state.ts` | `createPMFreakAocGateResultUIErrorState` |
+| `pmfreak-aoc-gate-result-ui-no-action-guard.ts` | Rejects action-scoped forbidden operations |
+| `pmfreak-aoc-gate-result-ui-no-mutation-guard.ts` | Rejects mutation-scoped forbidden operations |
+| `pmfreak-aoc-gate-result-ui-redaction.ts` | `redactPMFreakAocGateResultUIValue`, reusing the governed action gate module's redaction |
+| `pmfreak-aoc-gate-result-ui-claim-safety.ts` | Prohibited-overclaim scan extending the governed action gate module's phrase corpus |
+| `pmfreak-aoc-gate-result-ui-fixtures.ts` | Deterministic, fake-only demo display models and view models |
+
+## UI integration
+
+This PR implements pure, deterministic view models only — no React/UI
+components. As with the decision inbox and governed action gate layers
+before it, the repository has several existing dashboard/panel
+conventions (`src/components/dashboard/action-center/`,
+`src/components/command-center/`, `src/components/governance/`) but none
+of them is a single, stable convention for a gate-result-style feature,
+so mapping this feature onto one of them remains a larger, UI-specific
+decision for its own follow-up PR/review.
+
+A future UI layer can consume this module directly and does not need to
+know anything about AOC:
+
+```ts
+const display = createPMFreakAocGateResultUIDisplayModel({ result: gateResult });
+// display.badge -> render as a status chip (label/tone/iconHint)
+// display.requirementList.items -> render as a checklist (status: required | missing)
+// display.trace.steps -> render as a timeline (no timestamps)
+// display.safetyDisclaimer.messages -> render as fine print
+// display.actionHints -> render as informational callouts, never as clickable buttons
+
+if (!gateResult) {
+  // render createPMFreakAocGateResultUIEmptyState()
+}
+```
+
+Any such UI components must, per this module's rules: only consume these
+view models, never call the gate/transport/client directly, never
+execute actions, never mutate state, never write decisions back, never
+create invoices, never send communications, and never render an enabled
+execution/mutation/invoice/communication button.
+
+## Determinism
+
+No `Date.now()`, `Math.random()`, `crypto.randomUUID()`, `fetch`,
+`axios`, `XMLHttpRequest`, LLM SDK, OCR, or PDF-parsing call exists
+anywhere in this feature's files (enforced by
+`tests/pmfreak-aoc-gate-result-ui-determinism.test.ts`). The display
+model ID is derived deterministically from the gate result ID:
+`pmfreak.aoc.gate.ui.display.<safe-gate-result-id>.v1`.
+
+## Next possible PRs
+
+```
+PMFreak Human Approval Handoff v1
+PMFreak Evidence Requirement Handoff v1
+PMFreak AOC Gate Result Command Center Panel v1
+```
+
+A governed execution adapter should only be implemented after the gate
+result UI, human approval handoff, and evidence requirement handoff are
+stable, reviewed and explicitly approved.
