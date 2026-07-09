@@ -938,3 +938,209 @@ PMFreak AOC Gate Result Command Center Panel v1
 A governed execution adapter should only be implemented after the gate
 result UI, human approval handoff, and evidence requirement handoff are
 stable, reviewed and explicitly approved.
+
+# PMFreak Evidence Requirement Handoff v1
+
+Feature ID:
+
+```
+pmfreak.integration.aoc.evidence_requirement_handoff.v1
+```
+
+Repo:
+
+```
+PMFreak
+```
+
+## Purpose
+
+Turn an AOC governance response, decision inbox item, governed action
+gate result, or gate result UI display model that surfaces required
+evidence, missing evidence, or required approvals into a safe,
+deterministic, non-mutating "Evidence Requirement Handoff" package that a
+human PM can review.
+
+## Runtime direction
+
+```
+PMFreak consumes AOC Governance.
+```
+
+```
+PMFreak receives a governance response, decision inbox item, gate result, or gate result UI display model.
+PMFreak normalizes the evidence/approval context from that input.
+PMFreak extracts evidence requirement items (required, missing, by type and priority).
+PMFreak builds a handoff package: checklist, review packet, safe summary, safe next step.
+A human PM reviews the handoff package.
+PMFreak does not attach evidence, create tasks, execute actions, or mutate data in this PR.
+```
+
+This is a handoff-only layer built on top of the governance request
+client, decision inbox, governed action gate and gate result UI above. It
+does not build governance requests, does not evaluate them, does not
+create a new decision inbox, does not create a new gate, and does not
+create a new gate result UI — it only turns an already-received/already-
+computed upstream model into a safe, review-ready evidence requirement
+handoff package.
+
+## Supported sources
+
+```
+governance_response
+decision_inbox_item
+gate_result
+gate_result_ui_display_model
+```
+
+The `gate_result` source is the primary path: a
+`PMFreakAocGovernedActionGateResult` carries the richest, most reliable
+context (project/action/agent context, gate trace, gate-level evidence/
+approval arrays) of the four. `gate_result_ui_display_model` legitimately
+carries the least context (no project/action/client IDs) since it is a
+presentation-only view model — that is expected and safe.
+
+## Supported requirement types
+
+```
+customer_acceptance
+billing_review
+contract_review
+security_review
+pm_approval
+executive_approval
+delivery_confirmation
+technical_validation
+change_approval
+risk_review
+unknown
+```
+
+## Example
+
+```ts
+import {
+  createPMFreakAocEvidenceRequirementHandoffDetailViewModel,
+  createPMFreakAocEvidenceRequirementHandoffFromGateResult,
+  demoPMFreakAocGovernedActionGateNeedsEvidenceResult,
+} from "@/features/pmfreak-integrations/aoc-governance-request-client";
+
+const gateResult = await demoPMFreakAocGovernedActionGateNeedsEvidenceResult();
+
+const handoff = createPMFreakAocEvidenceRequirementHandoffFromGateResult({ gateResult });
+
+// handoff.requirementItems[0].requirementType === "customer_acceptance"
+// handoff.requirementItems[0].status === "missing"
+// handoff.safeNextStep === "Collect or link customer acceptance evidence before attempting this action again."
+// handoff.checklist.items[0].done === false
+// handoff.reviewPacket.reviewQuestions includes "Which evidence references are missing?"
+
+const detail = createPMFreakAocEvidenceRequirementHandoffDetailViewModel(handoff);
+// detail.sections includes Handoff Summary, Source Context, Action Context, Required Evidence, Missing Evidence, Approval References, Review Packet, Safety
+
+// PMFreak does not attach evidence here — it only hands off the requirement to a human PM.
+```
+
+## Safety
+
+- This feature is handoff-only.
+- This feature does not attach evidence.
+- This feature does not upload files.
+- This feature does not create tasks.
+- This feature does not execute PMFreak actions.
+- This feature does not mutate PMFreak data.
+- This feature does not write decisions back.
+- This feature does not send communications.
+- This feature does not create invoices.
+- This feature does not certify compliance.
+- This feature does not certify customer acceptance.
+- This feature does not certify invoice validity.
+- This feature does not provide legal advice.
+
+Every one of the above is also enforced structurally:
+`PMFreakAocEvidenceRequirementHandoffConfig.allowEvidenceAttachment`,
+`allowFileUpload`, `allowTaskCreation`, `allowActionExecution`,
+`allowProductionMutations`, `allowDecisionWriteback`,
+`allowInvoiceCreation`, `allowCommunications`, `allowLegalCertification`,
+`allowComplianceCertification` and `allowCustomerAcceptanceCertification`
+are typed `false`, and `createPMFreakAocEvidenceRequirementHandoffConfig`
+forces any attempt to set them `true` back to `false` (with a warning).
+`PMFREAK_AOC_EVIDENCE_REQUIREMENT_HANDOFF_FORBIDDEN_OPERATIONS` (split
+into attachment-, task-, mutation- and communication-scoped subsets for
+`assertPMFreakAocEvidenceRequirementHandoffDoesNotAttachEvidence`,
+`assertPMFreakAocEvidenceRequirementHandoffDoesNotCreateTasks`,
+`assertPMFreakAocEvidenceRequirementHandoffDoesNotMutate` and
+`assertPMFreakAocEvidenceRequirementHandoffDoesNotCommunicate`) lists the
+operation names (`attach_evidence`, `create_task`,
+`mark_milestone_billing_ready`, `send_client_communication`,
+`create_invoice`, `certify_compliance`, etc.) those guards reject. Every
+handoff package, checklist, review packet and detail view model also
+carries its own `handoffOnly: true` /
+`evidenceAttachmentCapable: false` / `uploadCapable: false` /
+`taskCreationCapable: false` / `mutationCapable: false` /
+`communicationCapable: false` flags. Every checklist item is structurally
+`done: false` / `actionable: false` — this checklist never marks
+anything complete and never exposes an actionable control. Every output
+can be checked with `assertNoPMFreakAocEvidenceRequirementHandoffOverclaim` /
+`evaluatePMFreakAocEvidenceRequirementHandoffClaimSafety`, which extend
+the governed action gate module's prohibited-overclaim phrase scan with
+handoff-specific phrases (`evidence validated`, `evidence approved`,
+`evidence attached`, `task created`, `email sent`, `customer notified`).
+
+## Module contents
+
+| File | Responsibility |
+| --- | --- |
+| `pmfreak-aoc-evidence-requirement-handoff-constants.ts` | Feature ID/name/version, capabilities, forbidden operations (full + attachment/task/mutation/communication subsets), safe labels, disclaimers |
+| `pmfreak-aoc-evidence-requirement-handoff-descriptor.ts` | `PMFreakAocEvidenceRequirementHandoffDescriptor` + factory |
+| `pmfreak-aoc-evidence-requirement-handoff-config.ts` | `PMFreakAocEvidenceRequirementHandoffConfig` + safe-by-default factory |
+| `pmfreak-aoc-evidence-requirement-handoff-source.ts` | `PMFreakAocEvidenceRequirementSource` |
+| `pmfreak-aoc-evidence-requirement-handoff-priority.ts` | `PMFreakAocEvidenceRequirementPriority` + `mapPMFreakAocEvidenceRequirementPriority` |
+| `pmfreak-aoc-evidence-requirement-handoff-status.ts` | `PMFreakAocEvidenceRequirementStatus` |
+| `pmfreak-aoc-evidence-requirement-handoff-item.ts` | `PMFreakAocEvidenceRequirementType` / `PMFreakAocEvidenceRequirementItem` + deterministic item ID builder |
+| `pmfreak-aoc-evidence-requirement-handoff-extractor.ts` | `extractPMFreakAocEvidenceRequirementReferences` + `inferPMFreakAocEvidenceRequirementType` |
+| `pmfreak-aoc-evidence-requirement-handoff-context.ts` | `normalizePMFreakAocEvidenceRequirementHandoffContext` |
+| `pmfreak-aoc-evidence-requirement-handoff-next-step.ts` | `createPMFreakAocEvidenceRequirementHandoffSafeNextStep` |
+| `pmfreak-aoc-evidence-requirement-handoff-package.ts` | `PMFreakAocEvidenceRequirementHandoffPackage` + deterministic handoff ID builder |
+| `pmfreak-aoc-evidence-requirement-handoff-from-response.ts` | `createPMFreakAocEvidenceRequirementHandoffFromGovernanceResponse` |
+| `pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts` | `createPMFreakAocEvidenceRequirementHandoffFromDecisionInboxItem` |
+| `pmfreak-aoc-evidence-requirement-handoff-from-gate-result.ts` | `createPMFreakAocEvidenceRequirementHandoffFromGateResult` (primary builder) |
+| `pmfreak-aoc-evidence-requirement-handoff-from-ui-display.ts` | `createPMFreakAocEvidenceRequirementHandoffFromGateResultUIDisplayModel` |
+| `pmfreak-aoc-evidence-requirement-handoff-checklist-view-model.ts` | `createPMFreakAocEvidenceRequirementChecklistViewModel` |
+| `pmfreak-aoc-evidence-requirement-handoff-review-packet.ts` | `createPMFreakAocEvidenceRequirementReviewPacket` |
+| `pmfreak-aoc-evidence-requirement-handoff-detail-view-model.ts` | `createPMFreakAocEvidenceRequirementHandoffDetailViewModel` |
+| `pmfreak-aoc-evidence-requirement-handoff-summary.ts` | `summarizePMFreakAocEvidenceRequirementHandoffs` |
+| `pmfreak-aoc-evidence-requirement-handoff-batch.ts` | `batchCreatePMFreakAocEvidenceRequirementHandoffs` |
+| `pmfreak-aoc-evidence-requirement-handoff-empty-state.ts` | `createPMFreakAocEvidenceRequirementHandoffEmptyState` |
+| `pmfreak-aoc-evidence-requirement-handoff-error-state.ts` | `createPMFreakAocEvidenceRequirementHandoffErrorState` |
+| `pmfreak-aoc-evidence-requirement-handoff-no-attachment-guard.ts` | Rejects attachment-scoped forbidden operations |
+| `pmfreak-aoc-evidence-requirement-handoff-no-task-guard.ts` | Rejects task-scoped forbidden operations |
+| `pmfreak-aoc-evidence-requirement-handoff-no-mutation-guard.ts` | Rejects mutation-scoped forbidden operations |
+| `pmfreak-aoc-evidence-requirement-handoff-no-communication-guard.ts` | Rejects communication-scoped forbidden operations |
+| `pmfreak-aoc-evidence-requirement-handoff-redaction.ts` | `redactPMFreakAocEvidenceRequirementHandoffValue`, reusing the base module's redaction |
+| `pmfreak-aoc-evidence-requirement-handoff-claim-safety.ts` | Prohibited-overclaim scan extending the governed action gate module's phrase corpus |
+| `pmfreak-aoc-evidence-requirement-handoff-fixtures.ts` | Deterministic, fake-only demo handoff packages/items/checklists/review packets |
+
+## Determinism
+
+No `Date.now()`, `Math.random()`, `crypto.randomUUID()`, `fetch`,
+`axios`, `XMLHttpRequest`, LLM SDK, OCR, or PDF-parsing call exists
+anywhere in this feature's files (enforced by
+`tests/pmfreak-aoc-evidence-requirement-handoff-determinism.test.ts`).
+Handoff/review-packet/requirement-item IDs are derived deterministically
+from the first available identifier on the normalized context (gate
+result ID, response ID, inbox item ID, or display model ID):
+`pmfreak.aoc.evidence.handoff.<safe-id>.v1` /
+`pmfreak.aoc.evidence.review-packet.<safe-id>.v1` /
+`pmfreak.aoc.evidence.requirement.<safe-reference-id>.v1`.
+
+## Next possible PRs
+
+```
+PMFreak Human Approval Handoff v1
+PMFreak Evidence Requirement Command Center Panel v1
+PMFreak Evidence Attachment Workflow v1
+```
+
+An evidence attachment workflow should only be implemented after this
+handoff layer is stable, reviewed, and explicitly approved.
