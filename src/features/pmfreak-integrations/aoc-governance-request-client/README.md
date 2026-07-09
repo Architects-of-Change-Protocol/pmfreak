@@ -315,3 +315,195 @@ the caller from outside this module (an env var, a secret manager, etc.).
 
 - PMFreak AOC Decision Display / Inbox v1
 - PMFreak AOC Governed Action Gate v1
+
+# PMFreak AOC Decision Display / Inbox v1
+
+Feature ID:
+
+```
+pmfreak.integration.aoc.decision_display_inbox.v1
+```
+
+Repo:
+
+```
+PMFreak
+```
+
+## Purpose
+
+Display AOC governance decisions inside PMFreak as safe inbox/view models.
+
+## Runtime direction
+
+```
+PMFreak consumes AOC Governance.
+```
+
+```
+PMFreak builds a governance request.
+PMFreak evaluates it through local_mock or remote_http.
+PMFreak receives a governance response.
+PMFreak normalizes the response into a decision inbox item.
+PMFreak displays the decision, reasons, missing evidence, missing approvals, warnings and safe next step.
+PMFreak does not execute the action in this PR.
+```
+
+This feature is a display/inbox layer built on top of the governance
+request client and remote governance transport above. It does not build
+its own governance requests and does not evaluate them itself — it only
+normalizes an already-received `PMFreakAocGovernanceResponse` (optionally
+paired with the `PMFreakAocGovernanceRequest` that produced it) into a
+safe, display-only view model.
+
+## Supported decisions
+
+```
+allow
+deny
+hold
+require_evidence
+require_pm_approval
+require_customer_validation
+require_billing_review
+require_contract_review
+require_security_review
+require_executive_approval
+```
+
+## Example
+
+```ts
+import {
+  createLocalMockPMFreakAocGovernanceTransport,
+  createPMFreakAocDecisionInboxDetailViewModel,
+  createPMFreakAocDecisionInboxItemFromGovernanceResponse,
+  createPMFreakAocGovernanceRequestClientConfig,
+  demoPMFreakAocBillingMissingEvidenceRequest,
+} from "@/features/pmfreak-integrations/aoc-governance-request-client";
+
+const request = demoPMFreakAocBillingMissingEvidenceRequest();
+const transport = createLocalMockPMFreakAocGovernanceTransport();
+const response = await transport.evaluateGovernanceRequest(request, createPMFreakAocGovernanceRequestClientConfig());
+
+const item = createPMFreakAocDecisionInboxItemFromGovernanceResponse({ request, response, createdAtLabel: "2026-01-01T00:00:00.000Z" });
+
+// item.decision === "require_evidence"
+// item.decisionStatus === "needs_evidence"
+// item.safeNextStep === "Attach or link the missing evidence references before attempting execution."
+// PMFreak does not execute the action here — it only displays the decision.
+
+const detail = createPMFreakAocDecisionInboxDetailViewModel(item);
+// detail.sections includes Decision, Context, Evidence, Approvals, Reasons, Warnings, Errors, Safety
+```
+
+## Safety
+
+- This feature is display-only.
+- This feature does not execute PMFreak actions.
+- This feature does not mutate PMFreak data.
+- This feature does not write decisions back.
+- This feature does not send communications.
+- This feature does not create invoices.
+- This feature does not enforce decisions.
+- This feature does not certify invoice validity.
+- This feature does not certify customer acceptance.
+- This feature does not certify compliance.
+- This feature does not provide legal advice.
+
+As with the base client, every one of the above is also enforced
+structurally: `PMFreakAocDecisionInboxConfig.allowActionExecution`,
+`allowProductionMutations`, `allowDecisionWriteback`, `allowInvoiceCreation`,
+`allowCommunications` and `allowEnforcement` are typed `false`, and
+`createPMFreakAocDecisionInboxConfig` forces any attempt to set them `true`
+back to `false` (with a warning). `PMFREAK_AOC_DECISION_INBOX_FORBIDDEN_OPERATIONS`
+lists the operation names (`execute_action`, `mark_milestone_billing_ready`,
+`create_invoice`, `writeback_decision`, `certify_compliance`, etc.) that
+`assertPMFreakAocDecisionInboxDisplayOnlyOperation` rejects. Every inbox
+item, inbox collection and detail view model also carries its own
+`displayOnly: true` / `actionExecutionCapable: false` /
+`mutationCapable: false` / `writebackCapable: false` /
+`enforcementCapable: false` flags. Every output can be checked with
+`assertNoPMFreakAocDecisionInboxOverclaim` / `evaluatePMFreakAocDecisionInboxClaimSafety`,
+which reuse and extend the base module's prohibited-overclaim phrase scan.
+
+## Module contents
+
+| File | Responsibility |
+| --- | --- |
+| `pmfreak-aoc-decision-inbox-constants.ts` | Feature ID/name/version, capabilities, forbidden operations, safe labels, disclaimers |
+| `pmfreak-aoc-decision-inbox-types.ts` | `PMFreakAocDecisionInboxItem` and its supporting status/category/severity unions |
+| `pmfreak-aoc-decision-inbox-descriptor.ts` | `PMFreakAocDecisionInboxDescriptor` + factory |
+| `pmfreak-aoc-decision-inbox-config.ts` | `PMFreakAocDecisionInboxConfig` + safe-by-default factory |
+| `pmfreak-aoc-decision-inbox-item.ts` | Deterministic `buildPMFreakAocDecisionInboxItemId` |
+| `pmfreak-aoc-decision-inbox-status.ts` | `mapPMFreakAocDecisionToInboxStatus` |
+| `pmfreak-aoc-decision-inbox-category.ts` | `mapPMFreakAocDecisionToInboxCategory` |
+| `pmfreak-aoc-decision-inbox-severity.ts` | `mapPMFreakAocDecisionToInboxSeverity` |
+| `pmfreak-aoc-decision-inbox-next-step.ts` | `createPMFreakAocDecisionInboxSafeNextStep` |
+| `pmfreak-aoc-decision-inbox-normalizer.ts` | `createPMFreakAocDecisionInboxItemFromGovernanceResponse` |
+| `pmfreak-aoc-decision-inbox-filters.ts` | `filterPMFreakAocDecisionInboxItems` |
+| `pmfreak-aoc-decision-inbox-sorting.ts` | `sortPMFreakAocDecisionInboxItems` |
+| `pmfreak-aoc-decision-inbox-grouping.ts` | `groupPMFreakAocDecisionInboxItems` |
+| `pmfreak-aoc-decision-inbox-summary.ts` | `summarizePMFreakAocDecisionInboxItems` |
+| `pmfreak-aoc-decision-inbox-collection.ts` | `PMFreakAocDecisionInbox` + `createPMFreakAocDecisionInbox` |
+| `pmfreak-aoc-decision-inbox-detail-view-model.ts` | `createPMFreakAocDecisionInboxDetailViewModel` |
+| `pmfreak-aoc-decision-inbox-empty-state.ts` | `createPMFreakAocDecisionInboxEmptyState` |
+| `pmfreak-aoc-decision-inbox-error-state.ts` | `createPMFreakAocDecisionInboxErrorState` |
+| `pmfreak-aoc-decision-inbox-no-action-guard.ts` | Rejects any of `PMFREAK_AOC_DECISION_INBOX_FORBIDDEN_OPERATIONS` |
+| `pmfreak-aoc-decision-inbox-redaction.ts` | `redactPMFreakAocDecisionInboxValue`, reusing the base module's redaction |
+| `pmfreak-aoc-decision-inbox-claim-safety.ts` | Prohibited-overclaim scan extending the base module's phrase corpus |
+| `pmfreak-aoc-decision-inbox-fixtures.ts` | Deterministic, fake-only demo inbox items and collections |
+
+## UI integration
+
+This PR implements pure, deterministic view models only — no React/UI
+components. The repository has several existing dashboard/panel
+conventions (`src/components/dashboard/action-center/`,
+`src/components/command-center/`, `src/components/governance/`) but none
+of them is a single, stable convention for a decision-inbox-style feature,
+and mapping this feature onto one of them is a larger, UI-specific
+decision better made in its own follow-up PR/review rather than folded
+into this display-model PR.
+
+A future UI layer can consume this module directly and does not need to
+know anything about AOC:
+
+```ts
+const inbox = createPMFreakAocDecisionInbox({ items: myInboxItems });
+// inbox.items -> render as a list (each item.decisionLabel/decisionSeverity/safeNextStep)
+// inbox.summary -> render as counters/badges
+
+const grouped = groupPMFreakAocDecisionInboxItems(inbox.items, "severity");
+// grouped -> render as sections
+
+const detail = createPMFreakAocDecisionInboxDetailViewModel(selectedItem);
+// detail.sections -> render as a detail panel (Decision/Context/Evidence/Approvals/Reasons/Warnings/Errors/Safety)
+
+if (inbox.items.length === 0) {
+  // render createPMFreakAocDecisionInboxEmptyState()
+}
+```
+
+Any such UI components must, per this module's rules: only consume these
+view models, never call a transport directly, never execute actions,
+never mutate state, never write decisions back, never create invoices,
+and never send communications.
+
+## Determinism
+
+No `Date.now()`, `Math.random()`, `crypto.randomUUID()`, `fetch`, `axios`,
+`XMLHttpRequest`, LLM SDK, OCR, or PDF-parsing call exists anywhere in this
+feature's files (enforced by `tests/pmfreak-aoc-decision-inbox-determinism.test.ts`).
+Inbox item IDs are derived deterministically from the response ID
+(`pmfreak.aoc.inbox.<safe-response-id>.v1`). `createdAtLabel` is a caller-supplied
+string label, not a wall-clock timestamp, and defaults to `"unspecified"`
+when omitted.
+
+## Next possible PR
+
+```
+PMFreak AOC Governed Action Gate v1
+```
+
+The governed action gate should only be implemented after this
+display/inbox layer is stable and reviewed.
