@@ -108,7 +108,24 @@ export async function handleCreateCheckoutSession(request: Request, deps: Create
         ).id;
 
     if (!subscription.stripeCustomerId) {
-      await deps.updateCompanySubscription(user.companyId, { stripeCustomerId: customerId });
+      // company_subscriptions has no authenticated write policy (Perilla 7) —
+      // this is one of the two approved writers (checkout route + billing
+      // webhook lifecycle), gated on the requireBillingManageMembership check
+      // above, not on Stripe metadata or any client-supplied field.
+      await deps.updateCompanySubscription(
+        user.companyId,
+        { stripeCustomerId: customerId },
+        {
+          useServiceRole: true,
+          privilegedContext: {
+            routeId: ROUTE_ID,
+            operation: "bootstrap_stripe_customer_id",
+            reason: "First-time Stripe customer id persisted after workspace billing-manage membership check.",
+            actorUserId: user.id,
+            workspaceId,
+          },
+        },
+      );
     }
 
     const origin = request.headers.get("origin") ?? "http://localhost:3000";

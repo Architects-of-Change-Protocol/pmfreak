@@ -152,7 +152,7 @@ export const PRIVILEGED_ACCESS_REGISTRY: readonly PrivilegedAccessEntry[] = [
   },
   {
     file: "src/lib/billing.ts",
-    purpose: "Stripe webhook idempotency lifecycle (begin/processed/ignored/failed) and company_subscriptions reads/writes: Stripe webhooks arrive without a user session, and the idempotency guard must write to billing_webhook_events atomically to prevent duplicate or lost-failure processing. getCompanySubscription/updateCompanySubscription/findCompanyIdByStripeCustomerId/findCompanyIdByStripeSubscriptionId accept an optional caller-supplied client so the webhook route's single post-verification privileged client can be reused across the whole request instead of re-instantiating per call.",
+    purpose: "Stripe webhook idempotency lifecycle (begin/processed/ignored/failed) and company_subscriptions reads/writes: Stripe webhooks arrive without a user session, and the idempotency guard must write to billing_webhook_events atomically to prevent duplicate or lost-failure processing. getCompanySubscription/updateCompanySubscription/findCompanyIdByStripeCustomerId/findCompanyIdByStripeSubscriptionId accept an optional caller-supplied client so the webhook route's single post-verification privileged client can be reused across the whole request instead of re-instantiating per call. company_subscriptions has no authenticated write policy (Perilla 7 — 20260818000000_supabase_rls_service_role_boundary_hardening.sql): the only two approved writers are this file (billing webhook lifecycle) and src/app/api/billing/create-checkout-session/route.ts, which calls updateCompanySubscription with useServiceRole:true to persist a first-time Stripe customer id after its own requireBillingManageMembership check — that route does not call createSupabaseServiceRoleClient/createPrivilegedSupabaseClient directly, it only sets useServiceRole on this file's exported functions, so it is documented here rather than as a separate registry entry.",
     riskLevel: "HIGH",
     mitigations: [
       "Webhook signature verified in the route before any of these functions are called with useServiceRole — see src/app/api/billing/webhook/route.ts",
@@ -337,6 +337,121 @@ export const PRIVILEGED_ACCESS_REGISTRY: readonly PrivilegedAccessEntry[] = [
       "Trust domain list reflects current database state",
     ],
     strictCriteriaMet: "L1",
+    needsRlsBeforeSwap: false,
+  },
+  // ── Perilla 7 additions (2026-07-10) — files calling createSupabaseServiceRoleClient
+  // or createPrivilegedSupabaseClient directly that were not yet registered. ──
+  {
+    file: "src/lib/storage/upload-provider.ts",
+    purpose: "Supabase Storage upload/delete/download for evidence documents. The 'pmfreak-documents' bucket's storage.objects policy (20260515200000_storage_bucket_setup.sql) grants access to service_role only — 'No authenticated direct access — all access goes through API routes' — so there is no scoped-client alternative for any storage operation on this bucket.",
+    riskLevel: "HIGH",
+    mitigations: [
+      "storage.objects RLS on this bucket has no authenticated policy at all — service role is the only way to reach it, by design",
+      "Storage path is namespaced by companyId/projectId/fileId, all resolved server-side from an already-authorized upload/evidence flow, never from raw client input",
+      "File name sanitized before use in the storage path",
+    ],
+    strictCriteriaMet: "L1",
+    needsRlsBeforeSwap: false,
+  },
+  {
+    file: "src/lib/project-evidence/evidence-processor.ts",
+    purpose: "Asynchronous evidence extraction: reads/updates project_evidence and upserts project_evidence_content after a document upload has already been authorized. Runs via setTimeout as a fire-and-forget background job (processEvidenceInBackground), after the HTTP response has already been sent — there is no request-scoped cookie/session left to build a scoped client from by the time this code runs, even though project_evidence/project_evidence_content both have workspace-member RLS policies that would otherwise permit a scoped read for an in-request caller.",
+    riskLevel: "MEDIUM",
+    mitigations: [
+      "evidenceId is only ever passed in from a prior authorized upload route, never client-supplied at this layer",
+      "Failure path marks the evidence row 'failed' rather than leaving it stuck in 'processing'",
+      "Reuses getUploadProvider().download, itself service-role-gated for the same reason (no session left to scope)",
+    ],
+    strictCriteriaMet: "L2",
+    needsRlsBeforeSwap: false,
+  },
+  {
+    file: "src/lib/project-discovery/discovery-repository.ts",
+    purpose: "regenerateProjectDiscovery reads project_evidence_content and reads/inserts project_discovery, then triggers RAID/recommended-action materialization. Invoked either synchronously from the evidence processor's background job or via regenerateProjectDiscoveryInBackground (another setTimeout deferral) — same no-session-left-to-scope justification as evidence-processor.ts. project_discovery/project_evidence_content both have workspace-member RLS policies; this is a background/system operation, not a user request.",
+    riskLevel: "MEDIUM",
+    mitigations: [
+      "projectId is only ever sourced from an already-processed evidence row, never client input at this layer",
+      "Payload hash comparison skips redundant version writes (idempotent by construction)",
+      "Errors logged with requestId/projectId, re-thrown to the caller rather than swallowed",
+    ],
+    strictCriteriaMet: "L2",
+    needsRlsBeforeSwap: false,
+  },
+  {
+    file: "src/lib/pmo/save-team-invites.ts",
+    purpose: "PMO onboarding wizard: inserts pmo_team_invites rows after resolving the authenticated user's own workspace via resolveCanonicalWorkspace. pmo_team_invites (20260528000000_pmo_team_invites.sql) has only a SELECT policy for workspace members — there is no authenticated INSERT policy at all, so a scoped client cannot perform this write regardless of the actor's role.",
+    riskLevel: "MEDIUM",
+    mitigations: [
+      "getAuthUser() required before any query",
+      "workspaceId always comes from resolveCanonicalWorkspace(user.id), never a client-supplied field",
+      "Invite emails validated (non-empty, RFC-shaped) before insert",
+    ],
+    strictCriteriaMet: "L1",
+    needsRlsBeforeSwap: false,
+  },
+  {
+    file: "src/lib/pmo/save-pmo-tenant.ts",
+    purpose: "PMO onboarding completion ('use server' action): upserts workspace_governance and updates workspaces for the caller's own resolved workspace, then calls supabase.auth.admin.updateUserById to mark onboarding_completed — the auth.admin API is only available via service role, with no scoped-client equivalent, which is why the whole flow (including the workspace_governance/workspaces writes, both of which do have member-scoped RLS policies that would otherwise permit a scoped write) shares one privileged client: the rollback-on-failure path deletes the just-inserted workspace_governance row with the same client that wrote it, avoiding a second auth context resolution mid-transaction.",
+    riskLevel: "MEDIUM",
+    mitigations: [
+      "getAuthUser() required before any query",
+      "workspaceId always comes from resolveCanonicalWorkspace(user.id), never a client-supplied field",
+      "Explicit rollback (delete) of the workspace_governance row if a later step in the same flow throws",
+      "user_metadata update only ever sets the fixed literal onboarding_completed: true — no other field, and never anything role/permission-shaped",
+    ],
+    strictCriteriaMet: "L1",
+    needsRlsBeforeSwap: false,
+  },
+  {
+    file: "src/lib/pmo/save-workspace-governance.ts",
+    purpose: "PMO governance wizard ('use server' action): upserts workspace_governance for the caller's own resolved workspace. workspace_governance has a member-scoped 'for all' RLS policy (20260527091000_workspace_governance.sql) that would permit a scoped write for this exact operation — service role is used here for consistency with save-pmo-tenant.ts's write to the same table, not because RLS blocks it. Documented as a SWAP candidate rather than swapped in this pass to avoid touching the shared onboarding-wizard write path without a live-DB regression pass.",
+    riskLevel: "MEDIUM",
+    mitigations: [
+      "getAuthUser() required before any query",
+      "workspaceId always comes from resolveCanonicalWorkspace(user.id), never a client-supplied field",
+    ],
+    needsRlsBeforeSwap: false,
+  },
+  {
+    file: "src/lib/pmo/load-pmo-tenant.ts",
+    purpose: "Reads workspace_governance for a caller-supplied workspaceId. Every call site (src/app/(protected)/pmo/invite-team/page.tsx, src/app/api/copilot/route.ts, src/app/api/pmo/context/route.ts, src/lib/auth/resolve-onboarding-state.ts) resolves workspaceId via resolveCanonicalWorkspace(user.id) first, so the id is always the authenticated caller's own workspace — workspace_governance's member-scoped RLS policy would permit a scoped read for this exact case. Documented as a SWAP candidate, not swapped in this pass (shared read path used by four call sites).",
+    riskLevel: "MEDIUM",
+    mitigations: [
+      "workspaceId is always caller-resolved via resolveCanonicalWorkspace, never accepted directly from a request body/query param at this layer",
+      "Read-only; failures degrade to { found: false } rather than throwing",
+    ],
+    needsRlsBeforeSwap: false,
+  },
+  {
+    file: "src/lib/workspaces/canonical-workspace-resolver.ts",
+    purpose: "resolveCanonicalWorkspace reads workspace_memberships and workspaces for a caller-supplied userId to pick the user's active workspace. Both tables have policies that already permit this exact read for an authenticated user reading their own rows (users_can_read_own_workspace_memberships, 20260515100000_rls_governance_fixes.sql) — service role is used for convenience/consistency since this function is called from many contexts (pages, server actions, background jobs) with varying session availability, not because RLS blocks the read for the common case. Documented as a SWAP candidate for the request-scoped call sites; the background-job call sites (e.g. inside 'use server' actions invoked from client forms) may still need it. Not swapped in this pass — this function is on the critical path for workspace resolution across the whole app and warrants a dedicated regression pass before narrowing.",
+    riskLevel: "MEDIUM",
+    mitigations: [
+      "userId is always the resolved authenticated caller's own id, never a client-supplied 'view as' parameter",
+      "Read-only",
+      "Archived/deleted workspaces filtered out before a workspaceId is returned",
+    ],
+    needsRlsBeforeSwap: false,
+  },
+  {
+    file: "src/lib/projects/first-insight/operational-governance-brief-store.ts",
+    purpose: "persistOperationalGovernanceBrief upserts operational_governance_briefs after the initial project-brief generation flow. Accepts an optional caller-supplied client (used by in-request callers with a scoped session); defaults to a fresh privileged client when none is supplied, for background/system callers that generate the brief asynchronously after the request has returned — same no-session-left-to-scope justification as evidence-processor.ts and discovery-repository.ts. loadLatestOperationalGovernanceBrief (read) always requires an explicit caller-supplied client and never creates a privileged client itself.",
+    riskLevel: "MEDIUM",
+    mitigations: [
+      "workspaceId/projectId/createdBy are always sourced from the already-authorized brief-generation flow, never client input at this layer",
+      "Callers with an active session pass their own scoped client via the `supabase` parameter, so the default privileged client only activates for the session-less background path",
+    ],
+    strictCriteriaMet: "L2",
+    needsRlsBeforeSwap: false,
+  },
+  {
+    file: "src/app/(protected)/dashboard/page.tsx",
+    purpose: "Reads a single projects row (id, limit 1) scoped to the resolved workspaceId, to decide onboarding/idle-state copy. projects already has a workspace-member RLS policy (20260512160000_workspace_authorization_rewrite.sql) that permits this exact scoped read for an authenticated member — service role is used here for consistency with the page's other service-role reads on the same request. Documented as a SWAP candidate, not swapped in this pass.",
+    riskLevel: "MEDIUM",
+    mitigations: [
+      "workspaceId always comes from resolveCanonicalWorkspace(user.id), never a query/body param",
+      "Read-only, single row, no mutation",
+    ],
     needsRlsBeforeSwap: false,
   },
 ] as const;
