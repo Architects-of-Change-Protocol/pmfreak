@@ -7,6 +7,7 @@ import { enforceRuntimeAuthorization } from "@/aoc/runtime-consumer";
 import { getUploadProvider, type StorageProvider } from "@/lib/storage/upload-provider";
 import { processEvidenceInBackground } from "@/lib/project-evidence/evidence-processor";
 import { extractOperationalMemoryCandidates, appendOperationalMemory } from "@/lib/operational-memory-v1";
+import { abuseDenyResponse, buildAbuseKey, enforceAbuseLimit } from "@/lib/security/abuse-protection";
 
 type ExtractionStatus = "queued" | "completed" | "timeout" | "failed";
 type EvidenceStatus = "uploaded" | "processing" | "processed" | "failed";
@@ -222,6 +223,22 @@ export async function POST(request: Request) {
     console.warn("[security] upload_project_access_denied", { requestId, decision: governance.decision });
     console.warn("[upload] upload_failed", { requestId, reason: "governance_denied", projectId });
     return errorResponse(403, "Invalid project context.", "INVALID_PROJECT");
+  }
+
+  // Defense-in-depth on top of the plan-based reserveUploadQuota check below:
+  // that quota caps total uploads per billing period, this caps request
+  // *frequency* per user+project so a burst can't be used to exhaust
+  // extraction/storage throughput within a single period. See
+  // docs/security/abuse-protection-boundary.md ("upload.document").
+  const abuseDecision = await enforceAbuseLimit({
+    scope: "upload.document",
+    identifier: buildAbuseKey([user.id, projectId]),
+    limit: 20,
+    windowSeconds: 3600,
+  });
+  if (!abuseDecision.allowed) {
+    console.warn("[upload] upload_failed", { requestId, reason: "rate_limited" });
+    return abuseDenyResponse(abuseDecision);
   }
 
   const subscription = await getCompanySubscription(user.companyId);

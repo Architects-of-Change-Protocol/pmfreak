@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { requireProjectAccess } from "@/lib/security/server-authorization";
 import { getProjectState } from "@/lib/ai/project-state";
+import { abuseDenyResponse, buildAbuseKey, enforceAbuseLimit, getClientIp } from "@/lib/security/abuse-protection";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -15,6 +16,16 @@ export async function GET(request: Request) {
     }
     throw error;
   }
+
+  // AI-adjacent compute cost throttle, separate from the access check above
+  // — see docs/security/abuse-protection-boundary.md ("ai.project_state").
+  const abuseDecision = await enforceAbuseLimit({
+    scope: "ai.project_state",
+    identifier: buildAbuseKey([getClientIp(request), projectId]),
+    limit: 120,
+    windowSeconds: 3600,
+  });
+  if (!abuseDecision.allowed) return abuseDenyResponse(abuseDecision);
 
   try {
     const state = await getProjectState(projectId);

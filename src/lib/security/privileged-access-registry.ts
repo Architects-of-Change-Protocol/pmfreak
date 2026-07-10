@@ -454,6 +454,18 @@ export const PRIVILEGED_ACCESS_REGISTRY: readonly PrivilegedAccessEntry[] = [
     ],
     needsRlsBeforeSwap: false,
   },
+  {
+    file: "src/lib/security/abuse-protection.ts",
+    purpose: "Perilla 9 — createSupabaseAbuseStore() calls abuse_rate_limit_increment() (a service-role-only RPC on abuse_rate_limits) to persist rate-limit counters. abuse_rate_limits is not tenant data and must never be readable/writable by an authenticated client at all — the table has no authenticated/anon RLS policy, so this must go through the service role regardless of caller identity.",
+    riskLevel: "MEDIUM",
+    mitigations: [
+      "Only ever writes a hashed identifier + non-identifying metadata (redactAbuseMetadata strips token/email/secret-like keys before the call)",
+      "The RPC itself is granted to service_role only (revoked from public/anon/authenticated in the migration)",
+      "No caller-supplied value reaches this client directly — scope/action/identifierHash are all computed inside enforceAbuseLimit before this store is invoked",
+    ],
+    strictCriteriaMet: "L3",
+    needsRlsBeforeSwap: false,
+  },
 ] as const;
 
 export function assertPrivilegedAccessJustified(file: string): void {

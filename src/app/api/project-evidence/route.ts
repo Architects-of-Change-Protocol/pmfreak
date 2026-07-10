@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser, requireProjectAccess } from "@/lib/security/server-authorization";
 import { getUploadProvider } from "@/lib/storage/upload-provider";
+import { abuseDenyResponse, buildAbuseKey, enforceAbuseLimit } from "@/lib/security/abuse-protection";
 
 type EvidenceRow = {
   id: string;
@@ -45,6 +46,14 @@ export async function GET(request: Request) {
     }
     throw error;
   }
+
+  const abuseDecision = await enforceAbuseLimit({
+    scope: "project_evidence.read",
+    identifier: buildAbuseKey([userId, projectId]),
+    limit: 300,
+    windowSeconds: 3600,
+  });
+  if (!abuseDecision.allowed) return abuseDenyResponse(abuseDecision);
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
@@ -99,6 +108,14 @@ export async function DELETE(request: Request) {
     }
     throw error;
   }
+
+  const abuseDecision = await enforceAbuseLimit({
+    scope: "project_evidence.delete",
+    identifier: buildAbuseKey([userId, projectId]),
+    limit: 60,
+    windowSeconds: 3600,
+  });
+  if (!abuseDecision.allowed) return abuseDenyResponse(abuseDecision);
 
   const supabase = await createSupabaseServerClient();
   const { data: evidence, error: loadError } = await supabase

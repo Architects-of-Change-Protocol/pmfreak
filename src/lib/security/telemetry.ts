@@ -113,6 +113,9 @@ export type SecurityEventType =
   | "canonicalization_failed"
   | "state_hash_generated"
   | "replay_diff_detected"
+
+  // Perilla 9 — abuse protection (rate limit / cooldown denials).
+  | "abuse_rate_limited"
 ;
 
 type SecurityEventPayload = {

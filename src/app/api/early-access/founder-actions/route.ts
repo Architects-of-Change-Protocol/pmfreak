@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isFounderOrInternalUser, requireAuthUser } from "@/lib/auth";
 import { approveEarlyAccessInvite, extendTrialLicense, resendEarlyAccessInviteEmail, revokeEarlyAccessInvite, revokeTrialLicense } from "@/lib/early-access";
+import { abuseDenyResponse, enforceAbuseLimit } from "@/lib/security/abuse-protection";
 
 // Founder/internal authorization must be resolved and enforced BEFORE the
 // request body is ever parsed or a mutation function is called. No
@@ -25,6 +26,11 @@ export async function POST(request: Request) {
 
   const action = String(body.action ?? "");
   const reason = typeof body.reason === "string" ? body.reason : undefined;
+
+  // A real founder can still spam approve/revoke/resend/extend actions —
+  // see docs/security/abuse-protection-boundary.md ("early_access.founder_action").
+  const abuseDecision = await enforceAbuseLimit({ scope: "early_access.founder_action", action, identifier: user.id, limit: 30, windowSeconds: 3600 });
+  if (!abuseDecision.allowed) return abuseDenyResponse(abuseDecision);
 
   try {
     if (action === "approve_invite") {

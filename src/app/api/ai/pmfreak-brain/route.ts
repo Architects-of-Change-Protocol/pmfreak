@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuthUser } from "@/lib/auth";
+import { abuseDenyResponse, enforceAbuseLimit } from "@/lib/security/abuse-protection";
 
 type BrainRequest = {
   userInput?: string;
@@ -32,7 +33,13 @@ type MessageNudgeResponse = {
 const getOrigin = (request: Request) => new URL(request.url).origin;
 
 export async function POST(request: Request) {
-  await requireAuthUser();
+  const user = await requireAuthUser();
+
+  // Fans out to 3 downstream AI calls per request — throttled lower than a
+  // single-module route. See docs/security/abuse-protection-boundary.md
+  // ("ai.pmfreak_brain").
+  const abuseDecision = await enforceAbuseLimit({ scope: "ai.pmfreak_brain", identifier: user.id, limit: 30, windowSeconds: 3600 });
+  if (!abuseDecision.allowed) return abuseDenyResponse(abuseDecision);
 
   let payload: BrainRequest;
 

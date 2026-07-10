@@ -66,6 +66,12 @@ function fakeStripe() {
   };
 }
 
+// This suite tests authorization (Perilla 2), not abuse protection (Perilla
+// 9) — a fake that always allows keeps it decoupled from rate-limit state.
+// Abuse-limit behavior for these routes is covered by
+// tests/abuse-protection-boundary.test.mjs.
+const alwaysAllowAbuseLimit = async () => ({ allowed: true, key: "test" });
+
 const checkoutDeps = {
   getAuthUser: async () => state.user,
   requireBillingManageMembership: requireBillingManageMembershipWithFakeDb,
@@ -75,6 +81,7 @@ const checkoutDeps = {
     return state.subscription;
   },
   getStripeServerClient: fakeStripe,
+  enforceAbuseLimit: alwaysAllowAbuseLimit,
 };
 
 const portalDeps = {
@@ -82,6 +89,7 @@ const portalDeps = {
   requireBillingManageMembership: requireBillingManageMembershipWithFakeDb,
   getCompanySubscription: async () => state.subscription,
   getStripeServerClient: fakeStripe,
+  enforceAbuseLimit: alwaysAllowAbuseLimit,
 };
 
 const createCheckoutSession = (request) => handleCreateCheckoutSession(request, checkoutDeps);

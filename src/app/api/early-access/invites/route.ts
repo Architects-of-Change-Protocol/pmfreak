@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isFounderOrInternalUser, requireAuthUser } from "@/lib/auth";
 import { createEarlyAccessInvite } from "@/lib/early-access";
+import { abuseDenyResponse, enforceAbuseLimit } from "@/lib/security/abuse-protection";
 
 // Only inviteEmail/inviteNote/requiresApproval are ever read from the body —
 // role/isFounder/isAdmin/permissions fields sent by a caller are ignored,
@@ -8,6 +9,11 @@ import { createEarlyAccessInvite } from "@/lib/early-access";
 export async function POST(request: Request) {
   const user = await requireAuthUser();
   if (!isFounderOrInternalUser(user)) return NextResponse.json({ error: "Founder access is required." }, { status: 403 });
+
+  // Even a real founder can flood invite creation — see
+  // docs/security/abuse-protection-boundary.md ("early_access.invite_create").
+  const abuseDecision = await enforceAbuseLimit({ scope: "early_access.invite_create", identifier: user.id, limit: 30, windowSeconds: 3600 });
+  if (!abuseDecision.allowed) return abuseDenyResponse(abuseDecision);
 
   let body: Record<string, unknown>;
   try {
