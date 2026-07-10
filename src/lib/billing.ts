@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createPrivilegedSupabaseClient } from "@/lib/security/privileged-access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -20,6 +21,24 @@ export type CompanySubscriptionState = {
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
   currentPeriodEnd: string | null;
+};
+
+type PrivilegedContext = {
+  routeId: string;
+  operation: string;
+  reason: string;
+  actorUserId?: string;
+  workspaceId?: string;
+  systemActor?: "stripe_webhook" | "background_job" | "system";
+};
+
+type ClientOptions = {
+  useServiceRole?: boolean;
+  privilegedContext?: PrivilegedContext;
+  /** Reuse an already-instantiated client (e.g. the single privileged client
+   * created once by the Stripe webhook route after signature verification)
+   * instead of building a new one per call. Takes priority over useServiceRole. */
+  client?: SupabaseClient;
 };
 
 const DEFAULT_STATE: CompanySubscriptionState = {
@@ -73,10 +92,14 @@ const normalizeState = (row: {
   currentPeriodEnd: typeof row.current_period_end === "string" && row.current_period_end.length > 0 ? row.current_period_end : null,
 });
 
-const getClient = async (useServiceRole: boolean, context?: { routeId: string; operation: string; reason: string; actorUserId?: string; workspaceId?: string; systemActor?: "stripe_webhook" | "background_job" | "system" }) => {
-  if (useServiceRole) {
-    if (!context) throw new Error("Privileged billing access requires explicit context.");
-    return createPrivilegedSupabaseClient(context);
+const getClient = async (options?: ClientOptions): Promise<SupabaseClient> => {
+  if (options?.client) {
+    return options.client;
+  }
+
+  if (options?.useServiceRole) {
+    if (!options.privilegedContext) throw new Error("Privileged billing access requires explicit context.");
+    return createPrivilegedSupabaseClient(options.privilegedContext);
   }
 
   return createSupabaseServerClient();
@@ -84,9 +107,9 @@ const getClient = async (useServiceRole: boolean, context?: { routeId: string; o
 
 export const getCompanySubscription = async (
   companyId: string,
-  options?: { useServiceRole?: boolean; privilegedContext?: { routeId: string; operation: string; reason: string; actorUserId?: string; workspaceId?: string; systemActor?: "stripe_webhook" | "background_job" | "system" } },
+  options?: ClientOptions,
 ): Promise<CompanySubscriptionState> => {
-  const supabase = await getClient(Boolean(options?.useServiceRole), options?.privilegedContext);
+  const supabase = await getClient(options);
 
   const { data, error } = await supabase
     .from("company_subscriptions")
@@ -108,9 +131,9 @@ export const getCompanySubscription = async (
 export const setCompanySubscription = async (
   companyId: string,
   value: CompanySubscriptionState,
-  options?: { useServiceRole?: boolean; privilegedContext?: { routeId: string; operation: string; reason: string; actorUserId?: string; workspaceId?: string; systemActor?: "stripe_webhook" | "background_job" | "system" } },
+  options?: ClientOptions,
 ): Promise<CompanySubscriptionState> => {
-  const supabase = await getClient(Boolean(options?.useServiceRole), options?.privilegedContext);
+  const supabase = await getClient(options);
 
   const { data, error } = await supabase
     .from("company_subscriptions")
@@ -139,7 +162,7 @@ export const setCompanySubscription = async (
 export const updateCompanySubscription = async (
   companyId: string,
   patch: Partial<CompanySubscriptionState>,
-  options?: { useServiceRole?: boolean; privilegedContext?: { routeId: string; operation: string; reason: string; actorUserId?: string; workspaceId?: string; systemActor?: "stripe_webhook" | "background_job" | "system" } },
+  options?: ClientOptions,
 ): Promise<CompanySubscriptionState> => {
   const current = await getCompanySubscription(companyId, options);
   return setCompanySubscription(companyId, { ...current, ...patch }, options);
@@ -147,9 +170,9 @@ export const updateCompanySubscription = async (
 
 export const findCompanyIdByStripeCustomerId = async (
   customerId: string,
-  options?: { useServiceRole?: boolean; privilegedContext?: { routeId: string; operation: string; reason: string; actorUserId?: string; workspaceId?: string; systemActor?: "stripe_webhook" | "background_job" | "system" } },
+  options?: ClientOptions,
 ): Promise<string | null> => {
-  const supabase = await getClient(Boolean(options?.useServiceRole), options?.privilegedContext);
+  const supabase = await getClient(options);
 
   const { data, error } = await supabase
     .from("company_subscriptions")
@@ -164,25 +187,157 @@ export const findCompanyIdByStripeCustomerId = async (
   return data?.company_id ?? null;
 };
 
-export const tryRecordProcessedBillingWebhookEvent = async (
-  eventId: string,
-  eventType: string,
-): Promise<boolean> => {
-  // PRIVILEGED_ACCESS: Stripe webhooks arrive without a user session; the idempotency guard write to billing_webhook_events must not be blocked by user RLS.
-  // AUDIT_REF: service-role-risk-register.md
-  const supabase = createPrivilegedSupabaseClient({ routeId: "/api/billing/webhook", operation: "record_processed_billing_webhook", reason: "idempotency_guard", systemActor: "stripe_webhook" });
+/**
+ * Companion lookup to findCompanyIdByStripeCustomerId, keyed by subscription
+ * id instead of customer id. Used to detect a customer-id mismatch on
+ * subscription-level webhook events: if a company already has this
+ * subscription id on record, the event's customer id must agree with the
+ * company's stored customer id or the event is treated as unmapped.
+ */
+export const findCompanyIdByStripeSubscriptionId = async (
+  subscriptionId: string,
+  options?: ClientOptions,
+): Promise<{ companyId: string; stripeCustomerId: string | null } | null> => {
+  const supabase = await getClient(options);
 
-  const { error } = await supabase
+  const { data, error } = await supabase
+    .from("company_subscriptions")
+    .select("company_id, stripe_customer_id")
+    .eq("stripe_subscription_id", subscriptionId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Unable to look up company by Stripe subscription ID: ${error.message}`);
+  }
+
+  if (!data?.company_id) {
+    return null;
+  }
+
+  return {
+    companyId: data.company_id,
+    stripeCustomerId: typeof data.stripe_customer_id === "string" && data.stripe_customer_id.length > 0 ? data.stripe_customer_id : null,
+  };
+};
+
+// ── Stripe webhook idempotency lifecycle ────────────────────────────────────
+//
+// Every Stripe event is claimed exactly once via an insert into
+// billing_webhook_events (event_id is the primary key, so a concurrent
+// duplicate insert loses the race with a 23505 unique violation, not a
+// double-write). The caller passes an already-instantiated privileged
+// Supabase client — see docs/security/stripe-webhook-billing-lifecycle-boundary.md
+// for why the client is built once, after signature verification, by the
+// webhook route rather than by each of these functions.
+
+export type BeginBillingWebhookEventResult =
+  | { status: "new" }
+  | { status: "already_processed" }
+  | { status: "already_processing" }
+  | { status: "retry_failed" };
+
+const sanitizeReason = (reason: string): string => reason.replace(/[\r\n]+/g, " ").slice(0, 500);
+
+export const beginBillingWebhookEventProcessing = async (input: {
+  supabase: SupabaseClient;
+  eventId: string;
+  eventType: string;
+  livemode: boolean;
+}): Promise<BeginBillingWebhookEventResult> => {
+  const nowIso = new Date().toISOString();
+
+  const { error: insertError } = await input.supabase.from("billing_webhook_events").insert({
+    event_id: input.eventId,
+    event_type: input.eventType,
+    livemode: input.livemode,
+    processing_status: "processing",
+    received_at: nowIso,
+    updated_at: nowIso,
+    processed_at: null,
+  });
+
+  if (!insertError) {
+    return { status: "new" };
+  }
+
+  if (insertError.code !== "23505") {
+    throw new Error(`Unable to record Stripe webhook event: ${insertError.message}`);
+  }
+
+  const { data: existing, error: readError } = await input.supabase
     .from("billing_webhook_events")
-    .insert({ event_id: eventId, event_type: eventType, processed_at: new Date().toISOString() });
+    .select("processing_status")
+    .eq("event_id", input.eventId)
+    .maybeSingle();
 
-  if (!error) {
-    return true;
+  if (readError || !existing) {
+    // Row exists (we just hit a unique violation) but is unreadable for some
+    // reason — treat conservatively as already owned so we never double-mutate.
+    return { status: "already_processing" };
   }
 
-  if (error.code === "23505") {
-    return false;
+  if (existing.processing_status === "processed" || existing.processing_status === "ignored") {
+    return { status: "already_processed" };
   }
 
-  throw new Error(`Unable to record processed billing webhook event: ${error.message}`);
+  if (existing.processing_status === "failed") {
+    // Explicit retry policy: a previously-failed event may be retried on
+    // Stripe's automatic redelivery. Atomically flip it back to "processing"
+    // — the .eq("processing_status", "failed") guard means only one
+    // concurrent retry can win this claim.
+    const { data: claimed, error: claimError } = await input.supabase
+      .from("billing_webhook_events")
+      .update({ processing_status: "processing", updated_at: new Date().toISOString() })
+      .eq("event_id", input.eventId)
+      .eq("processing_status", "failed")
+      .select("event_id")
+      .maybeSingle();
+
+    if (claimError || !claimed) {
+      return { status: "already_processing" };
+    }
+
+    return { status: "retry_failed" };
+  }
+
+  // status === "processing" — another in-flight request currently owns this event.
+  return { status: "already_processing" };
+};
+
+export const markBillingWebhookEventProcessed = async (input: { supabase: SupabaseClient; eventId: string }): Promise<void> => {
+  const { error } = await input.supabase
+    .from("billing_webhook_events")
+    .update({ processing_status: "processed", processed_at: new Date().toISOString(), updated_at: new Date().toISOString(), error_reason: null })
+    .eq("event_id", input.eventId);
+
+  if (error) {
+    throw new Error(`Unable to mark Stripe webhook event processed: ${error.message}`);
+  }
+};
+
+export const markBillingWebhookEventIgnored = async (input: { supabase: SupabaseClient; eventId: string; reason: string }): Promise<void> => {
+  const { error } = await input.supabase
+    .from("billing_webhook_events")
+    .update({
+      processing_status: "ignored",
+      processed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      error_reason: sanitizeReason(input.reason),
+    })
+    .eq("event_id", input.eventId);
+
+  if (error) {
+    throw new Error(`Unable to mark Stripe webhook event ignored: ${error.message}`);
+  }
+};
+
+export const markBillingWebhookEventFailed = async (input: { supabase: SupabaseClient; eventId: string; reason: string }): Promise<void> => {
+  const { error } = await input.supabase
+    .from("billing_webhook_events")
+    .update({ processing_status: "failed", updated_at: new Date().toISOString(), error_reason: sanitizeReason(input.reason) })
+    .eq("event_id", input.eventId);
+
+  if (error) {
+    throw new Error(`Unable to mark Stripe webhook event failed: ${error.message}`);
+  }
 };
