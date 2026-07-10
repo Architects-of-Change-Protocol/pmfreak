@@ -1,5 +1,6 @@
+import { notFound } from "next/navigation";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
-import { requireAuthUser } from "@/lib/auth";
+import { isFounderOrInternalUser, requireAuthUser } from "@/lib/auth";
 import { computeRemainingTrialDays } from "@/lib/early-access";
 
 type InviteRow = {
@@ -61,8 +62,15 @@ function formatTrialStatus(trial: TrialRow) {
 }
 
 export default async function EarlyAccessPage() {
-  await requireAuthUser();
-  const supabase = createSupabaseServiceRoleClient({ routeId: "/early-access/page", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system" });
+  const user = await requireAuthUser();
+  // This page reads cross-workspace founder operations data (all invites,
+  // trial licenses, activations, telemetry) via the service role client. A
+  // normal authenticated user must never reach it — turned away below rather
+  // than redirected, so the page's existence/data isn't distinguishable to them.
+  if (!isFounderOrInternalUser(user)) {
+    notFound();
+  }
+  const supabase = createSupabaseServiceRoleClient({ routeId: "/early-access/page", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system", actorUserId: user.id });
 
   const [{ data: invites }, { data: trials }, { data: activations }, { data: events }, { data: telemetry }] = await Promise.all([
     supabase.from("early_access_invites").select("id, invite_email, invite_note, created_at, accepted_at, expires_at, revoked_at, requires_approval, approved_at").order("created_at", { ascending: false }).limit(20),
