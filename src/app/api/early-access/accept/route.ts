@@ -9,6 +9,7 @@ export async function POST(request: Request) {
     const accepted = await acceptEarlyAccessInvite({
       inviteToken: String(body.inviteToken ?? ""),
       userId: user.id,
+      userEmail: user.email,
       workspaceName: typeof body.workspaceName === "string" ? body.workspaceName : undefined,
     });
     return NextResponse.json(accepted);

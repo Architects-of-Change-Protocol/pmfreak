@@ -110,7 +110,7 @@ export async function createEarlyAccessInvite(input: { inviteEmail: string; invi
   return { inviteId: invite.id, expiresAt: invite.expires_at, emailDelivery: emailOutcome.delivery, manualInviteLink: emailOutcome.activationLink };
 }
 
-export async function acceptEarlyAccessInvite(input: { inviteToken: string; userId: string; workspaceName?: string; }) {
+export async function acceptEarlyAccessInvite(input: { inviteToken: string; userId: string; userEmail: string; workspaceName?: string; }) {
   const supabase = createSupabaseServiceRoleClient({ routeId: "lib.early-access", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system" });
   const tokenHash = hashInviteToken(input.inviteToken);
 
@@ -126,6 +126,16 @@ export async function acceptEarlyAccessInvite(input: { inviteToken: string; user
   if (invite.accepted_at) throw new Error("reused_token::Invite has already been used.");
   if (new Date(invite.expires_at).getTime() < Date.now()) throw new Error("expired_token::Invite has expired.");
   if (invite.requires_approval && !invite.approved_at) throw new Error("pending_approval::Founder approval is required before activation.");
+
+  // The invite is addressed to a specific email; the authenticated user accepting it must
+  // be that same person. Without this check, anyone holding a leaked/guessed token could
+  // activate someone else's early-access trial under their own account. See
+  // docs/security/invite-workspace-role-boundary.md.
+  const normalizedInviteEmail = String(invite.invite_email ?? "").trim().toLowerCase();
+  const normalizedUserEmail = input.userEmail.trim().toLowerCase();
+  if (!normalizedUserEmail || normalizedInviteEmail !== normalizedUserEmail) {
+    throw new Error("email_mismatch::This invite was issued to a different email address.");
+  }
 
   await logFirstUserTelemetryEvent({ eventType: "invite_activation_attempted", userId: input.userId, inviteId: invite.id });
 

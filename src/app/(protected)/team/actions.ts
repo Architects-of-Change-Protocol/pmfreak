@@ -2,19 +2,24 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAuthUser } from "@/lib/auth";
-import { canInviteMembers, requireWorkspaceRole, WORKSPACE_ROLES, type WorkspaceRole } from "@/lib/workspace-access";
+import { canAssignWorkspaceRole, normalizeWorkspaceRole, requireWorkspaceRole } from "@/lib/workspace-access";
 import { inviteWorkspaceMember } from "@/lib/workspace-team";
 
 export async function sendInviteAction(formData: FormData) {
   const user = await requireAuthUser();
   const workspaceId = String(formData.get("workspaceId") ?? "");
   const email = String(formData.get("email") ?? "");
-  const role = String(formData.get("role") ?? "viewer") as WorkspaceRole;
+  const requestedRole = normalizeWorkspaceRole(formData.get("role"));
 
-  if (!WORKSPACE_ROLES.includes(role)) throw new Error("Invalid role.");
+  // requireWorkspaceRole reads the actor's role directly from workspace_memberships —
+  // never from display role / user_metadata.role / any client-supplied field.
   const access = await requireWorkspaceRole(workspaceId, "admin");
-  if (!canInviteMembers(access.role)) throw new Error("Only owners/admins can invite.");
+  if (!requestedRole || !canAssignWorkspaceRole({ actorRole: access.role, targetRole: requestedRole })) {
+    throw new Error("You are not authorized to invite a member at that role.");
+  }
 
-  await inviteWorkspaceMember({ workspaceId, companyId: user.companyId, inviterUserId: user.id, email, role, routeId: "/team/actions.sendInviteAction" });
+  // inviteWorkspaceMember re-validates actor and target role itself (requireWorkspaceInviteActor
+  // + canAssignWorkspaceRole) — this check is a fast-fail, not the sole gate.
+  await inviteWorkspaceMember({ workspaceId, companyId: user.companyId, inviterUserId: user.id, email, role: requestedRole, routeId: "/team/actions.sendInviteAction" });
   revalidatePath("/team");
 }
