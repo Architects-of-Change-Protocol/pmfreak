@@ -25,4 +25,56 @@ export async function requireWorkspaceRole(workspaceId: string, minimumRole: Wor
 
 export const canManageWorkspace = (role: WorkspaceRole) => role === "owner" || role === "admin";
 export const canInviteMembers = (role: WorkspaceRole) => role === "owner" || role === "admin";
-export const canManageBilling = (role: WorkspaceRole) => role === "owner";
+/**
+ * Billing policy: owner and admin can manage billing (create checkout sessions,
+ * open the billing portal, change plans). pm and viewer cannot. This is the
+ * authorization boundary for the `billing.manage` action — see
+ * `docs/security/billing-authorization-boundary.md`.
+ */
+export const canManageBilling = (role: WorkspaceRole) => role === "owner" || role === "admin";
+
+export type BillingManageDenialReason = "workspace_missing" | "insufficient_role";
+
+export class WorkspaceMembershipError extends Error {
+  readonly reason: BillingManageDenialReason;
+
+  constructor(reason: BillingManageDenialReason, message: string) {
+    super(message);
+    this.name = "WorkspaceMembershipError";
+    this.reason = reason;
+  }
+}
+
+export type BillingManageMembership = { userId: string; workspaceId: string; role: WorkspaceRole };
+
+/**
+ * Authoritative, server-side gate for `billing.manage` actions (checkout session
+ * creation, billing portal access, plan changes). The role is read directly from
+ * `workspace_memberships` — it is never taken from `AuthUserContext.role`,
+ * `user_metadata.role`, or any client-supplied field, all of which are
+ * client-influenced or historically untrustworthy. Fails closed: a missing
+ * workspace, missing membership, or unrecognized/insufficient role is denied.
+ */
+export async function requireBillingManageMembership(input: {
+  userId: string;
+  workspaceId: string;
+}): Promise<BillingManageMembership> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("workspace_memberships")
+    .select("role")
+    .eq("workspace_id", input.workspaceId)
+    .eq("user_id", input.userId)
+    .maybeSingle<{ role: string }>();
+
+  const role = data?.role;
+  if (!role || !WORKSPACE_ROLES.includes(role as WorkspaceRole)) {
+    throw new WorkspaceMembershipError("workspace_missing", "No active workspace membership found for this user.");
+  }
+
+  if (!canManageBilling(role as WorkspaceRole)) {
+    throw new WorkspaceMembershipError("insufficient_role", `Workspace role "${role}" is not authorized to manage billing.`);
+  }
+
+  return { userId: input.userId, workspaceId: input.workspaceId, role: role as WorkspaceRole };
+}

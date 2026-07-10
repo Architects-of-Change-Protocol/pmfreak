@@ -133,7 +133,9 @@ test("workspace membership role still governs invite capability", () => {
   assert.equal(canInviteMembers("viewer"), false);
 });
 
-test("only workspace owners can manage billing", () => {
+test("workspace owners and admins can manage billing; pm and viewer cannot", () => {
   assert.equal(canManageBilling("owner"), true);
-  assert.equal(canManageBilling("admin"), false);
+  assert.equal(canManageBilling("admin"), true);
+  assert.equal(canManageBilling("pm"), false);
+  assert.equal(canManageBilling("viewer"), false);
 });
