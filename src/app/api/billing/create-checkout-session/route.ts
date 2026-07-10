@@ -4,6 +4,8 @@ import { denyResponse } from "@/lib/security/deny-response";
 import { requireBillingManageMembership, WorkspaceMembershipError } from "@/lib/workspace-access";
 import { getStripeServerClient } from "@/lib/stripe";
 import { abuseDenyResponse, buildAbuseKey, enforceAbuseLimit } from "@/lib/security/abuse-protection";
+import { resolveTrustedOrigin } from "@/lib/security/origin-policy";
+import { safeErrorMessage } from "@/lib/security/redaction";
 
 type CheckoutPayload = {
   plan?: "pro" | "pmo";
@@ -148,7 +150,12 @@ export async function handleCreateCheckoutSession(request: Request, depsOverride
       );
     }
 
-    const origin = request.headers.get("origin") ?? "http://localhost:3000";
+    // The Origin request header is attacker-controlled — trusting it
+    // directly would let anyone redirect the post-checkout Stripe success/
+    // cancel flow to an arbitrary domain. resolveTrustedOrigin() only uses
+    // it if it's on the allowlist, otherwise falls back to the canonical
+    // app origin (see docs/security/production-deployment-boundary.md).
+    const origin = resolveTrustedOrigin(request.headers.get("origin"));
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -175,7 +182,7 @@ export async function handleCreateCheckoutSession(request: Request, depsOverride
 
     return Response.json({ url: session.url });
   } catch (error) {
-    console.error("[billing] checkout session creation failed", { companyId: user.companyId, plan, error });
+    console.error("[billing] checkout session creation failed", { companyId: user.companyId, plan, error: safeErrorMessage(error) });
     return Response.json({ error: "Unable to create Stripe checkout session." }, { status: 502 });
   }
 }
