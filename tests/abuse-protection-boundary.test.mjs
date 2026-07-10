@@ -373,6 +373,8 @@ const EXPENSIVE_ROUTE_FILES = [
   "src/app/api/ai/project-memory/route.ts",
   "src/app/api/ai/stakeholder-intel/route.ts",
   "src/app/api/ai/pmfreak-brain/route.ts",
+  "src/app/api/ai/message-nudges/route.ts",
+  "src/app/api/ai/meta-intelligence/route.ts",
 ];
 
 test("21. every expensive AI/evidence/upload route file is registered in the abuse registry", () => {

@@ -6,6 +6,7 @@ import { denyResponse } from "@/lib/security/deny-response";
 import { metaIntelligencePromptV1 } from "@/lib/ai/prompts/meta-intelligence.v1";
 import { runInference } from "@/lib/ai/providers/router";
 import { InferenceError } from "@/lib/ai/inference/types";
+import { abuseDenyResponse, enforceAbuseLimit } from "@/lib/security/abuse-protection";
 
 type MetaIntelligenceRequest = {
   userInput?: string;
@@ -40,6 +41,10 @@ export async function POST(request: Request) {
       { status: 402 },
     );
   }
+
+  // See docs/security/abuse-protection-boundary.md ("ai.module_output.meta_intelligence").
+  const abuseDecision = await enforceAbuseLimit({ scope: "ai.module_output", action: "meta_intelligence", identifier: user.id, limit: 60, windowSeconds: 3600 });
+  if (!abuseDecision.allowed) return abuseDenyResponse(abuseDecision);
 
   let payload: MetaIntelligenceRequest;
   try {

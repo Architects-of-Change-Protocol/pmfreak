@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { canUseAdvancedAi } from "@/lib/feature-gates";
 import { runAIModule } from "@/lib/ai/gateway";
+import { abuseDenyResponse, enforceAbuseLimit } from "@/lib/security/abuse-protection";
 
 export async function GET() {
   return NextResponse.json(
@@ -23,6 +24,10 @@ export async function POST(request: Request) {
       { status: 402 },
     );
   }
+
+  // See docs/security/abuse-protection-boundary.md ("ai.module_output.message_nudges").
+  const abuseDecision = await enforceAbuseLimit({ scope: "ai.module_output", action: "message_nudges", identifier: user.id, limit: 60, windowSeconds: 3600 });
+  if (!abuseDecision.allowed) return abuseDenyResponse(abuseDecision);
 
   let payload: { rawMessage?: string; audience?: string; projectId?: string };
 

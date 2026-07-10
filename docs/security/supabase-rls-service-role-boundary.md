@@ -150,9 +150,9 @@ mutation and never reads the founder gate.
 
 ### `workspace_invitations`
 
-`token` is a plaintext, unhashed bearer secret (tracked as a known debt in
-`docs/security/invite-workspace-role-boundary.md`). Before this perilla, the
-member-read policy (`workspace members can read invitations`, added in
+`token` **was** a plaintext, unhashed bearer secret (tracked as a known debt
+in `docs/security/invite-workspace-role-boundary.md`). Before this perilla,
+the member-read policy (`workspace members can read invitations`, added in
 `20260515100000_rls_governance_fixes.sql`) made every column — including
 `token` — visible to any workspace member via a direct table query, even
 though the application itself only ever selects
@@ -162,14 +162,20 @@ the plaintext token was one crafted REST call away from any member's session.
 
 `20260818000000_supabase_rls_service_role_boundary_hardening.sql` revokes the
 blanket `authenticated` SELECT grant and re-grants a column-scoped SELECT
-that excludes `token`. The only reader of `token` is the service-role client
-inside `acceptWorkspaceInvite` (`src/lib/workspace-team.ts`), which validates
-status/expiry/revocation and matches the invite's email against the
-authenticated session's email (Perilla 3) before ever writing a membership
-row. Invite creation (`inviteWorkspaceMember`) still runs on the
-owner/admin's own RLS-scoped session — it needs INSERT privilege on `token`
-(to write the newly-generated token), which is untouched; only the SELECT
-grant was narrowed.
+that excludes `token`.
+
+**Perilla 11 closes the debt entirely**:
+`20260820000000_workspace_invite_token_hashing.sql` drops the plaintext
+`token` column, adds `token_hash` (sha256 of a 192-bit CSPRNG token, see
+`src/lib/security/invite-tokens.ts`), revokes legacy pending plaintext
+invitations, and re-issues the column-scoped SELECT grant so `token_hash` is
+service-role-only. The only reader of `token_hash` is the service-role client
+inside `acceptWorkspaceInvite` (`src/lib/workspace-team.ts`), which hashes
+the presented token, validates status/expiry/revocation, and matches the
+invite's email against the authenticated session's email (Perilla 3) before
+ever writing a membership row. Invite creation (`inviteWorkspaceMember`)
+still runs on the owner/admin's own RLS-scoped session and writes only the
+hash; the plaintext exists once, in the returned accept URL.
 
 ### `pmo_team_invites`
 
@@ -285,13 +291,13 @@ cross-tenant aggregation). At minimum, the approved categories are:
   code paths (workspace resolution, PMO onboarding) without a live-DB
   regression pass. Swapping them would reduce blast radius further but is
   not required to close any of the gaps this perilla targets.
-- **`workspace_invitations.token` remains plaintext** (not hashed) — the
-  column-grant fix in this perilla stops it from being broadly *readable*,
-  but a service-role compromise or a future migration that re-grants SELECT
-  would still expose it in plaintext. Hashing invite tokens (matching the
-  pattern already used for `early_access_invites.invite_token_hash` and
-  governance delegation/handshake tokens) is recommended follow-up, out of
-  scope for this bounded perilla.
+- ~~**`workspace_invitations.token` remains plaintext**~~ — **RESOLVED in
+  Perilla 11**: `20260820000000_workspace_invite_token_hashing.sql` dropped
+  the plaintext column and moved the table to sha256 `token_hash` storage
+  (matching the pattern already used for
+  `early_access_invites.invite_token_hash` and governance
+  delegation/handshake tokens). See the `workspace_invitations` section
+  above and `tests/workspace-invite-token-hashing.test.mjs`.
 - **`governance_approval_requests`'s `approval_update_scope` policy** has
   `with check (true)` (unrestricted result) paired with a scoped `using`
   clause — a pre-existing governance-table pattern outside this perilla's

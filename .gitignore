@@ -20,6 +20,13 @@
 # production
 /build
 
+# AOC workspace package build artifacts (rebuilt via `npm run build:aoc`)
+/src/aoc/protocol/dist/
+/src/aoc/enterprise/dist/
+
+# Beta release gate per-run logs (scripts/check-beta-release.mjs)
+/.beta-release-logs/
+
 # misc
 .DS_Store
 *.pem

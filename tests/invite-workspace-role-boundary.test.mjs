@@ -13,6 +13,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import {
   WORKSPACE_ROLES,
   INVITABLE_WORKSPACE_ROLES,
@@ -161,6 +162,10 @@ test("requireWorkspaceInviteActor: user_metadata.role / display role cannot infl
 // acceptWorkspaceInvite — fake in-memory Supabase client
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Perilla 11: the table stores sha256(token) in `token_hash`, never the
+// plaintext — fixtures carry the hash of the token the test presents.
+const sha256 = (value) => crypto.createHash("sha256").update(value).digest("hex");
+
 function baseInvite(overrides = {}) {
   return {
     id: "invite-1",
@@ -168,7 +173,7 @@ function baseInvite(overrides = {}) {
     email: "user@example.com",
     role: "viewer",
     status: "pending",
-    token: "valid-token",
+    token_hash: sha256("valid-token"),
     expires_at: new Date(Date.now() + 1000 * 60 * 60).toISOString(),
     ...overrides,
   };
@@ -366,7 +371,7 @@ test("acceptWorkspaceInvite: client-supplied workspaceId is ignored — membersh
 
 test("acceptWorkspaceInvite: normal valid acceptance succeeds with the invite's role (test #9)", async () => {
   for (const role of ["admin", "pm", "viewer"]) {
-    const invite = baseInvite({ id: `invite-${role}`, role, token: `token-${role}` });
+    const invite = baseInvite({ id: `invite-${role}`, role, token_hash: sha256(`token-${role}`) });
     const outcome = await callAccept({ token: `token-${role}`, userId: `u-${role}`, userEmail: "user@example.com" }, invite);
     assert.equal(outcome.ok, true, role);
     assert.equal(outcome.result.role, role);

@@ -464,6 +464,7 @@ export type PublicRouteEntry = {
 export const PUBLIC_ROUTE_ALLOWLIST: readonly PublicRouteEntry[] = [
   { file: "src/app/api/build-info/route.ts", reason: "Deploy-verification: commit SHA/branch/env only, no secrets or user data.", usesServiceRole: false },
   { file: "src/app/api/health/route.ts", reason: "Conventional health-check surface: status/version/adapter names only.", usesServiceRole: false },
+  { file: "src/app/api/ready/route.ts", reason: "Readiness probe (Perilla 11): pass/fail per dependency check and missing env NAMES only — no values, no secrets, no tenant data.", usesServiceRole: false },
   { file: "src/app/api/route-debug/route.ts", reason: "Deploy-verification: commit/branch/env and static redirect targets only.", usesServiceRole: false },
   { file: "src/app/api/login/route.ts", reason: "Auth entry point; validates redirect target via isSafeContinuationRoute.", usesServiceRole: false },
   {
