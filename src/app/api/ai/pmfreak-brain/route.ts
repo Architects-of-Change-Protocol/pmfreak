@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAuthUser } from "@/lib/auth";
 
 type BrainRequest = {
   userInput?: string;
@@ -31,6 +32,8 @@ type MessageNudgeResponse = {
 const getOrigin = (request: Request) => new URL(request.url).origin;
 
 export async function POST(request: Request) {
+  await requireAuthUser();
+
   let payload: BrainRequest;
 
   try {

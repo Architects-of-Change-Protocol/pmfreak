@@ -1,6 +1,15 @@
+import { isFounderOrInternalUser, requireAuthUser } from "@/lib/auth";
 import { createPrivilegedSupabaseClient } from "@/lib/security/privileged-access";
 
+// Founder/internal-only: this GET is a human-facing cross-tenant event
+// browser, distinct from the machine-to-machine POST .../events/import
+// route (which authenticates via a signed handshake token instead of a user
+// session). It must gate on founder/internal identity, not sit open.
 export async function GET(request: Request) {
+  const user = await requireAuthUser();
+  if (!isFounderOrInternalUser(user)) {
+    return Response.json({ error: "Founder access is required." }, { status: 403 });
+  }
   const { searchParams } = new URL(request.url);
   // PRIVILEGED_ACCESS: Trust events span trust domains for cross-verifier synchronization and cannot be scoped to a single tenant's RLS context.
   // AUDIT_REF: service-role-risk-register.md

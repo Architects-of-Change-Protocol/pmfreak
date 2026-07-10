@@ -40,7 +40,7 @@ export async function createProjectMilestone(input: {
   }
 
   try {
-    await requireProjectAccess(input.projectId, "read");
+    await requireProjectAccess(input.projectId, "write");
   } catch (err) {
     if (err instanceof AccessDeniedError) {
       return { ok: false, error: "Access denied.", failureClass: "unauthorized" };
@@ -135,7 +135,7 @@ export async function updateProjectMilestone(input: {
   }
 
   try {
-    await requireProjectAccess(existing.project_id, "read");
+    await requireProjectAccess(existing.project_id, "write");
   } catch (err) {
     if (err instanceof AccessDeniedError) {
       return { ok: false, error: "Access denied.", failureClass: "unauthorized" };
@@ -192,7 +192,7 @@ export async function completeProjectMilestone(input: {
   }
 
   try {
-    await requireProjectAccess(existing.project_id, "read");
+    await requireProjectAccess(existing.project_id, "write");
   } catch (err) {
     if (err instanceof AccessDeniedError) {
       return { ok: false, error: "Access denied.", failureClass: "unauthorized" };
@@ -236,7 +236,7 @@ export async function cancelProjectMilestone(input: {
   }
 
   try {
-    await requireProjectAccess(existing.project_id, "read");
+    await requireProjectAccess(existing.project_id, "write");
   } catch (err) {
     if (err instanceof AccessDeniedError) {
       return { ok: false, error: "Access denied.", failureClass: "unauthorized" };

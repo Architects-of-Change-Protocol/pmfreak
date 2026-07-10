@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isFounderOrInternalUser, requireAuthUser } from "@/lib/auth";
 import { ensurePmfreakAocAdaptersRegistered } from "@/lib/aoc/bootstrap";
 import {
   retrieveRuntimeHealth,
@@ -11,7 +12,17 @@ import {
   evaluateReplayIntegrity,
 } from "@/lib/runtime-hardening";
 
+// Founder/internal-only: unlike build-info/health/route-debug (which are
+// deliberately minimal, documented-public deploy/health surfaces), this
+// route exposes detailed internal system state — degraded-mode
+// classification, invariant/assertion pass-fail detail, replay-integrity
+// results — that aids reconnaissance of failure modes. It was never
+// consciously scoped as public.
 export async function GET() {
+  const user = await requireAuthUser();
+  if (!isFounderOrInternalUser(user)) {
+    return NextResponse.json({ error: "Founder access is required." }, { status: 403 });
+  }
   try {
     ensurePmfreakAocAdaptersRegistered();
 

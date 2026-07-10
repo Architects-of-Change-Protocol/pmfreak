@@ -1,9 +1,18 @@
 import { AccessDeniedError, requireProjectPermission } from "@/aoc/runtime-consumer";
+import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { buildExecutionRiskSnapshot } from "@/lib/execution-risk";
 import { readProjectMemorySnapshot } from "@/lib/memory/organization-memory";
 
 export async function GET(request: Request) {
+  try {
+    await requireAuthenticatedUser();
+  } catch (error) {
+    if (error instanceof AccessDeniedError) {
+      return denyResponse({ status: 401, routeId: "/api/intelligence/execution-risk", message: "Unauthorized.", reason: "unauthorized" });
+    }
+    throw error;
+  }
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId")?.trim() ?? "";
   if (projectId) {

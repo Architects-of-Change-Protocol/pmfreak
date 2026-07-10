@@ -321,3 +321,53 @@ export async function requireWorkspaceInviteActor(
 
   return { userId: input.userId, workspaceId: input.workspaceId, role: role as WorkspaceRole };
 }
+
+export type DelegationRevokeDenialReason = "delegation_not_found" | "insufficient_role";
+
+export class DelegationRevokeError extends Error {
+  readonly reason: DelegationRevokeDenialReason;
+
+  constructor(reason: DelegationRevokeDenialReason, message: string) {
+    super(message);
+    this.name = "DelegationRevokeError";
+    this.reason = reason;
+  }
+}
+
+/**
+ * Authoritative, server-side gate for "may this user revoke this delegation":
+ * the delegation's real `workspace_id`/`delegator_user_id` are read from
+ * `governance_delegations` by id — never trusted from the request body, which
+ * previously let any authenticated caller revoke (and cascade-revoke) any
+ * workspace's delegation chain by guessing/observing a delegation id. Only
+ * the original delegator, or an owner/admin of the delegation's own
+ * workspace (resolved via `requireWorkspaceRole`), may revoke it.
+ *
+ * `getSupabaseClient` defaults to the real server client; tests inject a fake
+ * to exercise this function's real logic without a live database.
+ */
+export async function requireDelegationRevokeActor(
+  input: { delegationId: string; userId: string },
+  getSupabaseClient: () => Promise<Pick<Awaited<ReturnType<typeof createSupabaseServerClient>>, "from">> = createSupabaseServerClient,
+): Promise<{ workspaceId: string }> {
+  const supabase = await getSupabaseClient();
+  const { data } = await supabase
+    .from("governance_delegations")
+    .select("workspace_id, delegator_user_id")
+    .eq("id", input.delegationId)
+    .maybeSingle<{ workspace_id: string; delegator_user_id: string | null }>();
+
+  if (!data?.workspace_id) {
+    throw new DelegationRevokeError("delegation_not_found", "Delegation not found.");
+  }
+
+  if (data.delegator_user_id !== input.userId) {
+    try {
+      await requireWorkspaceRole(data.workspace_id, "admin");
+    } catch {
+      throw new DelegationRevokeError("insufficient_role", "Not authorized to revoke this delegation.");
+    }
+  }
+
+  return { workspaceId: data.workspace_id };
+}
