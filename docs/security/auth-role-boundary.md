@@ -27,8 +27,8 @@ Net effect: anyone could `curl` a signup request (or use DevTools) with `role=ad
 ## How an elevated role is actually assigned
 
 1. **Workspace admin/owner**: only via `workspace_memberships`, set by:
-   - Accepting a validated, single-use, expiring invite token (`src/app/(protected)/accept-invite/[token]/page.tsx`, `src/lib/workspace-team.ts`) — the inviter must already hold `admin`/`owner` in `workspace_memberships`, verified server-side via `requireGovernancePermission`.
-   - Early-access invite activation (`acceptEarlyAccessInvite` in `src/lib/early-access.ts`), which assigns `owner` only after a hashed, single-use, non-expired invite token is validated server-side.
+   - Accepting a validated, single-use, expiring invite token (`acceptWorkspaceInvite` in `src/lib/workspace-team.ts`, called from `src/app/(protected)/accept-invite/[token]/page.tsx`) — the inviter must already hold `admin`/`owner` in `workspace_memberships`, verified server-side via `requireWorkspaceInviteActor`, and the invite's target role can never be `owner`. See [`invite-workspace-role-boundary.md`](./invite-workspace-role-boundary.md) (Perilla 3) for the full boundary, including the identity check (invite email must match the accepting user) added there.
+   - Early-access invite activation (`acceptEarlyAccessInvite` in `src/lib/early-access.ts`), which assigns `owner` only after a hashed, single-use, non-expired invite token is validated server-side **and**, since Perilla 3, the invite's email matches the accepting user.
    - Direct DB/admin action.
 2. **Founder/internal access**: only via the internal email domain allowlist or the `FOUNDER_EMAIL_ALLOWLIST` environment variable — both server-controlled, neither reachable from a signup form or request body.
 
