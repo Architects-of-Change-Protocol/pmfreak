@@ -1,36 +1,67 @@
 import { getAuthUser } from "@/lib/auth";
 import { getCompanySubscription } from "@/lib/billing";
-import { enforceRuntimeAuthorization } from "@/aoc/runtime-consumer";
 import { denyResponse } from "@/lib/security/deny-response";
+import { requireBillingManageMembership, WorkspaceMembershipError } from "@/lib/workspace-access";
 import { getStripeServerClient } from "@/lib/stripe";
 
-export async function POST(request: Request) {
-  const user = await getAuthUser();
+const ROUTE_ID = "/api/billing/create-portal-session";
+
+export type CreatePortalSessionDeps = {
+  getAuthUser: typeof getAuthUser;
+  requireBillingManageMembership: typeof requireBillingManageMembership;
+  getCompanySubscription: typeof getCompanySubscription;
+  getStripeServerClient: typeof getStripeServerClient;
+};
+
+const defaultDeps: CreatePortalSessionDeps = {
+  getAuthUser,
+  requireBillingManageMembership,
+  getCompanySubscription,
+  getStripeServerClient,
+};
+
+/**
+ * Testable core of the route handler. `deps` defaults to the real
+ * implementations; tests inject fakes so this runs the real authorization and
+ * request-handling logic end-to-end without a live Supabase/Stripe backend.
+ */
+export async function handleCreatePortalSession(request: Request, deps: CreatePortalSessionDeps = defaultDeps): Promise<Response> {
+  const user = await deps.getAuthUser();
 
   if (!user) {
-    return denyResponse({ status: 401, routeId: "/api/billing/create-portal-session", message: "Unauthorized", reason: "unauthorized" });
+    return denyResponse({ status: 401, routeId: ROUTE_ID, message: "Unauthorized", reason: "unauthorized" });
   }
-  const workspaceId = request.headers.get("x-pmf-workspace-id");
-  if (!workspaceId) return denyResponse({ status: 403, routeId: "/api/billing/create-portal-session", message: "Workspace context required.", reason: "workspace_missing", eventType: "billing_governance_denied", actorUserId: user.id });
-  const governance = await enforceRuntimeAuthorization({
-    actorType: "user",
-    actorUserId: user.id,
-    workspaceId,
-    action: "billing.manage",
-    routeId: "/api/billing/create-portal-session",
-    requestedPermission: "manage_billing",
-    resourceType: "billing",
-  });
-  if (governance.response) return governance.response;
 
-  const subscription = await getCompanySubscription(user.companyId);
+  const workspaceId = request.headers.get("x-pmf-workspace-id");
+  if (!workspaceId) {
+    return denyResponse({ status: 403, routeId: ROUTE_ID, message: "Workspace context required.", reason: "workspace_missing", eventType: "billing_governance_denied", actorUserId: user.id });
+  }
+
+  // See docs/security/billing-authorization-boundary.md — billing.manage is
+  // resolved exclusively from server-side workspace membership.
+  try {
+    await deps.requireBillingManageMembership({ userId: user.id, workspaceId });
+  } catch (error) {
+    const reason = error instanceof WorkspaceMembershipError ? error.reason : "workspace_missing";
+    return denyResponse({
+      status: 403,
+      routeId: ROUTE_ID,
+      message: "You do not have permission to manage billing for this workspace.",
+      reason,
+      eventType: "billing_governance_denied",
+      actorUserId: user.id,
+      workspaceId,
+    });
+  }
+
+  const subscription = await deps.getCompanySubscription(user.companyId);
 
   if (!subscription.stripeCustomerId) {
     return Response.json({ error: "No Stripe customer found for this company." }, { status: 400 });
   }
 
   try {
-    const stripe = getStripeServerClient();
+    const stripe = deps.getStripeServerClient();
     const origin = request.headers.get("origin") ?? "http://localhost:3000";
 
     const session = await stripe.billingPortal.sessions.create({
@@ -42,4 +73,8 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "Unable to create Stripe billing portal session." }, { status: 502 });
   }
+}
+
+export async function POST(request: Request) {
+  return handleCreatePortalSession(request);
 }

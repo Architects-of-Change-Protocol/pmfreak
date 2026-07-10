@@ -34,7 +34,9 @@ test('copilot requires full agent attestation and execute_ai_action scope', () =
   assert.match(copilotRoute, /actorType: "user"/);
 });
 
-test('billing checkout enforces governance permission manage_billing', () => {
-  assert.match(billingCheckout, /action: "billing\.manage"/);
+test('billing checkout resolves billing.manage from server-side workspace membership, not display role', () => {
+  assert.match(billingCheckout, /requireBillingManageMembership/);
   assert.match(billingCheckout, /billing_governance_denied/);
+  assert.doesNotMatch(billingCheckout, /user\.role/);
+  assert.doesNotMatch(billingCheckout, /toGovernanceRole/);
 });

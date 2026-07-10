@@ -10,11 +10,15 @@ const pmfreakRuntimeWrapper = fs.readFileSync('src/lib/aoc/enterprise/runtime.ts
 const governedRoutes = [
   'src/app/api/copilot/route.ts',
   'src/app/api/upload/route.ts',
+];
+
+const billingRoutes = [
   'src/app/api/billing/create-checkout-session/route.ts',
   'src/app/api/billing/create-portal-session/route.ts',
 ];
 
 const routeSources = governedRoutes.map((file) => ({ file, source: fs.readFileSync(file, 'utf8') }));
+const billingRouteSources = billingRoutes.map((file) => ({ file, source: fs.readFileSync(file, 'utf8') }));
 
 test('runtime wrapper exposes only evaluation and enforcement entrypoints', () => {
   assert.match(runtimeWrapper, /export async function evaluateRuntimeAuthorization/);
@@ -26,6 +30,22 @@ test('runtime wrapper exposes only evaluation and enforcement entrypoints', () =
 test('governed product routes consume AOC runtime wrapper and avoid direct legacy runtime imports', () => {
   for (const { file, source } of routeSources) {
     assert.match(source, /enforceRuntimeAuthorization/, `${file} should enforce runtime authorization through wrapper`);
+    assert.doesNotMatch(source, /security\/governance-runtime/, `${file} must not import legacy runtime directly`);
+  }
+});
+
+// billing.manage is deliberately NOT routed through the generic AOC governance
+// wrapper. That wrapper (a) previously received actorRole from display role —
+// the exact vulnerability closed here — and (b) carries a shared
+// "admin requires additional approval" special case for billing.manage that
+// would incorrectly block workspace admins from the direct-allow policy this
+// surface requires. Billing routes use a dedicated, deterministic,
+// workspace_memberships-backed gate instead. See
+// docs/security/billing-authorization-boundary.md.
+test('billing routes use the dedicated workspace-membership billing gate instead of the generic governance wrapper', () => {
+  for (const { file, source } of billingRouteSources) {
+    assert.match(source, /requireBillingManageMembership/, `${file} should gate billing.manage on workspace membership`);
+    assert.doesNotMatch(source, /enforceRuntimeAuthorization/, `${file} must not derive billing authorization from the generic governance wrapper`);
     assert.doesNotMatch(source, /security\/governance-runtime/, `${file} must not import legacy runtime directly`);
   }
 });
