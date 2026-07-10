@@ -53,10 +53,13 @@ export async function resolveOnboardingState(
       .maybeSingle();
 
     if (activeTrial?.id) {
-      // Expire any active trial that has passed trial_end_at
-      await supabase.rpc("execute_sql", {
-        query: `update trial_licenses set trial_status='expired' where id='${activeTrial.id}' and trial_status='active' and trial_end_at < now();`,
-      });
+      // Expire this trial if it has passed trial_end_at.
+      await supabase
+        .from("trial_licenses")
+        .update({ trial_status: "expired" })
+        .eq("id", activeTrial.id)
+        .eq("trial_status", "active")
+        .lt("trial_end_at", new Date().toISOString());
     }
 
     const { data: refreshedTrial } = activeTrial?.id

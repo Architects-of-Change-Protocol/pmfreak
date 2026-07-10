@@ -6,9 +6,13 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 export async function GET() {
   const user = await requireAuthUser();
   if (!isFounderOrInternalUser(user)) return NextResponse.json({ error: "Founder access is required." }, { status: 403 });
-  const supabase = createSupabaseServiceRoleClient({ routeId: "/api/early-access/summary", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system" });
+  const supabase = createSupabaseServiceRoleClient({ routeId: "/api/early-access/summary", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system", actorUserId: user.id });
 
-  await supabase.rpc("execute_sql", { query: "update trial_licenses set trial_status='expired' where trial_status='active' and trial_end_at < now();" });
+  await supabase
+    .from("trial_licenses")
+    .update({ trial_status: "expired" })
+    .eq("trial_status", "active")
+    .lt("trial_end_at", new Date().toISOString());
 
   const [{ data: invites }, { data: trials }, { data: activations }, { data: events }] = await Promise.all([
     supabase.from("early_access_invites").select("id, invite_email, expires_at, accepted_at, revoked_at, created_at").order("created_at", { ascending: false }).limit(50),

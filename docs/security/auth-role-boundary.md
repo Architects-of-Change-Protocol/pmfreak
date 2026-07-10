@@ -31,11 +31,11 @@ Net effect: anyone could `curl` a signup request (or use DevTools) with `role=ad
    - Early-access invite activation (`acceptEarlyAccessInvite` in `src/lib/early-access.ts`), which assigns `owner` only after a hashed, single-use, non-expired invite token is validated server-side **and**, since Perilla 3, the invite's email matches the accepting user.
    - Direct DB/admin action.
 2. **Updating an existing member's role** (once a `workspace_memberships` row already exists): only via `updateWorkspaceMemberRole` in `src/lib/workspace-team.ts`, whose actor/target roles are resolved server-side (`requireWorkspaceRoleUpdateActor`/`requireWorkspaceRoleUpdateTarget`) and gated by `canUpdateWorkspaceMemberRole` — never from `body.role`, `body.actorRole`, `user_metadata.role`, or display role. `owner` can never be the requested role through this path. See [`workspace-role-update-boundary.md`](./workspace-role-update-boundary.md) (Perilla 4).
-3. **Founder/internal access**: only via the internal email domain allowlist or the `FOUNDER_EMAIL_ALLOWLIST` environment variable — both server-controlled, neither reachable from a signup form or request body.
+3. **Founder/internal access**: only via the internal email domain allowlist or the `FOUNDER_EMAIL_ALLOWLIST` environment variable — both server-controlled, neither reachable from a signup form or request body. See [`admin-founder-endpoint-boundary.md`](./admin-founder-endpoint-boundary.md) (Perilla 5) for the full boundary across every founder/internal/admin/trial-license surface, including the `evaluateFounderOrInternalAccess` decision function and the founder dashboard page gate added there.
 
 ## How an administrative endpoint is validated
 
-Founder-only routes (`/api/early-access/invites`, `/api/early-access/founder-actions`, `/api/early-access/summary`) all follow the same pattern:
+Founder-only routes (`/api/early-access/invites`, `/api/early-access/founder-actions`, `/api/early-access/summary`, and the `/early-access` dashboard page) all follow the same pattern:
 
 ```ts
 const user = await requireAuthUser();
@@ -54,3 +54,4 @@ Workspace-scoped admin actions (e.g. inviting members) call `requireWorkspaceRol
 
 - `src/components/pmfreak/operational-shell.tsx` reads `user.role` to decide UI copy (`canUseGovernanceDirectives`, nav labeling). This is cosmetic — no mutation or governance action is authorized by it — but since `toDisplayRole()` now clamps to `"pm"/"viewer"`, it can no longer show the elevated copy to anyone regardless.
 - ~~`src/app/api/billing/create-checkout-session/route.ts` maps the display role into `actorRole` for `enforceRuntimeAuthorization({ action: "billing.manage" })`.~~ **Closed** — see [`billing-authorization-boundary.md`](./billing-authorization-boundary.md) (Perilla 2: Billing Authorization Must Use Workspace Membership Role). Billing authorization (`create-checkout-session`, `create-portal-session`) is now resolved exclusively from `workspace_memberships.role` via `requireBillingManageMembership()`, never from display role, `user_metadata.role`, or any client-supplied field.
+- ~~`src/app/(protected)/early-access/page.tsx` called `requireAuthUser()` but never checked `isFounderOrInternalUser()`, so any authenticated user could load the founder dashboard and see every invite email, trial license, and telemetry count.~~ **Closed** — see [`admin-founder-endpoint-boundary.md`](./admin-founder-endpoint-boundary.md) (Perilla 5: Admin / Founder / Early Access / Trial License Endpoint Hardening). The page now gates on `isFounderOrInternalUser()` before the service-role client is instantiated and returns `notFound()` for non-founder users.

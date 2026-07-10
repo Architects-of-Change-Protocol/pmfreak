@@ -5,12 +5,44 @@ import { buildEarlyAccessInviteEmail } from "@/lib/email/templates/early-access-
 import { logFirstUserTelemetryEvent } from "@/lib/first-user-telemetry";
 
 const TRIAL_DAYS = 90;
+export const MAX_TRIAL_EXTENSION_DAYS = 60;
+const MAX_AUDIT_REASON_LENGTH = 500;
+const EARLY_ACCESS_EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type TrialStatus = "pending" | "active" | "expired" | "revoked";
 
 export const hashInviteToken = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
 
 export const createInviteToken = () => crypto.randomBytes(24).toString("base64url");
+
+/**
+ * Every founder-action target id (inviteId/trialId) is validated with this
+ * before any query is built — an empty/missing/non-string id must never
+ * reach a service-role `.eq("id", ...)` filter. Throws a `code::message`
+ * error the API routes split on to produce a clean 400 with no mutation.
+ */
+export function requireNonEmptyId(value: unknown, label: string): string {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`missing_target::${label} is required.`);
+  }
+  return value.trim();
+}
+
+/** Whole number of days, 1..MAX_TRIAL_EXTENSION_DAYS. Rejects NaN/Infinity/non-integers, not just <=0. */
+export function isValidTrialExtensionDays(days: unknown): days is number {
+  return typeof days === "number" && Number.isInteger(days) && days > 0 && days <= MAX_TRIAL_EXTENSION_DAYS;
+}
+
+/** Optional actor-supplied reason for an audit trail entry: trimmed, capped, never required to authorize anything. */
+export function sanitizeAuditReason(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, MAX_AUDIT_REASON_LENGTH) : null;
+}
+
+export function isValidInviteEmail(value: unknown): value is string {
+  return typeof value === "string" && EARLY_ACCESS_EMAIL_SHAPE.test(value.trim());
+}
 
 export const computeRemainingTrialDays = (trialEndAt: string | null) => {
   if (!trialEndAt) return 0;
@@ -76,7 +108,11 @@ async function sendEarlyAccessInviteEmail(input: { inviteId: string; inviteEmail
   return { delivery, activationLink };
 }
 export async function createEarlyAccessInvite(input: { inviteEmail: string; inviterUserId: string; inviteNote?: string; expiresInDays?: number; requiresApproval?: boolean; }) {
-  const supabase = createSupabaseServiceRoleClient({ routeId: "lib.early-access", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system" });
+  if (!isValidInviteEmail(input.inviteEmail)) {
+    throw new Error("invalid_email::A valid invite email is required.");
+  }
+  const inviteEmail = input.inviteEmail.trim().toLowerCase();
+  const supabase = createSupabaseServiceRoleClient({ routeId: "lib.early-access", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system", actorUserId: input.inviterUserId });
   const token = createInviteToken();
   const tokenHash = hashInviteToken(token);
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * (input.expiresInDays ?? 14)).toISOString();
@@ -84,7 +120,7 @@ export async function createEarlyAccessInvite(input: { inviteEmail: string; invi
   const { data: invite, error: inviteError } = await supabase
     .from("early_access_invites")
     .insert({
-      invite_email: input.inviteEmail.toLowerCase(),
+      invite_email: inviteEmail,
       invite_token_hash: tokenHash,
       invite_note: input.inviteNote ?? null,
       inviter_user_id: input.inviterUserId,
@@ -111,7 +147,7 @@ export async function createEarlyAccessInvite(input: { inviteEmail: string; invi
 }
 
 export async function acceptEarlyAccessInvite(input: { inviteToken: string; userId: string; userEmail: string; workspaceName?: string; }) {
-  const supabase = createSupabaseServiceRoleClient({ routeId: "lib.early-access", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system" });
+  const supabase = createSupabaseServiceRoleClient({ routeId: "lib.early-access", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system", actorUserId: input.userId });
   const tokenHash = hashInviteToken(input.inviteToken);
 
   const { data: invite, error } = await supabase
@@ -215,51 +251,60 @@ export async function acceptEarlyAccessInvite(input: { inviteToken: string; user
 }
 
 export async function approveEarlyAccessInvite(inviteId: string, actorUserId: string) {
-  const supabase = createSupabaseServiceRoleClient({ routeId: "lib.early-access", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system" });
+  const targetId = requireNonEmptyId(inviteId, "Invite id");
+  const supabase = createSupabaseServiceRoleClient({ routeId: "lib.early-access", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system", actorUserId });
   const approvedAt = new Date().toISOString();
   const { data: invite, error } = await supabase
     .from("early_access_invites")
     .update({ approved_at: approvedAt })
-    .eq("id", inviteId)
+    .eq("id", targetId)
     .is("revoked_at", null)
     .is("accepted_at", null)
     .select("id")
     .single();
   if (error || !invite) throw new Error("Unable to approve invite.");
-  await supabase.from("early_access_events").insert({ invite_id: inviteId, event_type: "invite_approved", event_payload: { actorUserId } });
+  await supabase.from("early_access_events").insert({ invite_id: targetId, event_type: "invite_approved", event_payload: { actorUserId } });
 }
 
-export async function revokeEarlyAccessInvite(inviteId: string, actorUserId: string) {
-  const supabase = createSupabaseServiceRoleClient({ routeId: "lib.early-access", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system" });
+export async function revokeEarlyAccessInvite(inviteId: string, actorUserId: string, reason?: string) {
+  const targetId = requireNonEmptyId(inviteId, "Invite id");
+  const sanitizedReason = sanitizeAuditReason(reason);
+  const supabase = createSupabaseServiceRoleClient({ routeId: "lib.early-access", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system", actorUserId });
   const revokedAt = new Date().toISOString();
   const { data: invite, error } = await supabase
     .from("early_access_invites")
     .update({ revoked_at: revokedAt })
-    .eq("id", inviteId)
+    .eq("id", targetId)
     .is("accepted_at", null)
     .select("id")
     .single();
   if (error || !invite) throw new Error("Unable to revoke invite.");
-  await supabase.from("early_access_events").insert({ invite_id: inviteId, event_type: "invite_revoked", event_payload: { actorUserId } });
+  await supabase.from("early_access_events").insert({ invite_id: targetId, event_type: "invite_revoked", event_payload: { actorUserId, reason: sanitizedReason } });
 }
 
-export async function revokeTrialLicense(trialId: string, actorUserId: string) {
-  const supabase = createSupabaseServiceRoleClient({ routeId: "lib.early-access", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system" });
+export async function revokeTrialLicense(trialId: string, actorUserId: string, reason?: string) {
+  const targetId = requireNonEmptyId(trialId, "Trial id");
+  const sanitizedReason = sanitizeAuditReason(reason);
+  const supabase = createSupabaseServiceRoleClient({ routeId: "lib.early-access", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system", actorUserId });
   const { data: trial, error } = await supabase
     .from("trial_licenses")
     .update({ trial_status: "revoked", revoked_at: new Date().toISOString() })
-    .eq("id", trialId)
+    .eq("id", targetId)
     .neq("trial_status", "revoked")
     .select("id, invite_id, workspace_id")
     .single();
   if (error || !trial) throw new Error("Unable to revoke trial.");
-  await supabase.from("early_access_events").insert({ invite_id: trial.invite_id, trial_license_id: trial.id, workspace_id: trial.workspace_id, event_type: "trial_revoked", event_payload: { actorUserId } });
+  await supabase.from("early_access_events").insert({ invite_id: trial.invite_id, trial_license_id: trial.id, workspace_id: trial.workspace_id, event_type: "trial_revoked", event_payload: { actorUserId, reason: sanitizedReason } });
 }
 
-export async function extendTrialLicense(trialId: string, extensionDays: number, actorUserId: string) {
-  if (extensionDays <= 0 || extensionDays > 60) throw new Error("Invalid trial extension window.");
-  const supabase = createSupabaseServiceRoleClient({ routeId: "lib.early-access", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system" });
-  const { data: trial, error: trialError } = await supabase.from("trial_licenses").select("id, invite_id, workspace_id, trial_end_at, trial_status").eq("id", trialId).single();
+export async function extendTrialLicense(trialId: string, extensionDays: number, actorUserId: string, reason?: string) {
+  const targetId = requireNonEmptyId(trialId, "Trial id");
+  if (!isValidTrialExtensionDays(extensionDays)) {
+    throw new Error(`invalid_duration::Trial extension must be a whole number of days between 1 and ${MAX_TRIAL_EXTENSION_DAYS}.`);
+  }
+  const sanitizedReason = sanitizeAuditReason(reason);
+  const supabase = createSupabaseServiceRoleClient({ routeId: "lib.early-access", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system", actorUserId });
+  const { data: trial, error: trialError } = await supabase.from("trial_licenses").select("id, invite_id, workspace_id, trial_end_at, trial_status").eq("id", targetId).single();
   if (trialError || !trial) throw new Error("Unable to load trial.");
   if (trial.trial_status === "revoked") throw new Error("Trial is no longer active.");
 
@@ -268,18 +313,19 @@ export async function extendTrialLicense(trialId: string, extensionDays: number,
   const nextEnd = new Date(baseEnd + extensionDays * 24 * 60 * 60 * 1000).toISOString();
   const nextStatus: TrialStatus = trial.trial_status === "expired" ? "active" : trial.trial_status;
 
-  const { error } = await supabase.from("trial_licenses").update({ trial_end_at: nextEnd, trial_status: nextStatus }).eq("id", trialId);
+  const { error } = await supabase.from("trial_licenses").update({ trial_end_at: nextEnd, trial_status: nextStatus }).eq("id", targetId);
   if (error) throw new Error("Unable to extend trial.");
-  await supabase.from("early_access_events").insert({ invite_id: trial.invite_id, trial_license_id: trial.id, workspace_id: trial.workspace_id, event_type: "trial_extended", event_payload: { actorUserId, extensionDays, trialEndAt: nextEnd } });
+  await supabase.from("early_access_events").insert({ invite_id: trial.invite_id, trial_license_id: trial.id, workspace_id: trial.workspace_id, event_type: "trial_extended", event_payload: { actorUserId, extensionDays, trialEndAt: nextEnd, reason: sanitizedReason } });
 }
 
 
 export async function resendEarlyAccessInviteEmail(inviteId: string, actorUserId: string) {
-  const supabase = createSupabaseServiceRoleClient({ routeId: "lib.early-access", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system" });
+  const targetId = requireNonEmptyId(inviteId, "Invite id");
+  const supabase = createSupabaseServiceRoleClient({ routeId: "lib.early-access", operation: "service_role_query", reason: "existing_privileged_flow", systemActor: "system", actorUserId });
   const { data: invite, error } = await supabase
     .from("early_access_invites")
     .select("id, invite_email, invite_note, expires_at, accepted_at, revoked_at")
-    .eq("id", inviteId)
+    .eq("id", targetId)
     .single();
 
   if (error || !invite) throw new Error("Unable to load invite.");

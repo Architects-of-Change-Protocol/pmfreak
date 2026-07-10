@@ -94,19 +94,76 @@ const founderEmailAllowlist = (): Set<string> =>
       .filter(Boolean),
   );
 
+// Requires a "local@domain.tld"-shaped string. Deliberately rejects anything
+// that doesn't have a dot in the domain part, so a missing/garbage email
+// value fails closed at `deny_invalid_email` rather than reaching the
+// endsWith/Set comparisons below with unpredictable input.
+const EMAIL_SHAPE_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export type FounderAccessDecision =
+  | "allow"
+  | "deny_missing_email"
+  | "deny_invalid_email"
+  | "deny_not_founder_or_internal";
+
+export type FounderAccessResult = {
+  allowed: boolean;
+  decision: FounderAccessDecision;
+  normalizedEmail?: string;
+  source?: "internal_domain" | "allowlist";
+};
+
+/**
+ * Centralized founder/internal access decision. This is the ONLY function
+ * that may authorize founder/internal-only surfaces (early access
+ * administration, trial license mutations, internal summaries, trial-expiry
+ * bypass). Its input shape is deliberately `{ email }` only — there is no
+ * `role`, `actorRole`, `isFounder`, `isAdmin`, or `permissions` parameter for
+ * a caller to smuggle elevated identity through, and the function never
+ * reads `user_metadata`, a display role, or anything from a request body.
+ *
+ * The only trusted sources are:
+ *   - `INTERNAL_EMAIL_DOMAINS`: a fixed, server-controlled list of internal
+ *     domains, matched with `endsWith("@domain")` — the "@" is part of the
+ *     match, so "attacker@evilpmfreak.ai" and "attacker@pmfreak.ai.evil.com"
+ *     both fail (neither ends with the literal "@pmfreak.ai").
+ *   - `FOUNDER_EMAIL_ALLOWLIST`: a server-only environment variable, parsed
+ *     into a `Set` of trimmed/lowercased exact emails — membership is exact
+ *     equality, never substring or prefix matching.
+ *
+ * Fails closed: missing, non-string, or malformed email input is denied
+ * before either trusted source is even consulted.
+ */
+export const evaluateFounderOrInternalAccess = (input: { email?: string | null }): FounderAccessResult => {
+  const raw = input.email;
+  if (typeof raw !== "string" || raw.trim().length === 0) {
+    return { allowed: false, decision: "deny_missing_email" };
+  }
+
+  const normalizedEmail = raw.trim().toLowerCase();
+  if (!EMAIL_SHAPE_PATTERN.test(normalizedEmail)) {
+    return { allowed: false, decision: "deny_invalid_email" };
+  }
+
+  const internalDomain = INTERNAL_EMAIL_DOMAINS.some((domain) => normalizedEmail.endsWith(domain));
+  if (internalDomain) {
+    return { allowed: true, decision: "allow", normalizedEmail, source: "internal_domain" };
+  }
+
+  if (founderEmailAllowlist().has(normalizedEmail)) {
+    return { allowed: true, decision: "allow", normalizedEmail, source: "allowlist" };
+  }
+
+  return { allowed: false, decision: "deny_not_founder_or_internal", normalizedEmail };
+};
+
 /**
  * Gates founder/internal-only surfaces (early access administration, trial
  * bypass, etc). Deliberately does NOT consult `user.role` — that field is
  * sourced from client-writable `user_metadata` at signup and must never be
- * treated as an authorization signal. The only trusted sources here are the
- * server-controlled internal email domains and the `FOUNDER_EMAIL_ALLOWLIST`
- * environment variable, neither of which a signing-up user can influence.
+ * treated as an authorization signal. Thin wrapper over
+ * `evaluateFounderOrInternalAccess`, which is the actual decision logic and
+ * the seam covered by direct unit tests.
  */
-export const isFounderOrInternalUser = (user: AuthUserContext) => {
-  const email = user.email.toLowerCase();
-
-  const internalDomain = INTERNAL_EMAIL_DOMAINS.some((domain) => email.endsWith(domain));
-  const allowlisted = founderEmailAllowlist().has(email);
-
-  return internalDomain || allowlisted;
-};
+export const isFounderOrInternalUser = (user: AuthUserContext) =>
+  evaluateFounderOrInternalAccess({ email: user.email }).allowed;
