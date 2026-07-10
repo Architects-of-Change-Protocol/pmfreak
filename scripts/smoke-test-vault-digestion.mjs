@@ -1610,7 +1610,7 @@ function computeCognitionReadinessScore(allNutrients, lineageViolations, determi
 
 // ─── Main Execution ───────────────────────────────────────────────────────────
 
-function runSmokeTest() {
+function runSmokeTest({ writeReports = false } = {}) {
   const startTime = Date.now();
   console.log('\n╔══════════════════════════════════════════════════════════════╗');
   console.log('║       VAULT DIGESTIVE SYSTEM — OPERATIONAL SMOKE TEST        ║');
@@ -1828,18 +1828,20 @@ function runSmokeTest() {
     },
   };
 
-  // ─── Write JSON report ──────────────────────────────────────────────────────
-  const artifactsDir = path.resolve('artifacts');
-  if (!fs.existsSync(artifactsDir)) fs.mkdirSync(artifactsDir, { recursive: true });
-  const jsonPath = path.join(artifactsDir, 'vault-smoke-test-report.json');
-  fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2));
-  console.log(`JSON report: ${jsonPath}`);
+  // ─── Write reports (CLI runs only — test imports must not dirty tracked
+  // files in artifacts/ on every `npm test`; Perilla 11 A.7 git cleanliness) ──
+  if (writeReports) {
+    const artifactsDir = path.resolve('artifacts');
+    if (!fs.existsSync(artifactsDir)) fs.mkdirSync(artifactsDir, { recursive: true });
+    const jsonPath = path.join(artifactsDir, 'vault-smoke-test-report.json');
+    fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2));
+    console.log(`JSON report: ${jsonPath}`);
 
-  // ─── Write Markdown report ──────────────────────────────────────────────────
-  const md = buildMarkdownReport(report, digestedResults);
-  const mdPath = path.join(artifactsDir, 'vault-smoke-test-report.md');
-  fs.writeFileSync(mdPath, md);
-  console.log(`Markdown report: ${mdPath}\n`);
+    const md = buildMarkdownReport(report, digestedResults);
+    const mdPath = path.join(artifactsDir, 'vault-smoke-test-report.md');
+    fs.writeFileSync(mdPath, md);
+    console.log(`Markdown report: ${mdPath}\n`);
+  }
 
   return report;
 }
@@ -2354,5 +2356,5 @@ export { runSmokeTest, validateOverTriggering, validateUnderTriggering, validate
 // Run if executed directly
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve('scripts/smoke-test-vault-digestion.mjs');
 if (isMain) {
-  runSmokeTest();
+  runSmokeTest({ writeReports: !process.argv.includes('--dry-run') });
 }

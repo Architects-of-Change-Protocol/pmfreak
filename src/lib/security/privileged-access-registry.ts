@@ -466,6 +466,19 @@ export const PRIVILEGED_ACCESS_REGISTRY: readonly PrivilegedAccessEntry[] = [
     strictCriteriaMet: "L3",
     needsRlsBeforeSwap: false,
   },
+  {
+    file: "src/lib/ai/usage-accounting.ts",
+    purpose:
+      "Perilla 11 — records one ai_usage_events row per inference call and reads back the workspace's daily estimated cost for the AI_DAILY_COST_LIMIT_USD ceiling. ai_usage_events is operational accounting, not tenant-authored data, and is service-role-only by design (no authenticated/anon policy at all — 20260821000000_ai_usage_events.sql), so both the write and the ceiling read must use the privileged client regardless of caller identity.",
+    riskLevel: "MEDIUM",
+    mitigations: [
+      "Writes only provider/model/operation identifiers, token counts, estimated cost, status, and ids — never prompt or response content",
+      "Recording is best-effort and wrapped in try/catch: a failure logs a redacted warning and never propagates caller data or errors",
+      "The daily-cost read filters by workspace_id + created_at only and returns a single aggregate number to the router's ceiling check",
+    ],
+    strictCriteriaMet: "L3",
+    needsRlsBeforeSwap: false,
+  },
 ] as const;
 
 export function assertPrivilegedAccessJustified(file: string): void {

@@ -73,7 +73,9 @@
     "check:persistent-snapshot-store-runtime": "npx tsx scripts/check-persistent-snapshot-store-runtime.mjs",
     "check:protocol-consumers": "node --test tests/consumer-boundary-audit.test.ts",
     "seed:operational-flow": "node scripts/seed-operational-flow-demo.mjs",
-    "check:operational-flow-db": "node scripts/check-operational-flow-db.mjs"
+    "check:operational-flow-db": "node scripts/check-operational-flow-db.mjs",
+    "check:dependency-security": "node scripts/check-dependency-security.mjs",
+    "check:beta-release": "node scripts/check-beta-release.mjs"
   },
   "dependencies": {
     "@aoc-enterprise/runtime": "file:src/aoc/enterprise",
@@ -85,7 +87,7 @@
     "jspdf": "^4.2.1",
     "jszip": "^3.10.1",
     "mammoth": "^1.12.0",
-    "next": "16.2.4",
+    "next": "16.2.10",
     "pdf-parse": "^2.4.5",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -100,7 +102,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.4",
+    "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5"

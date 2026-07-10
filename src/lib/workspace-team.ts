@@ -1,8 +1,8 @@
-import crypto from "node:crypto";
 import { requireSeatAvailability } from "@/lib/feature-gates";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { requireGovernancePermission } from "@/lib/security/access-guards";
+import { createWorkspaceInviteToken, hashWorkspaceInviteToken, resolveInviteTtlHours } from "@/lib/security/invite-tokens";
 import {
   canAssignWorkspaceRole,
   canUpdateWorkspaceMemberRole,
@@ -14,8 +14,6 @@ import {
   type WorkspaceRole,
   type WorkspaceRoleUpdateDecision,
 } from "@/lib/workspace-access";
-
-const INVITE_TTL_DAYS = 7;
 
 type MinimalSupabaseClient = {
   from: ReturnType<typeof createSupabaseServiceRoleClient>["from"];
@@ -65,6 +63,11 @@ export async function getWorkspaceSeatSnapshot(input: { workspaceId: string; com
  * the caller having already checked the actor's permissions. "owner" can never be the
  * invited role through this path, regardless of the actor's own role (see
  * docs/security/invite-workspace-role-boundary.md).
+ *
+ * Token handling (Perilla 11): only sha256(token) is persisted (`token_hash`).
+ * The plaintext token exists exactly once — in the returned `acceptPath` — and
+ * is never written to the database, audit events, or logs. Losing the returned
+ * value means regenerating the invitation; it cannot be recovered.
  */
 export async function inviteWorkspaceMember(input: {
   workspaceId: string;
@@ -73,7 +76,7 @@ export async function inviteWorkspaceMember(input: {
   email: string;
   role: unknown;
   routeId: string;
-}) {
+}): Promise<{ acceptPath: string; expiresAt: string }> {
   const actor = await requireWorkspaceInviteActor({ userId: input.inviterUserId, workspaceId: input.workspaceId });
 
   const targetRole = normalizeWorkspaceRole(input.role);
@@ -101,14 +104,14 @@ export async function inviteWorkspaceMember(input: {
   const snapshot = await getWorkspaceSeatSnapshot({ workspaceId: input.workspaceId, companyId: input.companyId, actorUserId: input.inviterUserId, routeId: input.routeId });
   if (!snapshot.seatGate.ok) throw new Error(`Seat limit reached (${snapshot.seatGate.seatLimit}).`);
 
-  const token = crypto.randomBytes(24).toString("hex");
-  const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const token = createWorkspaceInviteToken();
+  const expiresAt = new Date(Date.now() + resolveInviteTtlHours() * 60 * 60 * 1000).toISOString();
   const { error } = await supabase.from("workspace_invitations").insert({
     workspace_id: input.workspaceId,
     company_id: input.companyId,
     email: normalizedEmail,
     role: targetRole,
-    token,
+    token_hash: hashWorkspaceInviteToken(token),
     invited_by_user_id: input.inviterUserId,
     expires_at: expiresAt,
     status: "pending",
@@ -121,6 +124,8 @@ export async function inviteWorkspaceMember(input: {
     event_type: "invitation_sent",
     payload: { email: normalizedEmail, role: targetRole, expiresAt },
   });
+
+  return { acceptPath: `/accept-invite/${encodeURIComponent(token)}`, expiresAt };
 }
 
 type ResolvedWorkspaceInvite = {
@@ -134,10 +139,14 @@ async function resolveValidWorkspaceInvite(token: string, supabase: MinimalSupab
   const trimmedToken = token.trim();
   if (!trimmedToken) throw new WorkspaceInviteError("invalid_token", "Invite token is required.");
 
+  // Lookup is by sha256(token) — the table stores only `token_hash`, never the
+  // plaintext. Legacy plaintext-token rows (pre-hashing) have no token_hash and
+  // were revoked by 20260820000000_workspace_invite_token_hashing.sql, so a
+  // legacy plaintext token can never resolve to an invite again.
   const { data: invite } = await supabase
     .from("workspace_invitations")
     .select("id, workspace_id, email, role, status, expires_at")
-    .eq("token", trimmedToken)
+    .eq("token_hash", hashWorkspaceInviteToken(trimmedToken))
     .maybeSingle<{ id: string; workspace_id: string; email: string; role: string; status: string; expires_at: string }>();
 
   if (!invite) throw new WorkspaceInviteError("invalid_token", "Invite not found.");

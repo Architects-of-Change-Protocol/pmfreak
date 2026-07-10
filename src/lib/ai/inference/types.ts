@@ -31,6 +31,12 @@ export interface InferenceRequest {
   timeoutMs?: number;
   maxAttempts?: number;
   retryDelayMs?: number;
+  /**
+   * Depth of the agent chain that produced this request (0 = user-initiated).
+   * Enforced against AI_MAX_CHAIN_DEPTH in the router so recursive/agent-
+   * chained invocations are always bounded (Perilla 11).
+   */
+  chainDepth?: number;
   operationName?: string;
   idempotencyKey?: string;
   // Routing metadata: routingMode, preferredProvider, allowFallback,

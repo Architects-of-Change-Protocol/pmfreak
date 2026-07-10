@@ -1,6 +1,15 @@
 import { openAIProvider, isOpenAIProviderConfigured } from "@/lib/ai/providers/openai-provider";
 import type { InferenceProvider, InferenceRequest, InferenceResponse } from "@/lib/ai/inference/types";
 import { InferenceError } from "@/lib/ai/inference/types";
+import { resolveAiRuntimeLimits } from "@/lib/ai/runtime-limits";
+import {
+  AiGuardrailError,
+  assertChainDepthAllowed,
+  providerCircuitBreaker,
+  workspaceConcurrencyGate,
+} from "@/lib/ai/runtime-guardrails";
+import { estimateCostUsd, getWorkspaceDailyCostUsd, recordAiUsage } from "@/lib/ai/usage-accounting";
+import { enforceAbuseLimit } from "@/lib/security/abuse-protection";
 import { buildRoutingContext, resolveProviderCandidates } from "./provider-candidate-resolver";
 import { evaluateProviderEgress } from "./egress-policy";
 import { emitRoutingAudit, emitRoutingFallback } from "./routing-audit";
@@ -63,7 +72,96 @@ export function registerProvider(provider: InferenceProvider): void {
   providerRegistry.set(provider.id, provider);
 }
 
+/**
+ * Perilla 11 guardrails, enforced here because every inference path (gateway
+ * modules, copilot, analyze-ai) converges on runInference:
+ *
+ *  - agent-chain depth is bounded (AI_MAX_CHAIN_DEPTH);
+ *  - per-workspace daily request ceiling (AI_DAILY_REQUEST_LIMIT) through the
+ *    fail-closed abuse store;
+ *  - per-workspace daily estimated-cost ceiling (AI_DAILY_COST_LIMIT_USD),
+ *    fail-open when accounting is unavailable;
+ *  - per-workspace concurrency bound (AI_MAX_CONCURRENT_PER_WORKSPACE);
+ *  - per-provider circuit breaker (fail fast while a provider is down);
+ *  - timeout/attempt defaults from AI_REQUEST_TIMEOUT_MS / AI_MAX_RETRIES
+ *    when the caller did not set tighter ones;
+ *  - every call records an ai_usage_events accounting row (best-effort).
+ */
 export async function runInference(request: InferenceRequest): Promise<InferenceResponse> {
+  const limits = resolveAiRuntimeLimits();
+  const operation = request.operationName ?? request.moduleId ?? "inference";
+  const startedAt = Date.now();
+  const recordOutcome = (status: "success" | "error" | "timeout" | "blocked", response?: InferenceResponse, providerId = "none") =>
+    recordAiUsage({
+      provider: response?.provider ?? providerId,
+      model: response?.model ?? request.modelPreference ?? resolveModelForModule(request.moduleId),
+      workspaceId: request.workspaceId,
+      userId: request.actorId,
+      operation,
+      inputTokens: response?.usage?.inputTokens,
+      outputTokens: response?.usage?.outputTokens,
+      estimatedCostUsd: response ? estimateCostUsd(response.model, response.usage?.inputTokens, response.usage?.outputTokens) : null,
+      status,
+      durationMs: Date.now() - startedAt,
+    });
+
+  try {
+    assertChainDepthAllowed(request.chainDepth, limits.maxChainDepth);
+
+    if (request.workspaceId) {
+      const daily = await enforceAbuseLimit({
+        scope: "ai.workspace_daily_requests",
+        identifier: request.workspaceId,
+        limit: limits.dailyWorkspaceRequestLimit,
+        windowSeconds: 24 * 60 * 60,
+      });
+      if (!daily.allowed) {
+        throw new AiGuardrailError(
+          `Workspace reached its daily AI request ceiling (${limits.dailyWorkspaceRequestLimit}/day).`,
+          "daily_request_ceiling",
+        );
+      }
+
+      const spentUsd = await getWorkspaceDailyCostUsd(request.workspaceId);
+      if (spentUsd !== null && spentUsd >= limits.dailyWorkspaceCostLimitUsd) {
+        throw new AiGuardrailError(
+          `Workspace reached its daily AI cost ceiling ($${limits.dailyWorkspaceCostLimitUsd.toFixed(2)}).`,
+          "daily_cost_ceiling",
+        );
+      }
+    }
+  } catch (error) {
+    if (error instanceof AiGuardrailError) await recordOutcome("blocked");
+    throw error;
+  }
+
+  const releaseConcurrency = request.workspaceId
+    ? (() => {
+        try {
+          return workspaceConcurrencyGate.acquire(request.workspaceId, limits.maxConcurrentPerWorkspace);
+        } catch (error) {
+          if (error instanceof AiGuardrailError) void recordOutcome("blocked");
+          throw error;
+        }
+      })()
+    : null;
+
+  try {
+    const response = await executeInference(request, limits);
+    providerCircuitBreaker.recordSuccess(response.provider);
+    await recordOutcome("success", response);
+    return response;
+  } catch (error) {
+    const status =
+      error instanceof AiGuardrailError ? "blocked" : error instanceof InferenceError && error.errorClass === "timeout" ? "timeout" : "error";
+    await recordOutcome(status, undefined, error instanceof InferenceError ? error.provider : "none");
+    throw error;
+  } finally {
+    releaseConcurrency?.();
+  }
+}
+
+async function executeInference(request: InferenceRequest, limits: ReturnType<typeof resolveAiRuntimeLimits>): Promise<InferenceResponse> {
   const context = buildRoutingContext(request);
   const candidates = resolveProviderCandidates(context);
 
@@ -87,9 +185,14 @@ export async function runInference(request: InferenceRequest): Promise<Inference
     );
   }
 
-  const resolvedRequest: InferenceRequest = request.modelPreference
-    ? request
-    : { ...request, modelPreference: resolveModelForModule(request.moduleId) };
+  const resolvedRequest: InferenceRequest = {
+    ...request,
+    modelPreference: request.modelPreference ?? resolveModelForModule(request.moduleId),
+    // Callers may set tighter bounds; anything unset falls back to the
+    // centralized env-configurable limits so no call is ever unbounded.
+    timeoutMs: request.timeoutMs ?? limits.requestTimeoutMs,
+    maxAttempts: request.maxAttempts ?? limits.maxAttempts,
+  };
 
   const primaryProviderId = allowedCandidates[0].candidate.providerId;
   let lastError: unknown;
@@ -103,6 +206,16 @@ export async function runInference(request: InferenceRequest): Promise<Inference
     if (!provider) {
       // Adapter not yet registered for this provider (e.g. anthropic, gemini, local).
       rejectedCandidates.push({ providerId: candidate.providerId, reason: "provider_adapter_not_registered" });
+      continue;
+    }
+
+    // Fail fast while this provider's circuit is open (repeated failures /
+    // timeout spikes / exhausted quota) instead of burning another attempt.
+    try {
+      providerCircuitBreaker.assertCallAllowed(candidate.providerId);
+    } catch (error) {
+      lastError = error;
+      rejectedCandidates.push({ providerId: candidate.providerId, reason: "circuit_open" });
       continue;
     }
 
@@ -136,6 +249,7 @@ export async function runInference(request: InferenceRequest): Promise<Inference
 
       return result;
     } catch (error) {
+      providerCircuitBreaker.recordFailure(candidate.providerId);
       lastError = error;
     }
   }

@@ -251,13 +251,16 @@ covered directly by test (see below).
   See [`workspace-role-update-boundary.md`](./workspace-role-update-boundary.md)
   (Perilla 4), which hardens the *update* side of `workspace_memberships.role`
   (once a member already exists) and blocks `owner` assignment there too.
-- **Invite tokens for `workspace_invitations` are stored and compared as
-  plaintext** (`token text not null unique`), unlike `early_access_invites`,
-  which stores a SHA-256 hash (`hashInviteToken` in `src/lib/early-access.ts`).
-  This is a real, contained gap — the fix in this perilla is scoped to the
-  identity/role/replay boundary, not a schema migration. A follow-up could
-  add a `token_hash` column and switch lookups to hash comparison, reusing
-  the existing `hashInviteToken` pattern.
+- ~~**Invite tokens for `workspace_invitations` are stored and compared as
+  plaintext**~~ — **RESOLVED in Perilla 11** (beta release closure gate). The
+  table now stores only `token_hash` (sha256 of a 192-bit CSPRNG token, see
+  `src/lib/security/invite-tokens.ts`); the plaintext `token` column was
+  dropped and legacy pending plaintext invitations were revoked by
+  `supabase/migrations/20260820000000_workspace_invite_token_hashing.sql`.
+  Lookups compare hashes (`resolveValidWorkspaceInvite` in
+  `src/lib/workspace-team.ts`), and the plaintext exists only once, inside
+  the `acceptPath` returned by `inviteWorkspaceMember` at creation time.
+  Coverage: `tests/workspace-invite-token-hashing.test.mjs`.
 - **`acceptEarlyAccessInvite` has a separate, pre-existing race window**: it
   doesn't atomically claim the invite before creating the new workspace (the
   `accepted_at` write happens near the end of the function), so two
