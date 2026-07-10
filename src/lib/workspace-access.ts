@@ -118,6 +118,168 @@ export async function requireBillingManageMembership(
   return { userId: input.userId, workspaceId: input.workspaceId, role: role as WorkspaceRole };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Role update / owner-safety boundary (Perilla 4).
+//
+// Once a `workspace_memberships` row exists, updating its `role` is at least as
+// sensitive as creating it (Perilla 3). The functions below are the sole
+// authoritative source for "may actorRole change a member's role", "who is
+// actorRole/currentTargetRole", and "would this leave the workspace ownerless".
+// See docs/security/workspace-role-update-boundary.md.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type WorkspaceRoleUpdateDecision =
+  | "allow"
+  | "deny_actor_insufficient_role"
+  | "deny_target_role_not_assignable"
+  | "deny_self_promotion"
+  | "deny_self_role_update"
+  | "deny_owner_assignment_requires_transfer"
+  | "deny_owner_role_change_requires_transfer"
+  | "deny_last_owner_protected"
+  | "deny_target_not_member"
+  | "deny_invalid_role";
+
+/**
+ * Numeric rank for privilege comparisons (higher = more privileged). Reuses the exact
+ * ranking `requireWorkspaceRole` already enforces, so "is this a promotion" can never
+ * diverge from the minimum-role gate above.
+ */
+export function compareWorkspaceRolePrivilege(role: WorkspaceRole): number {
+  return roleRank[role];
+}
+
+export function isWorkspaceRolePromotion(input: { currentRole: WorkspaceRole; targetRole: WorkspaceRole }): boolean {
+  return compareWorkspaceRolePrivilege(input.targetRole) > compareWorkspaceRolePrivilege(input.currentRole);
+}
+
+/**
+ * Authoritative, server-side policy for "may actorRole change a member's role from
+ * currentTargetRole to requestedTargetRole" — the single source of truth for every
+ * workspace role-update decision. Pure and side-effect free: every input must already be
+ * resolved server-side (actorRole/currentTargetRole from `workspace_memberships` via
+ * `requireWorkspaceRoleUpdateActor`/`requireWorkspaceRoleUpdateTarget`, requestedTargetRole
+ * from `normalizeWorkspaceRole`, isLastOwner from `countWorkspaceOwners`) — this function
+ * never reads a client-supplied role, display role, or `user_metadata.role` directly.
+ *
+ * Policy, evaluated in this order:
+ * 1. `owner` can never be the requested role through this decision — assigning ownership is
+ *    reserved for workspace-creation bootstrap or an explicit (not implemented) transfer flow.
+ * 2. A current owner's role can never be changed here: last-owner-protected if they're the
+ *    workspace's only owner, otherwise still denied pending an explicit ownership-transfer
+ *    flow (there is none yet — see docs/security/workspace-role-update-boundary.md).
+ * 3. Self-targeted requests: promotions are always denied. Any other self-change (lateral or
+ *    demotion) is denied too — this perilla ships no self-service role-change flow.
+ * 4. `owner` actor: may set admin/pm/viewer on any non-owner, non-self target.
+ * 5. `admin` actor: may only manage pm/viewer targets, and may only set pm/viewer — never
+ *    `admin` (lateral admin management stays owner-only) or `owner`.
+ * 6. `pm`/`viewer` actor: can never update any member's role.
+ */
+export function canUpdateWorkspaceMemberRole(input: {
+  actorRole: WorkspaceRole;
+  actorUserId: string;
+  targetUserId: string;
+  currentTargetRole: WorkspaceRole;
+  requestedTargetRole: WorkspaceRole;
+  isLastOwner: boolean;
+}): WorkspaceRoleUpdateDecision {
+  if (input.requestedTargetRole === "owner") return "deny_owner_assignment_requires_transfer";
+
+  if (input.currentTargetRole === "owner") {
+    return input.isLastOwner ? "deny_last_owner_protected" : "deny_owner_role_change_requires_transfer";
+  }
+
+  if (input.actorUserId === input.targetUserId) {
+    return isWorkspaceRolePromotion({ currentRole: input.currentTargetRole, targetRole: input.requestedTargetRole })
+      ? "deny_self_promotion"
+      : "deny_self_role_update";
+  }
+
+  if (input.actorRole === "owner") return "allow";
+
+  if (input.actorRole === "admin") {
+    if (input.currentTargetRole === "admin") return "deny_actor_insufficient_role";
+    if (input.requestedTargetRole === "admin") return "deny_target_role_not_assignable";
+    return "allow";
+  }
+
+  return "deny_actor_insufficient_role";
+}
+
+export type WorkspaceRoleUpdateMembership = { userId: string; workspaceId: string; role: WorkspaceRole };
+
+/**
+ * Resolves the actor's own current role directly from `workspace_memberships` for a
+ * role-update decision. Deliberately does not enforce a minimum role here — pm/viewer are
+ * valid, resolvable actors whose insufficiency is decided by `canUpdateWorkspaceMemberRole`,
+ * not by this lookup. Never reads `AuthUserContext.role`, `user_metadata.role`, or any
+ * client-supplied `actorRole`/`isOwner`/`isAdmin` field. Fails closed
+ * (`WorkspaceMembershipError`, reason `workspace_missing`) when there is no membership row,
+ * or its stored role fails the closed `WORKSPACE_ROLES` set.
+ */
+export async function requireWorkspaceRoleUpdateActor(
+  input: { userId: string; workspaceId: string },
+  getSupabaseClient: () => Promise<Pick<Awaited<ReturnType<typeof createSupabaseServerClient>>, "from">> = createSupabaseServerClient,
+): Promise<WorkspaceRoleUpdateMembership> {
+  const supabase = await getSupabaseClient();
+  const { data } = await supabase
+    .from("workspace_memberships")
+    .select("role")
+    .eq("workspace_id", input.workspaceId)
+    .eq("user_id", input.userId)
+    .maybeSingle<{ role: string }>();
+
+  const role = data?.role;
+  if (!role || !WORKSPACE_ROLES.includes(role as WorkspaceRole)) {
+    throw new WorkspaceMembershipError("workspace_missing", "No active workspace membership found for this user.");
+  }
+
+  return { userId: input.userId, workspaceId: input.workspaceId, role: role as WorkspaceRole };
+}
+
+/**
+ * Resolves the target member's current role directly from `workspace_memberships`. This is
+ * the sole source of `currentTargetRole` for role-update/owner-safety decisions — never a
+ * client-supplied "currentRole"/"targetRole" field. Fails closed the same way as the actor
+ * lookup above (missing membership or invalid stored role → `workspace_missing`).
+ */
+export async function requireWorkspaceRoleUpdateTarget(
+  input: { workspaceId: string; targetUserId: string },
+  getSupabaseClient: () => Promise<Pick<Awaited<ReturnType<typeof createSupabaseServerClient>>, "from">> = createSupabaseServerClient,
+): Promise<WorkspaceRoleUpdateMembership> {
+  const supabase = await getSupabaseClient();
+  const { data } = await supabase
+    .from("workspace_memberships")
+    .select("role")
+    .eq("workspace_id", input.workspaceId)
+    .eq("user_id", input.targetUserId)
+    .maybeSingle<{ role: string }>();
+
+  const role = data?.role;
+  if (!role || !WORKSPACE_ROLES.includes(role as WorkspaceRole)) {
+    throw new WorkspaceMembershipError("workspace_missing", "Target user is not an active member of this workspace.");
+  }
+
+  return { userId: input.targetUserId, workspaceId: input.workspaceId, role: role as WorkspaceRole };
+}
+
+/**
+ * Counts active owners in a workspace — used to compute `isLastOwner` before any operation
+ * that could change or remove an owner's role, so a workspace can never be left ownerless.
+ */
+export async function countWorkspaceOwners(
+  input: { workspaceId: string },
+  getSupabaseClient: () => Promise<Pick<Awaited<ReturnType<typeof createSupabaseServerClient>>, "from">> = createSupabaseServerClient,
+): Promise<number> {
+  const supabase = await getSupabaseClient();
+  const { count } = await supabase
+    .from("workspace_memberships")
+    .select("user_id", { head: true, count: "exact" })
+    .eq("workspace_id", input.workspaceId)
+    .eq("role", "owner");
+  return count ?? 0;
+}
+
 export type WorkspaceInviteActor = { userId: string; workspaceId: string; role: WorkspaceRole };
 
 /**

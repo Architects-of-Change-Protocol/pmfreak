@@ -212,7 +212,7 @@ export const PRIVILEGED_ACCESS_REGISTRY: readonly PrivilegedAccessEntry[] = [
   },
   {
     file: "src/lib/workspace-team.ts",
-    purpose: "Workspace invitation acceptance (acceptWorkspaceInvite, called from src/app/(protected)/accept-invite/[token]/page.tsx): looks up invitation by opaque token and creates workspace membership. The invited user is not yet a member of the target workspace so RLS would block reading workspace_invitations and writing workspace_memberships.",
+    purpose: "Workspace invitation acceptance (acceptWorkspaceInvite, called from src/app/(protected)/accept-invite/[token]/page.tsx) and member role updates (updateWorkspaceMemberRole): invite acceptance looks up an invitation by opaque token and creates a workspace membership for a user not yet a member of the target workspace; role update reads the actor's and target's own workspace_memberships rows and writes an updated role. workspace_memberships has only SELECT RLS policies (see 20260515100000_rls_governance_fixes.sql) — there is no policy permitting a client-side UPDATE at all, so the role-update write must go through the service role regardless of the actor's role, and using one privileged client for the whole role-update flow avoids an RLS-scoped read resolving 'target not found' for a real member just because the actor lacks read visibility into other members' rows.",
     riskLevel: "MEDIUM",
     mitigations: [
       "Authenticated user required",
@@ -222,7 +222,8 @@ export const PRIVILEGED_ACCESS_REGISTRY: readonly PrivilegedAccessEntry[] = [
       "Pending→accepted transition is a single conditional UPDATE checked before any membership write, so a concurrent replay of the same token can win at most once",
       "Membership write uses upsert to prevent duplicates",
       "Audit event written to workspace_audit_events on completion",
-      "See docs/security/invite-workspace-role-boundary.md",
+      "updateWorkspaceMemberRole resolves actorRole/currentTargetRole from workspace_memberships server-side (never from a body/metadata/display-role field) and only writes after canUpdateWorkspaceMemberRole returns \"allow\" — owner assignment, last-owner changes, and self-promotion are denied before any UPDATE runs",
+      "See docs/security/invite-workspace-role-boundary.md and docs/security/workspace-role-update-boundary.md",
     ],
     strictCriteriaMet: "L2",
     needsRlsBeforeSwap: false,

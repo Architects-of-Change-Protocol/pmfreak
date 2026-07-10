@@ -5,9 +5,14 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { requireGovernancePermission } from "@/lib/security/access-guards";
 import {
   canAssignWorkspaceRole,
+  canUpdateWorkspaceMemberRole,
+  countWorkspaceOwners,
   normalizeWorkspaceRole,
   requireWorkspaceInviteActor,
+  requireWorkspaceRoleUpdateActor,
+  requireWorkspaceRoleUpdateTarget,
   type WorkspaceRole,
+  type WorkspaceRoleUpdateDecision,
 } from "@/lib/workspace-access";
 
 const INVITE_TTL_DAYS = 7;
@@ -215,4 +220,120 @@ export async function acceptWorkspaceInvite(
   });
 
   return { workspaceId: invite.workspaceId, role: invite.role, inviteId: invite.inviteId };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Workspace member role update (Perilla 4).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export class WorkspaceRoleUpdateError extends Error {
+  readonly reason: WorkspaceRoleUpdateDecision;
+
+  constructor(reason: WorkspaceRoleUpdateDecision, message: string) {
+    super(message);
+    this.name = "WorkspaceRoleUpdateError";
+    this.reason = reason;
+  }
+}
+
+export type UpdatedWorkspaceMemberRole = { workspaceId: string; targetUserId: string; role: WorkspaceRole };
+
+/**
+ * Updates an existing workspace member's role. This is the sole authorized path to change
+ * `workspace_memberships.role` for a member who already has a row — as opposed to creating
+ * one, which is `ensureWorkspaceMembership` (workspace-creation bootstrap) or
+ * `acceptWorkspaceInvite` (invite acceptance) above. Every decision-relevant value is
+ * resolved server-side, never trusted from a client-supplied field:
+ *
+ *  - `requestedTargetRole` — `normalizeWorkspaceRole(input.requestedRole)`; fails closed
+ *    (`deny_invalid_role`) on anything outside the closed `WORKSPACE_ROLES` set, before any
+ *    database call.
+ *  - `actorRole` — `requireWorkspaceRoleUpdateActor` reads the caller's OWN row from
+ *    `workspace_memberships`. Callers must pass the authenticated session user's id as
+ *    `actorUserId`; this function has no `body.actorRole`/`isOwner`/`isAdmin` parameter for
+ *    anything else to smuggle a role through.
+ *  - `currentTargetRole` — `requireWorkspaceRoleUpdateTarget` reads the target's row; fails
+ *    closed (`deny_target_not_member`) if the target has no membership in this workspace.
+ *  - `isLastOwner` — `countWorkspaceOwners`, only queried when the target currently holds
+ *    `"owner"` (avoids an unnecessary query for the common non-owner case).
+ *
+ * `canUpdateWorkspaceMemberRole` (src/lib/workspace-access.ts) is the sole policy gate — the
+ * `UPDATE` only runs when it returns `"allow"`. See
+ * docs/security/workspace-role-update-boundary.md.
+ *
+ * A single privileged client is used for the whole operation (actor lookup, target lookup,
+ * owner count, and the update itself): `workspace_memberships` has no RLS policy permitting
+ * client-side UPDATEs at all (see 20260515100000_rls_governance_fixes.sql — read-only SELECT
+ * policies), so the write must go through the service role regardless of actor role, and using
+ * one privileged client for every read in this flow avoids a visibility mismatch where an
+ * RLS-scoped client could resolve "target not found" for a real member simply because the
+ * *actor* lacks read visibility into other members' rows.
+ */
+export async function updateWorkspaceMemberRole(
+  input: { workspaceId: string; actorUserId: string; targetUserId: string; requestedRole: unknown },
+  getSupabaseClient: () => Promise<MinimalSupabaseClient> = async () =>
+    createSupabaseServiceRoleClient({
+      routeId: "lib.workspace-team.updateWorkspaceMemberRole",
+      operation: "update_member_role",
+      reason: "existing_privileged_flow",
+      systemActor: "system",
+      actorUserId: input.actorUserId,
+      workspaceId: input.workspaceId,
+    }),
+): Promise<UpdatedWorkspaceMemberRole> {
+  const requestedTargetRole = normalizeWorkspaceRole(input.requestedRole);
+  if (!requestedTargetRole) {
+    throw new WorkspaceRoleUpdateError("deny_invalid_role", "Requested role is not a recognized workspace role.");
+  }
+
+  const supabase = await getSupabaseClient();
+  const asSupabaseClient = async () => supabase;
+
+  const actor = await requireWorkspaceRoleUpdateActor({ userId: input.actorUserId, workspaceId: input.workspaceId }, asSupabaseClient).catch(
+    () => null,
+  );
+  if (!actor) {
+    throw new WorkspaceRoleUpdateError("deny_actor_insufficient_role", "No active workspace membership found for the requesting user.");
+  }
+
+  const target = await requireWorkspaceRoleUpdateTarget(
+    { workspaceId: input.workspaceId, targetUserId: input.targetUserId },
+    asSupabaseClient,
+  ).catch(() => null);
+  if (!target) {
+    throw new WorkspaceRoleUpdateError("deny_target_not_member", "Target user is not an active member of this workspace.");
+  }
+
+  let isLastOwner = false;
+  if (target.role === "owner") {
+    const ownerCount = await countWorkspaceOwners({ workspaceId: input.workspaceId }, asSupabaseClient);
+    isLastOwner = ownerCount <= 1;
+  }
+
+  const decision = canUpdateWorkspaceMemberRole({
+    actorRole: actor.role,
+    actorUserId: input.actorUserId,
+    targetUserId: input.targetUserId,
+    currentTargetRole: target.role,
+    requestedTargetRole,
+    isLastOwner,
+  });
+
+  if (decision !== "allow") throw new WorkspaceRoleUpdateError(decision, `Role update denied: ${decision}`);
+
+  const { error } = await supabase
+    .from("workspace_memberships")
+    .update({ role: requestedTargetRole })
+    .eq("workspace_id", input.workspaceId)
+    .eq("user_id", input.targetUserId);
+  if (error) throw new Error(error.message);
+
+  await supabase.from("workspace_audit_events").insert({
+    workspace_id: input.workspaceId,
+    actor_user_id: input.actorUserId,
+    event_type: "member_role_updated",
+    payload: { targetUserId: input.targetUserId, previousRole: target.role, newRole: requestedTargetRole },
+  });
+
+  return { workspaceId: input.workspaceId, targetUserId: input.targetUserId, role: requestedTargetRole };
 }

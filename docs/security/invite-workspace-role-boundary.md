@@ -248,6 +248,9 @@ covered directly by test (see below).
   another member; `owner` is only ever assigned at workspace-creation
   bootstrap. If an owner-transfer feature is added later, it must be its own
   explicit, documented flow — not a change to `INVITABLE_WORKSPACE_ROLES`.
+  See [`workspace-role-update-boundary.md`](./workspace-role-update-boundary.md)
+  (Perilla 4), which hardens the *update* side of `workspace_memberships.role`
+  (once a member already exists) and blocks `owner` assignment there too.
 - **Invite tokens for `workspace_invitations` are stored and compared as
   plaintext** (`token text not null unique`), unlike `early_access_invites`,
   which stores a SHA-256 hash (`hashInviteToken` in `src/lib/early-access.ts`).
