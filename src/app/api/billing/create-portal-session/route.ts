@@ -3,6 +3,7 @@ import { getCompanySubscription } from "@/lib/billing";
 import { denyResponse } from "@/lib/security/deny-response";
 import { requireBillingManageMembership, WorkspaceMembershipError } from "@/lib/workspace-access";
 import { getStripeServerClient } from "@/lib/stripe";
+import { abuseDenyResponse, buildAbuseKey, enforceAbuseLimit } from "@/lib/security/abuse-protection";
 
 const ROUTE_ID = "/api/billing/create-portal-session";
 
@@ -11,6 +12,7 @@ export type CreatePortalSessionDeps = {
   requireBillingManageMembership: typeof requireBillingManageMembership;
   getCompanySubscription: typeof getCompanySubscription;
   getStripeServerClient: typeof getStripeServerClient;
+  enforceAbuseLimit: typeof enforceAbuseLimit;
 };
 
 const defaultDeps: CreatePortalSessionDeps = {
@@ -18,14 +20,18 @@ const defaultDeps: CreatePortalSessionDeps = {
   requireBillingManageMembership,
   getCompanySubscription,
   getStripeServerClient,
+  enforceAbuseLimit,
 };
 
 /**
  * Testable core of the route handler. `deps` defaults to the real
  * implementations; tests inject fakes so this runs the real authorization and
  * request-handling logic end-to-end without a live Supabase/Stripe backend.
+ * Partial overrides merge over the real implementations, so existing tests
+ * that construct a deps object predating a new dependency keep working.
  */
-export async function handleCreatePortalSession(request: Request, deps: CreatePortalSessionDeps = defaultDeps): Promise<Response> {
+export async function handleCreatePortalSession(request: Request, depsOverride: Partial<CreatePortalSessionDeps> = {}): Promise<Response> {
+  const deps: CreatePortalSessionDeps = { ...defaultDeps, ...depsOverride };
   const user = await deps.getAuthUser();
 
   if (!user) {
@@ -52,6 +58,18 @@ export async function handleCreatePortalSession(request: Request, deps: CreatePo
       actorUserId: user.id,
       workspaceId,
     });
+  }
+
+  // Abuse protection is a separate boundary from authorization above — see
+  // src/lib/security/abuse-protection-registry.ts ("billing.create_portal_session").
+  const abuseDecision = await deps.enforceAbuseLimit({
+    scope: "billing.create_portal_session",
+    identifier: buildAbuseKey([user.id, workspaceId]),
+    limit: 5,
+    windowSeconds: 60,
+  });
+  if (!abuseDecision.allowed) {
+    return abuseDenyResponse(abuseDecision, "Too many billing portal attempts. Please wait a moment and try again.");
   }
 
   const subscription = await deps.getCompanySubscription(user.companyId);

@@ -3,6 +3,7 @@ import { getCompanySubscription, updateCompanySubscription } from "@/lib/billing
 import { denyResponse } from "@/lib/security/deny-response";
 import { requireBillingManageMembership, WorkspaceMembershipError } from "@/lib/workspace-access";
 import { getStripeServerClient } from "@/lib/stripe";
+import { abuseDenyResponse, buildAbuseKey, enforceAbuseLimit } from "@/lib/security/abuse-protection";
 
 type CheckoutPayload = {
   plan?: "pro" | "pmo";
@@ -16,6 +17,7 @@ export type CreateCheckoutSessionDeps = {
   getCompanySubscription: typeof getCompanySubscription;
   updateCompanySubscription: typeof updateCompanySubscription;
   getStripeServerClient: typeof getStripeServerClient;
+  enforceAbuseLimit: typeof enforceAbuseLimit;
 };
 
 const defaultDeps: CreateCheckoutSessionDeps = {
@@ -24,14 +26,18 @@ const defaultDeps: CreateCheckoutSessionDeps = {
   getCompanySubscription,
   updateCompanySubscription,
   getStripeServerClient,
+  enforceAbuseLimit,
 };
 
 /**
  * Testable core of the route handler. `deps` defaults to the real
  * implementations; tests inject fakes so this runs the real authorization and
  * request-handling logic end-to-end without a live Supabase/Stripe backend.
+ * Partial overrides merge over the real implementations, so existing tests
+ * that construct a deps object predating a new dependency keep working.
  */
-export async function handleCreateCheckoutSession(request: Request, deps: CreateCheckoutSessionDeps = defaultDeps): Promise<Response> {
+export async function handleCreateCheckoutSession(request: Request, depsOverride: Partial<CreateCheckoutSessionDeps> = {}): Promise<Response> {
+  const deps: CreateCheckoutSessionDeps = { ...defaultDeps, ...depsOverride };
   const user = await deps.getAuthUser();
 
   if (!user) {
@@ -61,6 +67,20 @@ export async function handleCreateCheckoutSession(request: Request, deps: Create
       actorUserId: user.id,
       workspaceId,
     });
+  }
+
+  // Abuse protection is a separate boundary from authorization above: a
+  // legitimately-authorized owner/admin can still spam Stripe session
+  // creation. See docs/security/abuse-protection-boundary.md and
+  // src/lib/security/abuse-protection-registry.ts ("billing.create_checkout_session").
+  const abuseDecision = await deps.enforceAbuseLimit({
+    scope: "billing.create_checkout_session",
+    identifier: buildAbuseKey([user.id, workspaceId]),
+    limit: 5,
+    windowSeconds: 60,
+  });
+  if (!abuseDecision.allowed) {
+    return abuseDenyResponse(abuseDecision, "Too many checkout attempts. Please wait a moment and try again.");
   }
 
   let payload: CheckoutPayload;

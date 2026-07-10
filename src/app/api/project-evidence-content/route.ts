@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser, requireProjectAccess } from "@/lib/security/server-authorization";
 import { countWords } from "@/lib/project-evidence/evidence-processor";
+import { abuseDenyResponse, buildAbuseKey, enforceAbuseLimit } from "@/lib/security/abuse-protection";
 
 type EvidenceContentRow = {
   id: string;
@@ -56,6 +57,14 @@ export async function GET(request: Request) {
     }
     throw error;
   }
+
+  const abuseDecision = await enforceAbuseLimit({
+    scope: "project_evidence_content.read",
+    identifier: buildAbuseKey([userId, projectId]),
+    limit: 300,
+    windowSeconds: 3600,
+  });
+  if (!abuseDecision.allowed) return abuseDenyResponse(abuseDecision);
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase

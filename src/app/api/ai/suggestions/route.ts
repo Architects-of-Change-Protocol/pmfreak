@@ -3,6 +3,7 @@ import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { requireProjectAccess } from "@/lib/security/server-authorization";
 import { analyzeProjectState } from "@/lib/ai/pil";
 import { createSupabaseServerClient } from "@/lib/db/supabase-server";
+import { abuseDenyResponse, buildAbuseKey, enforceAbuseLimit, getClientIp } from "@/lib/security/abuse-protection";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -16,6 +17,16 @@ export async function GET(request: Request) {
     }
     throw error;
   }
+
+  // AI-adjacent compute cost throttle, separate from the access check above
+  // — see docs/security/abuse-protection-boundary.md ("ai.suggestions").
+  const abuseDecision = await enforceAbuseLimit({
+    scope: "ai.suggestions",
+    identifier: buildAbuseKey([getClientIp(request), projectId]),
+    limit: 120,
+    windowSeconds: 3600,
+  });
+  if (!abuseDecision.allowed) return abuseDenyResponse(abuseDecision);
 
   try {
     await analyzeProjectState(projectId);

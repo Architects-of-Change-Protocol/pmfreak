@@ -1,16 +1,34 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isSafeContinuationRoute } from "@/lib/auth/validate-continuation-route";
 import { resolvePostAuthDestination } from "@/lib/auth/resolve-post-auth-destination";
 import { buildSignupProfile } from "./build-signup-profile";
+import { buildAbuseKey, enforceAbuseLimit, getClientIpFromHeaders } from "@/lib/security/abuse-protection";
 
 export async function signupAction(formData: FormData) {
   const { email, password, fullName, companyName, requestedRoute, role } = buildSignupProfile(formData);
 
   if (!email || !password || !fullName || !companyName) {
     redirect("/signup?error=Please+complete+all+required+fields");
+  }
+
+  // Abuse protection is separate from authorization: signup is intentionally
+  // public, but unlimited account creation still floods Supabase Auth and
+  // workspace bootstrap. See docs/security/abuse-protection-boundary.md
+  // ("signup.create_account").
+  const headersList = await headers();
+  const clientIp = getClientIpFromHeaders(headersList);
+  const abuseDecision = await enforceAbuseLimit({
+    scope: "signup.create_account",
+    identifier: buildAbuseKey([clientIp, email]),
+    limit: 8,
+    windowSeconds: 3600,
+  });
+  if (!abuseDecision.allowed) {
+    redirect("/signup?error=Too+many+signup+attempts.+Please+try+again+later.");
   }
 
   const supabase = await createSupabaseServerClient();

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { requireSystemOrWebhookSecret } from "@/lib/security/server-authorization";
 import { ingestFederatedEvent } from "@/lib/live-federation/ingestion/live-ingestion-runtime";
+import { abuseDenyResponse, buildAbuseKey, enforceAbuseLimit, getClientIp } from "@/lib/security/abuse-protection";
 
 // Previously "authorized" meant only `Authorization: Bearer <anything>` —
 // the token value itself was never checked, so any caller could impersonate
@@ -22,6 +23,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     } else {
       throw error;
     }
+  }
+
+  // Abuse protection for invalid-secret attempts specifically: a valid
+  // connector isn't rate-limited here, but repeated bad-secret guesses from
+  // one IP+connector are. See docs/security/abuse-protection-boundary.md
+  // ("federation.webhook_invalid_attempt").
+  if (!federationAuthorized) {
+    const abuseDecision = await enforceAbuseLimit({
+      scope: "federation.webhook_invalid_attempt",
+      identifier: buildAbuseKey([getClientIp(request), connectorId]),
+      limit: 20,
+      windowSeconds: 3600,
+    });
+    if (!abuseDecision.allowed) return abuseDenyResponse(abuseDecision);
   }
 
   const body = await request.json();
