@@ -43,7 +43,7 @@ export async function updateExecutionTaskSchedule(input: {
   }
 
   try {
-    await requireProjectAccess(task.project_id, "read");
+    await requireProjectAccess(task.project_id, "write");
   } catch (err) {
     if (err instanceof AccessDeniedError) {
       return { ok: false, error: "Access denied.", failureClass: "unauthorized" };

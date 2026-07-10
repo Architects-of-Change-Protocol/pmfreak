@@ -1,8 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
+import { AccessDeniedError } from "@/aoc/runtime-consumer";
+import { requireSystemOrWebhookSecret } from "@/lib/security/server-authorization";
 import { ingestFederatedEvent } from "@/lib/live-federation/ingestion/live-ingestion-runtime";
 
+// Previously "authorized" meant only `Authorization: Bearer <anything>` —
+// the token value itself was never checked, so any caller could impersonate
+// a federation connector for any workspaceId. The Bearer token is now
+// verified against FEDERATION_WEBHOOK_SECRET with requireSystemOrWebhookSecret
+// (the same shared-secret pattern used elsewhere for system/webhook callers),
+// and fails closed if the secret isn't configured.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ connectorId: string }> }) {
   const { connectorId } = await params;
+  const authHeader = request.headers.get("authorization") ?? "";
+  const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : null;
+  let federationAuthorized = true;
+  try {
+    requireSystemOrWebhookSecret(bearerToken, process.env.FEDERATION_WEBHOOK_SECRET);
+  } catch (error) {
+    if (error instanceof AccessDeniedError) {
+      federationAuthorized = false;
+    } else {
+      throw error;
+    }
+  }
+
   const body = await request.json();
   const workspaceId = String(body.workspaceId ?? request.headers.get("x-workspace-id") ?? "");
   const sourceSystem = String(body.sourceSystem ?? "custom") as "jira" | "slack" | "github" | "calendar" | "notion" | "custom";
@@ -15,7 +36,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       workspaceId,
       connectorId,
       sourceSystem,
-      federationAuthorized: request.headers.get("authorization")?.startsWith("Bearer ") ?? false,
+      federationAuthorized,
       nonce,
       payload: body.payload ?? body,
     });

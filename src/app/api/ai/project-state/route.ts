@@ -1,9 +1,20 @@
 import { NextResponse } from "next/server";
+import { AccessDeniedError } from "@/aoc/runtime-consumer";
+import { requireProjectAccess } from "@/lib/security/server-authorization";
 import { getProjectState } from "@/lib/ai/project-state";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId")?.trim() || "demo-project";
+
+  try {
+    await requireProjectAccess(projectId, "read");
+  } catch (error) {
+    if (error instanceof AccessDeniedError) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    throw error;
+  }
 
   try {
     const state = await getProjectState(projectId);

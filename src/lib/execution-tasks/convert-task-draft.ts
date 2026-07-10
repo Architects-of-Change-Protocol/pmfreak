@@ -10,20 +10,20 @@ export type TaskConversionResult =
 
 export async function convertTaskDraftToExecutionTask(input: {
   taskDraftId: string;
-  actorUserId?: string;
 }): Promise<TaskConversionResult> {
   const startedAt = Date.now();
 
+  // No caller-supplied actor-id override: this function used to accept an
+  // optional parameter that, when present, skipped requireAuthenticatedUser()
+  // entirely. No caller ever used it (confirmed via repo-wide grep), but it
+  // was a live auth-bypass footgun for any future caller — removed rather
+  // than left dormant.
   let userId: string;
-  if (input.actorUserId) {
-    userId = input.actorUserId;
-  } else {
-    try {
-      const { user } = await requireAuthenticatedUser();
-      userId = user.id;
-    } catch {
-      return { ok: false, error: "Unauthenticated.", failureClass: "unauthenticated" };
-    }
+  try {
+    const { user } = await requireAuthenticatedUser();
+    userId = user.id;
+  } catch {
+    return { ok: false, error: "Unauthenticated.", failureClass: "unauthenticated" };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -42,7 +42,7 @@ export async function convertTaskDraftToExecutionTask(input: {
   }
 
   try {
-    await requireProjectAccess(draft.project_id, "read");
+    await requireProjectAccess(draft.project_id, "write");
   } catch (error) {
     if (error instanceof AccessDeniedError) {
       return { ok: false, error: "Access denied.", failureClass: "unauthorized" };
