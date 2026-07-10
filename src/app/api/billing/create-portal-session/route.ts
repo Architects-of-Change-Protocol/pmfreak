@@ -6,8 +6,27 @@ import { getStripeServerClient } from "@/lib/stripe";
 
 const ROUTE_ID = "/api/billing/create-portal-session";
 
-export async function POST(request: Request) {
-  const user = await getAuthUser();
+export type CreatePortalSessionDeps = {
+  getAuthUser: typeof getAuthUser;
+  requireBillingManageMembership: typeof requireBillingManageMembership;
+  getCompanySubscription: typeof getCompanySubscription;
+  getStripeServerClient: typeof getStripeServerClient;
+};
+
+const defaultDeps: CreatePortalSessionDeps = {
+  getAuthUser,
+  requireBillingManageMembership,
+  getCompanySubscription,
+  getStripeServerClient,
+};
+
+/**
+ * Testable core of the route handler. `deps` defaults to the real
+ * implementations; tests inject fakes so this runs the real authorization and
+ * request-handling logic end-to-end without a live Supabase/Stripe backend.
+ */
+export async function handleCreatePortalSession(request: Request, deps: CreatePortalSessionDeps = defaultDeps): Promise<Response> {
+  const user = await deps.getAuthUser();
 
   if (!user) {
     return denyResponse({ status: 401, routeId: ROUTE_ID, message: "Unauthorized", reason: "unauthorized" });
@@ -21,7 +40,7 @@ export async function POST(request: Request) {
   // See docs/security/billing-authorization-boundary.md — billing.manage is
   // resolved exclusively from server-side workspace membership.
   try {
-    await requireBillingManageMembership({ userId: user.id, workspaceId });
+    await deps.requireBillingManageMembership({ userId: user.id, workspaceId });
   } catch (error) {
     const reason = error instanceof WorkspaceMembershipError ? error.reason : "workspace_missing";
     return denyResponse({
@@ -35,14 +54,14 @@ export async function POST(request: Request) {
     });
   }
 
-  const subscription = await getCompanySubscription(user.companyId);
+  const subscription = await deps.getCompanySubscription(user.companyId);
 
   if (!subscription.stripeCustomerId) {
     return Response.json({ error: "No Stripe customer found for this company." }, { status: 400 });
   }
 
   try {
-    const stripe = getStripeServerClient();
+    const stripe = deps.getStripeServerClient();
     const origin = request.headers.get("origin") ?? "http://localhost:3000";
 
     const session = await stripe.billingPortal.sessions.create({
@@ -54,4 +73,8 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "Unable to create Stripe billing portal session." }, { status: 502 });
   }
+}
+
+export async function POST(request: Request) {
+  return handleCreatePortalSession(request);
 }

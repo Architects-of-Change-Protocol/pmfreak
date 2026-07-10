@@ -10,8 +10,29 @@ type CheckoutPayload = {
 
 const ROUTE_ID = "/api/billing/create-checkout-session";
 
-export async function POST(request: Request) {
-  const user = await getAuthUser();
+export type CreateCheckoutSessionDeps = {
+  getAuthUser: typeof getAuthUser;
+  requireBillingManageMembership: typeof requireBillingManageMembership;
+  getCompanySubscription: typeof getCompanySubscription;
+  updateCompanySubscription: typeof updateCompanySubscription;
+  getStripeServerClient: typeof getStripeServerClient;
+};
+
+const defaultDeps: CreateCheckoutSessionDeps = {
+  getAuthUser,
+  requireBillingManageMembership,
+  getCompanySubscription,
+  updateCompanySubscription,
+  getStripeServerClient,
+};
+
+/**
+ * Testable core of the route handler. `deps` defaults to the real
+ * implementations; tests inject fakes so this runs the real authorization and
+ * request-handling logic end-to-end without a live Supabase/Stripe backend.
+ */
+export async function handleCreateCheckoutSession(request: Request, deps: CreateCheckoutSessionDeps = defaultDeps): Promise<Response> {
+  const user = await deps.getAuthUser();
 
   if (!user) {
     return denyResponse({ status: 401, routeId: ROUTE_ID, message: "Unauthorized", reason: "unauthorized" });
@@ -28,7 +49,7 @@ export async function POST(request: Request) {
   // fields on the request body are never consulted — see
   // docs/security/billing-authorization-boundary.md.
   try {
-    await requireBillingManageMembership({ userId: user.id, workspaceId });
+    await deps.requireBillingManageMembership({ userId: user.id, workspaceId });
   } catch (error) {
     const reason = error instanceof WorkspaceMembershipError ? error.reason : "workspace_missing";
     return denyResponse({
@@ -69,8 +90,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const stripe = getStripeServerClient();
-    const subscription = await getCompanySubscription(user.companyId);
+    const stripe = deps.getStripeServerClient();
+    const subscription = await deps.getCompanySubscription(user.companyId);
 
     const customerId = subscription.stripeCustomerId
       ? subscription.stripeCustomerId
@@ -87,7 +108,7 @@ export async function POST(request: Request) {
         ).id;
 
     if (!subscription.stripeCustomerId) {
-      await updateCompanySubscription(user.companyId, { stripeCustomerId: customerId });
+      await deps.updateCompanySubscription(user.companyId, { stripeCustomerId: customerId });
     }
 
     const origin = request.headers.get("origin") ?? "http://localhost:3000";
@@ -120,4 +141,8 @@ export async function POST(request: Request) {
     console.error("[billing] checkout session creation failed", { companyId: user.companyId, plan, error });
     return Response.json({ error: "Unable to create Stripe checkout session." }, { status: 502 });
   }
+}
+
+export async function POST(request: Request) {
+  return handleCreateCheckoutSession(request);
 }

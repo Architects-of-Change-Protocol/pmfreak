@@ -1,14 +1,16 @@
 // Perilla 2 — Billing Authorization Must Use Workspace Membership Role.
 //
 // Behavioral, close-to-real-flow tests for POST /api/billing/create-checkout-session
-// and POST /api/billing/create-portal-session. Auth, Supabase, and Stripe are
-// mocked at the module boundary via node:test's mock.module — the route
-// handlers themselves, and the real requireBillingManageMembership /
-// canManageBilling logic, run unmodified.
+// and POST /api/billing/create-portal-session. Dependencies (auth, Supabase,
+// Stripe) are injected via each route's exported handle* function — the real
+// route logic and the real requireBillingManageMembership / canManageBilling
+// logic run unmodified, with no dependency on any experimental Node API.
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mockModuleExports } from "./mock-module-compat-test-helpers.mjs";
+import { handleCreateCheckoutSession } from "../src/app/api/billing/create-checkout-session/route.ts";
+import { handleCreatePortalSession } from "../src/app/api/billing/create-portal-session/route.ts";
+import { requireBillingManageMembership } from "../src/lib/workspace-access.ts";
 
 const state = {
   user: null,
@@ -17,15 +19,8 @@ const state = {
   stripeCalls: [],
 };
 
-await mockModuleExports("@/lib/auth", {
-  getAuthUser: async () => state.user,
-  requireAuthUser: async () => {
-    throw new Error("requireAuthUser should not be used by the billing routes");
-  },
-});
-
-await mockModuleExports("@/lib/supabase/server", {
-  createSupabaseServerClient: async () => ({
+function fakeSupabaseClient() {
+  return {
     from(table) {
       assert.equal(table, "workspace_memberships");
       return {
@@ -38,19 +33,14 @@ await mockModuleExports("@/lib/supabase/server", {
         maybeSingle: async () => ({ data: state.membershipRow }),
       };
     },
-  }),
-});
+  };
+}
 
-await mockModuleExports("@/lib/billing", {
-  getCompanySubscription: async () => state.subscription,
-  updateCompanySubscription: async (companyId, patch) => {
-    state.subscription = { ...state.subscription, ...patch };
-    return state.subscription;
-  },
-});
+// Runs the real requireBillingManageMembership logic against a fake Supabase client.
+const requireBillingManageMembershipWithFakeDb = (input) => requireBillingManageMembership(input, async () => fakeSupabaseClient());
 
-await mockModuleExports("@/lib/stripe", {
-  getStripeServerClient: () => ({
+function fakeStripe() {
+  return {
     customers: {
       create: async (args) => {
         state.stripeCalls.push({ fn: "customers.create", args });
@@ -73,11 +63,29 @@ await mockModuleExports("@/lib/stripe", {
         },
       },
     },
-  }),
-});
+  };
+}
 
-const { POST: createCheckoutSession } = await import("../src/app/api/billing/create-checkout-session/route.ts");
-const { POST: createPortalSession } = await import("../src/app/api/billing/create-portal-session/route.ts");
+const checkoutDeps = {
+  getAuthUser: async () => state.user,
+  requireBillingManageMembership: requireBillingManageMembershipWithFakeDb,
+  getCompanySubscription: async () => state.subscription,
+  updateCompanySubscription: async (companyId, patch) => {
+    state.subscription = { ...state.subscription, ...patch };
+    return state.subscription;
+  },
+  getStripeServerClient: fakeStripe,
+};
+
+const portalDeps = {
+  getAuthUser: async () => state.user,
+  requireBillingManageMembership: requireBillingManageMembershipWithFakeDb,
+  getCompanySubscription: async () => state.subscription,
+  getStripeServerClient: fakeStripe,
+};
+
+const createCheckoutSession = (request) => handleCreateCheckoutSession(request, checkoutDeps);
+const createPortalSession = (request) => handleCreatePortalSession(request, portalDeps);
 
 const actor = (overrides = {}) => ({
   id: "user-1",

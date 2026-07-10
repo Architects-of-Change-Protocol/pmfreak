@@ -1,16 +1,15 @@
 // Perilla 2 — Billing Authorization Must Use Workspace Membership Role.
 //
 // These tests exercise the real `requireBillingManageMembership` helper
-// (src/lib/workspace-access.ts) against a mocked Supabase client — they run
-// the actual DB-query-and-decide logic, not a source-text/regex check.
+// (src/lib/workspace-access.ts) against a fake injected Supabase client —
+// they run the actual DB-query-and-decide logic, not a source-text/regex
+// check, and don't depend on any experimental Node test-runner API.
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mockModuleExports } from "./mock-module-compat-test-helpers.mjs";
+import { requireBillingManageMembership, WorkspaceMembershipError, canManageBilling, WORKSPACE_ROLES } from "../src/lib/workspace-access.ts";
 
-const supabaseState = { row: undefined };
-
-function makeSupabaseStub() {
+function makeSupabaseClient(row) {
   return {
     from(table) {
       assert.equal(table, "workspace_memberships", "must query workspace_memberships directly");
@@ -22,29 +21,13 @@ function makeSupabaseStub() {
         eq() {
           return this;
         },
-        maybeSingle: async () => ({ data: supabaseState.row }),
+        maybeSingle: async () => ({ data: row }),
       };
     },
   };
 }
 
-await mockModuleExports("@/lib/supabase/server", {
-  createSupabaseServerClient: async () => makeSupabaseStub(),
-});
-
-await mockModuleExports("@/lib/auth", {
-  requireAuthUser: async () => {
-    throw new Error("requireAuthUser should not be called by requireBillingManageMembership");
-  },
-});
-
-const { requireBillingManageMembership, WorkspaceMembershipError, canManageBilling, WORKSPACE_ROLES } = await import(
-  "../src/lib/workspace-access.ts"
-);
-
-test.beforeEach(() => {
-  supabaseState.row = undefined;
-});
+const requireMembership = (input, row) => requireBillingManageMembership(input, async () => makeSupabaseClient(row));
 
 test("canManageBilling: owner and admin allowed, pm and viewer denied", () => {
   assert.equal(canManageBilling("owner"), true);
@@ -54,21 +37,18 @@ test("canManageBilling: owner and admin allowed, pm and viewer denied", () => {
 });
 
 test("requireBillingManageMembership: owner membership resolves and returns the validated role", async () => {
-  supabaseState.row = { role: "owner" };
-  const membership = await requireBillingManageMembership({ userId: "u-owner", workspaceId: "w-1" });
+  const membership = await requireMembership({ userId: "u-owner", workspaceId: "w-1" }, { role: "owner" });
   assert.deepEqual(membership, { userId: "u-owner", workspaceId: "w-1", role: "owner" });
 });
 
 test("requireBillingManageMembership: admin membership resolves and returns the validated role", async () => {
-  supabaseState.row = { role: "admin" };
-  const membership = await requireBillingManageMembership({ userId: "u-admin", workspaceId: "w-1" });
+  const membership = await requireMembership({ userId: "u-admin", workspaceId: "w-1" }, { role: "admin" });
   assert.deepEqual(membership, { userId: "u-admin", workspaceId: "w-1", role: "admin" });
 });
 
 test("requireBillingManageMembership: pm membership is denied", async () => {
-  supabaseState.row = { role: "pm" };
   await assert.rejects(
-    () => requireBillingManageMembership({ userId: "u-pm", workspaceId: "w-1" }),
+    () => requireMembership({ userId: "u-pm", workspaceId: "w-1" }, { role: "pm" }),
     (error) => {
       assert.ok(error instanceof WorkspaceMembershipError);
       assert.equal(error.reason, "insufficient_role");
@@ -78,9 +58,8 @@ test("requireBillingManageMembership: pm membership is denied", async () => {
 });
 
 test("requireBillingManageMembership: viewer membership is denied", async () => {
-  supabaseState.row = { role: "viewer" };
   await assert.rejects(
-    () => requireBillingManageMembership({ userId: "u-viewer", workspaceId: "w-1" }),
+    () => requireMembership({ userId: "u-viewer", workspaceId: "w-1" }, { role: "viewer" }),
     (error) => {
       assert.ok(error instanceof WorkspaceMembershipError);
       assert.equal(error.reason, "insufficient_role");
@@ -90,9 +69,8 @@ test("requireBillingManageMembership: viewer membership is denied", async () => 
 });
 
 test("requireBillingManageMembership: missing membership row fails closed (workspace_missing)", async () => {
-  supabaseState.row = undefined;
   await assert.rejects(
-    () => requireBillingManageMembership({ userId: "u-nobody", workspaceId: "w-does-not-exist" }),
+    () => requireMembership({ userId: "u-nobody", workspaceId: "w-does-not-exist" }, undefined),
     (error) => {
       assert.ok(error instanceof WorkspaceMembershipError);
       assert.equal(error.reason, "workspace_missing");
@@ -102,21 +80,18 @@ test("requireBillingManageMembership: missing membership row fails closed (works
 });
 
 test("requireBillingManageMembership: unrecognized/garbage role value is denied, not silently trusted", async () => {
-  supabaseState.row = { role: "superadmin" };
-  await assert.rejects(() => requireBillingManageMembership({ userId: "u-1", workspaceId: "w-1" }), WorkspaceMembershipError);
+  await assert.rejects(() => requireMembership({ userId: "u-1", workspaceId: "w-1" }, { role: "superadmin" }), WorkspaceMembershipError);
 });
 
 test("requireBillingManageMembership: role casing is not normalized — mismatched casing is denied, never upgraded to trusted", async () => {
-  supabaseState.row = { role: "Owner" };
-  await assert.rejects(() => requireBillingManageMembership({ userId: "u-1", workspaceId: "w-1" }), WorkspaceMembershipError);
+  await assert.rejects(() => requireMembership({ userId: "u-1", workspaceId: "w-1" }, { role: "Owner" }), WorkspaceMembershipError);
 });
 
 test("requireBillingManageMembership: role is read from workspace_memberships, never from a caller-supplied role", async () => {
-  supabaseState.row = { role: "viewer" };
   // Even if a caller tries to smuggle an elevated role in, the function signature only accepts
-  // userId/workspaceId — there is no role/actorRole parameter for a caller to spoof.
+  // userId/workspaceId (plus the injected client) — there is no role/actorRole parameter to spoof.
   await assert.rejects(
-    () => requireBillingManageMembership({ userId: "u-1", workspaceId: "w-1", role: "owner", actorRole: "owner" }),
+    () => requireMembership({ userId: "u-1", workspaceId: "w-1", role: "owner", actorRole: "owner" }, { role: "viewer" }),
     WorkspaceMembershipError,
   );
 });

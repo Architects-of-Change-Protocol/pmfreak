@@ -54,12 +54,15 @@ export type BillingManageMembership = { userId: string; workspaceId: string; rol
  * `user_metadata.role`, or any client-supplied field, all of which are
  * client-influenced or historically untrustworthy. Fails closed: a missing
  * workspace, missing membership, or unrecognized/insufficient role is denied.
+ *
+ * `getSupabaseClient` defaults to the real server client; tests inject a fake
+ * to exercise this function's real logic without a live database.
  */
-export async function requireBillingManageMembership(input: {
-  userId: string;
-  workspaceId: string;
-}): Promise<BillingManageMembership> {
-  const supabase = await createSupabaseServerClient();
+export async function requireBillingManageMembership(
+  input: { userId: string; workspaceId: string },
+  getSupabaseClient: () => Promise<Pick<Awaited<ReturnType<typeof createSupabaseServerClient>>, "from">> = createSupabaseServerClient,
+): Promise<BillingManageMembership> {
+  const supabase = await getSupabaseClient();
   const { data } = await supabase
     .from("workspace_memberships")
     .select("role")
