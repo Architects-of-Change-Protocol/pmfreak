@@ -64,8 +64,9 @@ pilot-blocking condition RR-XLSX), 2 moderate (postcss bundled in next —
 accepted, RR-POSTCSS)**. `npm run check:dependency-security` exit 2
 (CONDITIONAL, 0 unexpected).
 
-`npm run check:launch-readiness` (post-fix): recorded in the table below
-after the final re-run on the closing commit.
+`npm run check:launch-readiness` (post-fix, on the closing branch): exit 0
+in 3m17s — all five embedded checks pass (`npm run build`, `npm test`,
+`npm run check:governance`, launch smoke, runtime diagnostics).
 
 | Check | Resultado | Severidad | Acción |
 | ----- | --------- | --------: | ------ |
