@@ -6,7 +6,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mock } from "node:test";
+import { mockModuleExports } from "./mock-module-compat-test-helpers.mjs";
 
 const supabaseState = { row: undefined };
 
@@ -28,17 +28,13 @@ function makeSupabaseStub() {
   };
 }
 
-mock.module("@/lib/supabase/server", {
-  namedExports: {
-    createSupabaseServerClient: async () => makeSupabaseStub(),
-  },
+await mockModuleExports("@/lib/supabase/server", {
+  createSupabaseServerClient: async () => makeSupabaseStub(),
 });
 
-mock.module("@/lib/auth", {
-  namedExports: {
-    requireAuthUser: async () => {
-      throw new Error("requireAuthUser should not be called by requireBillingManageMembership");
-    },
+await mockModuleExports("@/lib/auth", {
+  requireAuthUser: async () => {
+    throw new Error("requireAuthUser should not be called by requireBillingManageMembership");
   },
 });
 

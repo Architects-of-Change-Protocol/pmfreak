@@ -8,7 +8,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mock } from "node:test";
+import { mockModuleExports } from "./mock-module-compat-test-helpers.mjs";
 
 const state = {
   user: null,
@@ -17,71 +17,63 @@ const state = {
   stripeCalls: [],
 };
 
-mock.module("@/lib/auth", {
-  namedExports: {
-    getAuthUser: async () => state.user,
-    requireAuthUser: async () => {
-      throw new Error("requireAuthUser should not be used by the billing routes");
-    },
+await mockModuleExports("@/lib/auth", {
+  getAuthUser: async () => state.user,
+  requireAuthUser: async () => {
+    throw new Error("requireAuthUser should not be used by the billing routes");
   },
 });
 
-mock.module("@/lib/supabase/server", {
-  namedExports: {
-    createSupabaseServerClient: async () => ({
-      from(table) {
-        assert.equal(table, "workspace_memberships");
-        return {
-          select() {
-            return this;
-          },
-          eq() {
-            return this;
-          },
-          maybeSingle: async () => ({ data: state.membershipRow }),
-        };
+await mockModuleExports("@/lib/supabase/server", {
+  createSupabaseServerClient: async () => ({
+    from(table) {
+      assert.equal(table, "workspace_memberships");
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        maybeSingle: async () => ({ data: state.membershipRow }),
+      };
+    },
+  }),
+});
+
+await mockModuleExports("@/lib/billing", {
+  getCompanySubscription: async () => state.subscription,
+  updateCompanySubscription: async (companyId, patch) => {
+    state.subscription = { ...state.subscription, ...patch };
+    return state.subscription;
+  },
+});
+
+await mockModuleExports("@/lib/stripe", {
+  getStripeServerClient: () => ({
+    customers: {
+      create: async (args) => {
+        state.stripeCalls.push({ fn: "customers.create", args });
+        return { id: "cus_new" };
       },
-    }),
-  },
-});
-
-mock.module("@/lib/billing", {
-  namedExports: {
-    getCompanySubscription: async () => state.subscription,
-    updateCompanySubscription: async (companyId, patch) => {
-      state.subscription = { ...state.subscription, ...patch };
-      return state.subscription;
     },
-  },
-});
-
-mock.module("@/lib/stripe", {
-  namedExports: {
-    getStripeServerClient: () => ({
-      customers: {
+    checkout: {
+      sessions: {
+        create: async (args, options) => {
+          state.stripeCalls.push({ fn: "checkout.sessions.create", args, options });
+          return { id: "sess_1", url: "https://stripe.test/checkout/sess_1" };
+        },
+      },
+    },
+    billingPortal: {
+      sessions: {
         create: async (args) => {
-          state.stripeCalls.push({ fn: "customers.create", args });
-          return { id: "cus_new" };
+          state.stripeCalls.push({ fn: "billingPortal.sessions.create", args });
+          return { id: "bps_1", url: "https://stripe.test/portal/bps_1" };
         },
       },
-      checkout: {
-        sessions: {
-          create: async (args, options) => {
-            state.stripeCalls.push({ fn: "checkout.sessions.create", args, options });
-            return { id: "sess_1", url: "https://stripe.test/checkout/sess_1" };
-          },
-        },
-      },
-      billingPortal: {
-        sessions: {
-          create: async (args) => {
-            state.stripeCalls.push({ fn: "billingPortal.sessions.create", args });
-            return { id: "bps_1", url: "https://stripe.test/portal/bps_1" };
-          },
-        },
-      },
-    }),
-  },
+    },
+  }),
 });
 
 const { POST: createCheckoutSession } = await import("../src/app/api/billing/create-checkout-session/route.ts");
