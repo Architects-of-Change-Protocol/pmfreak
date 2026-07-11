@@ -42,6 +42,7 @@ const GATES = [
   { name: "Production Runtime", command: "npm run check:production-runtime", severity: "blocking" },
   { name: "Runtime Contracts", command: "npm run check:runtime-contracts", severity: "blocking" },
   { name: "Database Contract", command: "npm run check:db-contract", severity: "blocking" },
+  { name: "Security Definer Hardening", command: "npm run check:security-definer-hardening", severity: "blocking" },
   { name: "Launch Smoke", command: "npm run test:launch-smoke", severity: "blocking" },
   { name: "Auth Bypass Scan", command: "npm run check:no-local-auth-bypass", severity: "blocking" },
   { name: "Enterprise UX", command: "npm run check:enterprise-ux", severity: "advisory" },
