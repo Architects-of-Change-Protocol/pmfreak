@@ -1,4 +1,33 @@
-# Beta Release Gate Results — Perilla 11
+# Beta Release Gate Results — Perillas 11–12
+
+## Perilla 12 update (2026-07-11) — RR-XLSX closure re-run
+
+Executed on branch `claude/xlsx-dependency-security-35m85v` (based on `main`
+@ `b735529` post-Perilla 11), clean environment
+(`rm -rf node_modules .next && npm ci`), after replacing `xlsx@0.18.5` with
+`exceljs@4.4.0` (see [`xlsx-replacement-decision.md`](./xlsx-replacement-decision.md)).
+
+| Command | Result |
+| ------- | ------ |
+| `npm ci` (clean) | PASS — reproducible, lockfile integrity intact |
+| `npm ls xlsx` | `(empty)` — vulnerable package absent from the tree |
+| `npm audit --json` | **0 critical, 0 high**, 4 moderate (postcss/next — RR-POSTCSS, unchanged; uuid/exceljs — unreachable, documented), 0 low |
+| `npm run typecheck` | PASS — 0 errors |
+| `npm run lint` | PASS — 0 errors (620 pre-existing warnings, unchanged class) |
+| `npm test` | PASS — **12,207 tests, 498 suites, 0 failures, 0 skipped** (+42 net new spreadsheet boundary/contract/export/dependency tests) |
+| `npm run build` | PASS — production build incl. `/upload` with the lazily-loaded export engine |
+| `npm run check:dependency-security` | **exit 0 (PASS)** — xlsx forbidden-check green, 0 unexpected, all remaining findings moderate + accepted |
+| `npx tsx --test tests/spreadsheet-*.test.* tests/prototype-pollution-guard.test.mjs` | PASS — 47/47 |
+| `npm run check:beta-release` | **Decision: CONDITIONAL GO** (see below) |
+
+Post-Perilla-12 gate summary (verbatim decision): the only remaining
+conditional items are **RR-MIGRATE** and **RR-BACKUP** — RR-XLSX no longer
+appears. The `cdn.sheetjs.com` egress block noted in "Not verifiable from
+this environment" is now moot: no SheetJS artifact is needed at all.
+
+Everything below this line is the Perilla 11 record, kept for traceability.
+
+---
 
 Executed: 2026-07-10, on the closure branch
 (`claude/pmfreak-beta-closure-gate-gavpfd`, based on `main` @ `1f4119c`

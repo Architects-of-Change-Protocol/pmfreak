@@ -17,12 +17,19 @@ import { spawnSync } from "node:child_process";
 // Accepted findings. Keep in sync with docs/release/dependency-security-review.md.
 const ACCEPTED_FINDINGS = [
   {
-    package: "xlsx",
+    package: "uuid",
     reason:
-      "No npm-published fix (SheetJS distributes fixed builds via cdn.sheetjs.com only). " +
-      "Mitigated by upload size limits, auth + rate limits, and the prototype-pollution parse guard " +
-      "(src/lib/security/prototype-pollution-guard.ts). Tracked: residual-risk-register RR-XLSX.",
-    maxSeverity: "high",
+      "Transitive via exceljs (Perilla 12 xlsx replacement). Advisory covers uuid v3/v5/v6 with a " +
+      "caller-provided buffer; exceljs only calls uuid.v4() with no arguments (verified in " +
+      "docs/release/xlsx-replacement-decision.md), so the flaw is unreachable. Re-check on exceljs upgrades.",
+    maxSeverity: "moderate",
+  },
+  {
+    package: "exceljs",
+    reason:
+      "Flagged only through its transitive uuid dependency (same advisory as above) — exceljs itself has " +
+      "no advisory and the uuid flaw is unreachable from exceljs's uuid.v4() usage.",
+    maxSeverity: "moderate",
   },
   {
     package: "postcss",
@@ -40,7 +47,31 @@ const ACCEPTED_FINDINGS = [
   },
 ];
 
+// Packages that must NEVER be present in the dependency tree again, at any
+// severity. xlsx@0.18.5 (prototype pollution + ReDoS, no npm fix) was removed
+// in Perilla 12 (RR-XLSX closed) — its reappearance is an instant failure
+// even if a future version carries no advisory.
+const FORBIDDEN_PACKAGES = ["xlsx"];
+
 const SEVERITY_ORDER = { info: 0, low: 1, moderate: 2, high: 3, critical: 4 };
+
+for (const forbidden of FORBIDDEN_PACKAGES) {
+  const ls = spawnSync("npm", ["ls", forbidden, "--json"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  let tree;
+  try {
+    tree = JSON.parse(ls.stdout);
+  } catch {
+    console.error(`dependency-security: could not parse \`npm ls ${forbidden} --json\` output`);
+    process.exit(1);
+  }
+  if (tree.dependencies && Object.keys(tree.dependencies).length > 0) {
+    console.error(
+      `FORBIDDEN   ${forbidden} is present in the dependency tree — it was removed in Perilla 12 (RR-XLSX) and must not return`,
+    );
+    process.exit(1);
+  }
+  console.log(`FORBIDDEN-CHECK ${forbidden}: absent from dependency tree`);
+}
 
 const audit = spawnSync("npm", ["audit", "--json"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 let report;

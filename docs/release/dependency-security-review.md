@@ -1,10 +1,40 @@
-# Dependency Security Review — Perilla 11 (Beta Release Closure Gate)
+# Dependency Security Review — Perillas 11–12 (Beta Release Closure Gate)
 
-Reviewed: 2026-07-10. Tooling: `npm audit --json` on a clean `npm ci` install
-(Node v22.22.2 / npm 10.9.7). Re-runnable at any time via
+Reviewed: 2026-07-10 (Perilla 11 baseline + remediation); updated 2026-07-11
+(Perilla 12: RR-XLSX closure). Tooling: `npm audit --json` on a clean
+`npm ci` install (Node v22.22.2 / npm 10.9.7). Re-runnable at any time via
 `npm run check:dependency-security` (advisory gate inside
 `npm run check:beta-release`; exit 0 = clean, 2 = only accepted findings,
-1 = unexpected critical/high).
+1 = unexpected critical/high — and, since Perilla 12, hard failure if the
+forbidden `xlsx` package reappears in the tree at any version).
+
+## Perilla 12 update — RR-XLSX closed
+
+The accepted-with-condition `xlsx` high below is **resolved by removal**:
+`xlsx@0.18.5` was uninstalled and replaced with `exceljs@4.4.0` behind
+`src/lib/spreadsheets/` (decision matrix and provenance:
+[`xlsx-replacement-decision.md`](./xlsx-replacement-decision.md); boundary
+controls: [`../security/spreadsheet-processing-boundary.md`](../security/spreadsheet-processing-boundary.md)).
+
+* `npm ls xlsx` → `(empty)`; `npm audit` → **0 critical, 0 high**.
+* Remaining accepted findings: `postcss`/`next` moderates (RR-POSTCSS,
+  unchanged) and one new moderate — `uuid` <11.1.1 transitive via exceljs
+  (GHSA-w5hq-g745-h8pq, missing buffer bounds check in `v3/v5/v6` when a
+  caller supplies `buf`). Classification: **not reachable** — exceljs's
+  only uuid call is `uuid.v4()` with no arguments
+  (`lib/xlsx/xform/sheet/cf-ext/cf-rule-ext-xform.js`); re-verify on every
+  exceljs upgrade.
+* The `check:dependency-security` allowlist entry for `xlsx` was removed
+  and replaced by a `FORBIDDEN_PACKAGES` check that fails the gate if the
+  package ever returns; `tests/spreadsheet-dependency-boundary.test.mjs`
+  enforces the same at the manifest/lockfile/import level.
+* Residual spreadsheet risks and their controls (untrusted parsing, formula
+  injection on export, resource exhaustion) are handled at the spreadsheet
+  boundary — limits, macro/external-link/OLE rejection, zip-bomb cap,
+  pollution canary (retained from Perilla 11 as defense-in-depth), parse
+  deadline, sanitized errors.
+
+Everything below this line is the Perilla 11 record, kept for traceability.
 
 ## Baseline (before remediation)
 

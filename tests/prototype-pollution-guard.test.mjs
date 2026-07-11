@@ -1,11 +1,17 @@
-// Perilla 11 — prototype-pollution canary around untrusted xlsx parsing.
+// Prototype-pollution canary around untrusted spreadsheet parsing
+// (Perilla 11; retained as defense-in-depth after the Perilla 12 xlsx →
+// exceljs replacement).
 
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { withPrototypePollutionGuard, PrototypePollutionError } from "../src/lib/security/prototype-pollution-guard.ts";
+import {
+  withPrototypePollutionGuard,
+  withPrototypePollutionGuardAsync,
+  PrototypePollutionError,
+} from "../src/lib/security/prototype-pollution-guard.ts";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -50,8 +56,35 @@ test("pollution is cleaned even when the operation itself throws", () => {
   assert.ok(!Object.getOwnPropertyNames(Object.prototype).includes("__pmfreak_throw_polluted__"));
 });
 
-test("evidence processor parses xlsx inside the pollution guard", () => {
-  const source = readFileSync(path.join(repoRoot, "src/lib/project-evidence/evidence-processor.ts"), "utf8");
-  const guarded = source.match(/withPrototypePollutionGuard\("xlsx_evidence_extraction",[\s\S]*?XLSX\.read\(/);
-  assert.ok(guarded, "XLSX.read must run inside withPrototypePollutionGuard");
+test("async guard rejects a polluting operation and restores the runtime", async () => {
+  await assert.rejects(
+    withPrototypePollutionGuardAsync("test", async () => {
+      Object.prototype.__pmfreak_async_polluted__ = "owned";
+      return "parsed";
+    }),
+    PrototypePollutionError,
+  );
+  assert.ok(!Object.getOwnPropertyNames(Object.prototype).includes("__pmfreak_async_polluted__"));
+});
+
+test("async guard cleans pollution even when the operation itself rejects", async () => {
+  await assert.rejects(
+    withPrototypePollutionGuardAsync("test", async () => {
+      Object.prototype.__pmfreak_async_throw_polluted__ = "owned";
+      throw new Error("parse failed");
+    }),
+    /parse failed/,
+  );
+  assert.ok(!Object.getOwnPropertyNames(Object.prototype).includes("__pmfreak_async_throw_polluted__"));
+});
+
+test("async guard passes clean operations through", async () => {
+  const result = await withPrototypePollutionGuardAsync("test", async () => ({ rows: 2 }));
+  assert.deepEqual(result, { rows: 2 });
+});
+
+test("the workbook reader parses untrusted spreadsheets inside the pollution guard", () => {
+  const source = readFileSync(path.join(repoRoot, "src/lib/spreadsheets/workbook-reader.ts"), "utf8");
+  const guarded = source.match(/withPrototypePollutionGuardAsync\("spreadsheet_workbook_read",[\s\S]*?parseWithDeadline\(/);
+  assert.ok(guarded, "the exceljs parse must run inside withPrototypePollutionGuardAsync");
 });

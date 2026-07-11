@@ -1,4 +1,18 @@
-# Beta Release Closure Summary — Perilla 11
+# Beta Release Closure Summary — Perilla 11 (updated by Perilla 12)
+
+> **Perilla 12 update (2026-07-11)**: pilot-blocking condition **RR-XLSX is
+> closed** — the vulnerable `xlsx@0.18.5` dependency was removed and
+> replaced with `exceljs@4.4.0` behind `src/lib/spreadsheets/`
+> ([`xlsx-replacement-decision.md`](./xlsx-replacement-decision.md);
+> boundary controls in
+> [`../security/spreadsheet-processing-boundary.md`](../security/spreadsheet-processing-boundary.md)).
+> `npm ls xlsx` → empty; `npm audit` → 0 critical / 0 high; full suite
+> 12,207 tests / 0 failures; `check:dependency-security` exits 0.
+> The release decision remains **CONDITIONAL GO** with **two** remaining
+> pilot-blocking conditions: RR-MIGRATE (fresh-DB migration proof) and
+> RR-BACKUP (restore rehearsal). References to "three pilot-blocker
+> conditions" and to the xlsx high below are the historical Perilla 11
+> record.
 
 Date: 2026-07-10. Scope: full-repository validation of `main` after the ten
 hardening perillas, remediation of gate-blocking defects only, and an

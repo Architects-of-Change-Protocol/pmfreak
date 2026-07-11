@@ -2,9 +2,8 @@ import { createHash } from "node:crypto";
 import JSZip from "jszip";
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
-import * as XLSX from "xlsx";
+import { readSpreadsheetWorkbook } from "@/lib/spreadsheets/workbook-reader";
 import { createPrivilegedSupabaseClient } from "@/lib/security/privileged-access";
-import { withPrototypePollutionGuard } from "@/lib/security/prototype-pollution-guard";
 import { getUploadProvider } from "@/lib/storage/upload-provider";
 import { regenerateProjectDiscoveryInBackground } from "@/lib/project-discovery/discovery-repository";
 
@@ -89,30 +88,24 @@ const extractDocxText = async (buffer: Buffer) => {
   return result.value;
 };
 
-// xlsx@0.18.5 has a known prototype-pollution advisory with no npm-published
-// fix (GHSA-4r6h-8v6p-xvw6); until the cdn.sheetjs.com upgrade lands, the
-// parse runs inside the pollution guard so a crafted workbook fails its own
-// upload instead of poisoning the process — see
-// docs/release/dependency-security-review.md.
-const extractXlsxText = (buffer: Buffer) =>
-  withPrototypePollutionGuard("xlsx_evidence_extraction", () => {
-    const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
-    return workbook.SheetNames.map((sheetName) => {
-      const sheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json<Array<string | number | boolean | Date | null>>(sheet, {
-        header: 1,
-        blankrows: false,
-        raw: false,
-      });
-      const rowText = rows
-        .map((row) => row.map((cell) => String(cell ?? "").trim()).filter(Boolean).join(" | "))
+// Untrusted workbooks go through the Perilla 12 spreadsheet boundary
+// (size/sheet/row/column/cell caps, macro + external-link + zip-bomb
+// rejection, prototype-pollution canary, parse deadline) — see
+// src/lib/spreadsheets/workbook-reader.ts and
+// docs/security/spreadsheet-processing-boundary.md.
+const extractXlsxText = async (buffer: Buffer) => {
+  const workbook = await readSpreadsheetWorkbook(buffer);
+  return workbook.sheets
+    .map((sheet) => {
+      const rowText = sheet.rows
+        .map((row) => row.map((cell) => cell.trim()).filter(Boolean).join(" | "))
         .filter(Boolean)
         .join("\n");
-      return [`Sheet: ${sheetName}`, rowText].filter(Boolean).join("\n");
+      return [`Sheet: ${sheet.name}`, rowText].filter(Boolean).join("\n");
     })
-      .filter(Boolean)
-      .join("\n\n");
-  });
+    .filter(Boolean)
+    .join("\n\n");
+};
 
 const extractPptxText = async (buffer: Buffer) => {
   const zip = await JSZip.loadAsync(buffer);
@@ -215,7 +208,7 @@ export class EvidenceProcessor {
     if (mimeType === "text/plain") return { text: buffer.toString("utf-8"), method };
     if (mimeType === "application/pdf") return { text: await extractPdfText(buffer), method };
     if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return { text: await extractDocxText(buffer), method };
-    if (mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") return { text: extractXlsxText(buffer), method };
+    if (mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") return { text: await extractXlsxText(buffer), method };
     if (mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation") return { text: await extractPptxText(buffer), method };
     throw new Error(`Unsupported evidence file type: ${source.file_type}`);
   }

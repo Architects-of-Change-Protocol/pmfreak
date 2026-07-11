@@ -1,17 +1,13 @@
-// Perilla 11 — prototype-pollution canary for untrusted file parsing.
+// Prototype-pollution canary for untrusted file parsing.
 //
-// xlsx@0.18.5 (the last npm-published SheetJS build) has a known prototype-
-// pollution advisory (GHSA-4r6h-8v6p-xvw6) fixed only in versions distributed
-// via cdn.sheetjs.com, which this repo cannot yet consume (see
-// docs/release/dependency-security-review.md). Until that upgrade lands, every
-// untrusted-file parse runs inside this guard: it snapshots Object.prototype /
-// Array.prototype before the parse, and if the parse added properties to
-// either, it (1) removes them, restoring the runtime, and (2) rejects the file
-// by throwing. A crafted workbook can then fail its own upload, but cannot
-// poison the process for subsequent requests.
-//
-// This is defense-in-depth, not a substitute for the upgrade — the residual
-// risk register tracks the real fix.
+// Introduced in Perilla 11 as mitigation for the vulnerable xlsx@0.18.5
+// parser (GHSA-4r6h-8v6p-xvw6). Perilla 12 removed that dependency (replaced
+// with exceljs — see docs/release/xlsx-replacement-decision.md), and the
+// guard is retained as defense-in-depth for every untrusted-file parse: it
+// snapshots Object.prototype / Array.prototype before the parse, and if the
+// parse added properties to either, it (1) removes them, restoring the
+// runtime, and (2) rejects the file by throwing. A crafted file fails its
+// own upload but cannot poison the process for subsequent requests.
 
 const GUARDED_PROTOTYPES: Array<{ label: string; proto: object }> = [
   { label: "Object.prototype", proto: Object.prototype },
@@ -25,10 +21,12 @@ export class PrototypePollutionError extends Error {
   }
 }
 
-export function withPrototypePollutionGuard<T>(context: string, operation: () => T): T {
-  const snapshots = GUARDED_PROTOTYPES.map(({ proto }) => new Set(Object.getOwnPropertyNames(proto)));
+function snapshotPrototypes(): Array<Set<string>> {
+  return GUARDED_PROTOTYPES.map(({ proto }) => new Set(Object.getOwnPropertyNames(proto)));
+}
 
-  const detectAndClean = (): string[] => {
+function buildDetectAndClean(snapshots: Array<Set<string>>): () => string[] {
+  return (): string[] => {
     const polluted: string[] = [];
     GUARDED_PROTOTYPES.forEach(({ label, proto }, index) => {
       for (const name of Object.getOwnPropertyNames(proto)) {
@@ -44,10 +42,35 @@ export function withPrototypePollutionGuard<T>(context: string, operation: () =>
     });
     return polluted;
   };
+}
+
+export function withPrototypePollutionGuard<T>(context: string, operation: () => T): T {
+  const detectAndClean = buildDetectAndClean(snapshotPrototypes());
 
   let result: T;
   try {
     result = operation();
+  } catch (error) {
+    detectAndClean();
+    throw error;
+  }
+
+  const polluted = detectAndClean();
+  if (polluted.length > 0) {
+    throw new PrototypePollutionError(context, polluted);
+  }
+  return result;
+}
+
+// Async variant for parsers with promise-based APIs (Perilla 12: the exceljs
+// workbook reader). Same contract: pollution is cleaned whether the parse
+// succeeds or throws, and a polluting parse is rejected.
+export async function withPrototypePollutionGuardAsync<T>(context: string, operation: () => Promise<T>): Promise<T> {
+  const detectAndClean = buildDetectAndClean(snapshotPrototypes());
+
+  let result: T;
+  try {
+    result = await operation();
   } catch (error) {
     detectAndClean();
     throw error;
