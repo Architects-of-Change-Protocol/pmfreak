@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { DragEvent, useEffect, useMemo, useState } from "react";
-import { utils, writeFileXLSX } from "xlsx";
+import { downloadWorkbook } from "@/lib/spreadsheets/workbook-writer";
 import { jsPDF } from "jspdf";
 
 type UploadResponseFile = {
@@ -748,13 +748,12 @@ export default function UploadPage() {
     }
   };
 
-  const downloadRequirementMatrix = () => {
+  const downloadRequirementMatrix = async () => {
     if (!displayAnalysisResult || !uploadResult || !billingState?.limits.canExportReports) {
       return;
     }
 
     try {
-      const workbook = utils.book_new();
       const rows = requirementMatrix.length
         ? requirementMatrix
         : [
@@ -767,21 +766,20 @@ export default function UploadPage() {
               Notes: "Add explicit requirements and re-run analysis.",
             },
           ];
-      const worksheet = utils.json_to_sheet(rows, {
-        header: ["ID", "Requirement", "Type", "Priority", "Owner", "Notes"],
-      });
-      worksheet["!cols"] = [
-        { wch: 10 },
-        { wch: 72 },
-        { wch: 18 },
-        { wch: 12 },
-        { wch: 20 },
-        { wch: 50 },
-      ];
-      utils.book_append_sheet(workbook, worksheet, "Requirement Matrix");
-      writeFileXLSX(
-        workbook,
+      await downloadWorkbook(
         `${toFileSafeName(uploadResult.projectName, "pmfreak_project")}_requirement_matrix.xlsx`,
+        {
+          sheetName: "Requirement Matrix",
+          columns: [
+            { header: "ID", key: "ID", width: 10 },
+            { header: "Requirement", key: "Requirement", width: 72 },
+            { header: "Type", key: "Type", width: 18 },
+            { header: "Priority", key: "Priority", width: 12 },
+            { header: "Owner", key: "Owner", width: 20 },
+            { header: "Notes", key: "Notes", width: 50 },
+          ],
+          rows,
+        },
       );
       setExportError(null);
     } catch {

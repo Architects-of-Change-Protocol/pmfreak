@@ -83,6 +83,7 @@
     "@supabase/auth-helpers-nextjs": "^0.15.0",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.104.1",
+    "exceljs": "^4.4.0",
     "framer-motion": "^12.38.0",
     "jspdf": "^4.2.1",
     "jszip": "^3.10.1",
@@ -92,8 +93,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "stripe": "^18.5.0",
-    "swr": "^2.4.1",
-    "xlsx": "^0.18.5"
+    "swr": "^2.4.1"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.6",

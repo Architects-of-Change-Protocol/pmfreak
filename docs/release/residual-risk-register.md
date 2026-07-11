@@ -1,16 +1,17 @@
-# Residual Risk Register — Perilla 11 (Beta Release Closure Gate)
+# Residual Risk Register — Perillas 11–12 (Beta Release Closure Gate)
 
-Maintained as of 2026-07-10. Every row is a real, open risk; risks resolved by
-this perilla were removed (plaintext invite tokens, unbounded AI execution,
-missing readiness probe, missing log redaction path, next/ws/transitive
-dependency highs, non-ordered migration file).
+Maintained as of 2026-07-11 (Perilla 12). Every row in the open table is a
+real, open risk; risks resolved by Perilla 11 were removed (plaintext invite
+tokens, unbounded AI execution, missing readiness probe, missing log
+redaction path, next/ws/transitive dependency highs, non-ordered migration
+file). Closed risks with lasting controls keep a traceability entry in the
+"Closed" section below (RR-XLSX, Perilla 12).
 
 Severity/likelihood/impact: H/M/L. "Pilot Blocker" means the closed,
 supervised pilot must not start until the row's mitigation/condition is met.
 
 | ID | Risk | Severity | Likelihood | Impact | Mitigation | Owner | Target Date | Pilot Blocker |
 | -- | ---- | -------: | ---------: | -----: | ---------- | ----- | ----------- | ------------- |
-| RR-XLSX | `xlsx@0.18.5` prototype-pollution/ReDoS (no npm fix; vendor CDN blocked from build env) | H | M | H | Shipped: pollution canary around every parse + size caps + auth + rate limits. Condition: install `cdn.sheetjs.com/xlsx-0.20.3` from an unrestricted network, re-run gate, drop allowlist entry | Repo owner | Before pilot start | **Yes** (condition, one command) |
 | RR-MIGRATE | 142 migrations never proven against a fresh database inside this gate (no live DB in env) | M | L | H | Run `npm run check:operational-flow-db` + full migration apply on a fresh staging Supabase project (harness already exists) | Repo owner | Before pilot start | **Yes** |
 | RR-BACKUP | Backup restore never rehearsed; PITR status unconfirmed on pilot project | M | L | H | Confirm Supabase backup tier/PITR; perform one restore rehearsal to a scratch project (runbook §8) | Repo owner | Before pilot start | **Yes** |
 | RR-PENTEST | No third-party penetration test | M | M | H | Closed pilot with known participants; all ten perillas' internal adversarial test suites pass; schedule external test before any open beta | Repo owner | Before open beta | No |
@@ -28,7 +29,39 @@ supervised pilot must not start until the row's mitigation/condition is met.
 | RR-ABUSE-MEMORY | In-memory abuse-store fallback doesn't share counters across serverless instances when service-role env is absent | L | L | M | Production sets service-role env → durable Supabase-backed store is used (fails closed); documented in Perilla 9 | Repo owner | — | No |
 | RR-POSTCSS | Moderate postcss stringify advisory bundled inside `next` (no stable fixed release) | L | L | L | Build-time only; postcss never stringifies user input here. Re-check on each next patch; drop `check:dependency-security` allowlist entry when fixed | Repo owner | Next `next` patch | No |
 
-## Resolved in this perilla (removed from the register)
+## Closed
+
+### RR-XLSX — vulnerable `xlsx@0.18.5` spreadsheet parser — **Closed** (2026-07-11, Perilla 12)
+
+* **Was**: `xlsx@0.18.5` (last npm-published SheetJS build) with high
+  prototype-pollution (GHSA-4r6h-8v6p-xvw6) and ReDoS (GHSA-5pgg-2g8v-p4x9)
+  advisories, reachable from the untrusted evidence-upload parse path; no
+  npm fix; vendor CDN (cdn.sheetjs.com) blocked by build-env egress (403,
+  re-verified 2026-07-11), so the Perilla 11 condition ("install the CDN
+  build") was not executable.
+* **Closure**: dependency **removed** and replaced with `exceljs@4.4.0`
+  (npm registry, lockfile-pinned) behind a new internal abstraction
+  (`src/lib/spreadsheets/`), per
+  [`xlsx-replacement-decision.md`](./xlsx-replacement-decision.md).
+  Closure commit: the Perilla 12 PR
+  (branch `claude/xlsx-dependency-security-35m85v`).
+* **Audit evidence**: `npm ls xlsx` → `(empty)`; `npm audit` → 0 critical,
+  0 high (the xlsx findings are gone; the one new moderate — transitive
+  `uuid` via exceljs — is unreachable, see
+  [`dependency-security-review.md`](./dependency-security-review.md)).
+* **Test evidence**: `tests/spreadsheet-reader-contract.test.ts`,
+  `tests/spreadsheet-security-boundary.test.ts`,
+  `tests/spreadsheet-export-workbook.test.ts`,
+  `tests/spreadsheet-dependency-boundary.test.mjs`,
+  `tests/prototype-pollution-guard.test.mjs` — all green in the full suite.
+* **Lasting controls**: `xlsx` is permanently forbidden
+  (`scripts/check-dependency-security.mjs` FORBIDDEN_PACKAGES +
+  `tests/spreadsheet-dependency-boundary.test.mjs`); the untrusted-parse
+  boundary (size/sheet/row/column/cell caps, macro/external-link/OLE/zip-bomb
+  rejection, pollution canary, parse deadline) is documented in
+  [`../security/spreadsheet-processing-boundary.md`](../security/spreadsheet-processing-boundary.md).
+
+## Resolved in Perilla 11 (removed from the register)
 
 * Plaintext workspace invite tokens → hashed storage, plaintext column
   dropped, legacy invites revoked, replay-proof (Perilla 11 §C).
