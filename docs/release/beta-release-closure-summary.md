@@ -7,7 +7,8 @@
 > boundary controls in
 > [`../security/spreadsheet-processing-boundary.md`](../security/spreadsheet-processing-boundary.md)).
 > `npm ls xlsx` → empty; `npm audit` → 0 critical / 0 high; full suite
-> 12,207 tests / 0 failures; `check:dependency-security` exits 0.
+> 12,207 tests / 0 failures; `check:dependency-security` exits 2 with 0
+> unexpected findings (only pre-existing accepted moderates remain).
 > The release decision remains **CONDITIONAL GO** with **two** remaining
 > pilot-blocking conditions: RR-MIGRATE (fresh-DB migration proof) and
 > RR-BACKUP (restore rehearsal). References to "three pilot-blocker

@@ -16,7 +16,7 @@ Executed on branch `claude/xlsx-dependency-security-35m85v` (based on `main`
 | `npm run lint` | PASS — 0 errors (620 pre-existing warnings, unchanged class) |
 | `npm test` | PASS — **12,207 tests, 498 suites, 0 failures, 0 skipped** (+42 net new spreadsheet boundary/contract/export/dependency tests) |
 | `npm run build` | PASS — production build incl. `/upload` with the lazily-loaded export engine |
-| `npm run check:dependency-security` | **exit 0 (PASS)** — xlsx forbidden-check green, 0 unexpected, all remaining findings moderate + accepted |
+| `npm run check:dependency-security` | **exit 2 (CONDITIONAL, 0 unexpected)** — xlsx forbidden-check green; 0 critical/high; the only remaining findings are accepted moderates (postcss/next — RR-POSTCSS; uuid via exceljs — unreachable) |
 | `npx tsx --test tests/spreadsheet-*.test.* tests/prototype-pollution-guard.test.mjs` | PASS — 47/47 |
 | `npm run check:beta-release` | **Decision: CONDITIONAL GO** (see below) |
 
