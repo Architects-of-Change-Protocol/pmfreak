@@ -105,7 +105,7 @@ export async function linkDecisionEvidence(decisionId: string, links: Array<{ ev
     if (!RELATIONSHIPS.includes(link.relationshipType)) return validation(`relationshipType must be one of: ${RELATIONSHIPS.join(", ")}.`);
   }
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.from("decision_evidence_links").insert(links.map((l) => ({ decision_id: decisionId, evidence_id: l.evidenceId, evidence_type: l.evidenceType.trim(), relationship_type: l.relationshipType }))).select(evidenceColumns).returns<DecisionEvidenceLink[]>();
+  const { data, error } = await supabase.from("project_decision_evidence_links").insert(links.map((l) => ({ decision_id: decisionId, evidence_id: l.evidenceId, evidence_type: l.evidenceType.trim(), relationship_type: l.relationshipType }))).select(evidenceColumns).returns<DecisionEvidenceLink[]>();
   if (error || !data) return { ok: false, error: "Unable to link decision evidence.", failureClass: "persistence_failed" };
   return { ok: true, data };
 }
@@ -166,9 +166,9 @@ export async function getDecision(decisionId: string): Promise<Result<DecisionRe
 export async function listProjectDecisions(projectId: string): Promise<Result<DecisionSummary[]>> {
   if (!validUuid(projectId)) return validation("projectId must be a UUID.");
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.from("project_decisions").select(`${columns}, decision_evidence_links(id), decision_outcomes(id)`).eq("project_id", projectId).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("project_decisions").select(`${columns}, project_decision_evidence_links(id), decision_outcomes(id)`).eq("project_id", projectId).order("created_at", { ascending: false });
   if (error || !data) return { ok: false, error: "Unable to list decisions.", failureClass: "persistence_failed" };
-  return { ok: true, data: (data as Array<DecisionRecord & { decision_evidence_links?: unknown[]; decision_outcomes?: unknown[] }>).map((d) => ({ id: d.id, workspace_id: d.workspace_id, project_id: d.project_id, decision_type: d.decision_type, decision_status: d.decision_status, title: d.title, summary: d.summary, created_at: d.created_at, approved_at: d.approved_at, closed_at: d.closed_at, evidenceCount: d.decision_evidence_links?.length ?? 0, outcomeCount: d.decision_outcomes?.length ?? 0 })) };
+  return { ok: true, data: (data as Array<DecisionRecord & { project_decision_evidence_links?: unknown[]; decision_outcomes?: unknown[] }>).map((d) => ({ id: d.id, workspace_id: d.workspace_id, project_id: d.project_id, decision_type: d.decision_type, decision_status: d.decision_status, title: d.title, summary: d.summary, created_at: d.created_at, approved_at: d.approved_at, closed_at: d.closed_at, evidenceCount: d.project_decision_evidence_links?.length ?? 0, outcomeCount: d.decision_outcomes?.length ?? 0 })) };
 }
 
 export function buildDecisionEffectivenessSnapshot(input: { decision: DecisionRecord; evidence: DecisionEvidenceLink[]; implementation: DecisionImplementationRecord | null; outcomes: DecisionOutcomeRecord[]; }): DecisionEffectivenessSnapshot {
@@ -182,7 +182,7 @@ export async function buildDecisionLineage(decisionId: string): Promise<Result<D
   const decision = decisionResult.data;
   const supabase = await createSupabaseServerClient();
   const [{ data: evidence }, { data: outcomes }, { data: recommendation }] = await Promise.all([
-    supabase.from("decision_evidence_links").select(evidenceColumns).eq("decision_id", decisionId).returns<DecisionEvidenceLink[]>(),
+    supabase.from("project_decision_evidence_links").select(evidenceColumns).eq("decision_id", decisionId).returns<DecisionEvidenceLink[]>(),
     supabase.from("decision_outcomes").select(outcomeColumns).eq("decision_id", decisionId).order("recorded_at", { ascending: true }).returns<DecisionOutcomeRecord[]>(),
     decision.recommendation_id ? supabase.from("recommended_actions").select("*").eq("id", decision.recommendation_id).returns<Array<Record<string, unknown>>>() : Promise.resolve({ data: [] }),
   ]);

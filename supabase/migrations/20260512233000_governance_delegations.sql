@@ -30,22 +30,25 @@ create index if not exists idx_gov_delegations_delegatee on public.governance_de
 
 alter table public.governance_delegations enable row level security;
 
-create policy if not exists "delegations_owner_admin_read" on public.governance_delegations
+drop policy if exists "delegations_owner_admin_read" on public.governance_delegations;
+create policy "delegations_owner_admin_read" on public.governance_delegations
 for select using (
   exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = governance_delegations.workspace_id
       and wm.user_id = auth.uid()
-      and wm.status = 'active'
       and wm.role in ('owner','admin')
   )
 );
 
-create policy if not exists "delegations_delegator_read" on public.governance_delegations
+drop policy if exists "delegations_delegator_read" on public.governance_delegations;
+create policy "delegations_delegator_read" on public.governance_delegations
 for select using (delegator_user_id = auth.uid());
 
-create policy if not exists "delegations_delegatee_read" on public.governance_delegations
+drop policy if exists "delegations_delegatee_read" on public.governance_delegations;
+create policy "delegations_delegatee_read" on public.governance_delegations
 for select using (delegatee_user_id = auth.uid());
 
-create policy if not exists "delegations_no_client_writes" on public.governance_delegations
+drop policy if exists "delegations_no_client_writes" on public.governance_delegations;
+create policy "delegations_no_client_writes" on public.governance_delegations
 for all using (false) with check (false);

@@ -15,26 +15,34 @@ create index if not exists projects_user_id_created_at_idx
 
 alter table public.projects enable row level security;
 
-create policy if not exists "users can select own projects"
+drop policy if exists "users can select own projects" on public.projects;
+
+create policy "users can select own projects"
   on public.projects
   for select
   to authenticated
   using (auth.uid() = user_id);
 
-create policy if not exists "users can insert own projects"
+drop policy if exists "users can insert own projects" on public.projects;
+
+create policy "users can insert own projects"
   on public.projects
   for insert
   to authenticated
   with check (auth.uid() = user_id);
 
-create policy if not exists "users can update own projects"
+drop policy if exists "users can update own projects" on public.projects;
+
+create policy "users can update own projects"
   on public.projects
   for update
   to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
-create policy if not exists "users can delete own projects"
+drop policy if exists "users can delete own projects" on public.projects;
+
+create policy "users can delete own projects"
   on public.projects
   for delete
   to authenticated

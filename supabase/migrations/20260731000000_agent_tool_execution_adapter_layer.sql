@@ -38,7 +38,7 @@ create policy "workspace_members_read_adapter_executions"
   on public.agent_tool_adapter_executions for select
   using (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -47,7 +47,7 @@ create policy "workspace_members_insert_adapter_executions"
   on public.agent_tool_adapter_executions for insert
   with check (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -76,7 +76,7 @@ create policy "workspace_members_read_adapter_execution_events"
   on public.agent_tool_adapter_execution_events for select
   using (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -85,7 +85,7 @@ create policy "workspace_members_insert_adapter_execution_events"
   on public.agent_tool_adapter_execution_events for insert
   with check (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );

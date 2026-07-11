@@ -23,14 +23,14 @@ create table if not exists public.capability_verifier_handshakes (
 
 alter table public.capability_verifier_handshakes enable row level security;
 
-create policy if not exists capability_verifier_handshakes_read_workspace_admin on public.capability_verifier_handshakes
+drop policy if exists capability_verifier_handshakes_read_workspace_admin on public.capability_verifier_handshakes;
+create policy capability_verifier_handshakes_read_workspace_admin on public.capability_verifier_handshakes
 for select using (
   verifier_workspace_id is null
   or exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = capability_verifier_handshakes.verifier_workspace_id
       and wm.user_id = auth.uid()
-      and wm.status = 'active'
       and wm.role in ('owner','admin')
   )
 );

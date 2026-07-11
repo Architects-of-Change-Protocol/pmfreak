@@ -47,7 +47,7 @@ async function emitConstitutionEvent(
     source: "user_action",
     correlationId: correlationId ?? record.id,
     causationId: causationId ?? null,
-    rawReferenceTable: "project_constitutions",
+    rawReferenceTable: "project_constitution_profiles",
     rawReferenceId: record.id,
     eventPayload: {
       constitutionId: record.id,
@@ -70,7 +70,7 @@ export async function createProjectConstitution(input: CreateProjectConstitution
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
-    .from("project_constitutions")
+    .from("project_constitution_profiles")
     .insert({
       workspace_id: input.workspaceId,
       name: input.name.trim(),
@@ -116,7 +116,7 @@ export async function updateProjectConstitution(input: UpdateProjectConstitution
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
-    .from("project_constitutions")
+    .from("project_constitution_profiles")
     .update(patch)
     .eq("id", input.constitutionId)
     .eq("workspace_id", input.workspaceId)
@@ -136,7 +136,7 @@ export async function changeProjectConstitutionStatus(input: ChangeProjectConsti
 
   const supabase = await createSupabaseServerClient();
   const { data: current, error: readError } = await supabase
-    .from("project_constitutions")
+    .from("project_constitution_profiles")
     .select(columns)
     .eq("id", input.constitutionId)
     .eq("workspace_id", input.workspaceId)
@@ -147,7 +147,7 @@ export async function changeProjectConstitutionStatus(input: ChangeProjectConsti
   if (current.status === input.status) return { ok: true, data: current };
 
   const { data, error } = await supabase
-    .from("project_constitutions")
+    .from("project_constitution_profiles")
     .update({ status: input.status, updated_at: new Date().toISOString() })
     .eq("id", input.constitutionId)
     .eq("workspace_id", input.workspaceId)
@@ -166,7 +166,7 @@ export async function softDeleteProjectConstitution(input: SoftDeleteProjectCons
   const supabase = await createSupabaseServerClient();
   const deletedAt = new Date().toISOString();
   const { data, error } = await supabase
-    .from("project_constitutions")
+    .from("project_constitution_profiles")
     .update({ deleted_at: deletedAt, updated_at: deletedAt })
     .eq("id", input.constitutionId)
     .eq("workspace_id", input.workspaceId)
@@ -184,7 +184,7 @@ export async function getProjectConstitution(constitutionId: string, workspaceId
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
-    .from("project_constitutions")
+    .from("project_constitution_profiles")
     .select(columns)
     .eq("id", constitutionId)
     .eq("workspace_id", workspaceId)
@@ -201,7 +201,7 @@ export async function listProjectConstitutions(workspaceId: string, status?: Pro
 
   const supabase = await createSupabaseServerClient();
   let query = supabase
-    .from("project_constitutions")
+    .from("project_constitution_profiles")
     .select(summaryColumns)
     .eq("workspace_id", workspaceId)
     .is("deleted_at", null)

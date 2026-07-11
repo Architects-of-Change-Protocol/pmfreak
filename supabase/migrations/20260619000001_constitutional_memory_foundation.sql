@@ -51,6 +51,9 @@ create index if not exists constitutional_artifacts_deleted_idx
   on public.constitutional_artifacts(deleted_at)
   where deleted_at is null;
 
+create unique index if not exists constitutional_artifacts_id_workspace_uidx
+  on public.constitutional_artifacts(id, workspace_id);
+
 alter table public.constitutional_artifacts enable row level security;
 
 create policy "workspace members can read constitutional artifacts"
@@ -117,6 +120,9 @@ create index if not exists constitutional_memory_records_artifact_idx
 
 create index if not exists constitutional_memory_records_type_idx
   on public.constitutional_memory_records(memory_type);
+
+create unique index if not exists constitutional_memory_records_id_workspace_uidx
+  on public.constitutional_memory_records(id, workspace_id);
 
 alter table public.constitutional_memory_records enable row level security;
 

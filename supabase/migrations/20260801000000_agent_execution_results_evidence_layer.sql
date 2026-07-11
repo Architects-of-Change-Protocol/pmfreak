@@ -6,7 +6,7 @@ create table if not exists public.agent_execution_results (
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   execution_request_id uuid not null references public.agent_execution_requests(id) on delete cascade,
   adapter_execution_id uuid references public.agent_tool_adapter_executions(id) on delete set null,
-  agent_id uuid references public.agents(id) on delete set null,
+  agent_id uuid references public.ai_agents(id) on delete set null,
   agent_type text,
   tool_key text not null,
   adapter_key text,
@@ -49,7 +49,7 @@ create policy "workspace_members_read_execution_results"
   on public.agent_execution_results for select
   using (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -58,7 +58,7 @@ create policy "workspace_members_insert_execution_results"
   on public.agent_execution_results for insert
   with check (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -67,7 +67,7 @@ create policy "workspace_members_update_execution_results"
   on public.agent_execution_results for update
   using (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -109,7 +109,7 @@ create policy "workspace_members_read_execution_evidence"
   on public.agent_execution_evidence_items for select
   using (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -118,7 +118,7 @@ create policy "workspace_members_insert_execution_evidence"
   on public.agent_execution_evidence_items for insert
   with check (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -127,7 +127,7 @@ create policy "workspace_members_update_execution_evidence"
   on public.agent_execution_evidence_items for update
   using (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -153,7 +153,7 @@ create policy "workspace_members_read_result_lineage"
   on public.agent_execution_result_lineage for select
   using (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -162,7 +162,7 @@ create policy "workspace_members_insert_result_lineage"
   on public.agent_execution_result_lineage for insert
   with check (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -191,7 +191,7 @@ create policy "workspace_members_read_result_events"
   on public.agent_execution_result_events for select
   using (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -200,7 +200,7 @@ create policy "workspace_members_insert_result_events"
   on public.agent_execution_result_events for insert
   with check (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );

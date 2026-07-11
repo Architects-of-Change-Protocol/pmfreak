@@ -9,7 +9,7 @@
 
 CREATE TABLE IF NOT EXISTS agent_pmo_project_handoff_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   project_id text NOT NULL,
   current_pm_id text,
   incoming_pm_id text NOT NULL,
@@ -34,26 +34,26 @@ ALTER TABLE agent_pmo_project_handoff_requests ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_handoff_requests"
   ON agent_pmo_project_handoff_requests FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_handoff_requests"
   ON agent_pmo_project_handoff_requests FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_handoff_requests"
   ON agent_pmo_project_handoff_requests FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Context Validations ──────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_project_context_validations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   handoff_request_id uuid NOT NULL REFERENCES agent_pmo_project_handoff_requests(id),
   check_key text NOT NULL,
   check_label text NOT NULL,
@@ -71,26 +71,26 @@ ALTER TABLE agent_pmo_project_context_validations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_context_validations"
   ON agent_pmo_project_context_validations FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_context_validations"
   ON agent_pmo_project_context_validations FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_context_validations"
   ON agent_pmo_project_context_validations FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Handoff Gates ────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_project_handoff_gates (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   handoff_request_id uuid NOT NULL REFERENCES agent_pmo_project_handoff_requests(id),
   gate_status text NOT NULL DEFAULT 'under_review',
   reviewed_by_id text,
@@ -107,26 +107,26 @@ ALTER TABLE agent_pmo_project_handoff_gates ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_handoff_gates"
   ON agent_pmo_project_handoff_gates FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_handoff_gates"
   ON agent_pmo_project_handoff_gates FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_handoff_gates"
   ON agent_pmo_project_handoff_gates FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Gate Decisions ───────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_project_handoff_gate_decisions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   handoff_gate_id uuid NOT NULL REFERENCES agent_pmo_project_handoff_gates(id),
   handoff_request_id uuid NOT NULL REFERENCES agent_pmo_project_handoff_requests(id),
   decision text NOT NULL,
@@ -143,20 +143,20 @@ ALTER TABLE agent_pmo_project_handoff_gate_decisions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_gate_decisions"
   ON agent_pmo_project_handoff_gate_decisions FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_gate_decisions"
   ON agent_pmo_project_handoff_gate_decisions FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Handoff Packs ────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_project_handoff_packs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   handoff_request_id uuid NOT NULL REFERENCES agent_pmo_project_handoff_requests(id),
   current_pm_id text,
   incoming_pm_id text NOT NULL,
@@ -189,26 +189,26 @@ ALTER TABLE agent_pmo_project_handoff_packs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_handoff_packs"
   ON agent_pmo_project_handoff_packs FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_handoff_packs"
   ON agent_pmo_project_handoff_packs FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_handoff_packs"
   ON agent_pmo_project_handoff_packs FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Memory Snapshots ─────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_project_memory_snapshots (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   handoff_request_id uuid NOT NULL REFERENCES agent_pmo_project_handoff_requests(id),
   category text NOT NULL,
   snapshot_status text NOT NULL DEFAULT 'assembled',
@@ -227,26 +227,26 @@ ALTER TABLE agent_pmo_project_memory_snapshots ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_memory_snapshots"
   ON agent_pmo_project_memory_snapshots FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_memory_snapshots"
   ON agent_pmo_project_memory_snapshots FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_memory_snapshots"
   ON agent_pmo_project_memory_snapshots FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Status Snapshots ─────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_project_status_snapshots (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   handoff_request_id uuid NOT NULL REFERENCES agent_pmo_project_handoff_requests(id),
   project_health text NOT NULL DEFAULT 'unknown',
   schedule_health text NOT NULL DEFAULT 'unknown',
@@ -270,20 +270,20 @@ ALTER TABLE agent_pmo_project_status_snapshots ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_status_snapshots"
   ON agent_pmo_project_status_snapshots FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_status_snapshots"
   ON agent_pmo_project_status_snapshots FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Snapshot Items ───────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_project_handoff_snapshot_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   handoff_request_id uuid NOT NULL REFERENCES agent_pmo_project_handoff_requests(id),
   item_type text NOT NULL,
   title text NOT NULL,
@@ -305,26 +305,26 @@ ALTER TABLE agent_pmo_project_handoff_snapshot_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_snapshot_items"
   ON agent_pmo_project_handoff_snapshot_items FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_snapshot_items"
   ON agent_pmo_project_handoff_snapshot_items FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_snapshot_items"
   ON agent_pmo_project_handoff_snapshot_items FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Stakeholder Context ──────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_stakeholder_context_snapshots (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   handoff_request_id uuid NOT NULL REFERENCES agent_pmo_project_handoff_requests(id),
   stakeholder_type text NOT NULL,
   role_label text NOT NULL,
@@ -341,20 +341,20 @@ ALTER TABLE agent_pmo_stakeholder_context_snapshots ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_stakeholder_context"
   ON agent_pmo_stakeholder_context_snapshots FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_stakeholder_context"
   ON agent_pmo_stakeholder_context_snapshots FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Outgoing PM Notes ────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_outgoing_pm_notes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   handoff_request_id uuid NOT NULL REFERENCES agent_pmo_project_handoff_requests(id),
   note_type text NOT NULL,
   note_text text NOT NULL,
@@ -372,26 +372,26 @@ ALTER TABLE agent_pmo_outgoing_pm_notes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_outgoing_notes"
   ON agent_pmo_outgoing_pm_notes FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_outgoing_notes"
   ON agent_pmo_outgoing_pm_notes FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_outgoing_notes"
   ON agent_pmo_outgoing_pm_notes FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Incoming PM Acceptances ──────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_incoming_pm_acceptances (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   handoff_request_id uuid NOT NULL REFERENCES agent_pmo_project_handoff_requests(id),
   handoff_pack_id uuid REFERENCES agent_pmo_project_handoff_packs(id),
   incoming_pm_id text NOT NULL,
@@ -410,13 +410,13 @@ ALTER TABLE agent_pmo_incoming_pm_acceptances ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_incoming_acceptances"
   ON agent_pmo_incoming_pm_acceptances FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_incoming_acceptances"
   ON agent_pmo_incoming_pm_acceptances FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Controlled Project Assignment Pointers ───────────────────────────────────
@@ -425,7 +425,7 @@ CREATE POLICY "workspace_member_insert_incoming_acceptances"
 
 CREATE TABLE IF NOT EXISTS agent_pmo_controlled_project_assignment_pointers (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   project_id text NOT NULL,
   active_pm_id text NOT NULL,
   previous_pm_id text,
@@ -448,26 +448,26 @@ ALTER TABLE agent_pmo_controlled_project_assignment_pointers ENABLE ROW LEVEL SE
 CREATE POLICY "workspace_member_read_assignment_pointers"
   ON agent_pmo_controlled_project_assignment_pointers FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_assignment_pointers"
   ON agent_pmo_controlled_project_assignment_pointers FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_assignment_pointers"
   ON agent_pmo_controlled_project_assignment_pointers FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Assignment History ───────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_project_assignment_history (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   project_id text NOT NULL,
   handoff_request_id uuid REFERENCES agent_pmo_project_handoff_requests(id),
   previous_pm_id text,
@@ -490,20 +490,20 @@ ALTER TABLE agent_pmo_project_assignment_history ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_assignment_history"
   ON agent_pmo_project_assignment_history FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_assignment_history"
   ON agent_pmo_project_assignment_history FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Continuity Checks ────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_handoff_continuity_checks (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   handoff_request_id uuid NOT NULL REFERENCES agent_pmo_project_handoff_requests(id),
   check_type text NOT NULL,
   check_status text NOT NULL DEFAULT 'pending',
@@ -522,26 +522,26 @@ ALTER TABLE agent_pmo_handoff_continuity_checks ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_continuity_checks"
   ON agent_pmo_handoff_continuity_checks FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_continuity_checks"
   ON agent_pmo_handoff_continuity_checks FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_update_continuity_checks"
   ON agent_pmo_handoff_continuity_checks FOR UPDATE
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Exports ──────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_project_handoff_exports (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   handoff_request_id uuid NOT NULL REFERENCES agent_pmo_project_handoff_requests(id),
   export_format text NOT NULL,
   export_status text NOT NULL DEFAULT 'generated',
@@ -559,20 +559,20 @@ ALTER TABLE agent_pmo_project_handoff_exports ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_handoff_exports"
   ON agent_pmo_project_handoff_exports FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_handoff_exports"
   ON agent_pmo_project_handoff_exports FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 -- ─── Audit Events ─────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_project_handoff_audit_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   handoff_request_id uuid REFERENCES agent_pmo_project_handoff_requests(id),
   event_type text NOT NULL,
   message text,
@@ -590,11 +590,11 @@ ALTER TABLE agent_pmo_project_handoff_audit_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_member_read_handoff_audit_events"
   ON agent_pmo_project_handoff_audit_events FOR SELECT
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));
 
 CREATE POLICY "workspace_member_insert_handoff_audit_events"
   ON agent_pmo_project_handoff_audit_events FOR INSERT
   WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()
   ));

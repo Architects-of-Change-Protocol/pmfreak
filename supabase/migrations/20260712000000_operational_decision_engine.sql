@@ -60,6 +60,8 @@ create table if not exists public.operational_decisions (
     on delete cascade
 );
 
+create unique index if not exists operational_decisions_id_workspace_uidx on public.operational_decisions(id, workspace_id);
+
 create index if not exists od_workspace_id_idx
   on public.operational_decisions(workspace_id, created_at desc);
 
@@ -124,6 +126,8 @@ create table if not exists public.operational_decision_options (
     references public.operational_decisions(id, workspace_id)
     on delete cascade
 );
+
+create unique index if not exists operational_decision_options_id_workspace_uidx on public.operational_decision_options(id, workspace_id);
 
 create index if not exists odo_workspace_id_idx
   on public.operational_decision_options(workspace_id, created_at desc);

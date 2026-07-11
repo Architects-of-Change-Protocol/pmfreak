@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { validatePlatformEventPayload, assertPlatformEventPayloadAllowed, validatePlatformEventActor } from '../src/lib/platform-events/payload-validation.ts';
 
-const migration = readFileSync('supabase/migrations/20260616000000_platform_events_invariants.sql', 'utf8');
+const migration = readFileSync('supabase/migrations/20260616000001_platform_events_invariants.sql', 'utf8');
 
 test('platform_events migration defines append-only mutation guard and update/delete triggers', () => {
   assert.match(migration, /create or replace function public\.prevent_platform_event_mutation\(\)/);

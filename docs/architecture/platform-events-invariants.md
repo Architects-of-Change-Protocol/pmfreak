@@ -17,7 +17,7 @@ Platform events are the evidence layer for PMFreak activity, recommendations, go
 
 ## Database enforcement
 
-The `20260616000000_platform_events_invariants.sql` migration adds:
+The `20260616000001_platform_events_invariants.sql` migration adds:
 
 - `prevent_platform_event_mutation()`.
 - `platform_events_prevent_update` trigger.

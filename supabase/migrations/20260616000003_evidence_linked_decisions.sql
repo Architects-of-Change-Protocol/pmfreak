@@ -33,7 +33,7 @@ create table if not exists public.project_decisions (
     references public.recommended_actions(id, workspace_id) on delete set null
 );
 
-create table if not exists public.decision_evidence_links (
+create table if not exists public.project_decision_evidence_links (
   id uuid primary key default gen_random_uuid(),
   decision_id uuid not null references public.project_decisions(id) on delete cascade,
   evidence_id uuid not null,
@@ -56,12 +56,12 @@ create table if not exists public.decision_outcome_links (
 
 create index if not exists project_decisions_workspace_project_status_idx on public.project_decisions(workspace_id, project_id, decision_status, created_at desc);
 create index if not exists project_decisions_recommendation_idx on public.project_decisions(recommendation_id) where recommendation_id is not null;
-create index if not exists decision_evidence_links_decision_idx on public.decision_evidence_links(decision_id);
-create index if not exists decision_evidence_links_evidence_idx on public.decision_evidence_links(evidence_type, evidence_id);
+create index if not exists project_decision_evidence_links_decision_idx on public.project_decision_evidence_links(decision_id);
+create index if not exists project_decision_evidence_links_evidence_idx on public.project_decision_evidence_links(evidence_type, evidence_id);
 create index if not exists decision_outcome_links_decision_idx on public.decision_outcome_links(decision_id);
 
 alter table public.project_decisions enable row level security;
-alter table public.decision_evidence_links enable row level security;
+alter table public.project_decision_evidence_links enable row level security;
 alter table public.decision_outcome_links enable row level security;
 
 drop policy if exists "workspace members can read project_decisions" on public.project_decisions;
@@ -80,14 +80,14 @@ create policy "workspace approvers can approve project_decisions" on public.proj
   exists (select 1 from public.workspace_memberships wm where wm.workspace_id = project_decisions.workspace_id and wm.user_id = auth.uid() and wm.role in ('owner','admin','pm'))
 );
 
-drop policy if exists "workspace members can read decision_evidence_links" on public.decision_evidence_links;
-create policy "workspace members can read decision_evidence_links" on public.decision_evidence_links for select to authenticated using (
-  exists (select 1 from public.project_decisions d where d.id = decision_evidence_links.decision_id and public.is_workspace_member(d.workspace_id))
+drop policy if exists "workspace members can read project_decision_evidence_links" on public.project_decision_evidence_links;
+create policy "workspace members can read project_decision_evidence_links" on public.project_decision_evidence_links for select to authenticated using (
+  exists (select 1 from public.project_decisions d where d.id = project_decision_evidence_links.decision_id and public.is_workspace_member(d.workspace_id))
 );
 
-drop policy if exists "workspace members can create decision_evidence_links" on public.decision_evidence_links;
-create policy "workspace members can create decision_evidence_links" on public.decision_evidence_links for insert to authenticated with check (
-  exists (select 1 from public.project_decisions d where d.id = decision_evidence_links.decision_id and public.is_workspace_member(d.workspace_id))
+drop policy if exists "workspace members can create project_decision_evidence_links" on public.project_decision_evidence_links;
+create policy "workspace members can create project_decision_evidence_links" on public.project_decision_evidence_links for insert to authenticated with check (
+  exists (select 1 from public.project_decisions d where d.id = project_decision_evidence_links.decision_id and public.is_workspace_member(d.workspace_id))
 );
 
 drop policy if exists "workspace members can read decision_outcome_links" on public.decision_outcome_links;

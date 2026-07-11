@@ -16,7 +16,9 @@ create index if not exists onboarding_analyses_company_created_at_idx
 
 alter table public.onboarding_analyses enable row level security;
 
-create policy if not exists "tenant access onboarding_analyses"
+drop policy if exists "tenant access onboarding_analyses" on public.onboarding_analyses;
+
+create policy "tenant access onboarding_analyses"
   on public.onboarding_analyses
   for all
   to authenticated

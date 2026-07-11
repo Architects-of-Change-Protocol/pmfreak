@@ -51,23 +51,29 @@ alter table public.capability_requests enable row level security;
 alter table public.capability_grants enable row level security;
 alter table public.capability_audit_events enable row level security;
 
-create policy if not exists capability_requests_read_scope on public.capability_requests
+drop policy if exists capability_requests_read_scope on public.capability_requests;
+create policy capability_requests_read_scope on public.capability_requests
 for select using (
   requester_user_id = auth.uid()
   or exists (select 1 from public.workspace_memberships wm where wm.workspace_id = capability_requests.workspace_id and wm.user_id = auth.uid() and wm.role in ('owner','admin'))
 );
-create policy if not exists capability_requests_server_write on public.capability_requests for all using (false) with check (false);
+drop policy if exists capability_requests_server_write on public.capability_requests;
+create policy capability_requests_server_write on public.capability_requests for all using (false) with check (false);
 
-create policy if not exists capability_grants_read_scope on public.capability_grants
+drop policy if exists capability_grants_read_scope on public.capability_grants;
+create policy capability_grants_read_scope on public.capability_grants
 for select using (
   granted_user_id = auth.uid()
   or exists (select 1 from public.workspace_memberships wm where wm.workspace_id = capability_grants.workspace_id and wm.user_id = auth.uid() and wm.role in ('owner','admin'))
 );
-create policy if not exists capability_grants_server_write on public.capability_grants for all using (false) with check (false);
+drop policy if exists capability_grants_server_write on public.capability_grants;
+create policy capability_grants_server_write on public.capability_grants for all using (false) with check (false);
 
-create policy if not exists capability_audit_read_scope on public.capability_audit_events
+drop policy if exists capability_audit_read_scope on public.capability_audit_events;
+create policy capability_audit_read_scope on public.capability_audit_events
 for select using (
   actor_user_id = auth.uid()
   or exists (select 1 from public.workspace_memberships wm where wm.workspace_id = capability_audit_events.workspace_id and wm.user_id = auth.uid() and wm.role in ('owner','admin'))
 );
-create policy if not exists capability_audit_server_write on public.capability_audit_events for all using (false) with check (false);
+drop policy if exists capability_audit_server_write on public.capability_audit_events;
+create policy capability_audit_server_write on public.capability_audit_events for all using (false) with check (false);

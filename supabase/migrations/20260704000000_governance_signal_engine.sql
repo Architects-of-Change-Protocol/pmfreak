@@ -69,6 +69,8 @@ create table if not exists governance_signals (
   unique (id, workspace_id)
 );
 
+create unique index if not exists governance_signals_id_workspace_uidx on public.governance_signals(id, workspace_id);
+
 create index if not exists governance_signals_workspace_id_idx
   on governance_signals (workspace_id);
 create index if not exists governance_signals_status_idx

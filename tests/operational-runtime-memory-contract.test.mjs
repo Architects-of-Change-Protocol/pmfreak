@@ -613,10 +613,10 @@ test("index re-exports all major types and functions", () => {
 
 // ─── Migration ────────────────────────────────────────────────────────────────
 
-test("migration creates operational_memory_records table with correct columns", () => {
-  assert.match(migrationFile, /create table if not exists public\.operational_memory_records/);
+test("migration creates operational_memory_runtime_records table with correct columns", () => {
+  assert.match(migrationFile, /create table if not exists public\.operational_memory_runtime_records/);
   assert.match(migrationFile, /company_id text not null/);
-  assert.match(migrationFile, /parent_record_id uuid null references public\.operational_memory_records/);
+  assert.match(migrationFile, /parent_record_id uuid null references public\.operational_memory_runtime_records/);
   assert.match(migrationFile, /lineage_type text null/);
   assert.match(migrationFile, /resolution_status text not null/);
   assert.match(migrationFile, /continuity_weight/);
@@ -630,7 +630,7 @@ test("migration creates operational_memory_records table with correct columns", 
 
 test("migration creates operational_intervention_records table", () => {
   assert.match(migrationFile, /create table if not exists public\.operational_intervention_records/);
-  assert.match(migrationFile, /memory_record_id uuid not null references public\.operational_memory_records/);
+  assert.match(migrationFile, /memory_record_id uuid not null references public\.operational_memory_runtime_records/);
   assert.match(migrationFile, /intervention_type text not null/);
   assert.match(migrationFile, /outcome text not null/);
 });
@@ -639,17 +639,17 @@ test("migration enables RLS and creates tenant isolation policies", () => {
   assert.match(migrationFile, /enable row level security/);
   assert.match(migrationFile, /current_company_id\(\) = company_id/);
   assert.ok(
-    (migrationFile.match(/create policy if not exists/g) ?? []).length >= 2,
+    (migrationFile.match(/create policy "/g) ?? []).length >= 2,
     "Should have at least 2 RLS policies",
   );
 });
 
 test("migration includes unresolved index for pressure retrieval performance", () => {
-  assert.match(migrationFile, /operational_memory_records_unresolved_idx/);
+  assert.match(migrationFile, /operational_memory_runtime_records_unresolved_idx/);
   assert.match(migrationFile, /'unresolved', 'escalated', 'in_progress'/);
 });
 
 test("migration includes lineage parent index for causality chain traversal", () => {
-  assert.match(migrationFile, /operational_memory_records_lineage_idx/);
+  assert.match(migrationFile, /operational_memory_runtime_records_lineage_idx/);
   assert.match(migrationFile, /parent_record_id is not null/);
 });

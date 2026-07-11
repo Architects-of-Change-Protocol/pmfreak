@@ -43,36 +43,36 @@ alter table public.capability_trust_domains enable row level security;
 alter table public.capability_signing_keys enable row level security;
 alter table public.capability_verifier_policies enable row level security;
 
-create policy if not exists capability_trust_domains_read_workspace_admin on public.capability_trust_domains
+drop policy if exists capability_trust_domains_read_workspace_admin on public.capability_trust_domains;
+create policy capability_trust_domains_read_workspace_admin on public.capability_trust_domains
 for select using (
   workspace_id is null or exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = capability_trust_domains.workspace_id
       and wm.user_id = auth.uid()
-      and wm.status = 'active'
       and wm.role in ('owner','admin')
   )
 );
 
-create policy if not exists capability_signing_keys_read_workspace_admin on public.capability_signing_keys
+drop policy if exists capability_signing_keys_read_workspace_admin on public.capability_signing_keys;
+create policy capability_signing_keys_read_workspace_admin on public.capability_signing_keys
 for select using (
   exists (
     select 1 from public.capability_trust_domains td
-    join public.workspace_members wm on wm.workspace_id = td.workspace_id
+    join public.workspace_memberships wm on wm.workspace_id = td.workspace_id
     where td.id = capability_signing_keys.trust_domain_id
       and wm.user_id = auth.uid()
-      and wm.status = 'active'
       and wm.role in ('owner','admin')
   )
 );
 
-create policy if not exists capability_verifier_policies_read_workspace_admin on public.capability_verifier_policies
+drop policy if exists capability_verifier_policies_read_workspace_admin on public.capability_verifier_policies;
+create policy capability_verifier_policies_read_workspace_admin on public.capability_verifier_policies
 for select using (
   exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = capability_verifier_policies.workspace_id
       and wm.user_id = auth.uid()
-      and wm.status = 'active'
       and wm.role in ('owner','admin')
   )
 );

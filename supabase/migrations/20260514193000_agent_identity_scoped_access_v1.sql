@@ -41,19 +41,23 @@ create index if not exists ai_agent_scopes_agent_idx on public.ai_agent_scopes(a
 alter table public.ai_agents enable row level security;
 alter table public.ai_agent_scopes enable row level security;
 
-create policy if not exists ai_agents_read_scope on public.ai_agents for select using (
+drop policy if exists ai_agents_read_scope on public.ai_agents;
+create policy ai_agents_read_scope on public.ai_agents for select using (
   exists (select 1 from public.workspace_memberships wm where wm.workspace_id = ai_agents.workspace_id and wm.user_id = auth.uid())
 );
-create policy if not exists ai_agents_admin_write_scope on public.ai_agents for all using (
+drop policy if exists ai_agents_admin_write_scope on public.ai_agents;
+create policy ai_agents_admin_write_scope on public.ai_agents for all using (
   exists (select 1 from public.workspace_memberships wm where wm.workspace_id = ai_agents.workspace_id and wm.user_id = auth.uid() and wm.role in ('owner','admin'))
 ) with check (
   exists (select 1 from public.workspace_memberships wm where wm.workspace_id = ai_agents.workspace_id and wm.user_id = auth.uid() and wm.role in ('owner','admin'))
 );
 
-create policy if not exists ai_agent_scopes_read_scope on public.ai_agent_scopes for select using (
+drop policy if exists ai_agent_scopes_read_scope on public.ai_agent_scopes;
+create policy ai_agent_scopes_read_scope on public.ai_agent_scopes for select using (
   exists (select 1 from public.workspace_memberships wm where wm.workspace_id = ai_agent_scopes.workspace_id and wm.user_id = auth.uid())
 );
-create policy if not exists ai_agent_scopes_admin_write_scope on public.ai_agent_scopes for all using (
+drop policy if exists ai_agent_scopes_admin_write_scope on public.ai_agent_scopes;
+create policy ai_agent_scopes_admin_write_scope on public.ai_agent_scopes for all using (
   exists (select 1 from public.workspace_memberships wm where wm.workspace_id = ai_agent_scopes.workspace_id and wm.user_id = auth.uid() and wm.role in ('owner','admin'))
 ) with check (
   exists (select 1 from public.workspace_memberships wm where wm.workspace_id = ai_agent_scopes.workspace_id and wm.user_id = auth.uid() and wm.role in ('owner','admin'))

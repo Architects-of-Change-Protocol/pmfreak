@@ -44,7 +44,9 @@ create index if not exists runtime_conversation_state_last_seen_idx
 
 alter table public.runtime_conversation_state enable row level security;
 
-create policy if not exists "workspace members can read runtime_conversation_state"
+drop policy if exists "workspace members can read runtime_conversation_state" on public.runtime_conversation_state;
+
+create policy "workspace members can read runtime_conversation_state"
   on public.runtime_conversation_state
   for select
   to authenticated
@@ -52,7 +54,9 @@ create policy if not exists "workspace members can read runtime_conversation_sta
     workspace_id is not null and public.is_workspace_member(workspace_id)
   );
 
-create policy if not exists "workspace members can insert runtime_conversation_state"
+drop policy if exists "workspace members can insert runtime_conversation_state" on public.runtime_conversation_state;
+
+create policy "workspace members can insert runtime_conversation_state"
   on public.runtime_conversation_state
   for insert
   to authenticated
@@ -60,7 +64,9 @@ create policy if not exists "workspace members can insert runtime_conversation_s
     workspace_id is not null and public.is_workspace_member(workspace_id)
   );
 
-create policy if not exists "workspace members can update runtime_conversation_state"
+drop policy if exists "workspace members can update runtime_conversation_state" on public.runtime_conversation_state;
+
+create policy "workspace members can update runtime_conversation_state"
   on public.runtime_conversation_state
   for update
   to authenticated

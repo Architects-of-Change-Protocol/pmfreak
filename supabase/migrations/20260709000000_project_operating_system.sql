@@ -39,6 +39,8 @@ create table if not exists public.project_os_snapshots (
   unique (id, workspace_id)
 );
 
+create unique index if not exists project_os_snapshots_id_workspace_uidx on public.project_os_snapshots(id, workspace_id);
+
 create index if not exists project_os_snapshots_workspace_id_idx
   on public.project_os_snapshots(workspace_id, created_at desc);
 

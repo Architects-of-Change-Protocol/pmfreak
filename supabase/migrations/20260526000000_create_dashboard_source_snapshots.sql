@@ -52,7 +52,9 @@ alter table public.dashboard_source_snapshots enable row level security;
 -- RLS policy: tenant isolation via current_company_id()
 -- tenant_id in this module maps to the company/organization scope.
 -- Adjust the column name here if your auth setup resolves differently.
-create policy if not exists "tenant access dashboard_source_snapshots"
+drop policy if exists "tenant access dashboard_source_snapshots" on public.dashboard_source_snapshots;
+
+create policy "tenant access dashboard_source_snapshots"
   on public.dashboard_source_snapshots
   for all
   to authenticated

@@ -17,7 +17,7 @@ export async function persistOperationalMemoryRecord(
     const { createSupabaseServerClient } = await import("@/lib/supabase/server");
     const supabase = await createSupabaseServerClient();
 
-    const { error } = await supabase.from("operational_memory_records").insert({
+    const { error } = await supabase.from("operational_memory_runtime_records").insert({
       id: record.id,
       company_id: record.scope.companyId,
       workspace_id: record.scope.workspaceId ?? null,
@@ -51,7 +51,7 @@ export async function persistOperationalMemoryRecord(
       return {
         status: "failed",
         recordId: record.id,
-        error: `operational_memory_records insert failed: ${error.message}`,
+        error: `operational_memory_runtime_records insert failed: ${error.message}`,
       };
     }
 
@@ -109,7 +109,7 @@ export async function loadOperationalMemoryRecords(
     const supabase = await createSupabaseServerClient();
 
     let query = supabase
-      .from("operational_memory_records")
+      .from("operational_memory_runtime_records")
       .select("*")
       .eq("company_id", scope.companyId)
       .order("created_at", { ascending: false })
@@ -122,7 +122,7 @@ export async function loadOperationalMemoryRecords(
     }
 
     const { data, error } = await query;
-    if (error) throw new Error(`operational_memory_records load failed: ${error.message}`);
+    if (error) throw new Error(`operational_memory_runtime_records load failed: ${error.message}`);
 
     return (data ?? []).map(rowToRecord);
   } catch {

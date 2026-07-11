@@ -27,9 +27,12 @@ create index if not exists vault_interventions_outcome_idx on public.vault_inter
 create index if not exists vault_interventions_attempted_desc_idx on public.vault_interventions(attempted_at desc);
 create index if not exists vault_interventions_workspace_project_attempted_idx on public.vault_interventions(workspace_id, project_id, attempted_at desc);
 alter table public.vault_interventions enable row level security;
-create policy if not exists "workspace members can read vault_interventions" on public.vault_interventions for select to authenticated using (public.is_workspace_member(workspace_id));
-create policy if not exists "workspace members can insert vault_interventions" on public.vault_interventions for insert to authenticated with check (public.is_workspace_member(workspace_id));
-create policy if not exists "workspace members can update vault_interventions" on public.vault_interventions for update to authenticated using (public.is_workspace_member(workspace_id)) with check (public.is_workspace_member(workspace_id));
+drop policy if exists "workspace members can read vault_interventions" on public.vault_interventions;
+create policy "workspace members can read vault_interventions" on public.vault_interventions for select to authenticated using (public.is_workspace_member(workspace_id));
+drop policy if exists "workspace members can insert vault_interventions" on public.vault_interventions;
+create policy "workspace members can insert vault_interventions" on public.vault_interventions for insert to authenticated with check (public.is_workspace_member(workspace_id));
+drop policy if exists "workspace members can update vault_interventions" on public.vault_interventions;
+create policy "workspace members can update vault_interventions" on public.vault_interventions for update to authenticated using (public.is_workspace_member(workspace_id)) with check (public.is_workspace_member(workspace_id));
 
 create table if not exists public.vault_intervention_evidence (
   id uuid primary key,
@@ -46,9 +49,12 @@ create index if not exists vault_intervention_evidence_workspace_idx on public.v
 create index if not exists vault_intervention_evidence_nutrient_idx on public.vault_intervention_evidence(nutrient_id);
 create index if not exists vault_intervention_evidence_timestamp_desc_idx on public.vault_intervention_evidence(evidence_timestamp desc);
 alter table public.vault_intervention_evidence enable row level security;
-create policy if not exists "workspace members can read vault_intervention_evidence" on public.vault_intervention_evidence for select to authenticated using (public.is_workspace_member(workspace_id));
-create policy if not exists "workspace members can insert vault_intervention_evidence" on public.vault_intervention_evidence for insert to authenticated with check (public.is_workspace_member(workspace_id));
-create policy if not exists "workspace members can update vault_intervention_evidence" on public.vault_intervention_evidence for update to authenticated using (public.is_workspace_member(workspace_id)) with check (public.is_workspace_member(workspace_id));
+drop policy if exists "workspace members can read vault_intervention_evidence" on public.vault_intervention_evidence;
+create policy "workspace members can read vault_intervention_evidence" on public.vault_intervention_evidence for select to authenticated using (public.is_workspace_member(workspace_id));
+drop policy if exists "workspace members can insert vault_intervention_evidence" on public.vault_intervention_evidence;
+create policy "workspace members can insert vault_intervention_evidence" on public.vault_intervention_evidence for insert to authenticated with check (public.is_workspace_member(workspace_id));
+drop policy if exists "workspace members can update vault_intervention_evidence" on public.vault_intervention_evidence;
+create policy "workspace members can update vault_intervention_evidence" on public.vault_intervention_evidence for update to authenticated using (public.is_workspace_member(workspace_id)) with check (public.is_workspace_member(workspace_id));
 
 create table if not exists public.vault_intervention_outcomes (
   id uuid primary key,
@@ -71,6 +77,9 @@ create index if not exists vault_intervention_outcomes_workspace_idx on public.v
 create index if not exists vault_intervention_outcomes_outcome_idx on public.vault_intervention_outcomes(outcome);
 create index if not exists vault_intervention_outcomes_created_desc_idx on public.vault_intervention_outcomes(created_at desc);
 alter table public.vault_intervention_outcomes enable row level security;
-create policy if not exists "workspace members can read vault_intervention_outcomes" on public.vault_intervention_outcomes for select to authenticated using (public.is_workspace_member(workspace_id));
-create policy if not exists "workspace members can insert vault_intervention_outcomes" on public.vault_intervention_outcomes for insert to authenticated with check (public.is_workspace_member(workspace_id));
-create policy if not exists "workspace members can update vault_intervention_outcomes" on public.vault_intervention_outcomes for update to authenticated using (public.is_workspace_member(workspace_id)) with check (public.is_workspace_member(workspace_id));
+drop policy if exists "workspace members can read vault_intervention_outcomes" on public.vault_intervention_outcomes;
+create policy "workspace members can read vault_intervention_outcomes" on public.vault_intervention_outcomes for select to authenticated using (public.is_workspace_member(workspace_id));
+drop policy if exists "workspace members can insert vault_intervention_outcomes" on public.vault_intervention_outcomes;
+create policy "workspace members can insert vault_intervention_outcomes" on public.vault_intervention_outcomes for insert to authenticated with check (public.is_workspace_member(workspace_id));
+drop policy if exists "workspace members can update vault_intervention_outcomes" on public.vault_intervention_outcomes;
+create policy "workspace members can update vault_intervention_outcomes" on public.vault_intervention_outcomes for update to authenticated using (public.is_workspace_member(workspace_id)) with check (public.is_workspace_member(workspace_id));

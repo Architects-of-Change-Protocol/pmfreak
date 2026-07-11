@@ -87,7 +87,8 @@ alter table public.agent_tool_approval_events enable row level security;
 
 -- agent_tool_requests: workspace members can read, admins can write
 
-create policy if not exists agent_tool_requests_workspace_read on public.agent_tool_requests
+drop policy if exists agent_tool_requests_workspace_read on public.agent_tool_requests;
+create policy agent_tool_requests_workspace_read on public.agent_tool_requests
   for select using (
     exists (
       select 1 from public.workspace_memberships wm
@@ -96,7 +97,8 @@ create policy if not exists agent_tool_requests_workspace_read on public.agent_t
     )
   );
 
-create policy if not exists agent_tool_requests_member_insert on public.agent_tool_requests
+drop policy if exists agent_tool_requests_member_insert on public.agent_tool_requests;
+create policy agent_tool_requests_member_insert on public.agent_tool_requests
   for insert with check (
     exists (
       select 1 from public.workspace_memberships wm
@@ -105,7 +107,8 @@ create policy if not exists agent_tool_requests_member_insert on public.agent_to
     )
   );
 
-create policy if not exists agent_tool_requests_admin_update on public.agent_tool_requests
+drop policy if exists agent_tool_requests_admin_update on public.agent_tool_requests;
+create policy agent_tool_requests_admin_update on public.agent_tool_requests
   for update using (
     exists (
       select 1 from public.workspace_memberships wm
@@ -124,7 +127,8 @@ create policy if not exists agent_tool_requests_admin_update on public.agent_too
 
 -- agent_tool_approvals: workspace members can read, admins can write
 
-create policy if not exists agent_tool_approvals_workspace_read on public.agent_tool_approvals
+drop policy if exists agent_tool_approvals_workspace_read on public.agent_tool_approvals;
+create policy agent_tool_approvals_workspace_read on public.agent_tool_approvals
   for select using (
     exists (
       select 1 from public.workspace_memberships wm
@@ -133,7 +137,8 @@ create policy if not exists agent_tool_approvals_workspace_read on public.agent_
     )
   );
 
-create policy if not exists agent_tool_approvals_admin_write on public.agent_tool_approvals
+drop policy if exists agent_tool_approvals_admin_write on public.agent_tool_approvals;
+create policy agent_tool_approvals_admin_write on public.agent_tool_approvals
   for all using (
     exists (
       select 1 from public.workspace_memberships wm
@@ -152,7 +157,8 @@ create policy if not exists agent_tool_approvals_admin_write on public.agent_too
 
 -- agent_tool_approval_events: workspace members can read, admins can write
 
-create policy if not exists agent_tool_approval_events_workspace_read on public.agent_tool_approval_events
+drop policy if exists agent_tool_approval_events_workspace_read on public.agent_tool_approval_events;
+create policy agent_tool_approval_events_workspace_read on public.agent_tool_approval_events
   for select using (
     exists (
       select 1 from public.workspace_memberships wm
@@ -161,7 +167,8 @@ create policy if not exists agent_tool_approval_events_workspace_read on public.
     )
   );
 
-create policy if not exists agent_tool_approval_events_admin_write on public.agent_tool_approval_events
+drop policy if exists agent_tool_approval_events_admin_write on public.agent_tool_approval_events;
+create policy agent_tool_approval_events_admin_write on public.agent_tool_approval_events
   for all using (
     exists (
       select 1 from public.workspace_memberships wm

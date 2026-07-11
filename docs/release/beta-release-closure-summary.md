@@ -1,4 +1,25 @@
-# Beta Release Closure Summary — Perilla 11 (updated by Perilla 12)
+# Beta Release Closure Summary — Perilla 11 (updated by Perilla 12, Perilla 13)
+
+> **Perilla 13 update (2026-07-11)**: fresh-database migration proof
+> completed against a local PostgreSQL 16 (144 migration files — 142
+> pre-existing + 2 new corrective migrations — 0 failures after
+> remediation). 26 real migration defects were found and fixed, including a
+> blocking `workspace_memberships` RLS-recursion bug confirmed via a live
+> two-workspace tenant-isolation test (10/10 checks pass — see
+> [`rls-tenant-isolation-report.md`](./rls-tenant-isolation-report.md) and
+> [`migration-failure-remediation-log.md`](./migration-failure-remediation-log.md)).
+> **RR-MIGRATE remains OPEN**: this environment had no hosted-Supabase
+> credentials and no Docker daemon, so the strongest evidence achievable
+> here is local-Postgres, not the hosted project or official local stack
+> this PR's own honesty rule requires for closure (see
+> [`fresh-database-migration-proof.md`](./fresh-database-migration-proof.md)).
+> A new automation harness, `npm run check:fresh-db-migrations`
+> (`scripts/check-fresh-db-migrations.mjs`), is ready to close it the moment
+> those credentials or Docker access are available. Full suite still 12,207
+> tests / 0 failures after all migration and source edits in this PR;
+> `npm run check:beta-release` still reports `CONDITIONAL GO`. Decision
+> remains **CONDITIONAL GO** with the same two pilot-blocking conditions as
+> the Perilla 12 update below: RR-MIGRATE and RR-BACKUP.
 
 > **Perilla 12 update (2026-07-11)**: pilot-blocking condition **RR-XLSX is
 > closed** — the vulnerable `xlsx@0.18.5` dependency was removed and

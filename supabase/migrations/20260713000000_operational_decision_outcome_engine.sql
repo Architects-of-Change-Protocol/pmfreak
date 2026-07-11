@@ -64,10 +64,12 @@ create table if not exists public.operational_decision_outcomes (
     on delete cascade
 );
 
-create index if not exists odo_workspace_id_idx
+create unique index if not exists operational_decision_outcomes_id_workspace_uidx on public.operational_decision_outcomes(id, workspace_id);
+
+create index if not exists operational_decision_outcomes_workspace_id_idx
   on public.operational_decision_outcomes(workspace_id, created_at desc);
 
-create index if not exists odo_decision_id_idx
+create index if not exists operational_decision_outcomes_decision_id_idx
   on public.operational_decision_outcomes(workspace_id, decision_id);
 
 create index if not exists odo_status_idx

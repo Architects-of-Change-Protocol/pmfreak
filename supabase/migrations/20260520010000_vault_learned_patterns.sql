@@ -71,17 +71,23 @@ create index if not exists vault_learned_patterns_severity_idx
 
 alter table public.vault_learned_patterns enable row level security;
 
-create policy if not exists "workspace members can read vault_learned_patterns"
+drop policy if exists "workspace members can read vault_learned_patterns" on public.vault_learned_patterns;
+
+create policy "workspace members can read vault_learned_patterns"
   on public.vault_learned_patterns
   for select to authenticated
   using (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace members can insert vault_learned_patterns"
+drop policy if exists "workspace members can insert vault_learned_patterns" on public.vault_learned_patterns;
+
+create policy "workspace members can insert vault_learned_patterns"
   on public.vault_learned_patterns
   for insert to authenticated
   with check (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace members can update vault_learned_patterns"
+drop policy if exists "workspace members can update vault_learned_patterns" on public.vault_learned_patterns;
+
+create policy "workspace members can update vault_learned_patterns"
   on public.vault_learned_patterns
   for update to authenticated
   using (public.is_workspace_member(workspace_id))
@@ -111,12 +117,16 @@ create index if not exists vault_learned_pattern_evidence_workspace_idx
 
 alter table public.vault_learned_pattern_evidence enable row level security;
 
-create policy if not exists "workspace members can read vault_learned_pattern_evidence"
+drop policy if exists "workspace members can read vault_learned_pattern_evidence" on public.vault_learned_pattern_evidence;
+
+create policy "workspace members can read vault_learned_pattern_evidence"
   on public.vault_learned_pattern_evidence
   for select to authenticated
   using (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace members can insert vault_learned_pattern_evidence"
+drop policy if exists "workspace members can insert vault_learned_pattern_evidence" on public.vault_learned_pattern_evidence;
+
+create policy "workspace members can insert vault_learned_pattern_evidence"
   on public.vault_learned_pattern_evidence
   for insert to authenticated
   with check (public.is_workspace_member(workspace_id));

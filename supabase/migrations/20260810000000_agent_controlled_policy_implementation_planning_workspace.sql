@@ -22,6 +22,7 @@ create table if not exists public.agent_pmo_approval_packs (
 
 alter table public.agent_pmo_approval_packs enable row level security;
 
+drop policy if exists "workspace members can read approval packs" on public.agent_pmo_approval_packs;
 create policy "workspace members can read approval packs"
   on public.agent_pmo_approval_packs for select
   using (
@@ -48,6 +49,7 @@ create table if not exists public.agent_pmo_signoff_packets (
 
 alter table public.agent_pmo_signoff_packets enable row level security;
 
+drop policy if exists "workspace members can read signoff packets" on public.agent_pmo_signoff_packets;
 create policy "workspace members can read signoff packets"
   on public.agent_pmo_signoff_packets for select
   using (
@@ -74,6 +76,7 @@ create table if not exists public.agent_pmo_implementation_ticket_drafts (
 
 alter table public.agent_pmo_implementation_ticket_drafts enable row level security;
 
+drop policy if exists "workspace members can read implementation ticket drafts" on public.agent_pmo_implementation_ticket_drafts;
 create policy "workspace members can read implementation ticket drafts"
   on public.agent_pmo_implementation_ticket_drafts for select
   using (
@@ -109,6 +112,7 @@ create table if not exists public.agent_pmo_implementation_planning_workspaces (
 
 alter table public.agent_pmo_implementation_planning_workspaces enable row level security;
 
+drop policy if exists "workspace members can read implementation planning workspaces" on public.agent_pmo_implementation_planning_workspaces;
 create policy "workspace members can read implementation planning workspaces"
   on public.agent_pmo_implementation_planning_workspaces for select
   using (
@@ -151,6 +155,7 @@ create table if not exists public.agent_pmo_implementation_plan_drafts (
 
 alter table public.agent_pmo_implementation_plan_drafts enable row level security;
 
+drop policy if exists "workspace members can read implementation plan drafts" on public.agent_pmo_implementation_plan_drafts;
 create policy "workspace members can read implementation plan drafts"
   on public.agent_pmo_implementation_plan_drafts for select
   using (
@@ -194,6 +199,7 @@ create table if not exists public.agent_pmo_implementation_task_breakdowns (
 
 alter table public.agent_pmo_implementation_task_breakdowns enable row level security;
 
+drop policy if exists "workspace members can read implementation task breakdowns" on public.agent_pmo_implementation_task_breakdowns;
 create policy "workspace members can read implementation task breakdowns"
   on public.agent_pmo_implementation_task_breakdowns for select
   using (
@@ -234,6 +240,7 @@ create table if not exists public.agent_pmo_pre_implementation_checklists (
 
 alter table public.agent_pmo_pre_implementation_checklists enable row level security;
 
+drop policy if exists "workspace members can read pre implementation checklists" on public.agent_pmo_pre_implementation_checklists;
 create policy "workspace members can read pre implementation checklists"
   on public.agent_pmo_pre_implementation_checklists for select
   using (
@@ -272,6 +279,7 @@ create table if not exists public.agent_pmo_pre_implementation_checklist_items (
 
 alter table public.agent_pmo_pre_implementation_checklist_items enable row level security;
 
+drop policy if exists "workspace members can read pre implementation checklist items" on public.agent_pmo_pre_implementation_checklist_items;
 create policy "workspace members can read pre implementation checklist items"
   on public.agent_pmo_pre_implementation_checklist_items for select
   using (
@@ -311,6 +319,7 @@ create table if not exists public.agent_pmo_stakeholder_readiness_records (
 
 alter table public.agent_pmo_stakeholder_readiness_records enable row level security;
 
+drop policy if exists "workspace members can read stakeholder readiness records" on public.agent_pmo_stakeholder_readiness_records;
 create policy "workspace members can read stakeholder readiness records"
   on public.agent_pmo_stakeholder_readiness_records for select
   using (
@@ -356,6 +365,7 @@ create table if not exists public.agent_pmo_change_window_plans (
 
 alter table public.agent_pmo_change_window_plans enable row level security;
 
+drop policy if exists "workspace members can read change window plans" on public.agent_pmo_change_window_plans;
 create policy "workspace members can read change window plans"
   on public.agent_pmo_change_window_plans for select
   using (
@@ -398,6 +408,7 @@ create table if not exists public.agent_pmo_implementation_risks (
 
 alter table public.agent_pmo_implementation_risks enable row level security;
 
+drop policy if exists "workspace members can read implementation risks" on public.agent_pmo_implementation_risks;
 create policy "workspace members can read implementation risks"
   on public.agent_pmo_implementation_risks for select
   using (
@@ -441,6 +452,7 @@ create table if not exists public.agent_pmo_rollback_rehearsal_plans (
 
 alter table public.agent_pmo_rollback_rehearsal_plans enable row level security;
 
+drop policy if exists "workspace members can read rollback rehearsal plans" on public.agent_pmo_rollback_rehearsal_plans;
 create policy "workspace members can read rollback rehearsal plans"
   on public.agent_pmo_rollback_rehearsal_plans for select
   using (
@@ -480,6 +492,7 @@ create table if not exists public.agent_pmo_implementation_gate_prerequisites (
 
 alter table public.agent_pmo_implementation_gate_prerequisites enable row level security;
 
+drop policy if exists "workspace members can read implementation gate prerequisites" on public.agent_pmo_implementation_gate_prerequisites;
 create policy "workspace members can read implementation gate prerequisites"
   on public.agent_pmo_implementation_gate_prerequisites for select
   using (
@@ -517,6 +530,7 @@ create table if not exists public.agent_pmo_implementation_planning_decisions (
 
 alter table public.agent_pmo_implementation_planning_decisions enable row level security;
 
+drop policy if exists "workspace members can read implementation planning decisions" on public.agent_pmo_implementation_planning_decisions;
 create policy "workspace members can read implementation planning decisions"
   on public.agent_pmo_implementation_planning_decisions for select
   using (
@@ -556,6 +570,7 @@ create table if not exists public.agent_pmo_implementation_planning_exports (
 
 alter table public.agent_pmo_implementation_planning_exports enable row level security;
 
+drop policy if exists "workspace members can read implementation planning exports" on public.agent_pmo_implementation_planning_exports;
 create policy "workspace members can read implementation planning exports"
   on public.agent_pmo_implementation_planning_exports for select
   using (
@@ -596,6 +611,7 @@ create table if not exists public.agent_pmo_implementation_planning_events (
 
 alter table public.agent_pmo_implementation_planning_events enable row level security;
 
+drop policy if exists "workspace members can read implementation planning events" on public.agent_pmo_implementation_planning_events;
 create policy "workspace members can read implementation planning events"
   on public.agent_pmo_implementation_planning_events for select
   using (

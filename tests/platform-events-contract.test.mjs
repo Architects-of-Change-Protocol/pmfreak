@@ -23,7 +23,7 @@ const migrations = readdirSync(join(ROOT, "supabase/migrations"))
   .join("\n");
 
 const foundation = read("supabase/migrations/20260616000000_platform_events_foundation.sql");
-const hardening = read("supabase/migrations/20260616000001_platform_events_p0_hardening.sql");
+const hardening = read("supabase/migrations/20260616000002_platform_events_p0_hardening.sql");
 const createEvent = read("src/lib/platform-events/create-event.ts");
 const queryEvents = read("src/lib/platform-events/query-events.ts");
 const contract = read("src/lib/db/database-contract.ts");

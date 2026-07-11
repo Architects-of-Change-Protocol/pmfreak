@@ -5,7 +5,7 @@
 -- leaving operational tension unaddressed.
 --
 -- Three tables:
---   operational_memory_records      — normalized operational signals with causality lineage
+--   operational_memory_runtime_records      — normalized operational signals with causality lineage
 --   operational_intervention_records — history of attempts to resolve each record
 --
 -- Tenant isolation uses company_id (text) + current_company_id() RLS,
@@ -14,7 +14,7 @@
 
 -- ─── Operational Memory Records ───────────────────────────────────────────────
 
-create table if not exists public.operational_memory_records (
+create table if not exists public.operational_memory_runtime_records (
   id uuid primary key default gen_random_uuid(),
   company_id text not null,
   workspace_id uuid null references public.workspaces(id) on delete set null,
@@ -36,7 +36,7 @@ create table if not exists public.operational_memory_records (
   detail text null,
 
   -- Causality lineage
-  parent_record_id uuid null references public.operational_memory_records(id) on delete set null,
+  parent_record_id uuid null references public.operational_memory_runtime_records(id) on delete set null,
   lineage_type text null check (lineage_type in (
     'caused_by', 'triggers', 'blocks', 'escalates_to',
     'resolved_by', 'depends_on', 'related_to'
@@ -78,32 +78,34 @@ create table if not exists public.operational_memory_records (
   updated_at timestamptz not null default now()
 );
 
-create index if not exists operational_memory_records_company_idx
-  on public.operational_memory_records (company_id, created_at desc);
+create index if not exists operational_memory_runtime_records_company_idx
+  on public.operational_memory_runtime_records (company_id, created_at desc);
 
-create index if not exists operational_memory_records_workspace_idx
-  on public.operational_memory_records (workspace_id, created_at desc)
+create index if not exists operational_memory_runtime_records_workspace_idx
+  on public.operational_memory_runtime_records (workspace_id, created_at desc)
   where workspace_id is not null;
 
-create index if not exists operational_memory_records_project_idx
-  on public.operational_memory_records (company_id, project_id, created_at desc)
+create index if not exists operational_memory_runtime_records_project_idx
+  on public.operational_memory_runtime_records (company_id, project_id, created_at desc)
   where project_id is not null;
 
-create index if not exists operational_memory_records_unresolved_idx
-  on public.operational_memory_records (company_id, resolution_status, first_observed_at asc)
+create index if not exists operational_memory_runtime_records_unresolved_idx
+  on public.operational_memory_runtime_records (company_id, resolution_status, first_observed_at asc)
   where resolution_status in ('unresolved', 'escalated', 'in_progress');
 
-create index if not exists operational_memory_records_type_idx
-  on public.operational_memory_records (company_id, record_type, resolution_status);
+create index if not exists operational_memory_runtime_records_type_idx
+  on public.operational_memory_runtime_records (company_id, record_type, resolution_status);
 
-create index if not exists operational_memory_records_lineage_idx
-  on public.operational_memory_records (parent_record_id)
+create index if not exists operational_memory_runtime_records_lineage_idx
+  on public.operational_memory_runtime_records (parent_record_id)
   where parent_record_id is not null;
 
-alter table public.operational_memory_records enable row level security;
+alter table public.operational_memory_runtime_records enable row level security;
 
-create policy if not exists "tenant access operational_memory_records"
-  on public.operational_memory_records
+drop policy if exists "tenant access operational_memory_runtime_records" on public.operational_memory_runtime_records;
+
+create policy "tenant access operational_memory_runtime_records"
+  on public.operational_memory_runtime_records
   for all
   to authenticated
   using (public.current_company_id() = company_id)
@@ -113,7 +115,7 @@ create policy if not exists "tenant access operational_memory_records"
 
 create table if not exists public.operational_intervention_records (
   id uuid primary key default gen_random_uuid(),
-  memory_record_id uuid not null references public.operational_memory_records(id) on delete cascade,
+  memory_record_id uuid not null references public.operational_memory_runtime_records(id) on delete cascade,
   company_id text not null,
   workspace_id uuid null references public.workspaces(id) on delete set null,
   project_id uuid null references public.projects(id) on delete set null,
@@ -147,7 +149,9 @@ create index if not exists operational_intervention_records_outcome_idx
 
 alter table public.operational_intervention_records enable row level security;
 
-create policy if not exists "tenant access operational_intervention_records"
+drop policy if exists "tenant access operational_intervention_records" on public.operational_intervention_records;
+
+create policy "tenant access operational_intervention_records"
   on public.operational_intervention_records
   for all
   to authenticated

@@ -355,7 +355,7 @@ alter table public.agent_execution_learning_events enable row level security;
 create policy "workspace_members_read_learning_signals"
   on public.agent_execution_learning_signals for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_learning_signals.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -363,7 +363,7 @@ create policy "workspace_members_read_learning_signals"
 create policy "workspace_members_insert_learning_signals"
   on public.agent_execution_learning_signals for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_learning_signals.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -371,7 +371,7 @@ create policy "workspace_members_insert_learning_signals"
 create policy "workspace_members_update_learning_signals"
   on public.agent_execution_learning_signals for update
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_learning_signals.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -380,7 +380,7 @@ create policy "workspace_members_update_learning_signals"
 create policy "workspace_members_read_learning_extractions"
   on public.agent_execution_learning_extractions for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_learning_extractions.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -388,7 +388,7 @@ create policy "workspace_members_read_learning_extractions"
 create policy "workspace_members_insert_learning_extractions"
   on public.agent_execution_learning_extractions for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_learning_extractions.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -396,7 +396,7 @@ create policy "workspace_members_insert_learning_extractions"
 create policy "workspace_members_update_learning_extractions"
   on public.agent_execution_learning_extractions for update
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_learning_extractions.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -405,7 +405,7 @@ create policy "workspace_members_update_learning_extractions"
 create policy "workspace_members_read_learning_privacy_filters"
   on public.agent_execution_learning_privacy_filters for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_learning_privacy_filters.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -413,7 +413,7 @@ create policy "workspace_members_read_learning_privacy_filters"
 create policy "workspace_members_insert_learning_privacy_filters"
   on public.agent_execution_learning_privacy_filters for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_learning_privacy_filters.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -422,7 +422,7 @@ create policy "workspace_members_insert_learning_privacy_filters"
 create policy "workspace_members_read_governance_feedback"
   on public.agent_execution_governance_feedback for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_governance_feedback.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -430,7 +430,7 @@ create policy "workspace_members_read_governance_feedback"
 create policy "workspace_members_insert_governance_feedback"
   on public.agent_execution_governance_feedback for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_governance_feedback.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -438,7 +438,7 @@ create policy "workspace_members_insert_governance_feedback"
 create policy "workspace_members_update_governance_feedback"
   on public.agent_execution_governance_feedback for update
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_governance_feedback.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -447,7 +447,7 @@ create policy "workspace_members_update_governance_feedback"
 create policy "workspace_members_read_risk_calibration_signals"
   on public.agent_execution_risk_calibration_signals for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_risk_calibration_signals.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -455,7 +455,7 @@ create policy "workspace_members_read_risk_calibration_signals"
 create policy "workspace_members_insert_risk_calibration_signals"
   on public.agent_execution_risk_calibration_signals for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_risk_calibration_signals.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -464,7 +464,7 @@ create policy "workspace_members_insert_risk_calibration_signals"
 create policy "workspace_members_read_evidence_quality_signals"
   on public.agent_execution_evidence_quality_signals for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_evidence_quality_signals.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -472,7 +472,7 @@ create policy "workspace_members_read_evidence_quality_signals"
 create policy "workspace_members_insert_evidence_quality_signals"
   on public.agent_execution_evidence_quality_signals for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_evidence_quality_signals.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -481,7 +481,7 @@ create policy "workspace_members_insert_evidence_quality_signals"
 create policy "workspace_members_read_adapter_performance_signals"
   on public.agent_execution_adapter_performance_signals for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_adapter_performance_signals.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -489,7 +489,7 @@ create policy "workspace_members_read_adapter_performance_signals"
 create policy "workspace_members_insert_adapter_performance_signals"
   on public.agent_execution_adapter_performance_signals for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_adapter_performance_signals.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -498,7 +498,7 @@ create policy "workspace_members_insert_adapter_performance_signals"
 create policy "workspace_members_read_review_decision_patterns"
   on public.agent_execution_review_decision_patterns for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_review_decision_patterns.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -506,7 +506,7 @@ create policy "workspace_members_read_review_decision_patterns"
 create policy "workspace_members_insert_review_decision_patterns"
   on public.agent_execution_review_decision_patterns for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_review_decision_patterns.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -515,7 +515,7 @@ create policy "workspace_members_insert_review_decision_patterns"
 create policy "workspace_members_read_review_routing_feedback"
   on public.agent_execution_review_routing_feedback for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_review_routing_feedback.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -523,7 +523,7 @@ create policy "workspace_members_read_review_routing_feedback"
 create policy "workspace_members_insert_review_routing_feedback"
   on public.agent_execution_review_routing_feedback for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_review_routing_feedback.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -532,7 +532,7 @@ create policy "workspace_members_insert_review_routing_feedback"
 create policy "workspace_members_read_workspace_learning_summaries"
   on public.agent_execution_workspace_learning_summaries for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_workspace_learning_summaries.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -540,7 +540,7 @@ create policy "workspace_members_read_workspace_learning_summaries"
 create policy "workspace_members_insert_workspace_learning_summaries"
   on public.agent_execution_workspace_learning_summaries for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_workspace_learning_summaries.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -551,7 +551,7 @@ create policy "workspace_members_read_aggregate_learning_signals"
   using (
     workspace_id is null
     or exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_aggregate_learning_signals.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -562,7 +562,7 @@ create policy "workspace_members_insert_aggregate_learning_signals"
   with check (
     workspace_id is null
     or exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_aggregate_learning_signals.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -574,7 +574,7 @@ create policy "workspace_members_read_learning_events"
   using (
     workspace_id is null
     or exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_learning_events.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -585,7 +585,7 @@ create policy "workspace_members_insert_learning_events"
   with check (
     workspace_id is null
     or exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_learning_events.workspace_id
         and wm.user_id = auth.uid()
     )

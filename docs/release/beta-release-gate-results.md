@@ -1,4 +1,30 @@
-# Beta Release Gate Results — Perillas 11–12
+# Beta Release Gate Results — Perillas 11–13
+
+## Perilla 13 update (2026-07-11) — fresh-database migration proof re-run
+
+Executed on branch `claude/pmfreak-fresh-migration-proof-ei6kal` (based on
+`main` @ `8422302` post-Perilla 12), after fixing 26 migration defects (see
+[`migration-failure-remediation-log.md`](./migration-failure-remediation-log.md))
+and adding 2 corrective migrations + `scripts/check-fresh-db-migrations.mjs`.
+
+| Command | Result |
+| ------- | ------ |
+| `npm ci` | PASS |
+| `npm run typecheck` | PASS — 0 errors |
+| `npm run lint` | PASS — 0 errors (pre-existing warnings only, unchanged class) |
+| `npm test` | PASS — **12,207 tests, 498 suites, 0 failures, 0 skipped** |
+| `npm run build` | PASS — production build |
+| `npm run check:db-contract` | PASS |
+| `npm run check:governance` | PASS |
+| `npm run check:launch-readiness` | PASS |
+| `npm run test:launch-smoke` | PASS |
+| `npm run check:dependency-security` | CONDITIONAL (exit 2, 0 unexpected — unchanged from Perilla 12) |
+| `npm run check:beta-release` | **CONDITIONAL GO** — all blocking gates PASS, dependency-security CONDITIONAL as expected |
+| `npm run check:fresh-db-migrations` (verify-only, no DB configured) | PASS — 144 migration files, 0 duplicate timestamps, correct ordering |
+| `npm run check:fresh-db-migrations` (local mode, `FRESH_DB_URL` + `ALLOW_DESTRUCTIVE_FRESH_DB_TEST=true` against an isolated local Postgres) | **PASS** — 144/144 migrations applied, 409 tables, 408/409 RLS-enabled |
+| `psql -f scripts/fresh-db-rls-smoke-test.sql` against the fresh-applied local DB | **PASS — 10/10** cross-tenant SELECT/INSERT/UPDATE/DELETE checks (see [`rls-tenant-isolation-report.md`](./rls-tenant-isolation-report.md)) |
+
+**RR-MIGRATE: OPEN** (strong local-Postgres evidence; hosted-Supabase-or-official-local-stack evidence not available in this environment — see [`fresh-database-migration-proof.md`](./fresh-database-migration-proof.md) honesty statement). No hosted Supabase apply was attempted or fabricated.
 
 ## Perilla 12 update (2026-07-11) — RR-XLSX closure re-run
 

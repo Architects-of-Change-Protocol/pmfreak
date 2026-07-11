@@ -349,8 +349,8 @@ check("migration uses current_company_id() for tenant isolation", () => {
   assert(migrationContent.includes("current_company_id() = company_id"));
 });
 
-check("migration has FK to operational_memory_records", () => {
-  assert(migrationContent.includes("references public.operational_memory_records(id)"));
+check("migration has FK to operational_memory_runtime_records", () => {
+  assert(migrationContent.includes("references public.operational_memory_runtime_records(id)"));
 });
 
 check("migration has required indexes", () => {

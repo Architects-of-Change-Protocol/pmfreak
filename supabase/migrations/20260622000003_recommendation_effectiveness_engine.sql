@@ -108,8 +108,15 @@ alter table constitutional_recommendations
 -- Note: constitutional_recommendation_applications(id, workspace_id) composite
 -- unique is needed for the FK targets above. Add it if not present.
 
-alter table constitutional_recommendation_applications
-  add constraint if not exists cra_id_workspace_unique unique (id, workspace_id);
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'cra_id_workspace_unique'
+  ) then
+    alter table constitutional_recommendation_applications
+      add constraint cra_id_workspace_unique unique (id, workspace_id);
+  end if;
+end $$;
 
 -- ─── Row Level Security ───────────────────────────────────────────────────────
 

@@ -66,11 +66,17 @@ alter table public.capability_trust_anchors enable row level security;
 alter table public.verifier_trust_policies enable row level security;
 alter table public.capability_trust_event_quarantine enable row level security;
 
-create policy if not exists capability_trust_anchors_read on public.capability_trust_anchors for select using (true);
-create policy if not exists capability_trust_anchors_server_write on public.capability_trust_anchors for all using (false) with check (false);
+drop policy if exists capability_trust_anchors_read on public.capability_trust_anchors;
+create policy capability_trust_anchors_read on public.capability_trust_anchors for select using (true);
+drop policy if exists capability_trust_anchors_server_write on public.capability_trust_anchors;
+create policy capability_trust_anchors_server_write on public.capability_trust_anchors for all using (false) with check (false);
 
-create policy if not exists verifier_trust_policies_read on public.verifier_trust_policies for select using (true);
-create policy if not exists verifier_trust_policies_server_write on public.verifier_trust_policies for all using (false) with check (false);
+drop policy if exists verifier_trust_policies_read on public.verifier_trust_policies;
+create policy verifier_trust_policies_read on public.verifier_trust_policies for select using (true);
+drop policy if exists verifier_trust_policies_server_write on public.verifier_trust_policies;
+create policy verifier_trust_policies_server_write on public.verifier_trust_policies for all using (false) with check (false);
 
-create policy if not exists capability_trust_event_quarantine_read on public.capability_trust_event_quarantine for select using (true);
-create policy if not exists capability_trust_event_quarantine_server_write on public.capability_trust_event_quarantine for all using (false) with check (false);
+drop policy if exists capability_trust_event_quarantine_read on public.capability_trust_event_quarantine;
+create policy capability_trust_event_quarantine_read on public.capability_trust_event_quarantine for select using (true);
+drop policy if exists capability_trust_event_quarantine_server_write on public.capability_trust_event_quarantine;
+create policy capability_trust_event_quarantine_server_write on public.capability_trust_event_quarantine for all using (false) with check (false);

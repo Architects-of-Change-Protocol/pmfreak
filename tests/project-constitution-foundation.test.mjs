@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const service = readFileSync('src/lib/project-constitution/constitution-service.ts', 'utf8');
 const types = readFileSync('src/lib/project-constitution/types.ts', 'utf8');
-const migration = readFileSync('supabase/migrations/20260623000000_project_constitution_lifecycle.sql', 'utf8');
+const migration = readFileSync('supabase/migrations/20260623000002_project_constitution_lifecycle.sql', 'utf8');
 const platformEvents = readFileSync('src/lib/platform-events/types.ts', 'utf8');
 const indexFile = readFileSync('src/lib/project-constitution/index.ts', 'utf8');
 const dbContract = readFileSync('src/lib/db/database-contract.ts', 'utf8');

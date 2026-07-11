@@ -307,7 +307,7 @@ create policy "workspace_members_read_execution_finalizations"
   on public.agent_execution_finalizations for select
   using (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_finalizations.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -317,7 +317,7 @@ create policy "workspace_members_insert_execution_finalizations"
   on public.agent_execution_finalizations for insert
   with check (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_finalizations.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -327,7 +327,7 @@ create policy "workspace_members_update_execution_finalizations"
   on public.agent_execution_finalizations for update
   using (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_finalizations.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -338,7 +338,7 @@ create policy "workspace_members_read_dispatch_gates"
   on public.agent_execution_dispatch_gates for select
   using (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_dispatch_gates.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -348,7 +348,7 @@ create policy "workspace_members_insert_dispatch_gates"
   on public.agent_execution_dispatch_gates for insert
   with check (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_dispatch_gates.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -358,7 +358,7 @@ create policy "workspace_members_update_dispatch_gates"
   on public.agent_execution_dispatch_gates for update
   using (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_dispatch_gates.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -369,7 +369,7 @@ create policy "workspace_members_read_dispatch_locks"
   on public.agent_execution_dispatch_locks for select
   using (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_dispatch_locks.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -379,7 +379,7 @@ create policy "workspace_members_insert_dispatch_locks"
   on public.agent_execution_dispatch_locks for insert
   with check (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_dispatch_locks.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -389,7 +389,7 @@ create policy "workspace_members_update_dispatch_locks"
   on public.agent_execution_dispatch_locks for update
   using (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_dispatch_locks.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -400,7 +400,7 @@ create policy "workspace_members_read_dispatch_idempotency"
   on public.agent_execution_dispatch_idempotency for select
   using (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_dispatch_idempotency.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -410,7 +410,7 @@ create policy "workspace_members_insert_dispatch_idempotency"
   on public.agent_execution_dispatch_idempotency for insert
   with check (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_dispatch_idempotency.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -420,7 +420,7 @@ create policy "workspace_members_update_dispatch_idempotency"
   on public.agent_execution_dispatch_idempotency for update
   using (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_dispatch_idempotency.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -431,7 +431,7 @@ create policy "workspace_members_read_dispatch_attempts"
   on public.agent_execution_dispatch_attempts for select
   using (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_dispatch_attempts.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -441,7 +441,7 @@ create policy "workspace_members_insert_dispatch_attempts"
   on public.agent_execution_dispatch_attempts for insert
   with check (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_dispatch_attempts.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -451,7 +451,7 @@ create policy "workspace_members_update_dispatch_attempts"
   on public.agent_execution_dispatch_attempts for update
   using (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_dispatch_attempts.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -462,7 +462,7 @@ create policy "workspace_members_read_final_confirmations"
   on public.agent_execution_final_confirmations for select
   using (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_final_confirmations.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -472,7 +472,7 @@ create policy "workspace_members_insert_final_confirmations"
   on public.agent_execution_final_confirmations for insert
   with check (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_final_confirmations.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -482,7 +482,7 @@ create policy "workspace_members_update_final_confirmations"
   on public.agent_execution_final_confirmations for update
   using (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_final_confirmations.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -493,7 +493,7 @@ create policy "workspace_members_read_dispatch_events"
   on public.agent_execution_dispatch_events for select
   using (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_dispatch_events.workspace_id
         and wm.user_id = auth.uid()
     )
@@ -503,7 +503,7 @@ create policy "workspace_members_insert_dispatch_events"
   on public.agent_execution_dispatch_events for insert
   with check (
     exists (
-      select 1 from public.workspace_members wm
+      select 1 from public.workspace_memberships wm
       where wm.workspace_id = agent_execution_dispatch_events.workspace_id
         and wm.user_id = auth.uid()
     )

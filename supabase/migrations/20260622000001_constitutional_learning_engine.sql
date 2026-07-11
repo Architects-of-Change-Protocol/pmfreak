@@ -32,6 +32,8 @@ create table if not exists constitutional_learning_patterns (
   unique (workspace_id, pattern_type, pattern_key)
 );
 
+create unique index if not exists constitutional_learning_patterns_id_workspace_uidx on public.constitutional_learning_patterns(id, workspace_id);
+
 -- ─── constitutional_learning_evidence ────────────────────────────────────────
 -- Links a Learning Pattern to the Digest that contributed to it.
 -- Sovereignty Rule 4: Every pattern must be traceable.

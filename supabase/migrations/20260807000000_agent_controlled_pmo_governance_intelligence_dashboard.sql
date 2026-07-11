@@ -276,7 +276,7 @@ alter table public.agent_pmo_governance_dashboard_events enable row level securi
 create policy "workspace_members_read_pmo_governance_dashboard_snapshots"
   on public.agent_pmo_governance_dashboard_snapshots for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_governance_dashboard_snapshots.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -284,7 +284,7 @@ create policy "workspace_members_read_pmo_governance_dashboard_snapshots"
 create policy "workspace_members_insert_pmo_governance_dashboard_snapshots"
   on public.agent_pmo_governance_dashboard_snapshots for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_governance_dashboard_snapshots.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -293,7 +293,7 @@ create policy "workspace_members_insert_pmo_governance_dashboard_snapshots"
 create policy "workspace_members_read_pmo_governance_insight_cards"
   on public.agent_pmo_governance_insight_cards for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_governance_insight_cards.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -301,7 +301,7 @@ create policy "workspace_members_read_pmo_governance_insight_cards"
 create policy "workspace_members_insert_pmo_governance_insight_cards"
   on public.agent_pmo_governance_insight_cards for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_governance_insight_cards.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -309,7 +309,7 @@ create policy "workspace_members_insert_pmo_governance_insight_cards"
 create policy "workspace_members_update_pmo_governance_insight_cards"
   on public.agent_pmo_governance_insight_cards for update
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_governance_insight_cards.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -318,7 +318,7 @@ create policy "workspace_members_update_pmo_governance_insight_cards"
 create policy "workspace_members_read_pmo_risk_calibration_insights"
   on public.agent_pmo_risk_calibration_insights for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_risk_calibration_insights.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -326,7 +326,7 @@ create policy "workspace_members_read_pmo_risk_calibration_insights"
 create policy "workspace_members_insert_pmo_risk_calibration_insights"
   on public.agent_pmo_risk_calibration_insights for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_risk_calibration_insights.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -335,7 +335,7 @@ create policy "workspace_members_insert_pmo_risk_calibration_insights"
 create policy "workspace_members_read_pmo_evidence_quality_insights"
   on public.agent_pmo_evidence_quality_insights for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_evidence_quality_insights.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -343,7 +343,7 @@ create policy "workspace_members_read_pmo_evidence_quality_insights"
 create policy "workspace_members_insert_pmo_evidence_quality_insights"
   on public.agent_pmo_evidence_quality_insights for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_evidence_quality_insights.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -352,7 +352,7 @@ create policy "workspace_members_insert_pmo_evidence_quality_insights"
 create policy "workspace_members_read_pmo_adapter_performance_insights"
   on public.agent_pmo_adapter_performance_insights for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_adapter_performance_insights.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -360,7 +360,7 @@ create policy "workspace_members_read_pmo_adapter_performance_insights"
 create policy "workspace_members_insert_pmo_adapter_performance_insights"
   on public.agent_pmo_adapter_performance_insights for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_adapter_performance_insights.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -369,7 +369,7 @@ create policy "workspace_members_insert_pmo_adapter_performance_insights"
 create policy "workspace_members_read_pmo_review_routing_insights"
   on public.agent_pmo_review_routing_insights for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_review_routing_insights.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -377,7 +377,7 @@ create policy "workspace_members_read_pmo_review_routing_insights"
 create policy "workspace_members_insert_pmo_review_routing_insights"
   on public.agent_pmo_review_routing_insights for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_review_routing_insights.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -386,7 +386,7 @@ create policy "workspace_members_insert_pmo_review_routing_insights"
 create policy "workspace_members_read_pmo_governance_feedback_queue"
   on public.agent_pmo_governance_feedback_queue for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_governance_feedback_queue.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -394,7 +394,7 @@ create policy "workspace_members_read_pmo_governance_feedback_queue"
 create policy "workspace_members_insert_pmo_governance_feedback_queue"
   on public.agent_pmo_governance_feedback_queue for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_governance_feedback_queue.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -402,7 +402,7 @@ create policy "workspace_members_insert_pmo_governance_feedback_queue"
 create policy "workspace_members_update_pmo_governance_feedback_queue"
   on public.agent_pmo_governance_feedback_queue for update
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_governance_feedback_queue.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -411,7 +411,7 @@ create policy "workspace_members_update_pmo_governance_feedback_queue"
 create policy "workspace_members_read_pmo_policy_proposals"
   on public.agent_pmo_policy_proposals for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_policy_proposals.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -419,7 +419,7 @@ create policy "workspace_members_read_pmo_policy_proposals"
 create policy "workspace_members_insert_pmo_policy_proposals"
   on public.agent_pmo_policy_proposals for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_policy_proposals.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -427,7 +427,7 @@ create policy "workspace_members_insert_pmo_policy_proposals"
 create policy "workspace_members_update_pmo_policy_proposals"
   on public.agent_pmo_policy_proposals for update
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_policy_proposals.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -436,7 +436,7 @@ create policy "workspace_members_update_pmo_policy_proposals"
 create policy "workspace_members_read_pmo_governance_report_exports"
   on public.agent_pmo_governance_report_exports for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_governance_report_exports.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -444,7 +444,7 @@ create policy "workspace_members_read_pmo_governance_report_exports"
 create policy "workspace_members_insert_pmo_governance_report_exports"
   on public.agent_pmo_governance_report_exports for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_governance_report_exports.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -452,7 +452,7 @@ create policy "workspace_members_insert_pmo_governance_report_exports"
 create policy "workspace_members_update_pmo_governance_report_exports"
   on public.agent_pmo_governance_report_exports for update
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_governance_report_exports.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -461,7 +461,7 @@ create policy "workspace_members_update_pmo_governance_report_exports"
 create policy "workspace_members_read_pmo_governance_dashboard_events"
   on public.agent_pmo_governance_dashboard_events for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_governance_dashboard_events.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -469,7 +469,7 @@ create policy "workspace_members_read_pmo_governance_dashboard_events"
 create policy "workspace_members_insert_pmo_governance_dashboard_events"
   on public.agent_pmo_governance_dashboard_events for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_pmo_governance_dashboard_events.workspace_id
       and wm.user_id = auth.uid()
   ));
