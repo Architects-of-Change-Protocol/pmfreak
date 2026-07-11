@@ -40,6 +40,8 @@ create table if not exists governance_commitments (
   unique (id, workspace_id)
 );
 
+create unique index if not exists governance_commitments_id_workspace_uidx on public.governance_commitments(id, workspace_id);
+
 create index governance_commitments_workspace_id_idx   on governance_commitments (workspace_id);
 create index governance_commitments_action_id_idx      on governance_commitments (action_id);
 create index governance_commitments_owner_id_idx       on governance_commitments (owner_id);

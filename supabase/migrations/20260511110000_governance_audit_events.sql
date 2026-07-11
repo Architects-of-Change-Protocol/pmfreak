@@ -19,7 +19,9 @@ create index if not exists governance_audit_events_namespace_idx on public.gover
 
 alter table public.governance_audit_events enable row level security;
 
-create policy if not exists "tenant access governance_audit_events"
+drop policy if exists "tenant access governance_audit_events" on public.governance_audit_events;
+
+create policy "tenant access governance_audit_events"
   on public.governance_audit_events
   for all
   to authenticated

@@ -4,7 +4,7 @@
 
 begin;
 
-create table if not exists public.project_constitutions (
+create table if not exists public.project_constitution_profiles (
   id                uuid        primary key default gen_random_uuid(),
   workspace_id      uuid        not null,
   name              text        not null,
@@ -25,33 +25,35 @@ create table if not exists public.project_constitutions (
   metadata          jsonb       not null default '{}'
 );
 
+create unique index if not exists project_constitution_profiles_id_workspace_uidx on public.project_constitution_profiles(id, workspace_id);
+
 create index if not exists project_constitutions_workspace_id_idx
-  on public.project_constitutions (workspace_id)
+  on public.project_constitution_profiles (workspace_id)
   where deleted_at is null;
 
 create index if not exists project_constitutions_workspace_status_idx
-  on public.project_constitutions (workspace_id, status)
+  on public.project_constitution_profiles (workspace_id, status)
   where deleted_at is null;
 
 create index if not exists project_constitutions_created_by_idx
-  on public.project_constitutions (created_by);
+  on public.project_constitution_profiles (created_by);
 
-alter table public.project_constitutions enable row level security;
+alter table public.project_constitution_profiles enable row level security;
 
 create policy "workspace members can read project constitutions"
-  on public.project_constitutions
+  on public.project_constitution_profiles
   for select
   to authenticated
   using (public.is_workspace_member(workspace_id) and deleted_at is null);
 
 create policy "workspace members can insert project constitutions"
-  on public.project_constitutions
+  on public.project_constitution_profiles
   for insert
   to authenticated
   with check (public.is_workspace_member(workspace_id) and created_by = auth.uid());
 
 create policy "workspace members can update project constitutions"
-  on public.project_constitutions
+  on public.project_constitution_profiles
   for update
   to authenticated
   using (public.is_workspace_member(workspace_id) and deleted_at is null)

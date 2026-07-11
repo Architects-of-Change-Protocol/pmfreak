@@ -34,6 +34,8 @@ create table if not exists public.operational_command_centers (
   unique (id, workspace_id)
 );
 
+create unique index if not exists operational_command_centers_id_workspace_uidx on public.operational_command_centers(id, workspace_id);
+
 create index if not exists occ_workspace_id_idx
   on public.operational_command_centers(workspace_id, created_at desc);
 
@@ -107,6 +109,8 @@ create table if not exists public.operational_focus_items (
     references public.operational_command_centers(id, workspace_id)
     on delete cascade
 );
+
+create unique index if not exists operational_focus_items_id_workspace_uidx on public.operational_focus_items(id, workspace_id);
 
 create index if not exists ofi_workspace_id_idx
   on public.operational_focus_items(workspace_id, created_at desc);

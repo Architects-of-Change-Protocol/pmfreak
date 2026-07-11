@@ -36,6 +36,9 @@ create index if not exists project_constitutions_project_idx
 create index if not exists project_constitutions_status_idx
   on public.project_constitutions(workspace_id, current_status);
 
+create unique index if not exists project_constitutions_id_workspace_uidx
+  on public.project_constitutions(id, workspace_id);
+
 alter table public.project_constitutions enable row level security;
 
 create policy "workspace members can read constitutions"

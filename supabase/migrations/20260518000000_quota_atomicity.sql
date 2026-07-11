@@ -40,7 +40,9 @@ create index if not exists quota_reservations_company_pending_idx
 
 alter table public.quota_reservations enable row level security;
 
-create policy if not exists "tenant access quota_reservations"
+drop policy if exists "tenant access quota_reservations" on public.quota_reservations;
+
+create policy "tenant access quota_reservations"
   on public.quota_reservations
   for all
   to authenticated

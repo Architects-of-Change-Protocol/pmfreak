@@ -84,7 +84,7 @@ export function createSupabaseVaultIntakeStore(supabase: SupabaseClient): VaultI
           source_ref: `raid_item:${item.id}`,
           nutrient_ids: [item.sourceSignalId ?? item.sourceDocumentId],
         }));
-        const { error: memoryError } = await supabase.from("operational_memory_records").insert([...signalRows, ...raidRows]);
+        const { error: memoryError } = await supabase.from("operational_memory_runtime_records").insert([...signalRows, ...raidRows]);
         if (memoryError) return { ok: false, error: memoryError.message };
       }
       const { error } = await supabase.from("vault_documents").update({ ingestion_status: "completed" }).eq("id", input.documentId);

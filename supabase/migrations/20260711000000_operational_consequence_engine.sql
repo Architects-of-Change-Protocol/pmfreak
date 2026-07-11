@@ -42,6 +42,8 @@ create table if not exists public.operational_consequences (
     on delete cascade
 );
 
+create unique index if not exists operational_consequences_id_workspace_uidx on public.operational_consequences(id, workspace_id);
+
 create index if not exists oc_workspace_id_idx
   on public.operational_consequences(workspace_id, created_at desc);
 

@@ -9,7 +9,7 @@
 
 CREATE TABLE IF NOT EXISTS agent_pmo_runtime_hardening_runs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   scope text NOT NULL,
   status text NOT NULL DEFAULT 'created',
   triggered_by text,
@@ -32,21 +32,21 @@ ALTER TABLE agent_pmo_runtime_hardening_runs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_hardening_runs"
   ON agent_pmo_runtime_hardening_runs FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_hardening_runs"
   ON agent_pmo_runtime_hardening_runs FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_update_hardening_runs"
   ON agent_pmo_runtime_hardening_runs FOR UPDATE
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Layer Integration Audits ─────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_layer_integration_audits (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid NOT NULL REFERENCES agent_pmo_runtime_hardening_runs(id),
   layer text NOT NULL,
   type_file_exists boolean NOT NULL DEFAULT false,
@@ -71,17 +71,17 @@ ALTER TABLE agent_pmo_layer_integration_audits ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_layer_audits"
   ON agent_pmo_layer_integration_audits FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_layer_audits"
   ON agent_pmo_layer_integration_audits FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Route Contract Audits ────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_route_contract_audits (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid NOT NULL REFERENCES agent_pmo_runtime_hardening_runs(id),
   route_path text NOT NULL,
   route_exists boolean NOT NULL DEFAULT false,
@@ -103,17 +103,17 @@ ALTER TABLE agent_pmo_route_contract_audits ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_route_audits"
   ON agent_pmo_route_contract_audits FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_route_audits"
   ON agent_pmo_route_contract_audits FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Database Contract Audits ─────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_database_contract_audits (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid NOT NULL REFERENCES agent_pmo_runtime_hardening_runs(id),
   table_name text NOT NULL,
   migration_exists boolean NOT NULL DEFAULT false,
@@ -136,17 +136,17 @@ ALTER TABLE agent_pmo_database_contract_audits ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_db_audits"
   ON agent_pmo_database_contract_audits FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_db_audits"
   ON agent_pmo_database_contract_audits FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── RLS Policy Audits ────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_rls_policy_audits (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid NOT NULL REFERENCES agent_pmo_runtime_hardening_runs(id),
   table_name text NOT NULL,
   rls_enabled boolean NOT NULL DEFAULT false,
@@ -167,17 +167,17 @@ ALTER TABLE agent_pmo_rls_policy_audits ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_rls_audits"
   ON agent_pmo_rls_policy_audits FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_rls_audits"
   ON agent_pmo_rls_policy_audits FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Workspace Isolation Checks ───────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_workspace_isolation_checks (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid NOT NULL REFERENCES agent_pmo_runtime_hardening_runs(id),
   check_target text NOT NULL,
   workspace_id_required boolean NOT NULL DEFAULT false,
@@ -198,17 +198,17 @@ ALTER TABLE agent_pmo_workspace_isolation_checks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_workspace_isolation"
   ON agent_pmo_workspace_isolation_checks FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_workspace_isolation"
   ON agent_pmo_workspace_isolation_checks FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Observability Coverage Checks ───────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_observability_coverage_checks (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid NOT NULL REFERENCES agent_pmo_runtime_hardening_runs(id),
   source_types_exist boolean NOT NULL DEFAULT false,
   event_types_exist boolean NOT NULL DEFAULT false,
@@ -228,17 +228,17 @@ ALTER TABLE agent_pmo_observability_coverage_checks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_obs_coverage"
   ON agent_pmo_observability_coverage_checks FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_obs_coverage"
   ON agent_pmo_observability_coverage_checks FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Export Safety Checks ─────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_export_safety_checks (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid NOT NULL REFERENCES agent_pmo_runtime_hardening_runs(id),
   export_target text NOT NULL,
   raw_payloads_excluded boolean NOT NULL DEFAULT false,
@@ -261,17 +261,17 @@ ALTER TABLE agent_pmo_export_safety_checks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_export_safety"
   ON agent_pmo_export_safety_checks FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_export_safety"
   ON agent_pmo_export_safety_checks FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Idempotency Checks ───────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_idempotency_checks (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid NOT NULL REFERENCES agent_pmo_runtime_hardening_runs(id),
   check_target text NOT NULL,
   append_only_decisions_preserved boolean NOT NULL DEFAULT false,
@@ -294,17 +294,17 @@ ALTER TABLE agent_pmo_idempotency_checks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_idempotency"
   ON agent_pmo_idempotency_checks FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_idempotency"
   ON agent_pmo_idempotency_checks FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Error Handling Checks ────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_error_handling_checks (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid NOT NULL REFERENCES agent_pmo_runtime_hardening_runs(id),
   check_target text NOT NULL,
   route_errors_sanitized boolean NOT NULL DEFAULT false,
@@ -325,17 +325,17 @@ ALTER TABLE agent_pmo_error_handling_checks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_error_handling"
   ON agent_pmo_error_handling_checks FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_error_handling"
   ON agent_pmo_error_handling_checks FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── UI Dashboard Integration Checks ─────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_ui_dashboard_integration_checks (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid NOT NULL REFERENCES agent_pmo_runtime_hardening_runs(id),
   dashboard_routes_exist boolean NOT NULL DEFAULT false,
   command_center_page_builds boolean NOT NULL DEFAULT false,
@@ -354,17 +354,17 @@ ALTER TABLE agent_pmo_ui_dashboard_integration_checks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_ui_checks"
   ON agent_pmo_ui_dashboard_integration_checks FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_ui_checks"
   ON agent_pmo_ui_dashboard_integration_checks FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── CI Smoke Checks ──────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_ci_smoke_checks (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid NOT NULL REFERENCES agent_pmo_runtime_hardening_runs(id),
   typecheck_result text NOT NULL DEFAULT 'unknown',
   test_result text NOT NULL DEFAULT 'unknown',
@@ -384,17 +384,17 @@ ALTER TABLE agent_pmo_ci_smoke_checks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_ci_smoke"
   ON agent_pmo_ci_smoke_checks FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_ci_smoke"
   ON agent_pmo_ci_smoke_checks FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Production Readiness Gates ───────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_production_readiness_gates (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid NOT NULL REFERENCES agent_pmo_runtime_hardening_runs(id),
   status text NOT NULL DEFAULT 'created',
   open_blocker_count integer NOT NULL DEFAULT 0,
@@ -410,21 +410,21 @@ ALTER TABLE agent_pmo_production_readiness_gates ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_readiness_gates"
   ON agent_pmo_production_readiness_gates FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_readiness_gates"
   ON agent_pmo_production_readiness_gates FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_update_readiness_gates"
   ON agent_pmo_production_readiness_gates FOR UPDATE
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Production Readiness Decisions ──────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_production_readiness_decisions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   gate_id uuid NOT NULL REFERENCES agent_pmo_production_readiness_gates(id),
   decision_type text NOT NULL,
   rationale text NOT NULL,
@@ -439,17 +439,17 @@ ALTER TABLE agent_pmo_production_readiness_decisions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_readiness_decisions"
   ON agent_pmo_production_readiness_decisions FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_readiness_decisions"
   ON agent_pmo_production_readiness_decisions FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Runtime Hardening Blockers ───────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_runtime_hardening_blockers (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid NOT NULL REFERENCES agent_pmo_runtime_hardening_runs(id),
   blocker_type text NOT NULL,
   severity text NOT NULL,
@@ -471,21 +471,21 @@ ALTER TABLE agent_pmo_runtime_hardening_blockers ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_blockers"
   ON agent_pmo_runtime_hardening_blockers FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_blockers"
   ON agent_pmo_runtime_hardening_blockers FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_update_blockers"
   ON agent_pmo_runtime_hardening_blockers FOR UPDATE
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Runtime Remediation Items ────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_runtime_remediation_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid NOT NULL REFERENCES agent_pmo_runtime_hardening_runs(id),
   blocker_id uuid REFERENCES agent_pmo_runtime_hardening_blockers(id),
   remediation_type text NOT NULL,
@@ -503,21 +503,21 @@ ALTER TABLE agent_pmo_runtime_remediation_items ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_remediation"
   ON agent_pmo_runtime_remediation_items FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_remediation"
   ON agent_pmo_runtime_remediation_items FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_update_remediation"
   ON agent_pmo_runtime_remediation_items FOR UPDATE
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Runtime Hardening Exports ────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_runtime_hardening_exports (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid NOT NULL REFERENCES agent_pmo_runtime_hardening_runs(id),
   export_format text NOT NULL,
   export_status text NOT NULL DEFAULT 'created',
@@ -534,17 +534,17 @@ ALTER TABLE agent_pmo_runtime_hardening_exports ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_hardening_exports"
   ON agent_pmo_runtime_hardening_exports FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_hardening_exports"
   ON agent_pmo_runtime_hardening_exports FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Runtime Hardening Events ─────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_pmo_runtime_hardening_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   hardening_run_id uuid REFERENCES agent_pmo_runtime_hardening_runs(id),
   event_type text NOT NULL,
   message text,
@@ -560,8 +560,8 @@ ALTER TABLE agent_pmo_runtime_hardening_events ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_hardening_events"
   ON agent_pmo_runtime_hardening_events FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_hardening_events"
   ON agent_pmo_runtime_hardening_events FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));

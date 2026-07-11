@@ -95,7 +95,7 @@ export async function updateOperationalMemoryRecordForRecurrence(
 
     // First load the current nutrient_ids array
     const { data: existing, error: loadError } = await supabase
-      .from("operational_memory_records")
+      .from("operational_memory_runtime_records")
       .select("id, nutrient_ids")
       .eq("id", recordId)
       .eq("company_id", companyId)
@@ -120,7 +120,7 @@ export async function updateOperationalMemoryRecordForRecurrence(
     const updatedNutrientIds = [...existingNutrientIds, nutrientId];
 
     const { error: updateError } = await supabase
-      .from("operational_memory_records")
+      .from("operational_memory_runtime_records")
       .update({
         nutrient_ids: updatedNutrientIds,
         last_observed_at: new Date().toISOString(),

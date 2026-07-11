@@ -27,6 +27,9 @@
 # Beta release gate per-run logs (scripts/check-beta-release.mjs)
 /.beta-release-logs/
 
+# Fresh DB migration proof per-run logs (scripts/check-fresh-db-migrations.mjs)
+/.fresh-db-migration-logs/
+
 # misc
 .DS_Store
 *.pem

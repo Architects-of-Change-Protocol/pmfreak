@@ -3,7 +3,7 @@ begin;
 create table if not exists public.security_events (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid references public.workspaces(id) on delete set null,
-  project_id text references public.projects(id) on delete set null,
+  project_id uuid references public.projects(id) on delete set null,
   actor_user_id uuid references auth.users(id) on delete set null,
   actor_agent_id text,
   actor_role text,
@@ -21,7 +21,9 @@ create index if not exists security_events_workspace_created_idx on public.secur
 
 alter table public.security_events enable row level security;
 
-create policy if not exists "security events readable by workspace owner admin"
+drop policy if exists "security events readable by workspace owner admin" on public.security_events;
+
+create policy "security events readable by workspace owner admin"
   on public.security_events
   for select
   using (

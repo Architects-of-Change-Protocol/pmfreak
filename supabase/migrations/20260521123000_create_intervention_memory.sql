@@ -1,6 +1,6 @@
 create table if not exists public.intervention_memory (
   intervention_id text primary key,
-  company_id uuid not null references public.companies(id) on delete cascade,
+  company_id uuid not null,
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   project_id uuid null references public.projects(id) on delete set null,
   created_at timestamptz not null default now(),
@@ -27,20 +27,24 @@ create index if not exists intervention_memory_domain_severity_idx on public.int
 
 alter table public.intervention_memory enable row level security;
 
-create policy if not exists "workspace members can read intervention_memory" on public.intervention_memory
+drop policy if exists "workspace members can read intervention_memory" on public.intervention_memory;
+create policy "workspace members can read intervention_memory" on public.intervention_memory
   for select to authenticated
   using (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace members can insert intervention_memory" on public.intervention_memory
+drop policy if exists "workspace members can insert intervention_memory" on public.intervention_memory;
+create policy "workspace members can insert intervention_memory" on public.intervention_memory
   for insert to authenticated
   with check (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace members can update intervention_memory" on public.intervention_memory
+drop policy if exists "workspace members can update intervention_memory" on public.intervention_memory;
+create policy "workspace members can update intervention_memory" on public.intervention_memory
   for update to authenticated
   using (public.is_workspace_member(workspace_id))
   with check (public.is_workspace_member(workspace_id));
 
-create policy if not exists "service role full access intervention_memory" on public.intervention_memory
+drop policy if exists "service role full access intervention_memory" on public.intervention_memory;
+create policy "service role full access intervention_memory" on public.intervention_memory
   for all to service_role
   using (true)
   with check (true);

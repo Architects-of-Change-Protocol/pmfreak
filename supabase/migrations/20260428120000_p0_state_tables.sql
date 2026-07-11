@@ -70,21 +70,27 @@ alter table public.company_subscriptions enable row level security;
 alter table public.company_usage enable row level security;
 alter table public.project_memories enable row level security;
 
-create policy if not exists "tenant access company_subscriptions"
+drop policy if exists "tenant access company_subscriptions" on public.company_subscriptions;
+
+create policy "tenant access company_subscriptions"
   on public.company_subscriptions
   for all
   to authenticated
   using (public.current_company_id() = company_id)
   with check (public.current_company_id() = company_id);
 
-create policy if not exists "tenant access company_usage"
+drop policy if exists "tenant access company_usage" on public.company_usage;
+
+create policy "tenant access company_usage"
   on public.company_usage
   for all
   to authenticated
   using (public.current_company_id() = company_id)
   with check (public.current_company_id() = company_id);
 
-create policy if not exists "tenant access project_memories"
+drop policy if exists "tenant access project_memories" on public.project_memories;
+
+create policy "tenant access project_memories"
   on public.project_memories
   for all
   to authenticated

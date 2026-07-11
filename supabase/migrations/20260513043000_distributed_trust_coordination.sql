@@ -61,7 +61,6 @@ for select using (
     select 1 from public.workspace_memberships wm
     where wm.workspace_id = capability_trust_events.workspace_id
       and wm.user_id = auth.uid()
-      and wm.status = 'active'
       and wm.role in ('owner','admin')
   )
 );

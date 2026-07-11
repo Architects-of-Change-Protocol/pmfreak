@@ -7,7 +7,7 @@ import { explainConstitutionLifecycle } from '../src/lib/project-constitution/li
 const service = readFileSync('src/lib/project-constitution/constitution-service.ts', 'utf8');
 const stateMachine = readFileSync('src/lib/project-constitution/state-machine.ts', 'utf8');
 const types = readFileSync('src/lib/project-constitution/types.ts', 'utf8');
-const migration = readFileSync('supabase/migrations/20260623000000_project_constitution_lifecycle.sql', 'utf8');
+const migration = readFileSync('supabase/migrations/20260623000002_project_constitution_lifecycle.sql', 'utf8');
 const platformEvents = readFileSync('src/lib/platform-events/types.ts', 'utf8');
 const docs = readFileSync('docs/project-constitution-lifecycle.md', 'utf8');
 const dbContract = readFileSync('src/lib/db/database-contract.ts', 'utf8');

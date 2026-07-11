@@ -75,7 +75,8 @@
     "seed:operational-flow": "node scripts/seed-operational-flow-demo.mjs",
     "check:operational-flow-db": "node scripts/check-operational-flow-db.mjs",
     "check:dependency-security": "node scripts/check-dependency-security.mjs",
-    "check:beta-release": "node scripts/check-beta-release.mjs"
+    "check:beta-release": "node scripts/check-beta-release.mjs",
+    "check:fresh-db-migrations": "node scripts/check-fresh-db-migrations.mjs"
   },
   "dependencies": {
     "@aoc-enterprise/runtime": "file:src/aoc/enterprise",

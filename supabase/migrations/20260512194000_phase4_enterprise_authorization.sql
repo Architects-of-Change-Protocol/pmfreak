@@ -4,7 +4,7 @@ create table if not exists public.ai_agent_permissions (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   agent_id text not null,
-  project_id text references public.projects(id) on delete cascade,
+  project_id uuid references public.projects(id) on delete cascade,
   permissions text[] not null default '{}',
   granted_by_user_id uuid references auth.users(id) on delete set null,
   revoked_at timestamptz,
@@ -18,7 +18,9 @@ create index if not exists ai_agent_permissions_workspace_project_idx on public.
 
 alter table public.ai_agent_permissions enable row level security;
 
-create policy if not exists "ai agent permissions read by workspace members"
+drop policy if exists "ai agent permissions read by workspace members" on public.ai_agent_permissions;
+
+create policy "ai agent permissions read by workspace members"
   on public.ai_agent_permissions
   for select
   using (
@@ -30,7 +32,9 @@ create policy if not exists "ai agent permissions read by workspace members"
     )
   );
 
-create policy if not exists "ai agent permissions manage by owner or admin"
+drop policy if exists "ai agent permissions manage by owner or admin" on public.ai_agent_permissions;
+
+create policy "ai agent permissions manage by owner or admin"
   on public.ai_agent_permissions
   for all
   using (

@@ -81,7 +81,7 @@ create policy "workspace_members_read_action_conversions"
   for select
   using (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -91,7 +91,7 @@ create policy "workspace_members_insert_action_conversions"
   for insert
   with check (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -101,7 +101,7 @@ create policy "workspace_members_update_action_conversions"
   for update
   using (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -146,7 +146,7 @@ create policy "workspace_members_read_conversion_preflights"
   for select
   using (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -156,7 +156,7 @@ create policy "workspace_members_insert_conversion_preflights"
   for insert
   with check (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -212,7 +212,7 @@ create policy "workspace_members_read_approval_bridges"
   for select
   using (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -222,7 +222,7 @@ create policy "workspace_members_insert_approval_bridges"
   for insert
   with check (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -232,7 +232,7 @@ create policy "workspace_members_update_approval_bridges"
   for update
   using (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -281,7 +281,7 @@ create policy "workspace_members_read_conversion_events"
   for select
   using (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );
@@ -291,7 +291,7 @@ create policy "workspace_members_insert_conversion_events"
   for insert
   with check (
     workspace_id in (
-      select workspace_id from public.workspace_members
+      select workspace_id from public.workspace_memberships
       where user_id = auth.uid()
     )
   );

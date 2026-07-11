@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const migration = readFileSync('supabase/migrations/20260616000002_evidence_linked_decisions.sql', 'utf8');
+const migration = readFileSync('supabase/migrations/20260616000003_evidence_linked_decisions.sql', 'utf8');
 const types = readFileSync('src/lib/decision-governance/types.ts', 'utf8');
 const service = readFileSync('src/lib/decision-governance/service.ts', 'utf8');
 const platformTypes = readFileSync('src/lib/platform-events/types.ts', 'utf8');
@@ -10,7 +10,7 @@ const docs = readFileSync('docs/evidence-linked-decisions.md', 'utf8');
 
 test('decision registry migration creates first-class decision and lineage tables', () => {
   assert.match(migration, /create table if not exists public\.project_decisions/);
-  assert.match(migration, /create table if not exists public\.decision_evidence_links/);
+  assert.match(migration, /create table if not exists public\.project_decision_evidence_links/);
   assert.match(migration, /create table if not exists public\.decision_outcome_links/);
 });
 

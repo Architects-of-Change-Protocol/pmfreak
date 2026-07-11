@@ -55,6 +55,8 @@ create table if not exists public.constitutional_decisions (
     references public.project_constitutions(id, workspace_id) on delete cascade
 );
 
+create unique index if not exists constitutional_decisions_id_workspace_uidx on public.constitutional_decisions(id, workspace_id);
+
 create index if not exists constitutional_decisions_workspace_idx
   on public.constitutional_decisions(workspace_id);
 

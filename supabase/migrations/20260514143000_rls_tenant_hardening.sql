@@ -57,40 +57,54 @@ create index if not exists idx_project_suggestions_workspace_id on public.projec
 alter table public.message_analyses alter column workspace_id set not null;
 alter table public.project_suggestions alter column workspace_id set not null;
 
-create policy if not exists "workspace members can manage message analyses"
+drop policy if exists "workspace members can manage message analyses" on public.message_analyses;
+
+create policy "workspace members can manage message analyses"
 on public.message_analyses
 for all to authenticated
 using (public.is_workspace_member(workspace_id))
 with check (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace members can manage project suggestions"
+drop policy if exists "workspace members can manage project suggestions" on public.project_suggestions;
+
+create policy "workspace members can manage project suggestions"
 on public.project_suggestions
 for all to authenticated
 using (public.is_workspace_member(workspace_id))
 with check (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace members can read invitations"
+drop policy if exists "workspace members can read invitations" on public.workspace_invitations;
+
+create policy "workspace members can read invitations"
 on public.workspace_invitations
 for select to authenticated
 using (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace owner admin can manage invitations"
+drop policy if exists "workspace owner admin can manage invitations" on public.workspace_invitations;
+
+create policy "workspace owner admin can manage invitations"
 on public.workspace_invitations
 for all to authenticated
 using (public.has_workspace_role(workspace_id, array['owner','admin']))
 with check (public.has_workspace_role(workspace_id, array['owner','admin']));
 
-create policy if not exists "workspace members can read audit events"
+drop policy if exists "workspace members can read audit events" on public.workspace_audit_events;
+
+create policy "workspace members can read audit events"
 on public.workspace_audit_events
 for select to authenticated
 using (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace owner admin can insert audit events"
+drop policy if exists "workspace owner admin can insert audit events" on public.workspace_audit_events;
+
+create policy "workspace owner admin can insert audit events"
 on public.workspace_audit_events
 for insert to authenticated
 with check (public.has_workspace_role(workspace_id, array['owner','admin']));
 
-create policy if not exists "service role full access on first user telemetry"
+drop policy if exists "service role full access on first user telemetry" on public.first_user_telemetry_events;
+
+create policy "service role full access on first user telemetry"
 on public.first_user_telemetry_events
 for all
 using (auth.role() = 'service_role')

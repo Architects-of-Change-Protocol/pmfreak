@@ -22,7 +22,7 @@ create table if not exists public.operational_memory_nutrient_links (
 
   -- The operational memory record
   operational_memory_record_id uuid not null
-    references public.operational_memory_records(id) on delete cascade,
+    references public.operational_memory_runtime_records(id) on delete cascade,
 
   -- Link classification
   link_type text not null check (link_type in (
@@ -70,7 +70,9 @@ create unique index if not exists omn_links_unique_nutrient_record
 
 alter table public.operational_memory_nutrient_links enable row level security;
 
-create policy if not exists "tenant access operational_memory_nutrient_links"
+drop policy if exists "tenant access operational_memory_nutrient_links" on public.operational_memory_nutrient_links;
+
+create policy "tenant access operational_memory_nutrient_links"
   on public.operational_memory_nutrient_links
   for all
   to authenticated

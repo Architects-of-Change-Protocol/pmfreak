@@ -4,6 +4,19 @@
 -- projections: tasks, effort, dependencies, participants, risk, readiness.
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- update_updated_at_column: shared trigger function used by this migration and
+-- 20260708000000_execution_reality_engine.sql to keep updated_at current.
+create or replace function update_updated_at_column()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
 -- ─── execution_projections ───────────────────────────────────────────────────
 
 create table if not exists execution_projections (
@@ -40,6 +53,8 @@ create table if not exists execution_projections (
     foreign key (commitment_id, workspace_id)
     references governance_commitments(id, workspace_id)
 );
+
+create unique index if not exists execution_projections_id_workspace_uidx on public.execution_projections(id, workspace_id);
 
 create index execution_projections_workspace_id_idx    on execution_projections (workspace_id);
 create index execution_projections_commitment_id_idx   on execution_projections (workspace_id, commitment_id);

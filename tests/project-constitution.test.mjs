@@ -4,14 +4,14 @@ import test from 'node:test';
 
 const service = readFileSync('src/lib/project-constitution/service.ts', 'utf8');
 const types = readFileSync('src/lib/project-constitution/types.ts', 'utf8');
-const migration = readFileSync('supabase/migrations/20260623000000_project_constitution_foundation.sql', 'utf8');
+const migration = readFileSync('supabase/migrations/20260623000001_project_constitution_foundation.sql', 'utf8');
 const capabilityExplain = readFileSync('src/lib/project-constitution/capability-explain.ts', 'utf8');
 const indexFile = readFileSync('src/lib/project-constitution/index.ts', 'utf8');
 
 // ─── Migration ───────────────────────────────────────────────────────────────
 
-test('migration creates project_constitutions with workspace isolation', () => {
-  assert.match(migration, /create table if not exists public\.project_constitutions/);
+test('migration creates project_constitution_profiles with workspace isolation', () => {
+  assert.match(migration, /create table if not exists public\.project_constitution_profiles/);
   assert.match(migration, /workspace_id/);
   assert.match(migration, /enable row level security/);
   assert.match(migration, /public\.is_workspace_member\(workspace_id\)/);
@@ -129,7 +129,7 @@ test('service uses project event category for platform events', () => {
 });
 
 test('service references correct table name', () => {
-  assert.match(service, /from\("project_constitutions"\)/);
+  assert.match(service, /from\("project_constitution_profiles"\)/);
 });
 
 test('service soft delete sets deleted_at and does not physical delete', () => {

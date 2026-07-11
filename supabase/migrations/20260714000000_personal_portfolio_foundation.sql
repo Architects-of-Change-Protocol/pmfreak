@@ -186,7 +186,7 @@ create policy "portfolio_attention_items_owner_access"
       from public.personal_portfolio_snapshots pps
       join public.personal_portfolios pp on pp.id = pps.portfolio_id
       where pps.id = snapshot_id
-        and pp.workspace_id = workspace_id
+        and pp.workspace_id = personal_portfolio_attention_items.workspace_id
         and pp.owner_id = auth.uid()
     )
   );

@@ -53,6 +53,8 @@ create table if not exists constitutional_recommendations (
   unique (workspace_id, recommendation_key)
 );
 
+create unique index if not exists constitutional_recommendations_id_workspace_uidx on public.constitutional_recommendations(id, workspace_id);
+
 -- ─── constitutional_recommendation_evidence ───────────────────────────────────
 -- Links a Recommendation to the Learning Pattern(s) that justify it.
 -- Sovereignty Rule 2: Every recommendation must be traceable to patterns.
@@ -102,6 +104,8 @@ create table if not exists constitutional_recommendation_applications (
     foreign key (recommendation_id, workspace_id)
     references constitutional_recommendations(id, workspace_id)
 );
+
+create unique index if not exists constitutional_recommendation_applications_id_workspace_uidx on public.constitutional_recommendation_applications(id, workspace_id);
 
 -- ─── Row Level Security ───────────────────────────────────────────────────────
 

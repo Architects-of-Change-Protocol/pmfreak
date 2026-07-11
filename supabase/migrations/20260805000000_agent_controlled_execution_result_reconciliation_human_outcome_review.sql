@@ -304,7 +304,7 @@ alter table public.agent_execution_outcome_events enable row level security;
 create policy "workspace_members_read_execution_outcomes"
   on public.agent_execution_outcomes for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_outcomes.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -312,7 +312,7 @@ create policy "workspace_members_read_execution_outcomes"
 create policy "workspace_members_insert_execution_outcomes"
   on public.agent_execution_outcomes for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_outcomes.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -320,7 +320,7 @@ create policy "workspace_members_insert_execution_outcomes"
 create policy "workspace_members_update_execution_outcomes"
   on public.agent_execution_outcomes for update
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_outcomes.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -329,7 +329,7 @@ create policy "workspace_members_update_execution_outcomes"
 create policy "workspace_members_read_outcome_reconciliations"
   on public.agent_execution_outcome_reconciliations for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_outcome_reconciliations.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -337,7 +337,7 @@ create policy "workspace_members_read_outcome_reconciliations"
 create policy "workspace_members_insert_outcome_reconciliations"
   on public.agent_execution_outcome_reconciliations for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_outcome_reconciliations.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -346,7 +346,7 @@ create policy "workspace_members_insert_outcome_reconciliations"
 create policy "workspace_members_read_outcome_comparisons"
   on public.agent_execution_outcome_comparisons for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_outcome_comparisons.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -354,7 +354,7 @@ create policy "workspace_members_read_outcome_comparisons"
 create policy "workspace_members_insert_outcome_comparisons"
   on public.agent_execution_outcome_comparisons for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_outcome_comparisons.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -363,7 +363,7 @@ create policy "workspace_members_insert_outcome_comparisons"
 create policy "workspace_members_read_evidence_completeness"
   on public.agent_execution_evidence_completeness for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_evidence_completeness.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -371,7 +371,7 @@ create policy "workspace_members_read_evidence_completeness"
 create policy "workspace_members_insert_evidence_completeness"
   on public.agent_execution_evidence_completeness for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_evidence_completeness.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -380,7 +380,7 @@ create policy "workspace_members_insert_evidence_completeness"
 create policy "workspace_members_read_outcome_confidence"
   on public.agent_execution_outcome_confidence for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_outcome_confidence.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -388,7 +388,7 @@ create policy "workspace_members_read_outcome_confidence"
 create policy "workspace_members_insert_outcome_confidence"
   on public.agent_execution_outcome_confidence for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_outcome_confidence.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -397,7 +397,7 @@ create policy "workspace_members_insert_outcome_confidence"
 create policy "workspace_members_read_human_outcome_reviews"
   on public.agent_execution_human_outcome_reviews for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_human_outcome_reviews.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -405,7 +405,7 @@ create policy "workspace_members_read_human_outcome_reviews"
 create policy "workspace_members_insert_human_outcome_reviews"
   on public.agent_execution_human_outcome_reviews for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_human_outcome_reviews.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -413,7 +413,7 @@ create policy "workspace_members_insert_human_outcome_reviews"
 create policy "workspace_members_update_human_outcome_reviews"
   on public.agent_execution_human_outcome_reviews for update
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_human_outcome_reviews.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -422,7 +422,7 @@ create policy "workspace_members_update_human_outcome_reviews"
 create policy "workspace_members_read_failed_dispatch_triage"
   on public.agent_execution_failed_dispatch_triage for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_failed_dispatch_triage.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -430,7 +430,7 @@ create policy "workspace_members_read_failed_dispatch_triage"
 create policy "workspace_members_insert_failed_dispatch_triage"
   on public.agent_execution_failed_dispatch_triage for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_failed_dispatch_triage.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -439,7 +439,7 @@ create policy "workspace_members_insert_failed_dispatch_triage"
 create policy "workspace_members_read_correction_loops"
   on public.agent_execution_correction_loops for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_correction_loops.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -447,7 +447,7 @@ create policy "workspace_members_read_correction_loops"
 create policy "workspace_members_insert_correction_loops"
   on public.agent_execution_correction_loops for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_correction_loops.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -455,7 +455,7 @@ create policy "workspace_members_insert_correction_loops"
 create policy "workspace_members_update_correction_loops"
   on public.agent_execution_correction_loops for update
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_correction_loops.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -464,7 +464,7 @@ create policy "workspace_members_update_correction_loops"
 create policy "workspace_members_read_outcome_events"
   on public.agent_execution_outcome_events for select
   using (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_outcome_events.workspace_id
       and wm.user_id = auth.uid()
   ));
@@ -472,7 +472,7 @@ create policy "workspace_members_read_outcome_events"
 create policy "workspace_members_insert_outcome_events"
   on public.agent_execution_outcome_events for insert
   with check (exists (
-    select 1 from public.workspace_members wm
+    select 1 from public.workspace_memberships wm
     where wm.workspace_id = agent_execution_outcome_events.workspace_id
       and wm.user_id = auth.uid()
   ));

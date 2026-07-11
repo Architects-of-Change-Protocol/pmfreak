@@ -153,7 +153,7 @@ test("executive synthesis update trigger is invoked and UI/API are wired", () =>
   assert.equal(runtime.result.executiveSynthesisUpdated, true);
   assert.equal(runtime.synthesisCalls, 1);
   assert.match(storage, /triggerExecutiveSynthesisUpdate/);
-  assert.match(storage, /operational_memory_records/);
+  assert.match(storage, /operational_memory_runtime_records/);
   assert.match(route, /ingestVaultDocument/);
   assert.match(vaultIntakePanel, /Add project notes/);
   assert.match(vaultIntakePanel, /Analyze notes/i);

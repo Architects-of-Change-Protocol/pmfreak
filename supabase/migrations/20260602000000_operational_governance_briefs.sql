@@ -16,17 +16,23 @@ create index if not exists operational_governance_briefs_workspace_generated_idx
 
 alter table public.operational_governance_briefs enable row level security;
 
-create policy if not exists "workspace members can read operational_governance_briefs"
+drop policy if exists "workspace members can read operational_governance_briefs" on public.operational_governance_briefs;
+
+create policy "workspace members can read operational_governance_briefs"
   on public.operational_governance_briefs
   for select to authenticated
   using (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace members can insert operational_governance_briefs"
+drop policy if exists "workspace members can insert operational_governance_briefs" on public.operational_governance_briefs;
+
+create policy "workspace members can insert operational_governance_briefs"
   on public.operational_governance_briefs
   for insert to authenticated
   with check (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace members can update operational_governance_briefs"
+drop policy if exists "workspace members can update operational_governance_briefs" on public.operational_governance_briefs;
+
+create policy "workspace members can update operational_governance_briefs"
   on public.operational_governance_briefs
   for update to authenticated
   using (public.is_workspace_member(workspace_id))

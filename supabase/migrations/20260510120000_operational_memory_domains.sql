@@ -18,7 +18,9 @@ create index if not exists operational_memory_records_company_idx on public.oper
 
 alter table public.operational_memory_records enable row level security;
 
-create policy if not exists "tenant access operational_memory_records"
+drop policy if exists "tenant access operational_memory_records" on public.operational_memory_records;
+
+create policy "tenant access operational_memory_records"
   on public.operational_memory_records
   for all
   to authenticated

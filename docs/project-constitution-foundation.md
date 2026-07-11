@@ -188,7 +188,7 @@ src/lib/project-constitution/
 
 Database:
 ```
-supabase/migrations/20260623000000_project_constitution_lifecycle.sql
+supabase/migrations/20260623000002_project_constitution_lifecycle.sql
   — project_constitutions (foundation + lifecycle fields)
   — constitution_lifecycle_history (transition audit trail)
 ```

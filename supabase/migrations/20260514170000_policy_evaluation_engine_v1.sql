@@ -18,12 +18,14 @@ create index if not exists capability_policies_workspace_idx on public.capabilit
 
 alter table public.capability_policies enable row level security;
 
-create policy if not exists capability_policies_read_scope on public.capability_policies
+drop policy if exists capability_policies_read_scope on public.capability_policies;
+create policy capability_policies_read_scope on public.capability_policies
 for select using (
   exists (select 1 from public.workspace_memberships wm where wm.workspace_id = capability_policies.workspace_id and wm.user_id = auth.uid())
 );
 
-create policy if not exists capability_policies_admin_write_scope on public.capability_policies
+drop policy if exists capability_policies_admin_write_scope on public.capability_policies;
+create policy capability_policies_admin_write_scope on public.capability_policies
 for all using (
   exists (select 1 from public.workspace_memberships wm where wm.workspace_id = capability_policies.workspace_id and wm.user_id = auth.uid() and wm.role in ('owner','admin'))
 ) with check (

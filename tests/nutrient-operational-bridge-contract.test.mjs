@@ -754,10 +754,10 @@ test("migration has required fields", () => {
   }
 });
 
-test("migration has FK to operational_memory_records", () => {
+test("migration has FK to operational_memory_runtime_records", () => {
   assert.ok(
-    migration.includes("references public.operational_memory_records(id)"),
-    "Must have FK to operational_memory_records",
+    migration.includes("references public.operational_memory_runtime_records(id)"),
+    "Must have FK to operational_memory_runtime_records",
   );
 });
 

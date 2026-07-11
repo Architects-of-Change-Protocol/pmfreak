@@ -34,12 +34,16 @@ create index if not exists vault_digestion_runs_project_idx
 
 alter table public.vault_digestion_runs enable row level security;
 
-create policy if not exists "workspace members can read vault_digestion_runs"
+drop policy if exists "workspace members can read vault_digestion_runs" on public.vault_digestion_runs;
+
+create policy "workspace members can read vault_digestion_runs"
   on public.vault_digestion_runs
   for select to authenticated
   using (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace members can insert vault_digestion_runs"
+drop policy if exists "workspace members can insert vault_digestion_runs" on public.vault_digestion_runs;
+
+create policy "workspace members can insert vault_digestion_runs"
   on public.vault_digestion_runs
   for insert to authenticated
   with check (public.is_workspace_member(workspace_id));
@@ -86,12 +90,16 @@ create index if not exists vault_nutrients_run_idx
 
 alter table public.vault_nutrients enable row level security;
 
-create policy if not exists "workspace members can read vault_nutrients"
+drop policy if exists "workspace members can read vault_nutrients" on public.vault_nutrients;
+
+create policy "workspace members can read vault_nutrients"
   on public.vault_nutrients
   for select to authenticated
   using (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace members can insert vault_nutrients"
+drop policy if exists "workspace members can insert vault_nutrients" on public.vault_nutrients;
+
+create policy "workspace members can insert vault_nutrients"
   on public.vault_nutrients
   for insert to authenticated
   with check (public.is_workspace_member(workspace_id));
@@ -124,12 +132,16 @@ create index if not exists vault_semantic_residue_run_idx
 
 alter table public.vault_semantic_residue enable row level security;
 
-create policy if not exists "workspace members can read vault_semantic_residue"
+drop policy if exists "workspace members can read vault_semantic_residue" on public.vault_semantic_residue;
+
+create policy "workspace members can read vault_semantic_residue"
   on public.vault_semantic_residue
   for select to authenticated
   using (public.is_workspace_member(workspace_id));
 
-create policy if not exists "workspace members can insert vault_semantic_residue"
+drop policy if exists "workspace members can insert vault_semantic_residue" on public.vault_semantic_residue;
+
+create policy "workspace members can insert vault_semantic_residue"
   on public.vault_semantic_residue
   for insert to authenticated
   with check (public.is_workspace_member(workspace_id));

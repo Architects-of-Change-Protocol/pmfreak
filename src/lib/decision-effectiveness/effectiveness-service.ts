@@ -285,7 +285,7 @@ export async function explainDecisionEffectiveness(effectivenessId: string): Pro
       .eq("workspace_id", record.data.workspace_id)
       .returns<Record<string, unknown>[]>(),
     supabase
-      .from("decision_evidence_links")
+      .from("project_decision_evidence_links")
       .select("id,evidence_id,evidence_type,relationship_type,created_at")
       .eq("decision_id", record.data.decision_id)
       .returns<Record<string, unknown>[]>(),

@@ -61,7 +61,8 @@ create index if not exists agent_tool_assignments_agent_idx
 alter table public.agent_tools enable row level security;
 alter table public.agent_tool_assignments enable row level security;
 
-create policy if not exists agent_tools_workspace_read on public.agent_tools
+drop policy if exists agent_tools_workspace_read on public.agent_tools;
+create policy agent_tools_workspace_read on public.agent_tools
   for select using (
     exists (
       select 1 from public.workspace_memberships wm
@@ -70,7 +71,8 @@ create policy if not exists agent_tools_workspace_read on public.agent_tools
     )
   );
 
-create policy if not exists agent_tools_admin_write on public.agent_tools
+drop policy if exists agent_tools_admin_write on public.agent_tools;
+create policy agent_tools_admin_write on public.agent_tools
   for all using (
     exists (
       select 1 from public.workspace_memberships wm
@@ -87,7 +89,8 @@ create policy if not exists agent_tools_admin_write on public.agent_tools
     )
   );
 
-create policy if not exists agent_tool_assignments_workspace_read on public.agent_tool_assignments
+drop policy if exists agent_tool_assignments_workspace_read on public.agent_tool_assignments;
+create policy agent_tool_assignments_workspace_read on public.agent_tool_assignments
   for select using (
     exists (
       select 1 from public.workspace_memberships wm
@@ -96,7 +99,8 @@ create policy if not exists agent_tool_assignments_workspace_read on public.agen
     )
   );
 
-create policy if not exists agent_tool_assignments_admin_write on public.agent_tool_assignments
+drop policy if exists agent_tool_assignments_admin_write on public.agent_tool_assignments;
+create policy agent_tool_assignments_admin_write on public.agent_tool_assignments
   for all using (
     exists (
       select 1 from public.workspace_memberships wm

@@ -7,7 +7,7 @@
 
 CREATE TABLE IF NOT EXISTS agent_beta_readiness_plans (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   scope text NOT NULL,
   status text NOT NULL DEFAULT 'created',
   title text NOT NULL DEFAULT '',
@@ -29,21 +29,21 @@ ALTER TABLE agent_beta_readiness_plans ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_beta_readiness_plans"
   ON agent_beta_readiness_plans FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_beta_readiness_plans"
   ON agent_beta_readiness_plans FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_update_beta_readiness_plans"
   ON agent_beta_readiness_plans FOR UPDATE
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Beta Workspace Readiness ─────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_beta_workspace_readiness (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   plan_id uuid NOT NULL REFERENCES agent_beta_readiness_plans(id),
   status text NOT NULL DEFAULT 'created',
   checklist_passed boolean NOT NULL DEFAULT false,
@@ -60,17 +60,17 @@ ALTER TABLE agent_beta_workspace_readiness ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_beta_workspace_readiness"
   ON agent_beta_workspace_readiness FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_beta_workspace_readiness"
   ON agent_beta_workspace_readiness FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Demo Data Bundles ────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_demo_data_bundles (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   plan_id uuid NOT NULL REFERENCES agent_beta_readiness_plans(id),
   bundle_type text NOT NULL,
   status text NOT NULL DEFAULT 'created',
@@ -88,21 +88,21 @@ ALTER TABLE agent_demo_data_bundles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_demo_data_bundles"
   ON agent_demo_data_bundles FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_demo_data_bundles"
   ON agent_demo_data_bundles FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_update_demo_data_bundles"
   ON agent_demo_data_bundles FOR UPDATE
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Demo Project Scenarios ───────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_demo_project_scenarios (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   bundle_id uuid NOT NULL REFERENCES agent_demo_data_bundles(id),
   scenario_type text NOT NULL,
   status text NOT NULL DEFAULT 'created',
@@ -120,17 +120,17 @@ ALTER TABLE agent_demo_project_scenarios ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_demo_project_scenarios"
   ON agent_demo_project_scenarios FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_demo_project_scenarios"
   ON agent_demo_project_scenarios FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Demo Governance Scenarios ────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_demo_governance_scenarios (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   bundle_id uuid NOT NULL REFERENCES agent_demo_data_bundles(id),
   scenario_type text NOT NULL,
   status text NOT NULL DEFAULT 'created',
@@ -147,17 +147,17 @@ ALTER TABLE agent_demo_governance_scenarios ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_demo_governance_scenarios"
   ON agent_demo_governance_scenarios FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_demo_governance_scenarios"
   ON agent_demo_governance_scenarios FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Demo Handoff Scenarios ───────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_demo_handoff_scenarios (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   bundle_id uuid NOT NULL REFERENCES agent_demo_data_bundles(id),
   scenario_type text NOT NULL,
   status text NOT NULL DEFAULT 'created',
@@ -175,17 +175,17 @@ ALTER TABLE agent_demo_handoff_scenarios ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_demo_handoff_scenarios"
   ON agent_demo_handoff_scenarios FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_demo_handoff_scenarios"
   ON agent_demo_handoff_scenarios FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Beta Onboarding Checklists ───────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_beta_onboarding_checklists (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   plan_id uuid NOT NULL REFERENCES agent_beta_readiness_plans(id),
   status text NOT NULL DEFAULT 'created',
   total_items integer NOT NULL DEFAULT 0,
@@ -203,21 +203,21 @@ ALTER TABLE agent_beta_onboarding_checklists ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_beta_onboarding_checklists"
   ON agent_beta_onboarding_checklists FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_beta_onboarding_checklists"
   ON agent_beta_onboarding_checklists FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_update_beta_onboarding_checklists"
   ON agent_beta_onboarding_checklists FOR UPDATE
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Beta Onboarding Checklist Items ─────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_beta_onboarding_checklist_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   checklist_id uuid NOT NULL REFERENCES agent_beta_onboarding_checklists(id),
   item_type text NOT NULL,
   status text NOT NULL DEFAULT 'pending',
@@ -236,17 +236,17 @@ ALTER TABLE agent_beta_onboarding_checklist_items ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_beta_checklist_items"
   ON agent_beta_onboarding_checklist_items FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_beta_checklist_items"
   ON agent_beta_onboarding_checklist_items FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Beta User Readiness ──────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_beta_user_readiness (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   plan_id uuid NOT NULL REFERENCES agent_beta_readiness_plans(id),
   status text NOT NULL DEFAULT 'created',
   role text NOT NULL,
@@ -263,17 +263,17 @@ ALTER TABLE agent_beta_user_readiness ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_beta_user_readiness"
   ON agent_beta_user_readiness FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_beta_user_readiness"
   ON agent_beta_user_readiness FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Beta Invitation Readiness ────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_beta_invitation_readiness (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   plan_id uuid NOT NULL REFERENCES agent_beta_readiness_plans(id),
   status text NOT NULL DEFAULT 'created',
   invitation_count integer NOT NULL DEFAULT 0,
@@ -290,17 +290,17 @@ ALTER TABLE agent_beta_invitation_readiness ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_beta_invitation_readiness"
   ON agent_beta_invitation_readiness FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_beta_invitation_readiness"
   ON agent_beta_invitation_readiness FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Beta Admin Readiness ─────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_beta_admin_readiness (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   plan_id uuid NOT NULL REFERENCES agent_beta_readiness_plans(id),
   status text NOT NULL DEFAULT 'created',
   workspace_isolation_verified boolean NOT NULL DEFAULT false,
@@ -319,17 +319,17 @@ ALTER TABLE agent_beta_admin_readiness ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_beta_admin_readiness"
   ON agent_beta_admin_readiness FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_beta_admin_readiness"
   ON agent_beta_admin_readiness FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Tenant Readiness Validations ─────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_tenant_readiness_validations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   plan_id uuid NOT NULL REFERENCES agent_beta_readiness_plans(id),
   status text NOT NULL DEFAULT 'pending',
   check_name text NOT NULL,
@@ -347,17 +347,17 @@ ALTER TABLE agent_tenant_readiness_validations ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_tenant_readiness_validations"
   ON agent_tenant_readiness_validations FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_tenant_readiness_validations"
   ON agent_tenant_readiness_validations FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Beta Readiness Gates ─────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_beta_readiness_gates (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   plan_id uuid NOT NULL REFERENCES agent_beta_readiness_plans(id),
   status text NOT NULL DEFAULT 'created',
   open_blocker_count integer NOT NULL DEFAULT 0,
@@ -373,21 +373,21 @@ ALTER TABLE agent_beta_readiness_gates ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_beta_readiness_gates"
   ON agent_beta_readiness_gates FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_beta_readiness_gates"
   ON agent_beta_readiness_gates FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_update_beta_readiness_gates"
   ON agent_beta_readiness_gates FOR UPDATE
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Beta Readiness Decisions ─────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_beta_readiness_decisions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   gate_id uuid NOT NULL REFERENCES agent_beta_readiness_gates(id),
   decision_type text NOT NULL,
   rationale text NOT NULL DEFAULT '',
@@ -402,17 +402,17 @@ ALTER TABLE agent_beta_readiness_decisions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_beta_readiness_decisions"
   ON agent_beta_readiness_decisions FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_beta_readiness_decisions"
   ON agent_beta_readiness_decisions FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Beta Readiness Blockers ──────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_beta_readiness_blockers (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   plan_id uuid NOT NULL REFERENCES agent_beta_readiness_plans(id),
   blocker_type text NOT NULL,
   severity text NOT NULL,
@@ -432,21 +432,21 @@ ALTER TABLE agent_beta_readiness_blockers ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_beta_readiness_blockers"
   ON agent_beta_readiness_blockers FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_beta_readiness_blockers"
   ON agent_beta_readiness_blockers FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_update_beta_readiness_blockers"
   ON agent_beta_readiness_blockers FOR UPDATE
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Beta Readiness Remediation Items ────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_beta_readiness_remediation_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   plan_id uuid NOT NULL REFERENCES agent_beta_readiness_plans(id),
   blocker_id uuid REFERENCES agent_beta_readiness_blockers(id),
   remediation_type text NOT NULL,
@@ -464,21 +464,21 @@ ALTER TABLE agent_beta_readiness_remediation_items ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_beta_remediation_items"
   ON agent_beta_readiness_remediation_items FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_beta_remediation_items"
   ON agent_beta_readiness_remediation_items FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_update_beta_remediation_items"
   ON agent_beta_readiness_remediation_items FOR UPDATE
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Beta Readiness Exports ───────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_beta_readiness_exports (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   plan_id uuid NOT NULL REFERENCES agent_beta_readiness_plans(id),
   export_format text NOT NULL,
   export_status text NOT NULL DEFAULT 'created',
@@ -495,17 +495,17 @@ ALTER TABLE agent_beta_readiness_exports ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_beta_readiness_exports"
   ON agent_beta_readiness_exports FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_beta_readiness_exports"
   ON agent_beta_readiness_exports FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 -- ─── Beta Readiness Events ────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS agent_beta_readiness_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id text NOT NULL,
+  workspace_id uuid NOT NULL,
   plan_id uuid REFERENCES agent_beta_readiness_plans(id),
   event_type text NOT NULL,
   message text,
@@ -521,8 +521,8 @@ ALTER TABLE agent_beta_readiness_events ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "workspace_member_read_beta_readiness_events"
   ON agent_beta_readiness_events FOR SELECT
-  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));
 
 CREATE POLICY "workspace_member_insert_beta_readiness_events"
   ON agent_beta_readiness_events FOR INSERT
-  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()));

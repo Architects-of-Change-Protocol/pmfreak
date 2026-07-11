@@ -43,6 +43,8 @@ create table if not exists execution_realities (
     references execution_projections(id, workspace_id)
 );
 
+create unique index if not exists execution_realities_id_workspace_uidx on public.execution_realities(id, workspace_id);
+
 create index execution_realities_workspace_id_idx   on execution_realities (workspace_id);
 create index execution_realities_projection_id_idx  on execution_realities (workspace_id, projection_id);
 create index execution_realities_status_idx         on execution_realities (workspace_id, status);

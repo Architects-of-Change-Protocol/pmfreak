@@ -1399,7 +1399,7 @@ export const INTELLIGENCE_BRIDGE_OBSERVATION_SELECTABLE_COLUMNS = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 // project_constitutions — Project Constitution Lifecycle
-// Migration: 20260623000000_project_constitution_lifecycle.sql
+// Migration: 20260623000002_project_constitution_lifecycle.sql
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ConstitutionStatus =
@@ -1445,7 +1445,7 @@ export const PROJECT_CONSTITUTION_SELECTABLE_COLUMNS = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 // constitution_lifecycle_history — Project Constitution Lifecycle
-// Migration: 20260623000000_project_constitution_lifecycle.sql
+// Migration: 20260623000002_project_constitution_lifecycle.sql
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ConstitutionLifecycleHistoryRow = {
@@ -2542,7 +2542,7 @@ export type ProgramCardRow = {
   source_line_number: number | null;               // integer — line in source roadmap
   // Context projection (added 20260703000000_program_card_context_projection.sql)
   materialization_id: string | null;               // uuid references program_materializations
-  // Execution board (added 20260702000000_program_execution_board.sql)
+  // Execution board (added 20260702000001_program_execution_board.sql)
   board_column: ProgramBoardColumn;                // text enum-constrained default 'BACKLOG'
   created_at: string;         // timestamptz
   updated_at: string;         // timestamptz
@@ -2573,7 +2573,7 @@ export const PROGRAM_CARD_SELECTABLE_COLUMNS = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 // program_roadmap_sources
-// Source: 20260621100000_program_roadmap_sources.sql
+// Source: 20260628050000_program_roadmap_sources.sql
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ProgramRoadmapSourceType =

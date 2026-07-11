@@ -276,16 +276,16 @@ check("migration uses current_company_id() for tenant isolation", () => {
 });
 
 check("migration has self-referencing lineage FK", () => {
-  assert(migration.includes("references public.operational_memory_records(id)") &&
+  assert(migration.includes("references public.operational_memory_runtime_records(id)") &&
     migration.includes("parent_record_id uuid null"));
 });
 
 check("migration has unresolved index for pressure retrieval", () => {
-  assert(migration.includes("operational_memory_records_unresolved_idx"));
+  assert(migration.includes("operational_memory_runtime_records_unresolved_idx"));
 });
 
 check("intervention table FKs to memory records", () => {
-  assert(migration.includes("memory_record_id uuid not null references public.operational_memory_records(id)"));
+  assert(migration.includes("memory_record_id uuid not null references public.operational_memory_runtime_records(id)"));
 });
 
 // ─── Summary ──────────────────────────────────────────────────────────────────
