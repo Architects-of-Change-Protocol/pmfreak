@@ -1,4 +1,31 @@
-# Beta Release Closure Summary — Perilla 11 (updated by Perilla 12, Perilla 13)
+# Beta Release Closure Summary — Perilla 11 (updated by Perilla 12, Perilla 13, Perilla 13B)
+
+> **Perilla 13B update (2026-07-11)**: hosted Supabase validation prep —
+> **no hosted credentials were available in this environment**, so the
+> hosted fresh-apply itself was not run and **RR-MIGRATE remains OPEN**,
+> unchanged from Perilla 13. What Perilla 13B added, all real work
+> executed this session: a hosted-mode repeatability check
+> (`supabase migration list --linked` parsing) in
+> `scripts/check-fresh-db-migrations.mjs`; 20 new behavioral safety-guard
+> tests exercising the actual script (no network reached); a new static
+> SECURITY DEFINER hardening checker
+> (`npm run check:security-definer-hardening`, now a blocking gate in
+> `check:beta-release`) that found and fixed 2 real gaps across 8
+> functions (1 missing `search_path`, 8 missing an explicit PUBLIC execute
+> revocation), landed as 2 corrective migrations — migration count is now
+> **146** (was 144); a static RPC signature inventory confirming all 8 RPC
+> functions' call-site arguments match their migration signatures. Full
+> suite: **12,245 tests / 0 failures** (12,218 + 20 new safety-guard tests
+> + 7 new SECURITY DEFINER hardening tests — see
+> [`beta-release-gate-results.md`](./beta-release-gate-results.md) for the
+> exact re-run). `npm run check:beta-release` still reports
+> **CONDITIONAL GO**. Evidence templates for every hosted-only requirement
+> (RLS role matrix, grants, generated types, existing-DB compatibility)
+> were created, each explicitly marked NOT EXECUTED with the runbook steps
+> to complete them — see
+> [`hosted-supabase-migration-proof.md`](./hosted-supabase-migration-proof.md).
+> Decision remains **CONDITIONAL GO** with the same two pilot-blocking
+> conditions: RR-MIGRATE and RR-BACKUP.
 
 > **Perilla 13 update (2026-07-11)**: fresh-database migration proof
 > completed against a local PostgreSQL 16 (144 migration files — 142

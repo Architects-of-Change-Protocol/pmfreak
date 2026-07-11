@@ -1,4 +1,34 @@
-# Beta Release Gate Results — Perillas 11–13
+# Beta Release Gate Results — Perillas 11–13B
+
+## Perilla 13B update (2026-07-11) — hosted Supabase validation prep (RR-MIGRATE remains OPEN)
+
+Executed on branch `claude/supabase-migration-validation-2kugdm` (based on
+`main` @ `02e09c6` post-Perilla 13). No hosted Supabase credentials were
+available in this environment — see
+[`hosted-supabase-migration-proof.md`](./hosted-supabase-migration-proof.md).
+This run covers only what's achievable without hosted access: baseline
+re-verification, harness/safety-guard hardening, and a static SECURITY
+DEFINER audit that found and fixed 2 real gaps (2 new corrective
+migrations, 144→146 total).
+
+| Command | Result |
+| ------- | ------ |
+| `rm -rf node_modules .next && npm ci` | PASS |
+| `npm run typecheck` | PASS — 0 errors |
+| `npm run lint` | PASS — 0 errors (620 pre-existing warnings, unchanged class) |
+| `npm test` | PASS — see exact count below (baseline 12,218 + new safety-guard/hardening tests) |
+| `npm run build` | PASS — production build |
+| `npm run check:db-contract` | PASS |
+| `npm run check:fresh-db-migrations` (verify-only) | PASS — 146 migration files, 0 duplicate timestamps, correct ordering |
+| `npm run check:security-definer-hardening` (new) | PASS — 18 SECURITY DEFINER functions, all pinned `search_path`, all explicit PUBLIC-execute-revoked (2 corrective migrations landed this session) |
+| `npm run check:governance` (after `npm run build:aoc`) | PASS |
+| `npm run check:dependency-security` | CONDITIONAL (exit 2, 0 unexpected — unchanged from Perilla 13) |
+| `npm run check:beta-release` | **CONDITIONAL GO** — all blocking gates PASS (now includes the SECURITY DEFINER hardening gate), dependency-security CONDITIONAL as expected |
+
+**RR-MIGRATE: OPEN** (unchanged from Perilla 13 — no hosted Supabase apply
+was attempted or fabricated this session either). See
+[`residual-risk-register.md`](./residual-risk-register.md) for the exact
+Perilla 13B addendum.
 
 ## Perilla 13 update (2026-07-11) — fresh-database migration proof re-run
 

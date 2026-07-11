@@ -164,6 +164,78 @@ function applyHosted() {
   return { ok: true };
 }
 
+// ─── Step 3b: hosted repeatability verification ────────────────────────────
+//
+// After a hosted apply, `supabase migration list --linked` prints a table
+// comparing the local migration history against what the linked project has
+// actually recorded, e.g.:
+//
+//   Local          | Remote         | Time (UTC)
+//  ----------------|----------------|---------------------
+//   20260428120000 | 20260428120000 | 2026-04-28 12:00:00
+//   20260501000000 |                | 2026-05-01 00:00:00
+//
+// A row with a populated Local column and an empty Remote column is a local
+// migration the linked project never recorded (remote-pending — the apply
+// didn't fully take, or drifted). A row with a populated Remote column and
+// an empty Local column is a migration the project has recorded that no
+// local file explains (remote-unexpected — manual/out-of-band drift).
+//
+// parseHostedMigrationList() is a pure function so it can be unit-tested
+// against synthetic CLI output. IMPORTANT: this parser has not been
+// validated against real `supabase migration list` output in this session —
+// no hosted Supabase credentials were available (see
+// docs/release/hosted-supabase-migration-proof.md). Re-verify the row
+// regex against real CLI output the first time this runs in hosted mode,
+// before trusting its pass/fail verdict.
+function parseHostedMigrationList(output, localTimestamps) {
+  const rowPattern = /^\s*(\d{14})?\s*\|\s*(\d{14})?\s*\|/gm;
+  const rows = [];
+  let match;
+  while ((match = rowPattern.exec(output)) !== null) {
+    rows.push({ local: match[1] ?? null, remote: match[2] ?? null });
+  }
+
+  const remoteSet = new Set(rows.map((r) => r.remote).filter(Boolean));
+  const remoteOnly = [...new Set(rows.filter((r) => r.remote && !r.local).map((r) => r.remote))];
+  const pendingLocal = localTimestamps.filter((ts) => !remoteSet.has(ts));
+
+  return { rows, pendingLocal, unexpectedRemote: remoteOnly, matchedCount: remoteSet.size };
+}
+
+function verifyHostedRepeatability(files) {
+  const list = sh("npx", ["-y", "supabase", "migration", "list", "--linked"], {
+    env: { ...process.env, SUPABASE_ACCESS_TOKEN: process.env.SUPABASE_ACCESS_TOKEN },
+  });
+  if (list.status !== 0) {
+    return { ok: false, reason: "`supabase migration list --linked` failed", stderr: list.stderr };
+  }
+
+  const localTimestamps = files.map((f) => f.match(/^(\d{14})_/)?.[1]).filter(Boolean);
+  const parsed = parseHostedMigrationList(list.stdout ?? "", localTimestamps);
+
+  if (parsed.pendingLocal.length > 0) {
+    return {
+      ok: false,
+      reason: `${parsed.pendingLocal.length} local migration(s) not recorded on the linked project (remote-pending): ${parsed.pendingLocal.slice(0, 5).join(", ")}${parsed.pendingLocal.length > 5 ? ", ..." : ""}`,
+    };
+  }
+  if (parsed.unexpectedRemote.length > 0) {
+    return {
+      ok: false,
+      reason: `${parsed.unexpectedRemote.length} migration(s) recorded on the linked project with no matching local file (remote-unexpected drift): ${parsed.unexpectedRemote.slice(0, 5).join(", ")}${parsed.unexpectedRemote.length > 5 ? ", ..." : ""}`,
+    };
+  }
+  if (parsed.matchedCount !== files.length) {
+    return {
+      ok: false,
+      reason: `migration count mismatch: ${files.length} local file(s) discovered but ${parsed.matchedCount} matched local+remote row(s) found`,
+    };
+  }
+
+  return { ok: true, matchedCount: parsed.matchedCount };
+}
+
 // ─── Step 4: schema / RLS / RPC smoke checks (local mode) ──────────────────
 
 function runSchemaSmoke(dbUrl) {
@@ -250,10 +322,23 @@ function main() {
     }
   } else {
     results.push(["Schema contracts", "MANUAL (run docs/release/database-bootstrap-runbook.md §5 against the linked project)"]);
+
+    const repeatability = verifyHostedRepeatability(files);
+    results.push(["Repeatability (remote state)", repeatability.ok ? "PASS" : "FAIL"]);
+    if (!repeatability.ok) {
+      console.error(`  ${repeatability.reason}`);
+      if (repeatability.stderr) console.error(`  ${repeatability.stderr.toString().slice(0, 2000)}`);
+      process.exitCode = 1;
+    } else {
+      console.log(`  Matched local+remote migration rows: ${repeatability.matchedCount}`);
+    }
   }
 
   results.push(["Decision", process.exitCode ? "FAIL — see above" : "PASS"]);
   printAndWriteReport(results.map(([k, v]) => `${k.padEnd(26, ".")} ${v}`));
 }
 
-main();
+const isMainModule = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
+if (isMainModule) main();
+
+export { determineMode, safetyGuard, checkInventoryAndOrdering, redact, parseHostedMigrationList, verifyHostedRepeatability, KNOWN_PRODUCTION_HOST_FRAGMENTS, loadMigrationFiles, main };

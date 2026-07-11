@@ -1,8 +1,8 @@
-# Migration Inventory — Perilla 13
+# Migration Inventory — Perilla 13 (updated by Perilla 13B)
 
 Generated from `supabase/migrations/` at commit range starting `8422302` (Perilla 12 merge). Order = lexicographic filename order = the order `supabase db push` / a plain `psql -f` loop applies them, verified by `npm run check:fresh-db-migrations` (ordering + duplicate-timestamp checks) and by an actual fresh apply (see `fresh-database-migration-proof.md`).
 
-**Total migration files discovered: 144** (142 pre-existing + 2 corrective migrations added by this PR: `20260823000000_fix_capability_verification_evidence_rls_gap.sql`, `20260823000001_fix_workspace_memberships_rls_recursion.sql`).
+**Total migration files discovered: 144** (142 pre-existing + 2 corrective migrations added by Perilla 13: `20260823000000_fix_capability_verification_evidence_rls_gap.sql`, `20260823000001_fix_workspace_memberships_rls_recursion.sql`) at Perilla 13 close. **Perilla 13B added 2 more corrective migrations (rows 145–146 below), bringing the current total to 146** — see [`hosted-grants-report.md`](./hosted-grants-report.md) for what they fix (a static SECURITY DEFINER hardening review found and corrected 2 gaps: one missing `search_path`, and 7 functions across those 2 migrations missing an explicit PUBLIC execute revocation).
 
 No other SQL bootstrap/seed/RPC/policy files exist outside `supabase/migrations/` — `find . -iname '*.sql' -not -path './node_modules/*'` returns only this directory's contents (verified during this audit).
 
@@ -154,3 +154,5 @@ Idempotent = the file uses `if not exists` / `if exists` / `or replace` for ever
 | 142 | `20260822000000_dashboard_task_lifecycle.sql` | 20260822000000 | dashboard task lifecycle | dashboard_task_lifecycle_records, dashboard_task_lifecycle_events | yes | no |
 | 143 | `20260823000000_fix_capability_verification_evidence_rls_gap.sql` | 20260823000000 | fix capability verification evidence rls gap | (alters existing objects) | partial | no |
 | 144 | `20260823000001_fix_workspace_memberships_rls_recursion.sql` | 20260823000001 | fix workspace memberships rls recursion | (alters existing objects) | yes | no |
+| 145 | `20260824000000_fix_purge_expired_nonces_search_path.sql` | 20260824000000 | fix purge expired nonces search path (Perilla 13B) | (alters existing objects) | yes | no |
+| 146 | `20260825000000_fix_security_definer_public_execute_grants.sql` | 20260825000000 | fix security definer public execute grants (Perilla 13B) | (alters existing objects) | yes | no |

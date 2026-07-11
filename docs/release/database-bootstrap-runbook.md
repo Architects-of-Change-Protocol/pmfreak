@@ -1,6 +1,12 @@
-# Database Bootstrap Runbook — Perilla 13
+# Database Bootstrap Runbook — Perilla 13 (updated by Perilla 13B)
 
 For a technician new to PMFreak who needs to stand up an isolated environment, apply migrations, and validate tenant isolation from scratch. Two paths are documented: hosted Supabase (preferred — closes RR-MIGRATE) and local Postgres (what this PR's evidence was actually gathered with — see the honesty statement in `fresh-database-migration-proof.md`).
+
+**Perilla 13B added §10, "Full hosted closure checklist"** — the exact
+sequence to run once hosted credentials are available, cross-referencing
+every evidence document this repo now has a template for. Perilla 13B
+itself did not have hosted credentials and did not run it — see
+[`hosted-supabase-migration-proof.md`](./hosted-supabase-migration-proof.md).
 
 ## 1. Create an isolated environment
 
@@ -90,3 +96,44 @@ Expected output and interpretation: `docs/release/rls-tenant-isolation-report.md
 ## 9. Roll forward, don't roll back
 
 If a migration partially applies against a database that already has real data, do not `DROP` or hand-edit objects out-of-band. Write a new, timestamped, idempotent corrective migration (`create ... if not exists`, `drop policy if exists` + `create policy`, `do $$ if not exists (...) then ... end if; end $$;` for constraints) that finishes or corrects the job, following the same pattern used throughout `migration-failure-remediation-log.md`.
+
+## 10. Full hosted closure checklist (Perilla 13B)
+
+The exact sequence to close RR-MIGRATE for real, once hosted credentials
+exist (none were available to Perilla 13B — this section documents the
+plan, not a completed run):
+
+1. Create the isolated project and export the vars per §1 "Hosted Supabase"
+   above.
+2. `npx supabase link --project-ref "$SUPABASE_PROJECT_REF"` — confirm the
+   linked ref.
+3. `npx supabase migration list` — record local/remote counts (sanitized).
+4. `npm run check:fresh-db-migrations` — applies all 146 migrations
+   (144 at Perilla 13 close + 2 Perilla 13B SECURITY DEFINER fixes), then
+   the new (Perilla 13B) post-push repeatability check
+   (`verifyHostedRepeatability` in `scripts/check-fresh-db-migrations.mjs`)
+   parses `supabase migration list --linked` and fails on remote-pending,
+   remote-unexpected, or count-mismatch rows.
+5. Re-run step 4 — expect clean repeatability both times (C.4).
+6. Create the 8 test users from
+   [`hosted-rls-role-matrix.md`](./hosted-rls-role-matrix.md) via the real
+   Auth API, run the full E.2/E.3 matrix with real JWT sessions (never a
+   service-role client filtering results — E.4).
+7. Execute the 8 RPCs in
+   [`hosted-rpc-signature-report.md`](./hosted-rpc-signature-report.md)
+   against real sessions; confirm the live signatures match the static
+   inventory.
+8. Query effective grants per
+   [`hosted-grants-report.md`](./hosted-grants-report.md) §"To complete
+   this report for real" and confirm they match the static review.
+9. `supabase gen types typescript --linked` and diff per
+   [`generated-types-drift-report.md`](./generated-types-drift-report.md)
+   (no existing versioned types file to diff against yet — this run
+   establishes the baseline).
+10. Test existing-database compatibility per
+    [`existing-database-compatibility-report.md`](./existing-database-compatibility-report.md)
+    on a second seeded environment.
+11. Update every document listed above plus
+    [`residual-risk-register.md`](./residual-risk-register.md) with the
+    real results before moving RR-MIGRATE to Closed — never mark it closed
+    from a partial run.
