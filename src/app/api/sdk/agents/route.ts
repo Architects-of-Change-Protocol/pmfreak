@@ -4,6 +4,7 @@ import { authorizeRuntimeAction } from "@/aoc/runtime-consumer";
 import { buildEnterpriseRuntimeRequest } from "@/aoc/runtime-consumer";
 import { SDK_GOVERNANCE_ACTIONS } from "@/lib/aoc/runtime/governance-actions";
 import { runtimeMetadata, sdkRuntimeError, sdkSuccess, withRuntime } from "@/lib/aoc/contracts/envelope-helpers";
+import { sdkDatabaseErrorBody } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   const user = await getAuthUser();
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.from("ai_agents").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false });
-  if (error) return Response.json({ ...sdkRuntimeError({ code: "runtime_unavailable", message: error.message }), error: error.message }, { status: 500 });
+  if (error) { const safe = sdkDatabaseErrorBody("/api/sdk/agents", error); return Response.json({ ...sdkRuntimeError({ code: "runtime_unavailable", message: safe.message }), error: safe.message }, { status: 500 }); }
   return Response.json(withRuntime(sdkSuccess({ agents: data ?? [] }, { lineage: { decisionId: decision.decisionId, runtimeDecisionId: decision.decisionId, timestamps: { decidedAt: new Date().toISOString() } } }), "/api/sdk/agents", { workspaceId }));
 }
 
@@ -35,6 +36,6 @@ export async function POST(request: Request) {
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.from("ai_agents").insert({ workspace_id: body.workspaceId, name: body.name, description: body.description ?? "", agent_type: body.agentType ?? "copilot", created_by_user_id: user.id, owner_user_id: user.id, purpose: body.purpose ?? "", risk_level: body.riskLevel ?? "medium", metadata: body.metadata ?? {} }).select("*").single();
-  if (error) return Response.json({ ...sdkRuntimeError({ code: "runtime_unavailable", message: error.message }), error: error.message }, { status: 500 });
+  if (error) { const safe = sdkDatabaseErrorBody("/api/sdk/agents", error); return Response.json({ ...sdkRuntimeError({ code: "runtime_unavailable", message: safe.message }), error: safe.message }, { status: 500 }); }
   return Response.json(withRuntime(sdkSuccess({ agent: data }, { lineage: { decisionId: decision.decisionId, runtimeDecisionId: decision.decisionId, timestamps: { decidedAt: new Date().toISOString() } }, runtime: runtimeMetadata("/api/sdk/agents", { workspaceId: body.workspaceId }) }), "/api/sdk/agents", { workspaceId: body.workspaceId }));
 }

@@ -4,6 +4,7 @@ import { requireProjectAccess } from "@/lib/security/server-authorization";
 import { analyzeProjectState } from "@/lib/ai/pil";
 import { createSupabaseServerClient } from "@/lib/db/supabase-server";
 import { abuseDenyResponse, buildAbuseKey, enforceAbuseLimit, getClientIp } from "@/lib/security/abuse-protection";
+import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -61,7 +62,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ projectId, suggestions, fallback: false });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to fetch project suggestions.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeLegacyErrorResponse("/api/ai/suggestions", error, "Unable to fetch project suggestions. Please retry.");
   }
 }

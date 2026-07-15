@@ -4,6 +4,7 @@ import {
   createPolicyBacklogItemFromProposal,
   listPolicyBacklogItems,
 } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   try {
@@ -19,8 +20,7 @@ export async function GET(request: Request) {
     const items = await listPolicyBacklogItems(workspaceId, { status: status as never, limit });
     return NextResponse.json({ ok: true, data: items });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/policy-backlog/backlog-items", err);
   }
 }
 
@@ -43,7 +43,6 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ ok: true, data: item }, { status: 201 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/policy-backlog/backlog-items", err);
   }
 }

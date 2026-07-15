@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { listAgentPmoApprovalPacks } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   try {
@@ -14,6 +15,6 @@ export async function GET(request: Request) {
     const packs = await listAgentPmoApprovalPacks(workspaceId, { changeRequestId, limit });
     return NextResponse.json({ ok: true, data: packs });
   } catch (err) {
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: err instanceof Error ? err.message : String(err) } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/approval-pack/packs", err);
   }
 }

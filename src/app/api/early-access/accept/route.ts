@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuthUser } from "@/lib/auth";
 import { acceptEarlyAccessInvite } from "@/lib/early-access";
 import { abuseDenyResponse, buildAbuseKey, enforceAbuseLimit, getClientIp } from "@/lib/security/abuse-protection";
+import { logger, safeErrorMessage } from "@/lib/observability/logger";
 
 // Accepting an early-access invite is not a founder action: it requires only
 // that the caller is authenticated and that the invite's own email matches
@@ -39,7 +40,13 @@ export async function POST(request: Request) {
     return NextResponse.json(accepted);
   } catch (error) {
     const raw = error instanceof Error ? error.message : "Unable to accept invite.";
-    const [code, message] = raw.includes("::") ? raw.split("::", 2) : ["unknown_error", raw];
+    // Only the domain's own `code::message` vocabulary is user-facing; any
+    // other message may carry raw driver text and stays server-side.
+    if (!raw.includes("::")) {
+      logger.error("route_internal_error", { route: "/api/early-access/accept", error_detail: safeErrorMessage(error) });
+      return NextResponse.json({ error: "Unable to accept invite. Please retry.", code: "unknown_error" }, { status: 400 });
+    }
+    const [code, message] = raw.split("::", 2);
     return NextResponse.json({ error: message, code }, { status: 400 });
   }
 }

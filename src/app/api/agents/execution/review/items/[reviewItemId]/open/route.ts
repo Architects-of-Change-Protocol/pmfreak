@@ -3,6 +3,7 @@ import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { openReviewItem } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 const ROUTE = "/api/agents/execution/review/items/[reviewItemId]/open";
 
@@ -25,7 +26,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ rev
       }
       return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
     }
-    const msg = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse(ROUTE, error);
   }
 }

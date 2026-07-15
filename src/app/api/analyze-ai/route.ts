@@ -12,6 +12,7 @@ import { canCreateMoreProjects, canUseAdvancedAi, requireFeatureAccess } from "@
 import { canUsePortfolioMemory } from "@/lib/usage-limits";
 import { runInference } from "@/lib/ai/providers/router";
 import { InferenceError } from "@/lib/ai/inference/types";
+import { logger, safeErrorMessage } from "@/lib/observability/logger";
 
 const ANALYSIS_SCHEMA: Record<string, unknown> = { type: "object", additionalProperties: false, properties: { executive_summary: { type: "string" }, functional_requirements: { type: "array", items: { type: "string" } }, non_functional_requirements: { type: "array", items: { type: "string" } }, risks: { type: "array", items: { type: "string" } }, dependencies: { type: "array", items: { type: "string" } }, ambiguities: { type: "array", items: { type: "string" } }, missing_information: { type: "array", items: { type: "string" } }, client_questions: { type: "array", items: { type: "string" } }, suggested_next_steps: { type: "array", items: { type: "string" } }, complexity: { type: "string", enum: ["Low", "Medium", "High"] } }, required: ["executive_summary", "functional_requirements", "non_functional_requirements", "risks", "dependencies", "ambiguities", "missing_information", "client_questions", "suggested_next_steps", "complexity"] };
 
@@ -128,7 +129,13 @@ export async function POST(request: Request) {
     return Response.json(enrichedResponse, { headers: { "X-Usage-Remaining": String(Math.max(0, projectAccess.projectLimit - (currentUsageCount + 1))) } });
   } catch (error) {
     if (error instanceof InferenceError) {
-      return Response.json({ error: error.message || "AI analysis request failed. Please retry or use the Sprint 4 fallback analysis." }, { status: error.errorClass === "rate_limited" ? 429 : 502 });
+      // errorClass is app-controlled; error.message may embed upstream
+      // provider/config details and stays server-side (F-07 sweep).
+      logger.error("route_internal_error", { route: "/api/analyze-ai", error_code: error.errorClass, error_detail: safeErrorMessage(error) });
+      const clientMessage = error.errorClass === "rate_limited"
+        ? "AI analysis is rate-limited right now. Please retry in a few moments."
+        : "AI analysis request failed. Please retry or use the fallback analysis.";
+      return Response.json({ error: clientMessage }, { status: error.errorClass === "rate_limited" ? 429 : 502 });
     }
     return Response.json({ error: "Unable to run AI analysis right now. Please retry shortly." }, { status: 502 });
   }

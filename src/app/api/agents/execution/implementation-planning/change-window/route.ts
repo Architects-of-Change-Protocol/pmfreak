@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { proposeChangeWindowPlan, listAgentPmoChangeWindowPlans } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   try {
@@ -15,8 +16,7 @@ export async function GET(request: Request) {
     const plans = await listAgentPmoChangeWindowPlans(workspaceId, { planningWorkspaceId });
     return NextResponse.json({ ok: true, data: plans });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/implementation-planning/change-window", err);
   }
 }
 
@@ -35,7 +35,6 @@ export async function POST(request: Request) {
     const plan = await proposeChangeWindowPlan({ workspaceId, planningWorkspaceId, windowType: windowType ?? "standard", changeRequestId: changeRequestId ?? null, proposedStartAt: proposedStartAt ?? null, proposedEndAt: proposedEndAt ?? null, timezone: timezone ?? null, businessImpactEstimate: businessImpactEstimate ?? null, operationalConstraints: operationalConstraints ?? null, actorId: user.id ?? null });
     return NextResponse.json({ ok: true, data: plan }, { status: 201 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/implementation-planning/change-window", err);
   }
 }

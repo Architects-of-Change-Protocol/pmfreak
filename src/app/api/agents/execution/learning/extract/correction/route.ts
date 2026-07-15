@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { extractLearningSignalsFromCorrectionLoop } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function POST(request: Request) {
   try {
@@ -24,7 +25,6 @@ export async function POST(request: Request) {
     const signals = await extractLearningSignalsFromCorrectionLoop(loop, user.id);
     return NextResponse.json({ ok: true, data: signals }, { status: 201 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/learning/extract/correction", err);
   }
 }

@@ -3,6 +3,7 @@ import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { requireProjectAccess } from "@/lib/security/server-authorization";
 import { getProjectState } from "@/lib/ai/project-state";
 import { abuseDenyResponse, buildAbuseKey, enforceAbuseLimit, getClientIp } from "@/lib/security/abuse-protection";
+import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -61,7 +62,6 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to derive project state.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeLegacyErrorResponse("/api/ai/project-state", error, "Unable to derive project state. Please retry.");
   }
 }

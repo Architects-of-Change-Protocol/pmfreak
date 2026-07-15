@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { createPmoSignOffPacket, listAgentPmoSignOffPackets } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   try {
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
     const packets = await listAgentPmoSignOffPackets(workspaceId, { approvalPackId, limit });
     return NextResponse.json({ ok: true, data: packets });
   } catch (err) {
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: err instanceof Error ? err.message : String(err) } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/approval-pack/signoff-packets", err);
   }
 }
 
@@ -29,6 +30,6 @@ export async function POST(request: Request) {
     const packet = await createPmoSignOffPacket({ workspaceId, changeRequestId, approvalPackId: approvalPackId ?? null, simulationReportId: simulationReportId ?? null, impactSummaryId: impactSummaryId ?? null, draftDiffId: draftDiffId ?? null, approvalChecklistId: approvalChecklistId ?? null, rollbackChecklistId: rollbackChecklistId ?? null, actorId: user.id ?? null });
     return NextResponse.json({ ok: true, data: packet }, { status: 201 });
   } catch (err) {
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: err instanceof Error ? err.message : String(err) } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/approval-pack/signoff-packets", err);
   }
 }

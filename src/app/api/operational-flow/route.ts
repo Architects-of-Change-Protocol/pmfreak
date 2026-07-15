@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser, requireProjectAccess } from "@/lib/security/server-authorization";
 import { createEvidenceItem, getOperationalSummary, recordHumanDecision, runEvidenceDecisionChain } from "@/lib/operational-flow/operational-flow-service";
+import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 
 const ROUTE_ID = "/api/operational-flow";
 const SOURCE_TYPES = new Set(["manual_note", "email", "meeting_minutes", "ticket", "conversation", "document_reference"]);
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
   try {
     return Response.json(await getOperationalSummary(authorized.supabase, workspaceId, projectId, authorized.user.id));
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Unable to load operational flow." }, { status: 500 });
+    return safeLegacyErrorResponse("/api/operational-flow", error, "Unable to load operational flow. Please retry.");
   }
 }
 
@@ -85,6 +86,9 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Operational flow failed.";
     const status = /denied|authority|access/.test(message) ? 403 : /required|mismatch|invalid|not_found|incomplete/.test(message) ? 400 : 500;
+    // 4xx branches carry app-controlled vocabulary from the operational-flow
+    // domain; anything else may be a raw driver error and must stay internal.
+    if (status === 500) return safeLegacyErrorResponse("/api/operational-flow", error, "Operational flow failed. Please retry.");
     return Response.json({ error: message }, { status });
   }
 }

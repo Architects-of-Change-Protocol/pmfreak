@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { getApprovalPackData } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   try {
@@ -14,6 +15,6 @@ export async function GET(request: Request) {
     const data = await getApprovalPackData(workspaceId, approvalPackId);
     return NextResponse.json({ ok: true, data });
   } catch (err) {
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: err instanceof Error ? err.message : String(err) } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/approval-pack/data", err);
   }
 }

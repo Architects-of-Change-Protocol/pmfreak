@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isFounderOrInternalUser, requireAuthUser } from "@/lib/auth";
 import { approveEarlyAccessInvite, extendTrialLicense, resendEarlyAccessInviteEmail, revokeEarlyAccessInvite, revokeTrialLicense } from "@/lib/early-access";
 import { abuseDenyResponse, enforceAbuseLimit } from "@/lib/security/abuse-protection";
+import { logger, safeErrorMessage } from "@/lib/observability/logger";
 
 // Founder/internal authorization must be resolved and enforced BEFORE the
 // request body is ever parsed or a mutation function is called. No
@@ -56,7 +57,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unsupported action." }, { status: 400 });
   } catch (error) {
     const raw = error instanceof Error ? error.message : "Unable to perform founder action.";
-    const message = raw.includes("::") ? raw.split("::", 2)[1] : raw;
-    return NextResponse.json({ error: message }, { status: 400 });
+    // Only the domain's own `code::message` vocabulary is user-facing; any
+    // other message may carry raw driver text and stays server-side.
+    if (!raw.includes("::")) {
+      logger.error("route_internal_error", { route: "/api/early-access/founder-actions", error_detail: safeErrorMessage(error) });
+      return NextResponse.json({ error: "Unable to perform founder action. Please retry." }, { status: 400 });
+    }
+    return NextResponse.json({ error: raw.split("::", 2)[1] }, { status: 400 });
   }
 }

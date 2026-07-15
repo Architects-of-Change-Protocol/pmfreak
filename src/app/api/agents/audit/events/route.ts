@@ -6,6 +6,7 @@ import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { recordAgentAuditEvent, listAgentAuditEvents } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 const ROUTE = "/api/agents/audit/events";
 
@@ -27,9 +28,7 @@ export async function POST(request: Request) {
       }
       return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
     }
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error(`[${ROUTE}] POST error:`, error);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL", message } }, { status: 500 });
+    return safeInternalErrorResponse(ROUTE, error);
   }
 }
 

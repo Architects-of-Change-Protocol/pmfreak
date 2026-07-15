@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isFounderOrInternalUser, requireAuthUser } from "@/lib/auth";
 import { ensurePmfreakAocAdaptersRegistered } from "@/lib/aoc/bootstrap";
+import { logger, safeErrorMessage } from "@/lib/observability/logger";
 import {
   retrieveRuntimeHealth,
   evaluateLaunchReadiness,
@@ -45,10 +46,11 @@ export async function GET() {
       checkedAt: new Date().toISOString(),
     });
   } catch (error) {
+    logger.error("route_internal_error", { route: "/api/runtime/hardening", error_detail: safeErrorMessage(error) });
     return NextResponse.json(
       {
         status: "error",
-        message: error instanceof Error ? error.message : "runtime_hardening_check_failed",
+        message: "runtime_hardening_check_failed",
         checkedAt: new Date().toISOString(),
       },
       { status: 500 }

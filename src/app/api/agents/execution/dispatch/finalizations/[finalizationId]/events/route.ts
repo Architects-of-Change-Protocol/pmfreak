@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { listAgentExecutionDispatchEvents } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request, { params }: { params: Promise<{ finalizationId: string }> }) {
   try {
@@ -20,7 +21,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ fina
     });
     return NextResponse.json({ ok: true, data: events });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/dispatch/finalizations/[finalizationId]/events", err);
   }
 }

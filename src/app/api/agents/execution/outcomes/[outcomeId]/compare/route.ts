@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { compareOutcomeIntendedVsActual } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function POST(
   request: Request,
@@ -19,7 +20,6 @@ export async function POST(
     const result = await compareOutcomeIntendedVsActual(workspaceId, outcomeId);
     return NextResponse.json({ ok: true, data: result });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/outcomes/[outcomeId]/compare", err);
   }
 }

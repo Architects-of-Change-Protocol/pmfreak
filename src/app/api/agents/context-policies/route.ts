@@ -6,6 +6,7 @@ import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser, requireWorkspaceMember, requireWorkspaceRole } from "@/lib/security/server-authorization";
 import { listAgentContextPolicies, upsertAgentContextPolicy, normalizeCreateAgentContextPolicyInput } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 const ROUTE = "/api/agents/context-policies";
 
@@ -53,8 +54,6 @@ export async function POST(request: Request) {
       }
       return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
     }
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error(`[${ROUTE}] POST error:`, error);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL", message: `Failed to create context policy: ${message}` } }, { status: 500 });
+    return safeInternalErrorResponse(ROUTE, error);
   }
 }

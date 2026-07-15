@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { generateImplementationPlanningExport, listAgentPmoImplementationPlanningExports } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   try {
@@ -15,8 +16,7 @@ export async function GET(request: Request) {
     const exports = await listAgentPmoImplementationPlanningExports(workspaceId, { planningWorkspaceId });
     return NextResponse.json({ ok: true, data: exports });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/implementation-planning/exports", err);
   }
 }
 
@@ -35,7 +35,6 @@ export async function POST(request: Request) {
     const exportRecord = await generateImplementationPlanningExport({ workspaceId, planningWorkspaceId, exportFormat: exportFormat ?? "markdown", generatedBy: user.id ?? null });
     return NextResponse.json({ ok: true, data: exportRecord }, { status: 201 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/implementation-planning/exports", err);
   }
 }

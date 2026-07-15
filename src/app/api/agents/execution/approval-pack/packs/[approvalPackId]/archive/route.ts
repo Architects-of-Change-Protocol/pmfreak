@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { archiveApprovalPack } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function POST(request: Request, { params }: { params: Promise<{ approvalPackId: string }> }) {
   try {
@@ -15,6 +16,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ app
     if (!archived) return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "Approval pack not found" } }, { status: 404 });
     return NextResponse.json({ ok: true, data: archived });
   } catch (err) {
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: err instanceof Error ? err.message : String(err) } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/approval-pack/packs/[approvalPackId]/archive", err);
   }
 }

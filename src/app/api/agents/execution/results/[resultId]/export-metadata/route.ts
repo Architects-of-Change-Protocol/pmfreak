@@ -4,6 +4,7 @@ import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response"
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { getUserWorkspaces } from "@/lib/workspaces";
 import { buildExecutionResultExportMetadata } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 const ROUTE = "/api/agents/execution/results/[resultId]/export-metadata";
 
@@ -31,7 +32,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ resu
       }
       return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
     }
-    const msg = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse(ROUTE, error);
   }
 }

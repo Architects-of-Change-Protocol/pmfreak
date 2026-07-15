@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { updateAgentPmoControlledPolicyVersionStatus } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function POST(request: Request, { params }: { params: Promise<{ controlledPolicyVersionId: string }> }) {
   try {
@@ -15,7 +16,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
     if (!result) return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "Controlled policy version not found" } }, { status: 404 });
     return NextResponse.json({ ok: true, data: result });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/policy-activation/controlled-versions/[controlledPolicyVersionId]/status", err);
   }
 }

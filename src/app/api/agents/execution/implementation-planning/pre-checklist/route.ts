@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { generatePreImplementationChecklist } from "@/lib/agents";
 import { listAgentPmoPreImplementationChecklistItems } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   try {
@@ -19,8 +20,7 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({ ok: true, data: [] });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/implementation-planning/pre-checklist", err);
   }
 }
 
@@ -39,7 +39,6 @@ export async function POST(request: Request) {
     const result = await generatePreImplementationChecklist({ workspaceId, planningWorkspaceId, approvalPackId: approvalPackId ?? null, actorId: user.id ?? null });
     return NextResponse.json({ ok: true, data: result }, { status: 201 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/implementation-planning/pre-checklist", err);
   }
 }

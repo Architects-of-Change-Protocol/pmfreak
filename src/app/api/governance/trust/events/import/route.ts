@@ -2,6 +2,7 @@ import { createPrivilegedSupabaseClient } from "@/lib/security/privileged-access
 import { registerRevocationFromEvent, verifyTrustEvent } from "@/lib/security/trust-coordination";
 import { consumeOrAssertHandshake } from "@/lib/security/trust-handshakes";
 import { logSecurityEvent } from "@/lib/security/telemetry";
+import { GENERIC_DB_UNAVAILABLE_MESSAGE, safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
   // AUDIT_REF: service-role-risk-register.md
   const supabase = createPrivilegedSupabaseClient({ routeId: "api.governance.trust.events.import", operation: "import_trust_event", reason: "trusted_sync_import" });
   const { data, error } = await supabase.from("capability_trust_events").insert({ ...body.event, propagated_at: new Date().toISOString(), source_verifier: body.sourceVerifier ?? null }).select("*").single();
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return safeLegacyErrorResponse("/api/governance/trust/events/import", error, GENERIC_DB_UNAVAILABLE_MESSAGE);
   await registerRevocationFromEvent(data);
   await logSecurityEvent("trust_event_imported", { workspaceId: data.workspace_id ?? null, metadata: { eventId: data.event_id, eventType: data.event_type } });
   return Response.json({ imported: true, event: data });

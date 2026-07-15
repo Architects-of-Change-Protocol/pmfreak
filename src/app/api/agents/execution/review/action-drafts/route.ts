@@ -8,6 +8,7 @@ import {
   createAgentReviewActionDraft,
   normalizeCreateAgentReviewActionDraftInput,
 } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 const ROUTE = "/api/agents/execution/review/action-drafts";
 
@@ -62,7 +63,6 @@ export async function POST(request: Request) {
       }
       return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
     }
-    const msg = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse(ROUTE, error);
   }
 }

@@ -1,0 +1,21 @@
+-- Pilot Gate Sprint 01 — close the documented residual on
+-- agent_attestation_nonces (docs/release/rls-tenant-isolation-report.md
+-- "tracked as residual work").
+--
+-- The table is service-role-only by design: RLS is intentionally disabled
+-- (20260515000000_agent_attestation_nonces.sql) because the replay-protection
+-- nonce store must bypass RLS, and its only consumer is the privileged
+-- client in src/lib/security/agent-attestation.ts.
+--
+-- However, RLS-disabled means table grants are the ONLY boundary — and on a
+-- hosted Supabase project, default privileges give anon/authenticated full
+-- DML on newly created public tables. Verified live in this sprint's fresh
+-- apply (with platform-default grants mirrored): an `authenticated` session
+-- could SELECT/INSERT/DELETE attestation nonces — enough to delete a
+-- replay-protection record (enabling token replay) or spam the store.
+--
+-- Fix: revoke everything from anon/authenticated; service_role keeps access.
+-- Idempotent and safe on existing databases: no runtime code path uses
+-- non-privileged clients against this table.
+
+revoke all privileges on table public.agent_attestation_nonces from anon, authenticated;
