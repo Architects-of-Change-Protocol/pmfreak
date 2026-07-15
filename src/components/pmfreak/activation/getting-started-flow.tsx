@@ -378,7 +378,7 @@ export function GettingStartedFlow() {
               </p>
             )}
 
-            <p className="text-xs text-slate-400">Agents are sleeping until your Command Center is ready.</p>
+            <p className="text-xs text-slate-400">Your workspace modules stay idle until your Command Center is ready.</p>
           </div>
         </main>
       </>
@@ -395,7 +395,7 @@ export function GettingStartedFlow() {
           <div className="relative flex items-start justify-between gap-4">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-sky-600">
-                Operational Intelligence Activation
+                Workspace Activation
               </p>
               <h1 className="mt-2 text-2xl font-semibold text-slate-900">
                 {step === 1 && "Workspace context"}
@@ -433,10 +433,10 @@ export function GettingStartedFlow() {
             <div className="space-y-6">
               <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
                 <div className="flex gap-2">
-                  <span className="mt-px shrink-0 text-[9px] font-bold uppercase tracking-widest text-sky-600">AI</span>
+                  <span className="mt-px shrink-0 text-[9px] font-bold uppercase tracking-widest text-sky-600">Context</span>
                   <p className="text-[11px] leading-relaxed text-sky-800/90">
-                    PMFreak will use this context to calibrate escalation sensitivity, team health baselines, and
-                    portfolio risk weighting across your workspace.
+                    PMFreak uses this context to structure your workspace, seed project defaults, and give the
+                    AI copilot better grounding when you ask it questions.
                   </p>
                 </div>
               </div>
@@ -459,10 +459,10 @@ export function GettingStartedFlow() {
             <div className="space-y-6">
               <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
                 <div className="flex gap-2">
-                  <span className="mt-px shrink-0 text-[9px] font-bold uppercase tracking-widest text-sky-600">AI</span>
+                  <span className="mt-px shrink-0 text-[9px] font-bold uppercase tracking-widest text-sky-600">Context</span>
                   <p className="text-[11px] leading-relaxed text-sky-800/90">
-                    PMFreak will begin sensing stakeholder confidence drift once this initiative context is
-                    active. The more you share, the more precise the risk signal.
+                    This context appears in your project brief and stakeholder overview. The more you share,
+                    the more useful your brief and risk checklist will be.
                   </p>
                 </div>
               </div>
@@ -529,10 +529,10 @@ export function GettingStartedFlow() {
               </div>
               <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
                 <div className="flex gap-2">
-                  <span className="mt-px shrink-0 text-[9px] font-bold uppercase tracking-widest text-sky-600">AI</span>
+                  <span className="mt-px shrink-0 text-[9px] font-bold uppercase tracking-widest text-sky-600">Context</span>
                   <p className="text-[11px] leading-relaxed text-sky-800/90">
-                    Template completeness directly influences detection accuracy. Even partial context
-                    improves PMFreak&apos;s ability to sense emerging risk.
+                    Complete templates make your project brief and risk checklist more useful. Even partial
+                    context improves the starting point PMFreak builds for you.
                   </p>
                 </div>
               </div>

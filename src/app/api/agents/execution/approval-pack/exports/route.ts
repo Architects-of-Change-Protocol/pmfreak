@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { generateApprovalPackExport, listAgentPmoApprovalPackExports } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   try {
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
     const exports = await listAgentPmoApprovalPackExports(workspaceId, { approvalPackId, limit });
     return NextResponse.json({ ok: true, data: exports });
   } catch (err) {
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: err instanceof Error ? err.message : String(err) } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/approval-pack/exports", err);
   }
 }
 
@@ -30,6 +31,6 @@ export async function POST(request: Request) {
     const exportRecord = await generateApprovalPackExport({ workspaceId, approvalPackId, exportFormat, actorId: user.id ?? null });
     return NextResponse.json({ ok: true, data: exportRecord }, { status: 201 });
   } catch (err) {
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: err instanceof Error ? err.message : String(err) } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/approval-pack/exports", err);
   }
 }

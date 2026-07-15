@@ -13,6 +13,9 @@ export function sdkWorkspaceRequired(meta: ApiMeta) {
 }
 
 export function sdkDbError(meta: ApiMeta, route: string, reason: string, userId?: string | null, workspaceId?: string | null) {
+  // The raw driver `reason` stays server-side (reliability log) only; the
+  // client gets a stable generic code — raw Postgres error text leaks
+  // schema details to authenticated callers (Pilot Gate Sprint 01, F-07).
   logReliabilityEvent({ requestId: meta.requestId, route, userId, workspaceId, errorCode: "database_unavailable", recoverable: true, reason });
-  return apiError({ code: "database_unavailable", reason, suggestedAction: "Please retry in a few moments." }, meta, 503);
+  return apiError({ code: "database_unavailable", reason: "database_unavailable", suggestedAction: "Please retry in a few moments." }, meta, 503);
 }

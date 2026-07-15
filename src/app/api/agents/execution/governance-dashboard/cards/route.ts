@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { listGovernanceInsightCards, generatePmoGovernanceInsightCards } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   try {
@@ -20,8 +21,7 @@ export async function GET(request: Request) {
     });
     return NextResponse.json({ ok: true, data: cards });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/governance-dashboard/cards", err);
   }
 }
 
@@ -38,7 +38,6 @@ export async function POST(request: Request) {
     const cards = await generatePmoGovernanceInsightCards({ workspaceId, snapshotId: snapshotId ?? null });
     return NextResponse.json({ ok: true, data: cards }, { status: 201 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/governance-dashboard/cards", err);
   }
 }

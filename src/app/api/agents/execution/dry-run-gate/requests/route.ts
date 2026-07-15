@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { listAgentPmoDryRunExecutionRequests, createDryRunExecutionRequestFromPlanningWorkspace } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   try {
@@ -14,8 +15,7 @@ export async function GET(request: Request) {
     const requests = await listAgentPmoDryRunExecutionRequests(workspaceId, { status: status as never, limit });
     return NextResponse.json({ ok: true, data: requests });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/dry-run-gate/requests", err);
   }
 }
 
@@ -36,7 +36,6 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ ok: true, data: req }, { status: 201 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/dry-run-gate/requests", err);
   }
 }

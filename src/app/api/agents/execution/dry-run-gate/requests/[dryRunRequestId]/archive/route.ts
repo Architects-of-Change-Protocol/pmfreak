@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { archiveDryRunExecutionRequest } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function POST(request: Request, { params }: { params: Promise<{ dryRunRequestId: string }> }) {
   try {
@@ -14,7 +15,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ dry
     const record = await archiveDryRunExecutionRequest({ workspaceId, dryRunRequestId, rationale, actorId: user.id ?? null });
     return NextResponse.json({ ok: true, data: record });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/dry-run-gate/requests/[dryRunRequestId]/archive", err);
   }
 }

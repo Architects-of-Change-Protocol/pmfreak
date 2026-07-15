@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { markApprovalBridgeSatisfied, getAgentActionApprovalBridgeByConversionId } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 const ROUTE = "/api/agents/execution/action-conversions/[conversionId]/approval-satisfied";
 
@@ -26,7 +27,6 @@ export async function POST(
     const updatedBridge = await markApprovalBridgeSatisfied({ workspaceId, approvalBridgeId: bridge.id, actorId: user.id, message: message ?? null });
     return NextResponse.json({ ok: true, data: updatedBridge });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse(ROUTE, err);
   }
 }

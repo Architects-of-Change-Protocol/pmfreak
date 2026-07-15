@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { canUseAdvancedAi } from "@/lib/feature-gates";
 import { runAIModule } from "@/lib/ai/gateway";
 import { abuseDenyResponse, enforceAbuseLimit } from "@/lib/security/abuse-protection";
+import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET() {
   return NextResponse.json(
@@ -48,7 +49,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json(response);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to process message nudges.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeLegacyErrorResponse("/api/ai/message-nudges", error, "Unable to process message nudges. Please retry.");
   }
 }

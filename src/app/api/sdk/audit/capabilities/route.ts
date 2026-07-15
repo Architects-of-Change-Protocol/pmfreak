@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { authorizeRuntimeAction } from "@/aoc/runtime-consumer";
 import { buildEnterpriseRuntimeRequest } from "@/aoc/runtime-consumer";
 import { SDK_GOVERNANCE_ACTIONS } from "@/lib/aoc/runtime/governance-actions";
+import { GENERIC_DB_UNAVAILABLE_MESSAGE, safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   const user = await getAuthUser();
@@ -17,6 +18,6 @@ export async function GET(request: Request) {
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.from("capability_audit_events").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(200);
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return safeLegacyErrorResponse("/api/sdk/audit/capabilities", error, GENERIC_DB_UNAVAILABLE_MESSAGE);
   return Response.json({ timeline: data ?? [], decisionId: decision.decisionId });
 }

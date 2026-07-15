@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getRequestId } from "@/lib/api/http";
 import { hasSupabaseEnv, getSupabaseEnv } from "@/lib/supabase/env";
 import { logger, safeErrorMessage } from "@/lib/observability/logger";
+import { checkGovernanceCapabilityConfiguration } from "@/lib/security/governance-capability";
 
 // Perilla 11 — readiness probe, distinct from /api/health:
 //   /api/health → liveness: the process is up and the AOC runtime composes.
@@ -69,7 +70,7 @@ export async function GET(request: Request) {
   const requestId = getRequestId(request);
   const startedAt = Date.now();
   try {
-    const checks = [checkConfiguration(), await checkDatabase()];
+    const checks = [checkConfiguration(), checkGovernanceCapabilityConfiguration(), await checkDatabase()];
     const ready = checks.every((check) => check.status === "pass");
     if (!ready) {
       logger.warn("readiness_check_failed", {

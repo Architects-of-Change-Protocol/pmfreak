@@ -1,4 +1,4 @@
-import { requireAuthUser } from "@/lib/auth";
+import { isFounderOrInternalUser, requireAuthUser } from "@/lib/auth";
 import { assertRuntimeAuthContinuity } from "@/lib/auth/runtime-auth-continuity";
 import { resolveCanonicalWorkspace } from "@/lib/workspaces/canonical-workspace-resolver";
 import { OperationalShell } from "@/components/pmfreak/operational-shell";
@@ -10,6 +10,7 @@ import { isSafeContinuationRoute } from "@/lib/auth/validate-continuation-route"
 import { headers } from "next/headers";
 import { resolveOnboardingState } from "@/lib/auth/resolve-onboarding-state";
 import { getOnboardingRedirect, isOnboardingComplete } from "@/lib/auth/onboarding-route-map";
+import { resolveCapabilityProfile } from "@/lib/workspace/pilot-capability-set";
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const continuity = await assertRuntimeAuthContinuity();
@@ -63,5 +64,6 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     return <div data-shell="pmfreak-light-workspace-setup" className="min-h-screen bg-[#FCFBF9] px-3 py-4 md:px-5 md:py-6">{children}</div>;
   }
 
-  return <OperationalShell user={{ fullName: user.fullName, role: user.role, companyName: user.companyName }}>{children}</OperationalShell>;
+  const capabilityProfile = resolveCapabilityProfile({ isFounderOrInternal: isFounderOrInternalUser(user) });
+  return <OperationalShell user={{ fullName: user.fullName, role: user.role, companyName: user.companyName }} capabilityProfile={capabilityProfile}>{children}</OperationalShell>;
 }

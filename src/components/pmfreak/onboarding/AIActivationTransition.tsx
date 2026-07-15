@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 
+// M-02 (Pilot Gate Sprint 01): this transition is a fixed-duration setup
+// animation — no analysis or inference runs behind it. The copy must
+// describe workspace setup, never imply live AI analysis.
 const SEQUENCE = [
-  { label: "Mapping operational context", detail: "Calibrating project intelligence baseline" },
-  { label: "Analyzing stakeholder structure", detail: "Identifying influence patterns and pressure vectors" },
-  { label: "Establishing execution baseline", detail: "Anchoring delivery confidence and risk telemetry" },
-  { label: "Preparing risk telemetry", detail: "Initializing signal monitoring across delivery domains" },
-  { label: "Activating PMFreak agents", detail: "Operational intelligence layer is coming online" },
+  { label: "Saving your project context", detail: "Storing the details you shared" },
+  { label: "Structuring your project brief", detail: "Organizing stakeholders, risks, and objectives" },
+  { label: "Preparing your execution baseline", detail: "Setting up tasks, milestones, and follow-ups" },
+  { label: "Configuring risk tracking", detail: "Seeding your risk checklist from your answers" },
+  { label: "Opening your Command Center", detail: "Your workspace is almost ready" },
 ];
 
 const STEP_DURATION = 900;
@@ -54,7 +57,7 @@ export function AIActivationTransition({ onComplete }: { onComplete: () => void 
               PMFreak Activation
             </p>
             <h2 className="text-2xl font-semibold text-slate-900">
-              {done ? "Operational intelligence active" : "Bringing systems online"}
+              {done ? "Workspace ready" : "Setting up your workspace"}
             </h2>
           </div>
 
@@ -113,7 +116,7 @@ export function AIActivationTransition({ onComplete }: { onComplete: () => void 
 
           {/* Footer hint */}
           <p className="text-center text-[11px] text-slate-400">
-            {done ? "Redirecting to Command Center" : "Establishing operational context"}
+            {done ? "Redirecting to Command Center" : "Saving your setup"}
           </p>
         </div>
       </div>

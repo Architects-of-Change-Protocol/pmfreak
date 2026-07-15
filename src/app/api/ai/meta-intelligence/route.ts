@@ -7,6 +7,7 @@ import { metaIntelligencePromptV1 } from "@/lib/ai/prompts/meta-intelligence.v1"
 import { runInference } from "@/lib/ai/providers/router";
 import { InferenceError } from "@/lib/ai/inference/types";
 import { abuseDenyResponse, enforceAbuseLimit } from "@/lib/security/abuse-protection";
+import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 
 type MetaIntelligenceRequest = {
   userInput?: string;
@@ -89,7 +90,6 @@ export async function POST(request: Request) {
         { status: error.errorClass === "rate_limited" ? 429 : 502 },
       );
     }
-    const message = error instanceof Error ? error.message : "Unexpected server error.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeLegacyErrorResponse("/api/ai/meta-intelligence", error, "Unexpected server error. Please retry.");
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { evaluateProductionReadinessGate, listAgentPmoProductionReadinessGates } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function POST(request: Request) {
   try {
@@ -12,8 +13,7 @@ export async function POST(request: Request) {
     const gate = await evaluateProductionReadinessGate(body.workspaceId, body.hardeningRunId);
     return NextResponse.json({ ok: true, data: gate }, { status: 201 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/runtime-hardening/readiness-gates", err);
   }
 }
 
@@ -27,7 +27,6 @@ export async function GET(request: Request) {
     const records = await listAgentPmoProductionReadinessGates(workspaceId);
     return NextResponse.json({ ok: true, data: records });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/runtime-hardening/readiness-gates", err);
   }
 }

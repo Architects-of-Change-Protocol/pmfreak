@@ -1,5 +1,6 @@
 import { isFounderOrInternalUser, requireAuthUser } from "@/lib/auth";
 import { createPrivilegedSupabaseClient } from "@/lib/security/privileged-access";
+import { GENERIC_DB_UNAVAILABLE_MESSAGE, safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 
 // Founder/internal-only: this GET is a human-facing cross-tenant event
 // browser, distinct from the machine-to-machine POST .../events/import
@@ -20,6 +21,6 @@ export async function GET(request: Request) {
   if (searchParams.get("severity")) query = query.eq("severity", searchParams.get("severity"));
   if (searchParams.get("since")) query = query.gte("created_at", searchParams.get("since"));
   const { data, error } = await query;
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return safeLegacyErrorResponse("/api/governance/trust/events", error, GENERIC_DB_UNAVAILABLE_MESSAGE);
   return Response.json({ events: data ?? [] });
 }

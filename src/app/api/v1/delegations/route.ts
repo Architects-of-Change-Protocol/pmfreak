@@ -3,6 +3,7 @@ import { requireWorkspaceRole } from "@/lib/workspace-access";
 import { denyResponse } from "@/lib/security/deny-response";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { issueDelegatedCapability } from "@/aoc/runtime-consumer";
+import { sdkDatabaseErrorBody } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   const user = await getAuthUser();
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
   // SCOPED_CLIENT: RLS policy added in 20260515100000_rls_governance_fixes.sql
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.from("governance_delegations").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(200);
-  if (error) return Response.json({ ok: false, error: { code: "query_failed", message: error.message } }, { status: 500 });
+  if (error) return Response.json({ ok: false, error: { code: "query_failed", message: sdkDatabaseErrorBody("/api/v1/delegations", error).message } }, { status: 500 });
   return Response.json({ ok: true, delegations: data ?? [] });
 }
 

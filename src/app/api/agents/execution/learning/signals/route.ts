@@ -5,6 +5,7 @@ import {
   createPrivacySafeLearningSignal,
   normalizeCreateAgentExecutionLearningSignalInput,
 } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   try {
@@ -30,8 +31,7 @@ export async function GET(request: Request) {
     const signals = await listAgentExecutionLearningSignals(workspaceId, filters as never);
     return NextResponse.json({ ok: true, data: signals });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/learning/signals", err);
   }
 }
 
@@ -69,7 +69,6 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ ok: true, data: signal }, { status: 201 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/learning/signals", err);
   }
 }

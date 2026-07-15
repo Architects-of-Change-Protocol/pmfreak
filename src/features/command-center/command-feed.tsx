@@ -161,7 +161,7 @@ export function CommandFeed({
             onKeyDown={(e) => {
               if (e.key === "Enter") submit();
             }}
-            placeholder="Ask this project anything..."
+            placeholder="Ask about status, risks, actions, decisions..."
             className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
           />
           <button
@@ -176,6 +176,9 @@ export function CommandFeed({
         </div>
         <p className="mt-2 truncate px-1 text-[11px] text-slate-400">
           Try: {SUGGESTED_PROMPTS.join(" · ")}
+        </p>
+        <p className="mt-1 px-1 text-[10px] text-slate-400" data-testid="chat-determinism-disclosure">
+          Structured assistant: answers are composed from your project data by deterministic rules — not generative AI.
         </p>
       </div>
     </div>

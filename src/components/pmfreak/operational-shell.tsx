@@ -8,6 +8,7 @@ import { AdvancedDrawer } from "@/components/pmfreak/navigation/advanced-drawer"
 import { computeCapabilityRevealState, computeNavigationRail } from "@/features/runtime/capability-reveal/capability-reveal-selectors";
 import { AWAKENING_EVENT, isLensUnlocked, loadAwakeningState, deriveAwakeningState, type AwakeningState } from "@/lib/workspace/awakening-state";
 import { loadImprintState } from "@/lib/workspace/operational-imprint-profile";
+import type { CapabilityProfile } from "@/lib/workspace/pilot-capability-set";
 
 type UserProject = { id: string; name: string };
 type DiscoverySummary = {
@@ -126,10 +127,12 @@ type ScheduleHealth = {
 type OperationalShellProps = {
   children: React.ReactNode;
   user: { fullName: string; role: string; companyName: string };
+  /** Pilot capability set (Task 7): resolved server-side; defaults to the curated pilot profile. */
+  capabilityProfile?: CapabilityProfile;
 };
 
 
-export function OperationalShell({ children, user }: OperationalShellProps) {
+export function OperationalShell({ children, user, capabilityProfile = "pilot" }: OperationalShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [projects, setProjects] = useState<UserProject[]>([]);
@@ -791,7 +794,7 @@ export function OperationalShell({ children, user }: OperationalShellProps) {
     canUseGovernanceDirectives: user.role === "admin" || user.role === "owner",
   }), [hasProjects, user.role]);
   const navHref = (href: string) => (projectId ? `${href}?projectId=${projectId}` : href);
-  const navItems = computeNavigationRail(revealState).map((item) => ({
+  const navItems = computeNavigationRail(revealState, capabilityProfile).map((item) => ({
     ...item,
     locked: !isLensUnlocked(item.href, awakening.stage),
   }));

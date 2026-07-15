@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { generatePolicyDraftDiff } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function POST(request: Request) {
   try {
@@ -13,6 +14,6 @@ export async function POST(request: Request) {
     const diff = await generatePolicyDraftDiff({ workspaceId, changeRequestId, actorId: user.id ?? null });
     return NextResponse.json({ ok: true, data: diff }, { status: 201 });
   } catch (err) {
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: err instanceof Error ? err.message : String(err) } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/approval-pack/draft-diff", err);
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { recordBetaReadinessRemediationService, listBetaReadinessRemediationItems } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function POST(request: Request) {
   try {
@@ -11,8 +12,7 @@ export async function POST(request: Request) {
     const record = await recordBetaReadinessRemediationService(body);
     return NextResponse.json({ ok: true, data: record }, { status: 201 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/beta-readiness/remediation-items", err);
   }
 }
 
@@ -27,7 +27,6 @@ export async function GET(request: Request) {
     const records = await listBetaReadinessRemediationItems(workspaceId, planId);
     return NextResponse.json({ ok: true, data: records });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/beta-readiness/remediation-items", err);
   }
 }

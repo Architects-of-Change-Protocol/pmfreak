@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { updateAgentPmoRuntimeHardeningBlockerStatus } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function POST(request: Request, { params }: { params: Promise<{ blockerId: string }> }) {
   try {
@@ -13,7 +14,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ blo
     if (!updated) return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "Not found" } }, { status: 404 });
     return NextResponse.json({ ok: true, data: updated });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/runtime-hardening/blockers/[blockerId]/status", err);
   }
 }

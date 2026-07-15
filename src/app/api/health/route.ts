@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensurePmfreakAocAdaptersRegistered, getEnterpriseRuntimeComposeOptions } from "@/lib/aoc/bootstrap";
+import { logger, safeErrorMessage } from "@/lib/observability/logger";
 
 export async function GET() {
   const startedAt = Date.now();
@@ -16,9 +17,10 @@ export async function GET() {
       diagnostics: { startupMs: Date.now() - startedAt },
     });
   } catch (error) {
+    logger.error("route_internal_error", { route: "/api/health", error_detail: safeErrorMessage(error) });
     return NextResponse.json({
       status: "error",
-      message: error instanceof Error ? error.message : "startup_failed",
+      message: "startup_failed",
       timestamp: new Date().toISOString(),
     }, { status: 500 });
   }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { generateDryRunExport, listAgentPmoDryRunExports } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   try {
@@ -12,8 +13,7 @@ export async function GET(request: Request) {
     const records = await listAgentPmoDryRunExports(workspaceId, url.searchParams.get("dryRunRequestId") ?? undefined);
     return NextResponse.json({ ok: true, data: records });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/dry-run-gate/exports", err);
   }
 }
 
@@ -29,7 +29,6 @@ export async function POST(request: Request) {
     const record = await generateDryRunExport({ workspaceId, dryRunRequestId, exportFormat, generatedBy: user.id ?? null, actorId: user.id ?? null });
     return NextResponse.json({ ok: true, data: record }, { status: 201 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/dry-run-gate/exports", err);
   }
 }

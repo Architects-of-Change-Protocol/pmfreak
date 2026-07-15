@@ -5,6 +5,7 @@ import {
   listAgentActionConversions,
   normalizeCreateAgentActionConversionInput,
 } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 const ROUTE = "/api/agents/execution/action-conversions";
 
@@ -34,8 +35,7 @@ export async function GET(request: Request) {
     const conversions = await listAgentActionConversions(workspaceId, filters as never);
     return NextResponse.json({ ok: true, data: conversions });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse(ROUTE, err);
   }
 }
 
@@ -60,7 +60,6 @@ export async function POST(request: Request) {
     const conversion = await createAgentActionConversion(normalized);
     return NextResponse.json({ ok: true, data: conversion }, { status: 201 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse(ROUTE, err);
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { getAgentPmoDryRunExportById } from "@/lib/agents";
+import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request, { params }: { params: Promise<{ exportId: string }> }) {
   try {
@@ -15,7 +16,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ expo
     return NextResponse.json({ ok: true, data: record });
 
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: { code: "INTERNAL_ERROR", message: msg } }, { status: 500 });
+    return safeInternalErrorResponse("/api/agents/execution/dry-run-gate/exports/[exportId]", err);
   }
 }

@@ -1,6 +1,7 @@
 import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAuthenticatedUser, requireProjectAccess } from "@/lib/security/server-authorization";
+import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -18,6 +19,6 @@ export async function GET(request: Request) {
     return Response.json({ assurance: data });
   } catch (error) {
     if (error instanceof AccessDeniedError) return Response.json({ error: String(error.metadata.reason) === "unauthorized" ? "Unauthorized" : "Access denied" }, { status: String(error.metadata.reason) === "unauthorized" ? 401 : 403 });
-    return Response.json({ error: error instanceof Error ? error.message : "Unable to load project assurance summary." }, { status: 500 });
+    return safeLegacyErrorResponse("/api/operational-flow/assurance", error, "Unable to load project assurance summary. Please retry.");
   }
 }
