@@ -4,6 +4,7 @@ import { FirstUserTelemetryEvent } from "@/components/pmfreak/telemetry/first-us
 import { getAuthUser } from "@/lib/auth";
 import { runDashboardApiRuntime } from "@/lib/dashboard/api-runtime";
 import { runDashboardConsumptionRuntime } from "@/lib/dashboard/consumption";
+import { deriveDashboardPresentation } from "@/lib/dashboard/consumption/dashboard-honest-labels";
 import { runDashboardActionCenter } from "@/lib/dashboard/action-center";
 import { ExecutiveDashboardActionCenter } from "@/components/dashboard/action-center";
 import { WorkspaceContextBanner } from "@/components/pmfreak/workspace/workspace-context-banner";
@@ -26,6 +27,9 @@ export default async function DashboardPage({
     ? runDashboardApiRuntime({ tenantId: user.companyId, userId: user.id, includeMetadata: true })
     : null;
   const dashboardViewModel = runDashboardConsumptionRuntime({ apiResponse });
+  // M-01: labeling must reflect whether the metrics really derive from
+  // workspace data or from the fallback DTO — never claim "Live" on fallback.
+  const presentation = deriveDashboardPresentation(dashboardViewModel);
   const actionCenterReport = runDashboardActionCenter({ dashboardViewModel });
   const withProjectScope = (href: string) =>
     currentProjectId ? `${href}?projectId=${currentProjectId}` : href;
@@ -62,8 +66,8 @@ export default async function DashboardPage({
         title="Summary"
         subtitle="Operational view."
         metrics={[
-          { label: "Operational State", value: "Live" },
-          { label: "Context Memory", value: "Tracking" },
+          { label: "Operational State", value: presentation.operationalStateLabel },
+          { label: "Context Memory", value: hasProject ? "Tracking" : "Awaiting signal" },
           { label: "Project Scope", value: currentProjectId ? "Project" : "Portfolio" },
           { label: "Next Action", value: currentProjectId ? "Ready" : "Select scope" },
         ]}
@@ -102,7 +106,12 @@ export default async function DashboardPage({
           ))}
         </section>
         <section className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">Workspace-Derived Portfolio Snapshot</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">{presentation.snapshotHeading}</p>
+          {presentation.fallbackNotice && (
+            <p className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-xs text-yellow-200" data-testid="dashboard-fallback-notice">
+              {presentation.fallbackNotice}
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-2xl border border-white/10 bg-white/10 p-3 text-center">
               <p className="text-2xl font-bold text-cyan-200">{dashboardViewModel.healthScore}</p>
