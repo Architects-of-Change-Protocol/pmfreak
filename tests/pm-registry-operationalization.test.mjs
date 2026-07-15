@@ -30,8 +30,12 @@ function isoNow() {
 // ─── Production-mirroring store ───────────────────────────────────────────────
 // This store mirrors the exact validation contracts of the production service
 // functions (pm-registry.ts, pm-assignments.ts, pm-profiles.ts).
-// Tests here validate contracts; integration tests against the real Supabase
-// client are in the CI database test suite.
+// HONESTY NOTE (F-19a, Pilot Gate Sprint 01): these tests validate a
+// parallel in-memory reimplementation of those contracts, NOT the shipped
+// modules, and NO CI database integration suite exists for this module
+// today. A drift between this file and the real service functions will not
+// be caught here — treat these as contract documentation, and prefer
+// importing the real modules when this suite is next reworked.
 
 function createStore() {
   const pms = new Map();

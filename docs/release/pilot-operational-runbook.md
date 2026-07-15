@@ -30,6 +30,14 @@ topology enforced by `docs/security/production-deployment-boundary.md`.
       `UPLOAD_MAX_*`. Unset = conservative defaults; invalid values fall back
       to defaults by design.
 - [ ] `FOUNDER_EMAIL_ALLOWLIST` contains exactly the operator accounts.
+- [ ] Pilot capability posture (Pilot Gate Sprint 01):
+      `PMFREAK_GOVERNANCE_CAPABILITY_ENABLED` unset/false and
+      `PMFREAK_CAPABILITY_PROFILE` unset for the pilot deployment (curated
+      pilot surface; governance signing off — see
+      `docs/release/pilot-capability-set.md`). `/api/ready` fails if the
+      governance switch is on without `PMFREAK_CAPABILITY_CLAIM_SECRET`.
+- [ ] `OPENAI_API_KEY` verified working (the copilot inference path fails
+      hard without it — no canned fallback).
 
 ## 3. Database migration procedure
 
@@ -100,10 +108,16 @@ structured logs (Vercel log drain-ready), `security_events`,
 
 1. Confirm plan tier includes daily backups (+ PITR if budget allows) on the
    pilot project.
-2. **Rehearsal (pilot precondition, RR-BACKUP):** restore the latest backup
+2. **Rehearsal (pilot precondition, RR-BACKUP):** the logical-path drill was
+   executed 2026-07-15 with full evidence (timings, integrity diff, RLS
+   re-verification) — see `docs/release/backup-restore-drill.md` for the
+   reproducible procedure. Remaining hosted step: restore the latest backup
    into a scratch Supabase project; point a preview deployment at it; verify
-   login + one workspace loads. Record date + duration here.
-3. Real restore: same procedure; then rotate any keys that changed and update
+   login + one workspace loads. Record date + duration in
+   `backup-restore-drill.md`.
+3. Operational cadence during pilot: `pg_dump -Fc` before every migration
+   deploy and at least daily (defines the logical-path RPO).
+4. Real restore: same procedure; then rotate any keys that changed and update
    Vercel env; redeploy; run §5.
 
 ## 9. Incident response
