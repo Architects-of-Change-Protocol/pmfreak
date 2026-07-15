@@ -82,7 +82,8 @@ export const ENV_VAR_INVENTORY: readonly EnvVarEntry[] = [
   { name: "FEDERATION_WEBHOOK_SECRET", visibility: "server-only", requiredInProduction: false, usedBy: "src/app/api/federation/webhooks/[connectorId]/route.ts", risk: "Shared secret authorizing federation event ingestion; feature is opt-in per workspace." },
   { name: "ABUSE_HASH_PEPPER", visibility: "server-only", requiredInProduction: false, usedBy: "src/lib/security/abuse-protection.ts", risk: "Pepper for abuse-key hashing; has a non-secret default, rotate via env for stronger guarantees." },
   { name: "PMFREAK_TRUST_EVENT_HMAC_SECRET", visibility: "server-only", requiredInProduction: false, usedBy: "src/lib/security/trust-coordination.ts", risk: "Signs/verifies trust events for the AOC governance surface." },
-  { name: "PMFREAK_CAPABILITY_CLAIM_SECRET", visibility: "server-only", requiredInProduction: false, usedBy: "src/lib/aoc/adapters/trust-domain.ts", risk: "Signs capability claims; throws if missing (fails closed)." },
+  { name: "PMFREAK_CAPABILITY_CLAIM_SECRET", visibility: "server-only", requiredInProduction: false, usedBy: "src/lib/security/governance-capability.ts, src/lib/aoc/adapters/trust-domain.ts", risk: "Signs capability claims. Required at readiness when PMFREAK_GOVERNANCE_CAPABILITY_ENABLED=true; otherwise flows degrade with an explicit governance_capability_disabled error (fails closed, M-03)." },
+  { name: "PMFREAK_GOVERNANCE_CAPABILITY_ENABLED", visibility: "server-only", requiredInProduction: false, usedBy: "src/lib/security/governance-capability.ts, src/app/api/ready/route.ts", risk: "Deployment switch for governance claim signing. Not a secret; when true, /api/ready fails unless PMFREAK_CAPABILITY_CLAIM_SECRET is set." },
   { name: "PMFREAK_AGENT_TOKEN_SECRET", visibility: "server-only", requiredInProduction: false, usedBy: "src/lib/security/agent-attestation.ts", risk: "Verifies agent attestation tokens; throws if missing (fails closed)." },
 ];
 

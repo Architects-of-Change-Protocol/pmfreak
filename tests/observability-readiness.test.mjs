@@ -110,7 +110,9 @@ test("readiness endpoint returns ready=200 when configuration and database pass"
   const body = await response.json();
   assert.equal(body.status, "ready");
   const names = body.checks.map((c) => c.name).sort();
-  assert.deepEqual(names, ["configuration", "database"]);
+  // governance_capability added by Pilot Gate Sprint 01 (M-03): passes when
+  // the governance switch is off or the claim secret is configured.
+  assert.deepEqual(names, ["configuration", "database", "governance_capability"]);
   assert.ok(body.checks.every((c) => c.status === "pass"));
 });
 

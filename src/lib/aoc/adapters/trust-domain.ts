@@ -9,6 +9,7 @@ import {
   evaluateVerifierPolicy,
 } from "@/lib/security/trust-domains";
 import type { TrustDomainPort, TrustKeyRecord, TrustVerificationResult } from "@/aoc/protocol/ports/trust-domain";
+import { resolveCapabilityClaimSecret } from "@/lib/security/governance-capability";
 
 export class PmfreakTrustDomainAdapter implements TrustDomainPort {
   async getActiveSigningKey(trustDomain: string): Promise<TrustKeyRecord | null> {
@@ -47,9 +48,11 @@ export class PmfreakTrustDomainAdapter implements TrustDomainPort {
 
   // Resolves the HMAC secret used for HMAC-SHA256 capability claim signing.
   // The env var name is a PMFreak vertical concern and must not appear in AOC protocol code.
+  // M-03: throws `governance_capability_disabled` when the governance
+  // capability is off (graceful, explicit degradation) and
+  // `capability_claim_secret_missing` when it is on but misconfigured —
+  // the latter is also caught at readiness (/api/ready) before traffic.
   resolveHmacSecret(_trustDomain: string): string {
-    const secret = process.env.PMFREAK_CAPABILITY_CLAIM_SECRET;
-    if (!secret) throw new Error("capability_claim_secret_missing");
-    return secret;
+    return resolveCapabilityClaimSecret();
   }
 }

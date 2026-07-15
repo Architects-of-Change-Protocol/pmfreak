@@ -11,6 +11,7 @@ import type {
   RoleProfile,
 } from "./capability-reveal-types";
 import { REVEAL_DOMAIN_ORDER, ROLE_DOMAIN_PRIORITIES } from "./capability-reveal-contract";
+import { isHiddenForProfile, type CapabilityProfile } from "@/lib/workspace/pilot-capability-set";
 
 export const LENS_LABELS = {
   execution: "Execution Lens",
@@ -80,8 +81,11 @@ export const computeCapabilityRevealState = (input: CapabilityRevealInput): Capa
   return { stage, planTier: input.planTier, roleProfile, hasProject: input.hasProject, evidenceDensity, continuityMaturity, unlockedDomains, blockedDomains, revealReasons: [`plan:${input.planTier}`, `role:${roleProfile}`, `stage:${stage}`, `evidence:${evidenceDensity}`, `continuity:${continuityMaturity}`], educationalHints: computeRevealHints({ stage, evidenceDensity, continuityMaturity, blockedDomains }) };
 };
 
-export const computeNavigationRail = (state: CapabilityRevealState): NavigationRailItem[] => {
+export const computeNavigationRail = (state: CapabilityRevealState, profile: CapabilityProfile = "pilot"): NavigationRailItem[] => {
   return NAVIGATION_HIERARCHY.filter((node) => {
+    // Pilot capability set (Task 7): curated surfaces stay hidden for
+    // non-founder profiles regardless of unlock stage/plan.
+    if (isHiddenForProfile(node.href, profile)) return false;
     if (node.tier !== "advanced") return node.visibleByDefault;
     if (!node.requiresCapability) return true;
     return state.unlockedDomains.includes(node.requiresCapability as CapabilityDomain);
