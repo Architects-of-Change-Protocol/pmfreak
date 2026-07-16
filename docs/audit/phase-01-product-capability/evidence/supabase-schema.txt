@@ -1,0 +1,572 @@
+=== migration file names (table/feature hints) ===
+supabase/migrations/20260428120000_p0_state_tables.sql
+supabase/migrations/20260430113000_message_analyses.sql
+supabase/migrations/20260430150000_project_suggestions.sql
+supabase/migrations/20260430170000_onboarding_analyses.sql
+supabase/migrations/20260504100000_projects_system.sql
+supabase/migrations/20260505110000_subscription_plans_pmo.sql
+supabase/migrations/20260509120000_billing_webhook_events.sql
+supabase/migrations/20260509143000_workspace_team_invitations.sql
+supabase/migrations/20260510120000_operational_memory_domains.sql
+supabase/migrations/20260511110000_governance_audit_events.sql
+supabase/migrations/20260512120000_deterministic_verification_phase_6_4.sql
+supabase/migrations/20260512130000_operational_memory_v1.sql
+supabase/migrations/20260512160000_workspace_authorization_rewrite.sql
+supabase/migrations/20260512183000_enterprise_auth_integrity.sql
+supabase/migrations/20260512194000_phase4_enterprise_authorization.sql
+supabase/migrations/20260512195500_security_events.sql
+supabase/migrations/20260512198000_early_access_trials.sql
+supabase/migrations/20260512210000_governance_approval_runtime.sql
+supabase/migrations/20260512223000_governed_execution_grants.sql
+supabase/migrations/20260512233000_governance_delegations.sql
+supabase/migrations/20260512234500_capability_claim_metadata.sql
+supabase/migrations/20260512235900_first_user_telemetry.sql
+supabase/migrations/20260513010000_trust_domains_federated_verification.sql
+supabase/migrations/20260513030000_external_verifier_handshakes.sql
+supabase/migrations/20260513043000_distributed_trust_coordination.sql
+supabase/migrations/20260513100000_hardened_trust_interop_phase_6_3.sql
+supabase/migrations/20260514120000_capability_request_flow.sql
+supabase/migrations/20260514143000_rls_tenant_hardening.sql
+supabase/migrations/20260514170000_policy_evaluation_engine_v1.sql
+supabase/migrations/20260514190000_delegation_chain_v1.sql
+supabase/migrations/20260514193000_agent_identity_scoped_access_v1.sql
+supabase/migrations/20260515000000_agent_attestation_nonces.sql
+supabase/migrations/20260515100000_rls_governance_fixes.sql
+supabase/migrations/20260515200000_storage_bucket_setup.sql
+supabase/migrations/20260518000000_quota_atomicity.sql
+supabase/migrations/20260520000000_vault_digestive_system.sql
+supabase/migrations/20260520010000_vault_learned_patterns.sql
+supabase/migrations/20260520113000_vault_intervention_memory.sql
+supabase/migrations/20260521110000_runtime_conversation_state.sql
+supabase/migrations/20260521123000_create_intervention_memory.sql
+supabase/migrations/20260522000000_operational_runtime_memory.sql
+supabase/migrations/20260522100000_operational_memory_nutrient_links.sql
+supabase/migrations/20260526000000_create_dashboard_source_snapshots.sql
+supabase/migrations/20260527090000_workspace_runtime_state.sql
+supabase/migrations/20260527091000_workspace_governance.sql
+supabase/migrations/20260528000000_pmo_team_invites.sql
+supabase/migrations/20260601000000_schema_contract_hardening.sql
+supabase/migrations/20260602000000_operational_governance_briefs.sql
+supabase/migrations/20260602010000_vault_intake_reliability.sql
+supabase/migrations/20260602020000_raid_auto_extraction.sql
+supabase/migrations/20260605000000_project_evidence.sql
+supabase/migrations/20260605010000_project_evidence_content.sql
+supabase/migrations/20260605020000_project_discovery.sql
+supabase/migrations/20260605030000_project_discovery_payload_hash.sql
+supabase/migrations/20260605040000_recommended_actions.sql
+supabase/migrations/20260605050000_recommended_actions_decision_workflow.sql
+supabase/migrations/20260605060000_task_drafts.sql
+supabase/migrations/20260605070000_execution_tasks.sql
+supabase/migrations/20260605080000_execution_task_dependencies.sql
+supabase/migrations/20260605090000_milestones_schedule_foundation.sql
+supabase/migrations/20260605100000_critical_path_schedule_variance.sql
+supabase/migrations/20260611000000_operational_evidence_decision_loop.sql
+supabase/migrations/20260616000000_platform_events_foundation.sql
+supabase/migrations/20260616000001_platform_events_invariants.sql
+supabase/migrations/20260616000002_platform_events_p0_hardening.sql
+supabase/migrations/20260616000003_evidence_linked_decisions.sql
+supabase/migrations/20260617000000_constitutional_decision_lifecycle.sql
+supabase/migrations/20260617010000_organizational_memory_foundation.sql
+supabase/migrations/20260617020000_organizational_pattern_foundation.sql
+supabase/migrations/20260617030000_decision_effectiveness_foundation.sql
+supabase/migrations/20260617040000_personal_pm_memory_foundation.sql
+supabase/migrations/20260618000000_pattern_extraction_foundation.sql
+supabase/migrations/20260619000000_personal_pm_patterns_foundation.sql
+supabase/migrations/20260619000001_constitutional_memory_foundation.sql
+supabase/migrations/20260619000002_constitutional_digest_engine.sql
+supabase/migrations/20260620000000_personal_pm_effectiveness_foundation.sql
+supabase/migrations/20260621000000_personal_pattern_extraction_foundation.sql
+supabase/migrations/20260622000000_intelligence_bridge_foundation.sql
+supabase/migrations/20260622000001_constitutional_learning_engine.sql
+supabase/migrations/20260622000002_sovereign_recommendation_engine.sql
+supabase/migrations/20260622000003_recommendation_effectiveness_engine.sql
+supabase/migrations/20260623000000_pm_registry_foundation.sql
+supabase/migrations/20260623000001_project_constitution_foundation.sql
+supabase/migrations/20260623000002_project_constitution_lifecycle.sql
+supabase/migrations/20260624000000_project_constitution_amendment_governance.sql
+supabase/migrations/20260625000000_project_constitutional_decision_governance.sql
+supabase/migrations/20260626000000_constitutional_ratification_framework.sql
+supabase/migrations/20260627000000_authority_registry_governance.sql
+supabase/migrations/20260627000001_authority_registry_hardening.sql
+supabase/migrations/20260628000000_programs.sql
+supabase/migrations/20260628050000_program_roadmap_sources.sql
+supabase/migrations/20260629000000_program_hierarchy.sql
+supabase/migrations/20260630000000_program_roadmap_parse_results.sql
+supabase/migrations/20260701000000_program_materializations.sql
+supabase/migrations/20260702000000_command_center_governance_foundation.sql
+supabase/migrations/20260702000001_program_execution_board.sql
+supabase/migrations/20260703000000_program_card_context_projection.sql
+supabase/migrations/20260704000000_governance_signal_engine.sql
+supabase/migrations/20260705000000_governance_action_engine.sql
+supabase/migrations/20260706000000_governance_commitment_engine.sql
+supabase/migrations/20260707000000_execution_projection_engine.sql
+supabase/migrations/20260708000000_execution_reality_engine.sql
+supabase/migrations/20260709000000_project_operating_system.sql
+supabase/migrations/20260710000000_operational_command_center.sql
+supabase/migrations/20260711000000_operational_consequence_engine.sql
+supabase/migrations/20260712000000_operational_decision_engine.sql
+supabase/migrations/20260713000000_operational_decision_outcome_engine.sql
+supabase/migrations/20260714000000_personal_portfolio_foundation.sql
+supabase/migrations/20260715000000_pm_performance_engine.sql
+supabase/migrations/20260716000000_pm_capacity_load_intelligence.sql
+supabase/migrations/20260717000000_pmo_governance_compliance_engine.sql
+supabase/migrations/20260718000000_pmo_command_center.sql
+supabase/migrations/20260719000000_pmo_intervention_actions.sql
+supabase/migrations/20260725000000_pmo_executive_reporting.sql
+supabase/migrations/20260726000000_agent_tool_registry.sql
+supabase/migrations/20260727000000_agent_permission_approval_layer.sql
+supabase/migrations/20260728000000_agent_memory_context_layer.sql
+supabase/migrations/20260729000000_agent_observability_audit_trail.sql
+supabase/migrations/20260730000000_agent_execution_request_runtime.sql
+supabase/migrations/20260731000000_agent_tool_execution_adapter_layer.sql
+supabase/migrations/20260801000000_agent_execution_results_evidence_layer.sql
+supabase/migrations/20260802000000_agent_human_review_action_inbox.sql
+supabase/migrations/20260803000000_agent_controlled_action_conversion_approval_bridge.sql
+supabase/migrations/20260804000000_agent_controlled_execution_finalization_adapter_dispatch_gate.sql
+supabase/migrations/20260805000000_agent_controlled_execution_result_reconciliation_human_outcome_review.sql
+supabase/migrations/20260806000000_agent_controlled_execution_learning_signals_governance_feedback_loop.sql
+supabase/migrations/20260807000000_agent_controlled_pmo_governance_intelligence_dashboard.sql
+supabase/migrations/20260808000000_agent_pmo_governance_proposal_review_controlled_policy_change_backlog.sql
+supabase/migrations/20260809000000_agent_controlled_governance_policy_simulation_report_pmo_approval_pack.sql
+supabase/migrations/20260810000000_agent_controlled_policy_implementation_planning_workspace.sql
+supabase/migrations/20260811000000_agent_controlled_policy_implementation_gate_dry_run_change_executor.sql
+supabase/migrations/20260812000000_agent_controlled_policy_version_activation_rollback_gate.sql
+supabase/migrations/20260813000000_agent_controlled_project_intelligence_handoff.sql
+supabase/migrations/20260814000000_agent_end_to_end_governance_runtime_integration_hardening.sql
+supabase/migrations/20260815000000_agent_beta_onboarding_demo_data_tenant_readiness.sql
+supabase/migrations/20260816000000_playbook_engine_materialization_phase1.sql
+supabase/migrations/20260817000000_stripe_webhook_lifecycle_hardening.sql
+supabase/migrations/20260818000000_supabase_rls_service_role_boundary_hardening.sql
+supabase/migrations/20260819000000_abuse_rate_limits.sql
+supabase/migrations/20260820000000_workspace_invite_token_hashing.sql
+supabase/migrations/20260821000000_ai_usage_events.sql
+supabase/migrations/20260822000000_dashboard_task_lifecycle.sql
+supabase/migrations/20260823000000_fix_capability_verification_evidence_rls_gap.sql
+supabase/migrations/20260823000001_fix_workspace_memberships_rls_recursion.sql
+supabase/migrations/20260824000000_fix_purge_expired_nonces_search_path.sql
+supabase/migrations/20260825000000_fix_security_definer_public_execute_grants.sql
+supabase/migrations/20260826000000_fix_agent_attestation_nonces_grants.sql
+supabase/migrations/20260827000000_pilot_agreement_acceptances.sql
+supabase/migrations/20260828000000_founder_program.sql
+
+=== CREATE TABLE statements ===
+CREATE TABLE IF NOT EXISTS agent_beta_admin_readiness
+CREATE TABLE IF NOT EXISTS agent_beta_invitation_readiness
+CREATE TABLE IF NOT EXISTS agent_beta_onboarding_checklist_items
+CREATE TABLE IF NOT EXISTS agent_beta_onboarding_checklists
+CREATE TABLE IF NOT EXISTS agent_beta_readiness_blockers
+CREATE TABLE IF NOT EXISTS agent_beta_readiness_decisions
+CREATE TABLE IF NOT EXISTS agent_beta_readiness_events
+CREATE TABLE IF NOT EXISTS agent_beta_readiness_exports
+CREATE TABLE IF NOT EXISTS agent_beta_readiness_gates
+CREATE TABLE IF NOT EXISTS agent_beta_readiness_plans
+CREATE TABLE IF NOT EXISTS agent_beta_readiness_remediation_items
+CREATE TABLE IF NOT EXISTS agent_beta_user_readiness
+CREATE TABLE IF NOT EXISTS agent_beta_workspace_readiness
+CREATE TABLE IF NOT EXISTS agent_demo_data_bundles
+CREATE TABLE IF NOT EXISTS agent_demo_governance_scenarios
+CREATE TABLE IF NOT EXISTS agent_demo_handoff_scenarios
+CREATE TABLE IF NOT EXISTS agent_demo_project_scenarios
+CREATE TABLE IF NOT EXISTS agent_pmo_ci_smoke_checks
+CREATE TABLE IF NOT EXISTS agent_pmo_controlled_project_assignment_pointers
+CREATE TABLE IF NOT EXISTS agent_pmo_database_contract_audits
+CREATE TABLE IF NOT EXISTS agent_pmo_error_handling_checks
+CREATE TABLE IF NOT EXISTS agent_pmo_export_safety_checks
+CREATE TABLE IF NOT EXISTS agent_pmo_handoff_continuity_checks
+CREATE TABLE IF NOT EXISTS agent_pmo_idempotency_checks
+CREATE TABLE IF NOT EXISTS agent_pmo_incoming_pm_acceptances
+CREATE TABLE IF NOT EXISTS agent_pmo_layer_integration_audits
+CREATE TABLE IF NOT EXISTS agent_pmo_observability_coverage_checks
+CREATE TABLE IF NOT EXISTS agent_pmo_outgoing_pm_notes
+CREATE TABLE IF NOT EXISTS agent_pmo_production_readiness_decisions
+CREATE TABLE IF NOT EXISTS agent_pmo_production_readiness_gates
+CREATE TABLE IF NOT EXISTS agent_pmo_project_assignment_history
+CREATE TABLE IF NOT EXISTS agent_pmo_project_context_validations
+CREATE TABLE IF NOT EXISTS agent_pmo_project_handoff_audit_events
+CREATE TABLE IF NOT EXISTS agent_pmo_project_handoff_exports
+CREATE TABLE IF NOT EXISTS agent_pmo_project_handoff_gate_decisions
+CREATE TABLE IF NOT EXISTS agent_pmo_project_handoff_gates
+CREATE TABLE IF NOT EXISTS agent_pmo_project_handoff_packs
+CREATE TABLE IF NOT EXISTS agent_pmo_project_handoff_requests
+CREATE TABLE IF NOT EXISTS agent_pmo_project_handoff_snapshot_items
+CREATE TABLE IF NOT EXISTS agent_pmo_project_memory_snapshots
+CREATE TABLE IF NOT EXISTS agent_pmo_project_status_snapshots
+CREATE TABLE IF NOT EXISTS agent_pmo_rls_policy_audits
+CREATE TABLE IF NOT EXISTS agent_pmo_route_contract_audits
+CREATE TABLE IF NOT EXISTS agent_pmo_runtime_hardening_blockers
+CREATE TABLE IF NOT EXISTS agent_pmo_runtime_hardening_events
+CREATE TABLE IF NOT EXISTS agent_pmo_runtime_hardening_exports
+CREATE TABLE IF NOT EXISTS agent_pmo_runtime_hardening_runs
+CREATE TABLE IF NOT EXISTS agent_pmo_runtime_remediation_items
+CREATE TABLE IF NOT EXISTS agent_pmo_stakeholder_context_snapshots
+CREATE TABLE IF NOT EXISTS agent_pmo_ui_dashboard_integration_checks
+CREATE TABLE IF NOT EXISTS agent_pmo_workspace_isolation_checks
+CREATE TABLE IF NOT EXISTS agent_tenant_readiness_validations
+CREATE TABLE IF NOT EXISTS program_materializations
+CREATE TABLE public.constitutional_digest_classifications
+CREATE TABLE public.constitutional_digests
+CREATE TABLE public.program_cards
+CREATE TABLE public.program_epics
+CREATE TABLE public.program_roadmap_parse_results
+CREATE TABLE public.program_roadmap_sources
+CREATE TABLE public.program_sprints
+CREATE TABLE public.programs
+create table if not exists agent_review_action_drafts
+create table if not exists agent_review_assignments
+create table if not exists agent_review_decisions
+create table if not exists agent_review_events
+create table if not exists agent_review_items
+create table if not exists agent_review_queues
+create table if not exists capability_verification_audit_records
+create table if not exists capability_verification_receipts
+create table if not exists capability_verification_snapshots
+create table if not exists constitutional_learning_evidence
+create table if not exists constitutional_learning_patterns
+create table if not exists constitutional_learning_recommendations
+create table if not exists constitutional_recommendation_applications
+create table if not exists constitutional_recommendation_effectiveness
+create table if not exists constitutional_recommendation_evidence
+create table if not exists constitutional_recommendation_feedback
+create table if not exists constitutional_recommendation_outcomes
+create table if not exists constitutional_recommendations
+create table if not exists dashboard_task_lifecycle_events
+create table if not exists dashboard_task_lifecycle_records
+create table if not exists execution_drifts
+create table if not exists execution_observations
+create table if not exists execution_projection_dependencies
+create table if not exists execution_projection_participants
+create table if not exists execution_projection_tasks
+create table if not exists execution_projections
+create table if not exists execution_realities
+create table if not exists execution_variances
+create table if not exists governance_action_assignments
+create table if not exists governance_action_evidence
+create table if not exists governance_actions
+create table if not exists governance_commitment_delegations
+create table if not exists governance_commitment_evidence
+create table if not exists governance_commitment_history
+create table if not exists governance_commitments
+create table if not exists governance_compliance_evidence
+create table if not exists governance_compliance_gaps
+create table if not exists governance_compliance_snapshots
+create table if not exists governance_signal_evidence
+create table if not exists governance_signal_recommendations
+create table if not exists governance_signals
+create table if not exists pm_assignments
+create table if not exists pm_capacity_evidence
+create table if not exists pm_capacity_metrics
+create table if not exists pm_capacity_snapshots
+create table if not exists pm_performance_evidence
+create table if not exists pm_performance_metrics
+create table if not exists pm_performance_snapshots
+create table if not exists pm_profiles
+create table if not exists pmo_alert_payloads
+create table if not exists pmo_attention_items
+create table if not exists pmo_command_center_snapshots
+create table if not exists pmo_executive_reports
+create table if not exists pmo_intervention_actions
+create table if not exists pmo_recommendations
+create table if not exists pmo_team_invites
+create table if not exists project_managers
+create table if not exists public.abuse_rate_limits
+create table if not exists public.agent_action_approval_bridges
+create table if not exists public.agent_action_conversion_events
+create table if not exists public.agent_action_conversion_preflights
+create table if not exists public.agent_action_conversions
+create table if not exists public.agent_attestation_nonces
+create table if not exists public.agent_audit_events
+create table if not exists public.agent_audit_exports
+create table if not exists public.agent_context_policies
+create table if not exists public.agent_context_windows
+create table if not exists public.agent_decision_events
+create table if not exists public.agent_execution_adapter_performance_signals
+create table if not exists public.agent_execution_aggregate_learning_signals
+create table if not exists public.agent_execution_correction_loops
+create table if not exists public.agent_execution_dispatch_attempts
+create table if not exists public.agent_execution_dispatch_events
+create table if not exists public.agent_execution_dispatch_gates
+create table if not exists public.agent_execution_dispatch_idempotency
+create table if not exists public.agent_execution_dispatch_locks
+create table if not exists public.agent_execution_events
+create table if not exists public.agent_execution_evidence_completeness
+create table if not exists public.agent_execution_evidence_items
+create table if not exists public.agent_execution_evidence_quality_signals
+create table if not exists public.agent_execution_failed_dispatch_triage
+create table if not exists public.agent_execution_final_confirmations
+create table if not exists public.agent_execution_finalizations
+create table if not exists public.agent_execution_governance_feedback
+create table if not exists public.agent_execution_human_outcome_reviews
+create table if not exists public.agent_execution_learning_events
+create table if not exists public.agent_execution_learning_extractions
+create table if not exists public.agent_execution_learning_privacy_filters
+create table if not exists public.agent_execution_learning_signals
+create table if not exists public.agent_execution_outcome_comparisons
+create table if not exists public.agent_execution_outcome_confidence
+create table if not exists public.agent_execution_outcome_events
+create table if not exists public.agent_execution_outcome_reconciliations
+create table if not exists public.agent_execution_outcomes
+create table if not exists public.agent_execution_requests
+create table if not exists public.agent_execution_result_events
+create table if not exists public.agent_execution_result_lineage
+create table if not exists public.agent_execution_results
+create table if not exists public.agent_execution_review_decision_patterns
+create table if not exists public.agent_execution_review_routing_feedback
+create table if not exists public.agent_execution_risk_calibration_signals
+create table if not exists public.agent_execution_workspace_learning_summaries
+create table if not exists public.agent_memory_events
+create table if not exists public.agent_memory_records
+create table if not exists public.agent_outputs
+create table if not exists public.agent_pmo_active_policy_pointers
+create table if not exists public.agent_pmo_adapter_performance_insights
+create table if not exists public.agent_pmo_approval_checklist_items
+create table if not exists public.agent_pmo_approval_checklists
+create table if not exists public.agent_pmo_approval_pack_artifacts
+create table if not exists public.agent_pmo_approval_pack_events
+create table if not exists public.agent_pmo_approval_pack_exports
+create table if not exists public.agent_pmo_approval_packs
+create table if not exists public.agent_pmo_change_window_plans
+create table if not exists public.agent_pmo_controlled_policy_versions
+create table if not exists public.agent_pmo_dry_run_blockers
+create table if not exists public.agent_pmo_dry_run_change_set_items
+create table if not exists public.agent_pmo_dry_run_change_sets
+create table if not exists public.agent_pmo_dry_run_decisions
+create table if not exists public.agent_pmo_dry_run_events
+create table if not exists public.agent_pmo_dry_run_evidence_packages
+create table if not exists public.agent_pmo_dry_run_evidence_sections
+create table if not exists public.agent_pmo_dry_run_execution_requests
+create table if not exists public.agent_pmo_dry_run_exports
+create table if not exists public.agent_pmo_dry_run_gate_approvals
+create table if not exists public.agent_pmo_dry_run_gate_decisions
+create table if not exists public.agent_pmo_dry_run_operator_reviews
+create table if not exists public.agent_pmo_dry_run_preflight_validations
+create table if not exists public.agent_pmo_dry_run_simulated_impacts
+create table if not exists public.agent_pmo_dry_run_simulation_executions
+create table if not exists public.agent_pmo_evidence_quality_insights
+create table if not exists public.agent_pmo_governance_dashboard_events
+create table if not exists public.agent_pmo_governance_dashboard_snapshots
+create table if not exists public.agent_pmo_governance_feedback_queue
+create table if not exists public.agent_pmo_governance_insight_cards
+create table if not exists public.agent_pmo_governance_policy_drafts
+create table if not exists public.agent_pmo_governance_report_exports
+create table if not exists public.agent_pmo_implementation_gate_prerequisites
+create table if not exists public.agent_pmo_implementation_plan_drafts
+create table if not exists public.agent_pmo_implementation_planning_decisions
+create table if not exists public.agent_pmo_implementation_planning_events
+create table if not exists public.agent_pmo_implementation_planning_exports
+create table if not exists public.agent_pmo_implementation_planning_workspaces
+create table if not exists public.agent_pmo_implementation_risks
+create table if not exists public.agent_pmo_implementation_task_breakdowns
+create table if not exists public.agent_pmo_implementation_ticket_drafts
+create table if not exists public.agent_pmo_policy_activation_audit_entries
+create table if not exists public.agent_pmo_policy_activation_events
+create table if not exists public.agent_pmo_policy_activation_executions
+create table if not exists public.agent_pmo_policy_activation_exports
+create table if not exists public.agent_pmo_policy_activation_gate_decisions
+create table if not exists public.agent_pmo_policy_activation_gates
+create table if not exists public.agent_pmo_policy_activation_preconditions
+create table if not exists public.agent_pmo_policy_activation_requests
+create table if not exists public.agent_pmo_policy_approval_decisions
+create table if not exists public.agent_pmo_policy_approval_workflows
+create table if not exists public.agent_pmo_policy_backlog_events
+create table if not exists public.agent_pmo_policy_backlog_items
+create table if not exists public.agent_pmo_policy_change_requests
+create table if not exists public.agent_pmo_policy_change_scopes
+create table if not exists public.agent_pmo_policy_draft_diffs
+create table if not exists public.agent_pmo_policy_impact_previews
+create table if not exists public.agent_pmo_policy_impact_summaries
+create table if not exists public.agent_pmo_policy_implementation_readiness
+create table if not exists public.agent_pmo_policy_proposals
+create table if not exists public.agent_pmo_policy_rollback_executions
+create table if not exists public.agent_pmo_policy_rollback_gate_decisions
+create table if not exists public.agent_pmo_policy_rollback_gates
+create table if not exists public.agent_pmo_policy_rollback_plans
+create table if not exists public.agent_pmo_policy_rollback_requests
+create table if not exists public.agent_pmo_policy_rollback_verifications
+create table if not exists public.agent_pmo_policy_simulations
+create table if not exists public.agent_pmo_post_activation_monitoring_hooks
+create table if not exists public.agent_pmo_pre_implementation_checklist_items
+create table if not exists public.agent_pmo_pre_implementation_checklists
+create table if not exists public.agent_pmo_review_routing_insights
+create table if not exists public.agent_pmo_risk_calibration_insights
+create table if not exists public.agent_pmo_rollback_readiness_checklist_items
+create table if not exists public.agent_pmo_rollback_readiness_checklists
+create table if not exists public.agent_pmo_rollback_rehearsal_plans
+create table if not exists public.agent_pmo_signoff_decisions
+create table if not exists public.agent_pmo_signoff_packets
+create table if not exists public.agent_pmo_simulated_policy_versions
+create table if not exists public.agent_pmo_simulation_report_sections
+create table if not exists public.agent_pmo_simulation_reports
+create table if not exists public.agent_pmo_stakeholder_readiness_records
+create table if not exists public.agent_runs
+create table if not exists public.agent_tool_adapter_execution_events
+create table if not exists public.agent_tool_adapter_executions
+create table if not exists public.agent_tool_approval_events
+create table if not exists public.agent_tool_approvals
+create table if not exists public.agent_tool_assignments
+create table if not exists public.agent_tool_requests
+create table if not exists public.agent_tools
+create table if not exists public.ai_agent_permissions
+create table if not exists public.ai_agent_scopes
+create table if not exists public.ai_agents
+create table if not exists public.ai_usage_events
+create table if not exists public.authority_delegations
+create table if not exists public.authority_escalations
+create table if not exists public.authority_registrations
+create table if not exists public.billing_webhook_events
+create table if not exists public.capability_audit_events
+create table if not exists public.capability_grants
+create table if not exists public.capability_policies
+create table if not exists public.capability_requests
+create table if not exists public.capability_revocation_registry
+create table if not exists public.capability_signing_keys
+create table if not exists public.capability_trust_anchors
+create table if not exists public.capability_trust_domains
+create table if not exists public.capability_trust_event_quarantine
+create table if not exists public.capability_trust_events
+create table if not exists public.capability_trust_graph_edges
+create table if not exists public.capability_verifier_handshakes
+create table if not exists public.capability_verifier_policies
+create table if not exists public.company_subscriptions
+create table if not exists public.company_usage
+create table if not exists public.constitution_amendment_changes
+create table if not exists public.constitution_amendments
+create table if not exists public.constitution_lifecycle_history
+create table if not exists public.constitution_snapshots
+create table if not exists public.constitutional_artifacts
+create table if not exists public.constitutional_decision_evidence
+create table if not exists public.constitutional_decision_links
+create table if not exists public.constitutional_decision_options
+create table if not exists public.constitutional_decisions
+create table if not exists public.constitutional_memory_links
+create table if not exists public.constitutional_memory_records
+create table if not exists public.constitutional_ratification_policies
+create table if not exists public.constitutional_signature_requests
+create table if not exists public.constitutional_signatures
+create table if not exists public.dashboard_source_snapshots
+create table if not exists public.decision_effectiveness
+create table if not exists public.decision_effectiveness_observations
+create table if not exists public.decision_evidence_links
+create table if not exists public.decision_outcome_links
+create table if not exists public.decision_outcomes
+create table if not exists public.evidence_items
+create table if not exists public.execution_task_dependencies
+create table if not exists public.execution_task_events
+create table if not exists public.execution_tasks
+create table if not exists public.first_user_telemetry_events
+create table if not exists public.founder_applications
+create table if not exists public.founder_discovery_sessions
+create table if not exists public.founder_feedback
+create table if not exists public.founder_invitations
+create table if not exists public.founder_membership_transitions
+create table if not exists public.founder_onboarding_checkpoints
+create table if not exists public.founder_participants
+create table if not exists public.founder_program_decisions
+create table if not exists public.founder_program_events
+create table if not exists public.founder_program_settings
+create table if not exists public.governance_approval_requests
+create table if not exists public.governance_audit_events
+create table if not exists public.governance_delegations
+create table if not exists public.governance_events
+create table if not exists public.governance_execution_grants
+create table if not exists public.governance_violations
+create table if not exists public.intelligence_bridge_links
+create table if not exists public.intelligence_bridge_observations
+create table if not exists public.intelligence_bridge_sources
+create table if not exists public.intervention_memory
+create table if not exists public.message_analyses
+create table if not exists public.onboarding_analyses
+create table if not exists public.operational_command_centers
+create table if not exists public.operational_consequence_impacts
+create table if not exists public.operational_consequence_paths
+create table if not exists public.operational_consequence_scenarios
+create table if not exists public.operational_consequences
+create table if not exists public.operational_decision_evaluations
+create table if not exists public.operational_decision_options
+create table if not exists public.operational_decision_outcomes
+create table if not exists public.operational_decision_records
+create table if not exists public.operational_decision_tradeoffs
+create table if not exists public.operational_decisions
+create table if not exists public.operational_focus_items
+create table if not exists public.operational_focus_links
+create table if not exists public.operational_governance_briefs
+create table if not exists public.operational_intervention_records
+create table if not exists public.operational_learning_feedback
+create table if not exists public.operational_memory_entries
+create table if not exists public.operational_memory_nutrient_links
+create table if not exists public.operational_memory_records
+create table if not exists public.operational_memory_runtime_records
+create table if not exists public.operational_outcome_effects
+create table if not exists public.operational_outcome_observations
+create table if not exists public.operational_signals
+create table if not exists public.organizational_memory
+create table if not exists public.organizational_memory_sources
+create table if not exists public.organizational_pattern_candidates
+create table if not exists public.organizational_pattern_observations
+create table if not exists public.organizational_pattern_sources
+create table if not exists public.organizational_patterns
+create table if not exists public.pattern_candidate_sources
+create table if not exists public.pattern_extraction_runs
+create table if not exists public.personal_pm_effectiveness
+create table if not exists public.personal_pm_effectiveness_observations
+create table if not exists public.personal_pm_effectiveness_sources
+create table if not exists public.personal_pm_memory
+create table if not exists public.personal_pm_memory_observations
+create table if not exists public.personal_pm_memory_sources
+create table if not exists public.personal_pm_pattern_candidate_sources
+create table if not exists public.personal_pm_pattern_candidates
+create table if not exists public.personal_pm_pattern_extraction_runs
+create table if not exists public.personal_pm_pattern_observations
+create table if not exists public.personal_pm_pattern_sources
+create table if not exists public.personal_pm_patterns
+create table if not exists public.personal_portfolio_attention_items
+create table if not exists public.personal_portfolio_projects
+create table if not exists public.personal_portfolio_snapshots
+create table if not exists public.personal_portfolios
+create table if not exists public.pilot_agreement_acceptances
+create table if not exists public.platform_events
+create table if not exists public.playbook_audit_events
+create table if not exists public.playbook_recommendations
+create table if not exists public.playbook_snapshots
+create table if not exists public.project_constitution_profiles
+create table if not exists public.project_constitutions
+create table if not exists public.project_decision_evidence_links
+create table if not exists public.project_decisions
+create table if not exists public.project_discovery
+create table if not exists public.project_evidence
+create table if not exists public.project_evidence_content
+create table if not exists public.project_memories
+create table if not exists public.project_milestones
+create table if not exists public.project_os_attention_items
+create table if not exists public.project_os_context_links
+create table if not exists public.project_os_snapshots
+create table if not exists public.project_suggestions
+create table if not exists public.projects
+create table if not exists public.quota_reservations
+create table if not exists public.raid_items
+create table if not exists public.recommended_action_decisions
+create table if not exists public.recommended_actions
+create table if not exists public.risk_issue_records
+create table if not exists public.runtime_conversation_state
+create table if not exists public.security_events
+create table if not exists public.task_drafts
+create table if not exists public.vault_digestion_runs
+create table if not exists public.vault_documents
+create table if not exists public.vault_intervention_evidence
+create table if not exists public.vault_intervention_outcomes
+create table if not exists public.vault_interventions
+create table if not exists public.vault_learned_pattern_evidence
+create table if not exists public.vault_learned_patterns
+create table if not exists public.vault_nutrients
+create table if not exists public.vault_operational_signals
+create table if not exists public.vault_semantic_residue
+create table if not exists public.verifier_trust_policies
+create table if not exists public.workspace_audit_events
+create table if not exists public.workspace_governance
+create table if not exists public.workspace_invitations
+create table if not exists public.workspace_memberships
+create table if not exists public.workspace_runtime_state
+create table if not exists public.workspaces
+create table public.early_access_events
+create table public.early_access_invites
+create table public.trial_licenses
+create table public.workspace_activations

@@ -1,0 +1,7 @@
+debug-session
+forgot-password
+login
+/ (landing)
+pricing
+signup
+trial-inactive

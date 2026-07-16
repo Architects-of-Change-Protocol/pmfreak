@@ -1,0 +1,105 @@
+# PMFreak Phase 1 Audit — Command Log (Mechanical Evidence)
+# Repo: architects-of-change-protocol/pmfreak
+# Baseline commit audited: 626cc6c763d64f41f2a3bb3b3fb11eb3b5629946 (HEAD at audit start — verified via `git cat-file -t <sha>`)
+# Branch: claude/pmfreak-capability-audit-w89p9c
+# Method: All commands below were run read-only against the working tree. No files were modified except
+# under docs/audit/phase-01-product-capability/. Domain-specific deep-dive agents ran additional grep/read
+# commands scoped to their assigned subsystem; those are cited inline in 04-capability-map.md and
+# 05-capability-evidence.md as file:line references rather than reproduced here.
+
+## 1. Branch / baseline verification
+$ git status
+$ git branch -a
+$ git log --oneline -5
+$ git cat-file -t 626cc6c763d64f41f2a3bb3b3fb11eb3b5629946
+# => "commit" (baseline confirmed present and equal to HEAD)
+
+## 2. Repository shape
+$ ls -la /home/user/pmfreak
+$ find src -maxdepth 2 -type d | sort
+$ find "src/app/(protected)" -maxdepth 3 -type d | sort
+$ cat package.json   # script inventory (check:*, build:*, smoke-test:* — see 06-preliminary-findings.md)
+
+## 3. Screen inventory (evidence/screens-protected.txt, evidence/screens-public.txt)
+$ find "src/app/(protected)" -name "page.tsx" | sed 's|src/app/(protected)/||;s|/page.tsx||' | sort
+# => 63 distinct protected screens
+$ find src/app -maxdepth 2 -name "page.tsx" | grep -v protected | sort
+# => 7 public/unauthenticated screens (landing, login, signup, forgot-password, trial-inactive, pricing, debug-session)
+
+## 4. API route inventory (evidence/routes.txt)
+$ find src/app/api -name "route.ts" | sed 's|^src/app/||;s|/route.ts||' | sort
+# => 531 distinct API route files
+
+## 5. API route distribution by top-level area
+$ find src/app/api -maxdepth 1 -type d | sed 's|src/app/api/||' | sort
+$ for d in src/app/api/agents/*/; do echo "$(basename $d): $(find $d -name route.ts | wc -l)"; done
+# => api/agents = 331 of 531 routes (62%); of those, api/agents/execution = 301 routes across
+#    19 sub-areas (action-conversions, adapter-executions, adapters, approval-pack, beta-readiness,
+#    dispatch, dry-run-gate, evidence, governance-dashboard, implementation-planning, learning,
+#    outcomes, policy-activation, policy-backlog, project-handoff, requests, results, review,
+#    runtime-hardening). This single "AI Agent Execution & Governance Runtime" subsystem is larger
+#    than every other product area combined — see 03-product-module-inventory.md.
+
+## 6. Persistence signal sweep (Supabase touch-point census per src/lib module)
+$ grep -rl "createSupabaseServerClient\|createServerClient\|supabaseAdmin\|@supabase" src/lib --include="*.ts" | wc -l
+# => initial pass (17) undercounted; corrected pattern below is authoritative
+$ for d in src/lib/*/; do
+    name=$(basename "$d")
+    cnt=$(grep -rl "createSupabaseServerClient\|createServerClient\|supabaseAdmin" "$d" --include="*.ts" 2>/dev/null | wc -l)
+    total=$(find "$d" -name "*.ts" -not -name "*.test.ts" | wc -l)
+    echo "$name: $cnt/$total files touch supabase"
+  done
+# => full per-module output preserved in 03-product-module-inventory.md and 05-capability-evidence.md.
+# CAVEAT (discovered mid-audit, corrected): this pattern under-detects modules that go through a named
+# wrapper, e.g. `createSupabaseServiceRoleClient` (src/lib/founder-program/db.ts:1) or
+# `createSupabaseBrowserClient` (src/lib/workspace/runtime-persistence.ts:1). Domain agents were
+# instructed to grep the broader set {createSupabaseServerClient, createSupabaseServiceRoleClient,
+# createSupabaseBrowserClient, .from(} and to trace one import level deeper before concluding
+# "no persistence" for any module that shows zero direct hits — to distinguish legitimate
+# aggregation-only layering (module reads through another module that does persist) from a genuinely
+# unpersisted/simulated capability.
+
+## 7. Mock / stub / placeholder signal sweep
+$ grep -rlE "TODO|FIXME|not implemented|NotImplemented|coming soon|placeholder" src --include="*.ts" --include="*.tsx" | wc -l
+# => 66 files
+$ grep -rlE "mockData|MOCK_|faker\.|hardcoded|fixture" src --include="*.ts" --include="*.tsx" | wc -l
+# => 39 files
+$ grep -rlE "new Map\(\)|globalThis\.__|in-memory|inMemory" src/lib --include="*.ts" | wc -l
+# => 44 files (in-memory-store patterns; spot-checked example: src/lib/workspace/runtime-persistence.ts
+#    uses a real Supabase table `workspace_runtime_state` with an in-memory Map as a *fallback*, not a
+#    replacement — see line-level evidence in 05-capability-evidence.md)
+
+## 8. Supabase schema cross-reference (evidence/supabase-schema.txt)
+$ find supabase/migrations -name "*.sql" | wc -l
+# => 149 migration files
+$ grep -rhoE "create table( if not exists)? [a-zA-Z0-9_\.\"]+" supabase/migrations --include="*.sql" -i | sort -u | wc -l
+# => 359 distinct CREATE TABLE statements across migration history
+
+## 9. Auth / RBAC surface probe
+$ find /home/user/pmfreak -maxdepth 1 -name "middleware.ts"; find src -maxdepth 1 -name "middleware.ts"
+# => no root-level Next.js middleware.ts found; route protection is enforced per-route via
+#    requireAuthenticatedUser()/requireWorkspaceMember() calls (see src/lib/security/server-authorization.ts,
+#    confirmed independently by multiple domain agents reading route.ts files across every subsystem)
+$ ls src/lib/auth
+$ grep -rhoE "role\s*===?\s*[\"'][a-z_]+[\"']|type\s+\w*Role\w*\s*=" src/lib/auth src/lib/security --include="*.ts" | sort -u
+# => confirmed presence of a `WorkspaceRole` type; full enum + enforcement sites documented by the
+#    dedicated auth/persona research pass, see 02-user-personas-observed.md
+
+## 10. Domain deep-dive methodology
+# 14 parallel read-only research passes were run against non-overlapping subsystem scopes, each
+# instructed to: enumerate every route.ts/page.tsx in its scope (no sampling, no merging of distinct
+# capabilities), grep for the persistence/mock signals above, trace one import level for aggregation-only
+# modules, and tag every claim VERIFIED / PARTIALLY VERIFIED / UNVERIFIED / NOT PRESENT / NOT APPLICABLE
+# with file:line evidence. Their raw findings are the primary source for 04-capability-map.md and
+# 05-capability-evidence.md. Domain scopes:
+#   CAP-EXG-A/B/C — AI Agent Execution & Governance Runtime (api/agents/execution/*, 19 sub-areas)
+#   CAP-AGT       — AI Agents Core (audit, context-policies, memory, tool-requests, tools, trust/agents)
+#   CAP-AI        — AI / Intelligence (ai, analyze-ai, intelligence, copilot, constitutional-*, etc.)
+#   CAP-FTB       — Founder Program, Trials, Pilot, Billing, Early-Access
+#   CAP-PMO       — PMO, Portfolio, Programs
+#   CAP-PRJ       — Projects, Schedule, Critical Path, Execution Tasks, RAID
+#   CAP-CCW       — Command Center, Workspace, Onboarding
+#   CAP-GOV       — Governance, Compliance, Audit, Policy, Trust
+#   CAP-ADM       — Administration, PM Registry/Capacity/Performance, Team, Invitations, Notifications, Settings
+#   CAP-RPT       — Reports, Analytics, Evidence, Documents, Operational Memory, Infra/Diagnostics
+#   (auth/personas and product-identity passes feed 01- and 02- docs rather than the capability map directly)
