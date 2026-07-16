@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "1.0.0",
+  "lastReviewed": "2026-07-15",
+  "reviewOwner": "Open Source Compliance Reviewer",
+  "allowed": ["MIT", "ISC", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0", "0BSD", "CC0-1.0"],
+  "reviewRequired": ["MPL-2.0", "EPL-1.0", "EPL-2.0", "CDDL-1.0", "CDDL-1.1", "LGPL-2.1", "LGPL-3.0", "Artistic-2.0", "Unlicense", "CC-BY-4.0", "SEE LICENSE IN", "UNKNOWN", "UNLICENSED", "CUSTOM", "DUAL", "COMPOUND"],
+  "blocked": ["GPL-1.0", "GPL-2.0", "GPL-3.0", "AGPL-1.0", "AGPL-3.0", "SSPL-1.0", "BUSL-1.1", "Commons-Clause", "NON-COMMERCIAL", "NO-MODIFICATION", "FIELD-OF-USE"],
+  "approvedExceptions": [],
+  "ignoredPaths": ["node_modules/**", ".git/**", "third_party_licenses/**", "THIRD_PARTY_NOTICES.md", "package-lock.json", "docs/governance/ip-compliance/**", "tests/compliance/fixtures/**"],
+  "explanatoryNotes": ["Technical policy only; not legal advice.", "Review-required dependencies fail the default gate unless documented by complete, non-expired exception evidence."]
+}
