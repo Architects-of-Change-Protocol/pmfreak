@@ -56,6 +56,11 @@ export async function updateProject(workspaceId: string, projectId: string, inpu
   if (input.pmoId) {
     const pmo = await getPmoById(workspaceId, input.pmoId);
     if (!pmo) throw new Error("Target PMO not found in this workspace.");
+    // The move-target dropdown (listPmos default) only lists active PMOs, so
+    // this rejects a crafted request that bypasses that UI filtering —
+    // archived PMOs stay a valid data container (existing projects inside one
+    // keep working) but must not silently receive new project assignments.
+    if (pmo.status === "archived") throw new Error("Cannot assign a project to an archived PMO.");
   }
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
