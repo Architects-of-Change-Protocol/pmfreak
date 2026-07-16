@@ -1,0 +1,7 @@
+./.changeset/README.md
+./AGENTS.md
+./CLAUDE.md
+./CONTRIBUTING.md
+./README.md
+./docs/ui-reference/README.md
+./src/sdk/README.md

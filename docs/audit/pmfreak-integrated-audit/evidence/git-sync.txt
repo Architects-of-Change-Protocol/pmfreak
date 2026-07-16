@@ -1,0 +1,10 @@
+$ git rev-parse origin/main
+origin/main
+$ git merge-base HEAD origin/main
+$ git merge-base --is-ancestor origin/main HEAD
+exit:128
+$ git merge-base --is-ancestor HEAD origin/main
+exit:128
+$ git log --oneline origin/main..HEAD
+$ git log --oneline HEAD..origin/main
+$ git branch -r

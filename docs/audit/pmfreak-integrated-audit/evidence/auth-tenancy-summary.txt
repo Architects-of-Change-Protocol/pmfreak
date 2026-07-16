@@ -1,0 +1,701 @@
+AUTH TENANCY
+scripts/check-no-local-authority-bypass.mjs:159:    // Rule 5: ROLE_PERMISSION_MAP used outside rbac.ts in a final-decision context.
+scripts/check-no-local-authority-bypass.mjs:160:    if (/ROLE_PERMISSION_MAP/.test(line) && !/rbac\.ts$/.test(relPath)) {
+scripts/check-no-local-authority-bypass.mjs:161:      warn(relPath, lineNo, "ROLE_PERMISSION_MAP referenced outside rbac.ts. Local role map must not substitute for runtime authorization.");
+scripts/check-no-local-authority-bypass.mjs:167:      if (!/authorizeRuntimeAction|runtimeDecision|requireWorkspaceRole|requireGovernancePermission/.test(context)) {
+scripts/check-no-local-authority-bypass.mjs:190:  // Must not use requireWorkspaceRole as terminal authority after adding runtime auth.
+scripts/check-no-local-authority-bypass.mjs:191:  if (/requireWorkspaceRole/.test(src)) {
+scripts/check-no-local-authority-bypass.mjs:192:    error(relPath, 0, "SDK governance route still uses requireWorkspaceRole as terminal authority. Replace with authorizeRuntimeAction.");
+src/proxy.ts:2:import { updateSession } from "@/lib/supabase/proxy";
+src/proxy.ts:21:// Workspace routes     → incomplete onboarding → getOnboardingRedirect(state)
+src/proxy.ts:22:// /workspace            → always → /command-center (legacy shell quarantined)
+src/proxy.ts:30:  const { response, user } = await updateSession(request);
+src/proxy.ts:48:    loginUrl.searchParams.set("next", pathname);
+src/proxy.ts:53:    // Use sync JWT-based state resolver — middleware cannot do async DB calls.
+src/proxy.ts:60:      const requestedRoute = request.nextUrl.searchParams.get("next");
+src/proxy.ts:75:    // Incomplete onboarding on workspace route → state-specific redirect
+src/proxy.ts:84:    // Quarantine the legacy dark /workspace shell — always bounce authenticated
+src/proxy.ts:86:    if (pathname === "/workspace") {
+scripts/seed-operational-flow-demo.mjs:2:import { createClient } from "@supabase/supabase-js";
+scripts/seed-operational-flow-demo.mjs:8:const workspaceId = positional[0]?.trim();
+scripts/seed-operational-flow-demo.mjs:10:if (!workspaceId || !actorUserId) {
+scripts/seed-operational-flow-demo.mjs:11:  console.error("Usage: npm run seed:operational-flow -- <workspace-id> <actor-user-id> [--reset]");
+scripts/seed-operational-flow-demo.mjs:14:const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+scripts/seed-operational-flow-demo.mjs:15:const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+scripts/seed-operational-flow-demo.mjs:16:if (!url || !serviceRoleKey) throw new Error("NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.");
+scripts/seed-operational-flow-demo.mjs:17:const db = createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+scripts/seed-operational-flow-demo.mjs:20:  const hex = createHash("sha256").update(`${workspaceId}:${SCENARIO_KEY}:${name}`).digest("hex").slice(0, 32);
+scripts/seed-operational-flow-demo.mjs:24:const { data: membership, error: membershipError } = await db.from("workspace_memberships").select("role").eq("workspace_id", workspaceId).eq("user_id", actorUserId).maybeSingle();
+scripts/seed-operational-flow-demo.mjs:25:fail("verify_workspace_membership", membershipError);
+scripts/seed-operational-flow-demo.mjs:26:if (!membership || !["owner", "admin"].includes(membership.role)) throw new Error("The demo actor must be an owner or admin of the target workspace.");
+scripts/seed-operational-flow-demo.mjs:28:const { data: keyedProjects, error: projectLoadError } = await db.from("projects").select("id,name,onboarding_payload").eq("workspace_id", workspaceId).contains("onboarding_payload", { demoScenarioKey: SCENARIO_KEY }).order("created_at", { ascending: true });
+scripts/seed-operational-flow-demo.mjs:33:  const created = await db.from("projects").insert({ workspace_id: workspaceId, user_id: actorUserId, name: "Demo Project — Client Scope Alignment", description: "Auditable PMFreak evidence-to-decision demonstration.", onboarding_payload: { demoScenarioKey: SCENARIO_KEY, demo: true } }).select("id,name,onboarding_payload").single();
+scripts/seed-operational-flow-demo.mjs:83:    console.log(JSON.stringify({ ok: true, disposition, projectDisposition, workspaceId, projectId, scenarioKey: SCENARIO_KEY, commandCenterUrl: `/command-center?projectId=${projectId}`, counts: { evidence: 1, signals: 2, risksIssues: 2, governanceEvents: 2, recommendations: 2, decisions: 1, evidenceLinks: 1 } }, null, 2));
+scripts/seed-operational-flow-demo.mjs:91:const { data: evidence, error: evidenceError } = await db.from("evidence_items").insert({ id: ids.evidence, workspace_id: workspaceId, project_id: projectId, created_by: actorUserId, source_type: "email", title: "Client request for out-of-scope activity", content: evidenceContent, source_reference: "demo://client-scope-email", confidence_level: "high", status: "analyzed", evidence_hash: "0".repeat(64), version: 1, frozen_at: new Date().toISOString(), metadata: { demo: true, demoScenarioKey: SCENARIO_KEY } }).select("evidence_hash,version,title,source_reference").single();
+scripts/seed-operational-flow-demo.mjs:94:  { id: ids.scopeSignal, workspace_id: workspaceId, project_id: projectId, evidence_item_id: ids.evidence, signal_type: "scope_creep", severity: "high", confidence_score: 92, summary: "Work outside the agreed scope was requested.", rationale: "Deterministic v1 rule matched explicit out-of-scope language.", detected_by: "system/deterministic:governance_signal_detector_v1", status: "open" },
+scripts/seed-operational-flow-demo.mjs:95:  { id: ids.approvalSignal, workspace_id: workspaceId, project_id: projectId, evidence_item_id: ids.evidence, signal_type: "missing_approval", severity: "high", confidence_score: 95, summary: "Required approval is absent or unresolved.", rationale: "Deterministic v1 rule matched explicit missing-approval language.", detected_by: "system/deterministic:governance_signal_detector_v1", status: "open" },
+scripts/seed-operational-flow-demo.mjs:99:  { id: ids.change, workspace_id: workspaceId, project_id: projectId, signal_id: ids.scopeSignal, type: "change", title: "Out-of-scope client request", description: "Requested activity is not in the agreed scope.", severity: "high", probability: "high", impact: "high", owner_user_id: actorUserId, status: "open" },
+scripts/seed-operational-flow-demo.mjs:100:  { id: ids.decisionNeeded, workspace_id: workspaceId, project_id: projectId, signal_id: ids.approvalSignal, type: "decision_needed", title: "Formal approval required", description: "Execution was requested before formal approval.", severity: "high", probability: "high", impact: "high", owner_user_id: actorUserId, status: "open" },
+scripts/seed-operational-flow-demo.mjs:103:  { id: ids.scopeGovernance, workspace_id: workspaceId, project_id: projectId, related_entity_type: "risk_issue_record", related_entity_id: ids.change, rule_key: "scope_authority_v1", authority_required: "sponsor or PMO", evidence_required: true, governance_status: "decision_required", explanation: "A scope change requires sponsor or PMO authority and a traceable decision before execution." },
+scripts/seed-operational-flow-demo.mjs:104:  { id: ids.approvalGovernance, workspace_id: workspaceId, project_id: projectId, related_entity_type: "risk_issue_record", related_entity_id: ids.decisionNeeded, rule_key: "approval_required_v1", authority_required: "authorized approver", evidence_required: true, governance_status: "decision_required", explanation: "Formal approval is missing; work must not proceed until an authorized human decides." },
+scripts/seed-operational-flow-demo.mjs:108:  { id: ids.scopeRecommendation, workspace_id: workspaceId, project_id: projectId, governance_event_id: ids.scopeGovernance, risk_issue_id: ids.change, title: "Confirm scope before execution", description: recommendation, recommendation, recommended_action_type: "validate_scope", status: "proposed", confidence_score: 92, impact_level: "high", rationale: { method: "deterministic_rule_v1" }, urgency: "high", evidence_summary: { evidenceItemId: ids.evidence, evidenceHash: evidence.evidence_hash, evidenceVersion: evidence.version, signalId: ids.scopeSignal }, source_signal_id: ids.scopeSignal, fingerprint: createHash("sha256").update(`${workspaceId}:${ids.scopeGovernance}`).digest("hex"), decision_reason: "Do not execute until formal confirmation is received.", decided_by: actorUserId, decided_at: new Date().toISOString() },
+scripts/seed-operational-flow-demo.mjs:109:  { id: ids.approvalRecommendation, workspace_id: workspaceId, project_id: projectId, governance_event_id: ids.approvalGovernance, risk_issue_id: ids.decisionNeeded, title: "Obtain formal approval", description: recommendation, recommendation, recommended_action_type: "request_approval", status: "proposed", confidence_score: 95, impact_level: "high", rationale: { method: "deterministic_rule_v1" }, urgency: "high", evidence_summary: { evidenceItemId: ids.evidence, evidenceHash: evidence.evidence_hash, evidenceVersion: evidence.version, signalId: ids.approvalSignal }, source_signal_id: ids.approvalSignal, fingerprint: createHash("sha256").update(`${workspaceId}:${ids.approvalGovernance}`).digest("hex") },
+scripts/seed-operational-flow-demo.mjs:111:const authorityEvaluation = { allowed: true, actor_role: membership.role, authority_required: "sponsor or PMO", authority_basis: `${membership.role} workspace authority (PMFreak role mapping v1)`, reason: "workspace_authority", mapping: "pmfreak_role_mapping_v1", demoSeed: true };
+scripts/seed-operational-flow-demo.mjs:112:fail("create_demo_decision", (await db.from("operational_decision_records").insert({ id: ids.decision, workspace_id: workspaceId, project_id: projectId, recommendation_id: ids.scopeRecommendation, governance_event_id: ids.scopeGovernance, decided_by: actorUserId, decision: "Accept recommendation: obtain formal confirmation before execution.", decision_status: "accepted", rationale: "Protect scope, schedule and commercial position before committing delivery capacity.", authority_basis: authorityEvaluation.authority_basis, authority_evaluation: authorityEvaluation })).error);
+scripts/seed-operational-flow-demo.mjs:115:fail("create_demo_run", (await db.from("agent_runs").insert({ id: ids.run, workspace_id: workspaceId, project_id: projectId, agent_key: "system/deterministic:governance_signal_detector_v1", input_summary: "Client request for out-of-scope activity", status: "completed" })).error);
+scripts/seed-operational-flow-demo.mjs:118:console.log(JSON.stringify({ ok: true, disposition, projectDisposition, workspaceId, projectId, scenarioKey: SCENARIO_KEY, commandCenterUrl: `/command-center?projectId=${projectId}`, counts: { evidence: 1, signals: 2, risksIssues: 2, governanceEvents: 2, recommendations: 2, decisions: 1, evidenceLinks: 1 } }, null, 2));
+scripts/check-dashboard-approval-mutation-runtime.mjs:11:const mutation = { requestId: 'req-1', envelopeId: 'env-1', decision: 'approve', actor: { id: 'fin-1', roles: ['finance_lead'], lanes: ['finance_lead'] } }
+scripts/check-dashboard-approval-mutation-runtime.mjs:15:assert.equal(authorizeApprovalMutation({ mutation: { ...mutation, actor: { id: 'v', roles: ['viewer'] } }, approvalRequest, lifecycle }).authorized, false)
+scripts/check-dashboard-approval-mutation-runtime.mjs:22:assert.equal((await runDashboardApprovalMutationRuntime({ mutation: { ...mutation, actor: { id: 'v', roles: ['viewer'] } }, context: { store, approvalRequest, lifecycle } })).result.status, 'unauthorized')
+scripts/check-enterprise-ux.mjs:53:check("workspace/ subdirectory exists", uxExists("workspace"));
+scripts/check-enterprise-ux.mjs:88:  "workspace-bootstrap-ui.ts",
+scripts/check-enterprise-ux.mjs:89:  uxExists("workspace/workspace-bootstrap-ui.ts")
+scripts/check-pmo-intervention-automation-runtime.mjs:1:import { detectPMOInterventions } from '../src/lib/portfolio/pmo-intervention-automation/intervention-detector.ts'
+scripts/check-pmo-intervention-automation-runtime.mjs:2:import { assignInterventionUrgency } from '../src/lib/portfolio/pmo-intervention-automation/priority-engine.ts'
+scripts/check-pmo-intervention-automation-runtime.mjs:3:import { assignInterventionOwnerLane } from '../src/lib/portfolio/pmo-intervention-automation/ownership-engine.ts'
+scripts/check-pmo-intervention-automation-runtime.mjs:4:import { generateRequiredEvidence } from '../src/lib/portfolio/pmo-intervention-automation/evidence-engine.ts'
+scripts/check-pmo-intervention-automation-runtime.mjs:5:import { generateRecommendedCadence } from '../src/lib/portfolio/pmo-intervention-automation/cadence-engine.ts'
+scripts/check-pmo-intervention-automation-runtime.mjs:6:import { generatePMOInterventionPlan } from '../src/lib/portfolio/pmo-intervention-automation/automation-plan-engine.ts'
+scripts/check-pmo-intervention-automation-runtime.mjs:7:import { runPMOInterventionAutomation } from '../src/lib/portfolio/pmo-intervention-automation/pmo-intervention-automation-runtime.ts'
+scripts/check-pmo-intervention-automation-runtime.mjs:90:const candidates = detectPMOInterventions(input)
+scripts/check-pmo-intervention-automation-runtime.mjs:106:const laneValues = ['project_manager', 'pmo_director', 'technical_lead', 'finance_lead', 'logistics_lead', 'executive_sponsor', 'client_owner', 'vendor_owner']
+scripts/check-pmo-intervention-automation-runtime.mjs:125:const plan = generatePMOInterventionPlan(candidates, input)
+scripts/check-pmo-intervention-automation-runtime.mjs:126:if (!plan.id || plan.id !== 'pmo-intervention-plan') throw new Error('plan generation failed: wrong plan id')
+scripts/check-pmo-intervention-automation-runtime.mjs:131:const report = runPMOInterventionAutomation(input)
+scripts/check-pmo-intervention-automation-runtime.mjs:141:console.log('[ok] pmo intervention automation runtime valid')
+scripts/check-persistent-snapshot-store-runtime.mjs:8:const snapshot = { id: 'snap-check-1', tenantId: 't1', workspaceId: 'ws-1', portfolioId: 'pf-1', sourceKind: 'executive_dashboard_report', payload: { score: 80 }, generatedAt: nowIso, schemaVersion: '1.0.0', runtimeVersion: '8.8.0' }
+scripts/check-persistent-snapshot-store-runtime.mjs:12:assert.equal(rec.tenant_id, snapshot.tenantId)
+scripts/check-persistent-snapshot-store-runtime.mjs:14:assert.equal(rec.workspace_id, snapshot.workspaceId)
+scripts/check-persistent-snapshot-store-runtime.mjs:19:assert.equal(back.tenantId, snapshot.tenantId)
+scripts/check-persistent-snapshot-store-runtime.mjs:24:const recNoScope = mapSnapshotToRecord({ ...snapshot, workspaceId: undefined, portfolioId: undefined })
+scripts/check-persistent-snapshot-store-runtime.mjs:25:assert.equal(recNoScope.workspace_id, null)
+scripts/check-persistent-snapshot-store-runtime.mjs:28:assert.equal(backNoScope.workspaceId, undefined)
+scripts/check-persistent-snapshot-store-runtime.mjs:32:const filter = buildSnapshotRecordScopeFilter({ tenantId: 't1', workspaceId: 'ws-1', sourceKind: 'conflict_report' })
+scripts/check-persistent-snapshot-store-runtime.mjs:33:assert.equal(filter.tenant_id, 't1')
+scripts/check-persistent-snapshot-store-runtime.mjs:34:assert.equal(filter.workspace_id, 'ws-1')
+scripts/check-persistent-snapshot-store-runtime.mjs:38:const filterMin = buildSnapshotRecordScopeFilter({ tenantId: 't1' })
+scripts/check-persistent-snapshot-store-runtime.mjs:39:assert.equal(filterMin.workspace_id, null)
+scripts/check-persistent-snapshot-store-runtime.mjs:45:const retrieved = await memStore.getLatestSnapshot({ tenantId: 't1', workspaceId: 'ws-1', portfolioId: 'pf-1', sourceKind: 'executive_dashboard_report' })
+scripts/check-persistent-snapshot-store-runtime.mjs:48:const listed = await memStore.listLatestSnapshots({ tenantId: 't1', workspaceId: 'ws-1', portfolioId: 'pf-1' })
+scripts/check-persistent-snapshot-store-runtime.mjs:51:// Supabase provider health false when no client
+scripts/check-persistent-snapshot-store-runtime.mjs:52:const supabaseHealth = getPersistentSnapshotStoreHealth({ provider: 'supabase' })
+scripts/check-persistent-snapshot-store-runtime.mjs:53:assert.equal(supabaseHealth.available, false)
+scripts/check-persistent-snapshot-store-runtime.mjs:54:assert.ok(supabaseHealth.reason)
+scripts/check-persistent-snapshot-store-runtime.mjs:78:  request: { tenantId: 't1', workspaceId: 'ws-1', portfolioId: 'pf-1' },
+scripts/check-dashboard-source-hydration-runtime.mjs:9:const snapshot = { id:'snap-1', tenantId:'tenant-a', workspaceId:'ws-a', portfolioId:'pf-a', sourceKind:'executive_dashboard_report', payload:{score:80}, generatedAt:nowIso, schemaVersion:'1.0.0', runtimeVersion:'8.5.0' }
+scripts/check-dashboard-source-hydration-runtime.mjs:12:assert.ok(await store.getLatestSnapshot({tenantId:'tenant-a',workspaceId:'ws-a',portfolioId:'pf-a',sourceKind:'executive_dashboard_report'}))
+scripts/check-dashboard-source-hydration-runtime.mjs:14:const hydration=await hydrateDashboardSourceData({request:{tenantId:'tenant-a',workspaceId:'ws-a',portfolioId:'pf-a'},store})
+scripts/check-dashboard-source-hydration-runtime.mjs:16:assert.ok((await runDashboardSourceHydration({request:{tenantId:'tenant-a',workspaceId:'ws-a',portfolioId:'pf-a'},store})).recoveryPlan)
+scripts/check-trial-domain-foundation.mjs:45:for (const requiredField of ['companyid', 'workspaceid', 'userid', 'status', 'activationstage', 'readiness', 'plan', 'usage', 'credits', 'lasttransition', 'lifecycleevents']) {
+scripts/check-nutrient-operational-bridge.mjs:6: * nutrient-bridge module without requiring a live Supabase connection.
+scripts/check-nutrient-operational-bridge.mjs:65:    fs.existsSync("supabase/migrations/20260522100000_operational_memory_nutrient_links.sql"),
+scripts/check-nutrient-operational-bridge.mjs:107:  for (const f of ["companyId", "workspaceId", "projectId", "nutrientId", "operationalMemoryRecordId", "linkType", "confidence", "metadata"]) {
+scripts/check-nutrient-operational-bridge.mjs:211:check("recurrence detector enforces workspace scope", () => {
+scripts/check-nutrient-operational-bridge.mjs:212:  assert(recurrence.includes("workspaceId"), "Must enforce workspace scope in recurrence");
+scripts/check-nutrient-operational-bridge.mjs:260:check("persistNutrientMemoryLink exported (async, Supabase-backed)", () => {
+scripts/check-nutrient-operational-bridge.mjs:269:check("link builder includes tenant fields", () => {
+scripts/check-nutrient-operational-bridge.mjs:271:  assert(linker.includes("workspaceId"));
+scripts/check-nutrient-operational-bridge.mjs:301:check("manager enforces workspace scope on nutrient", () => {
+scripts/check-nutrient-operational-bridge.mjs:302:  assert(manager.includes("nutrient.workspaceId !== input.workspaceId"));
+scripts/check-nutrient-operational-bridge.mjs:340:  "supabase/migrations/20260522100000_operational_memory_nutrient_links.sql",
+scripts/check-nutrient-operational-bridge.mjs:348:check("migration uses current_company_id() for tenant isolation", () => {
+scripts/check-nutrient-operational-bridge.mjs:405:check("tests cover tenant scope isolation", () => {
+scripts/check-nutrient-operational-bridge.mjs:406:  assert(testFile.includes("companyId") || testFile.includes("workspaceId"));
+scripts/check-nutrient-operational-bridge.mjs:466:  console.log("Tenant isolation: verified");
+scripts/check-dashboard-runtime-integration.mjs:49:    topOwnerLanes: ['portfolio_board', 'pmo_executive'],
+scripts/check-dashboard-runtime-integration.mjs:106:      ownerLane: 'pmo_director',
+scripts/check-dashboard-runtime-integration.mjs:130:      title: 'Nexus stakeholder alignment session',
+scripts/check-fresh-db-migrations.mjs:5:// Applies every file under supabase/migrations, in filename order, to an
+scripts/check-fresh-db-migrations.mjs:6:// isolated Postgres/Supabase database, then validates schema integrity, RLS
+scripts/check-fresh-db-migrations.mjs:7:// coverage, and tenant isolation. Refuses to run against anything that looks
+scripts/check-fresh-db-migrations.mjs:12://             (e.g. a plain `postgres` server, or `supabase start`'s local
+scripts/check-fresh-db-migrations.mjs:13://             stack). Real SQL execution, no Supabase-hosted auth/storage.
+scripts/check-fresh-db-migrations.mjs:14://   hosted    SUPABASE_DB_URL + SUPABASE_ACCESS_TOKEN + SUPABASE_PROJECT_REF
+scripts/check-fresh-db-migrations.mjs:15://             point at an isolated hosted Supabase project. Strongest
+scripts/check-fresh-db-migrations.mjs:16://             evidence: real auth/storage/PostgREST-compatible roles.
+scripts/check-fresh-db-migrations.mjs:24://                                            match SUPABASE_PROJECT_REF)
+scripts/check-fresh-db-migrations.mjs:38:const MIGRATIONS_DIR = path.join(ROOT, "supabase/migrations");
+scripts/check-fresh-db-migrations.mjs:68:  const hasHosted = process.env.SUPABASE_DB_URL && process.env.SUPABASE_ACCESS_TOKEN && process.env.SUPABASE_PROJECT_REF;
+scripts/check-fresh-db-migrations.mjs:85:  const dbUrl = mode === "hosted" ? process.env.SUPABASE_DB_URL : process.env.FRESH_DB_URL;
+scripts/check-fresh-db-migrations.mjs:94:      return fail("FRESH_DB_EXPECTED_PROJECT_REF is required in hosted mode and must exactly match SUPABASE_PROJECT_REF.");
+scripts/check-fresh-db-migrations.mjs:96:    if (expected !== process.env.SUPABASE_PROJECT_REF) {
+scripts/check-fresh-db-migrations.mjs:97:      return fail(`FRESH_DB_EXPECTED_PROJECT_REF (${expected}) does not match SUPABASE_PROJECT_REF (${redact(process.env.SUPABASE_PROJECT_REF)}). Refusing to run.`);
+scripts/check-fresh-db-migrations.mjs:151:  const projectRef = process.env.SUPABASE_PROJECT_REF;
+scripts/check-fresh-db-migrations.mjs:154:  const link = sh("npx", ["-y", "supabase", "link", "--project-ref", projectRef], {
+scripts/check-fresh-db-migrations.mjs:155:    env: { ...process.env, SUPABASE_ACCESS_TOKEN: process.env.SUPABASE_ACCESS_TOKEN },
+scripts/check-fresh-db-migrations.mjs:159:  const push = sh("npx", ["-y", "supabase", "db", "push"], {
+scripts/check-fresh-db-migrations.mjs:160:    env: { ...process.env, SUPABASE_ACCESS_TOKEN: process.env.SUPABASE_ACCESS_TOKEN },
+scripts/check-fresh-db-migrations.mjs:169:// After a hosted apply, `supabase migration list --linked` prints a table
+scripts/check-fresh-db-migrations.mjs:186:// validated against real `supabase migration list` output in this session —
+scripts/check-fresh-db-migrations.mjs:187:// no hosted Supabase credentials were available (see
+scripts/check-fresh-db-migrations.mjs:188:// docs/release/hosted-supabase-migration-proof.md). Re-verify the row
+scripts/check-fresh-db-migrations.mjs:207:  const list = sh("npx", ["-y", "supabase", "migration", "list", "--linked"], {
+scripts/check-fresh-db-migrations.mjs:208:    env: { ...process.env, SUPABASE_ACCESS_TOKEN: process.env.SUPABASE_ACCESS_TOKEN },
+scripts/check-fresh-db-migrations.mjs:211:    return { ok: false, reason: "`supabase migration list --linked` failed", stderr: list.stderr };
+scripts/check-fresh-db-migrations.mjs:242:  const query = `
+scripts/check-fresh-db-migrations.mjs:248:  const result = sh("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", ",", dbUrl, "-c", query]);
+scripts/check-fresh-db-migrations.mjs:291:    results.push(["Fresh apply", "SKIPPED (no FRESH_DB_URL / SUPABASE_DB_URL set)"]);
+scripts/check-dashboard-authorization-enforcement-runtime.mjs:12:const actor = { id: 'a1', roles: ['system_owner'], tenantId: 't1', workspaceId: 'w1' }
+scripts/check-dashboard-authorization-enforcement-runtime.mjs:13:const viewer = { id: 'v1', roles: ['viewer'], tenantId: 't1', workspaceId: 'w1' }
+scripts/check-dashboard-authorization-enforcement-runtime.mjs:19:assert.equal(enforceDashboardScope({ actor: { ...actor, roles: ['admin'] }, scope: { resourceTenantId: 'x' } }).status, 'scope_conflict')
+scripts/check-dashboard-authorization-enforcement-runtime.mjs:24:assert.equal(enforceApprovalMutationAuthorization({ actor: { ...actor, roles: ['finance_lead'], lanes: ['finance_lead'] }, mutation: { requestId: 'r', envelopeId: 'e', decision: 'approve', actor }, card }).allowed, true)
+scripts/check-live-federation-ingestion.mjs:21:if (!runtime.includes('workspaceId')) process.exit(1);
+scripts/check-dashboard-consumption-runtime.mjs:25:      { id: 'i-001', title: 'Emergency platform resource reallocation', urgency: 'critical', ownerLane: 'pmo_director', cadence: 'Immediate', affectedProjects: ['apollo'] },
+scripts/check-dashboard-task-adapter-runtime.mjs:16:  ownerLane: 'pmo_director',
+scripts/check-dashboard-task-adapter-runtime.mjs:21:  escalationRoute: { required: true, routeTo: 'pmo_director', reason: 'Critical escalation' },
+scripts/fresh-db-rls-smoke-test.sql:1:-- Two-workspace RLS / tenant-isolation smoke test for Perilla 13
+scripts/fresh-db-rls-smoke-test.sql:2:-- (RR-MIGRATE). Run against a fresh-applied database, as a role able to
+scripts/fresh-db-rls-smoke-test.sql:3:-- `set role authenticated` and `set request.jwt.claim.sub`/`.role` (a plain
+scripts/fresh-db-rls-smoke-test.sql:4:-- superuser connection on local Postgres, or any role on a real Supabase
+scripts/fresh-db-rls-smoke-test.sql:5:-- project). See docs/release/rls-tenant-isolation-report.md for expected
+scripts/fresh-db-rls-smoke-test.sql:11:-- to error (that IS the pass condition for cross-tenant writes).
+scripts/fresh-db-rls-smoke-test.sql:15:-- Seed: two users, two workspaces, two projects, memberships
+scripts/fresh-db-rls-smoke-test.sql:20:insert into public.workspaces (id, name, created_by_user_id) values
+scripts/fresh-db-rls-smoke-test.sql:21:  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Workspace A', '11111111-1111-1111-1111-111111111111'),
+scripts/fresh-db-rls-smoke-test.sql:22:  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Workspace B', '22222222-2222-2222-2222-222222222222');
+scripts/fresh-db-rls-smoke-test.sql:24:insert into public.workspace_memberships (workspace_id, user_id, role) values
+scripts/fresh-db-rls-smoke-test.sql:28:insert into public.projects (id, workspace_id, name, user_id) values
+scripts/fresh-db-rls-smoke-test.sql:33:set role authenticated;
+scripts/fresh-db-rls-smoke-test.sql:35:set request.jwt.claim.role = 'authenticated';
+scripts/fresh-db-rls-smoke-test.sql:37:select 'TEST 1: User A can read Workspace A (expect 1 row)' as test;
+scripts/fresh-db-rls-smoke-test.sql:38:select count(*) from public.workspaces where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+scripts/fresh-db-rls-smoke-test.sql:40:select 'TEST 2: User A cannot read Workspace B (expect 0 rows)' as test;
+scripts/fresh-db-rls-smoke-test.sql:41:select count(*) from public.workspaces where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+scripts/fresh-db-rls-smoke-test.sql:49:select 'TEST 5: User A cross-tenant INSERT into Project B workspace (expect ERROR / 0 rows affected)' as test;
+scripts/fresh-db-rls-smoke-test.sql:50:insert into public.projects (id, workspace_id, name, user_id) values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Hostile Insert', '11111111-1111-1111-1111-111111111111');
+scripts/fresh-db-rls-smoke-test.sql:52:select 'TEST 6: User A cross-tenant UPDATE of Project B (expect 0 rows updated)' as test;
+scripts/fresh-db-rls-smoke-test.sql:56:select 'TEST 7: User A cross-tenant DELETE of Project B (expect 0 rows deleted)' as test;
+scripts/fresh-db-rls-smoke-test.sql:63:select 'TEST 8: User B cannot read Workspace A (expect 0 rows)' as test;
+scripts/fresh-db-rls-smoke-test.sql:64:select count(*) from public.workspaces where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+scripts/fresh-db-rls-smoke-test.sql:69:reset role;
+scripts/fresh-db-rls-smoke-test.sql:71:-- ── Service-role boundary: capability_verification_* must reject authenticated ──
+scripts/fresh-db-rls-smoke-test.sql:72:set role authenticated;
+scripts/fresh-db-rls-smoke-test.sql:78:reset role;
+scripts/check-dashboard-action-ui.mjs:18:      interventionsQueue: [{ id: 'i1', title: 'Intervention 1', urgency: 'high', ownerLane: 'pmo_director', cadence: 'Daily', affectedProjects: ['p1'] }],
+scripts/check-db-schema-contract.mjs:47:  workspaces: extractDeclaredColumns("WORKSPACE_SELECTABLE_COLUMNS"),
+scripts/check-db-schema-contract.mjs:48:  workspace_memberships: extractDeclaredColumns("WORKSPACE_MEMBERSHIP_SELECTABLE_COLUMNS"),
+scripts/check-db-schema-contract.mjs:50:  workspace_governance: extractDeclaredColumns("WORKSPACE_GOVERNANCE_SELECTABLE_COLUMNS"),
+scripts/check-db-schema-contract.mjs:51:  workspace_runtime_state: extractDeclaredColumns("WORKSPACE_RUNTIME_STATE_SELECTABLE_COLUMNS"),
+scripts/check-db-schema-contract.mjs:56:  early_access_invites: extractDeclaredColumns("EARLY_ACCESS_INVITE_SELECTABLE_COLUMNS"),
+scripts/check-db-schema-contract.mjs:63:  pmo_executive_reports: extractDeclaredColumns("PMO_EXECUTIVE_REPORT_SELECTABLE_COLUMNS"),
+scripts/check-db-schema-contract.mjs:64:  pmo_alert_payloads: extractDeclaredColumns("PMO_ALERT_PAYLOAD_SELECTABLE_COLUMNS"),
+scripts/check-db-schema-contract.mjs:77:    description: "workspaces.status column must exist in migrations",
+scripts/check-db-schema-contract.mjs:78:    file: "supabase/migrations/20260601000000_schema_contract_hardening.sql",
+scripts/check-db-schema-contract.mjs:83:    file: "supabase/migrations/20260601000000_schema_contract_hardening.sql",
+scripts/check-db-schema-contract.mjs:87:    description: "workspace_governance RLS must cast workspace_id::uuid",
+scripts/check-db-schema-contract.mjs:88:    file: "supabase/migrations/20260601000000_schema_contract_hardening.sql",
+scripts/check-db-schema-contract.mjs:89:    pattern: /workspace_id::uuid in/,
+scripts/check-db-schema-contract.mjs:95:// This scanner catches the most common Supabase query patterns:
+scripts/check-db-schema-contract.mjs:97:// It does NOT attempt to parse all Supabase query builder permutations —
+scripts/check-db-schema-contract.mjs:102://   - Relation embeds: .select("relation(col1, col2)") — valid Supabase join syntax
+scripts/check-db-schema-contract.mjs:111:// multi-step query chains where the .from and .select belong to different
+scripts/check-db-schema-contract.mjs:133:      //   - relation embeds: tokens containing "(" e.g. "workspace(id, name)"
+scripts/check-dashboard-api-runtime.mjs:46:    topOwnerLanes: ['portfolio_board', 'pmo_executive'],
+scripts/check-dashboard-api-runtime.mjs:80:      ownerLane: 'pmo_director',
+scripts/check-dashboard-api-runtime.mjs:119:const validResult = validateDashboardApiRequest({ tenantId: 'tenant-abc', workspaceId: 'ws-1' })
+scripts/check-dashboard-api-runtime.mjs:122:if (validResult.request.tenantId !== 'tenant-abc') throw new Error('tenantId mismatch')
+scripts/check-dashboard-api-runtime.mjs:125:// Validate request validation — missing tenantId
+scripts/check-dashboard-api-runtime.mjs:126:const missingTenantResult = validateDashboardApiRequest({})
+scripts/check-dashboard-api-runtime.mjs:127:if (missingTenantResult.valid) throw new Error('missing tenantId should fail validation')
+scripts/check-dashboard-api-runtime.mjs:128:if (missingTenantResult.errors[0].code !== 'missing_tenant_id') throw new Error('expected missing_tenant_id error code')
+scripts/check-dashboard-api-runtime.mjs:131:const invalidFieldResult = validateDashboardApiRequest({ tenantId: 'tenant-abc', includeSignals: 'yes' })
+scripts/check-dashboard-api-runtime.mjs:136:const unknownFieldResult = validateDashboardApiRequest({ tenantId: 'tenant-xyz', unknownField: true })
+scripts/check-dashboard-api-runtime.mjs:142:  { tenantId: 'tenant-abc' },
+scripts/check-dashboard-api-runtime.mjs:150:  { tenantId: 'tenant-abc' },
+scripts/check-dashboard-api-runtime.mjs:164:  request: { tenantId: 'tenant-abc', includeMetadata: true },
+scripts/check-dashboard-api-runtime.mjs:175:  request: { tenantId: 'tenant-abc', includeMetadata: true },
+scripts/check-dashboard-api-runtime.mjs:186:  request: { tenantId: 'tenant-abc' },
+scripts/check-dashboard-api-runtime.mjs:188:  warnings: ['PMO intervention report unavailable.'],
+scripts/check-dashboard-api-runtime.mjs:194:  { code: 'missing_tenant_id', message: 'tenantId is required', recoverable: false },
+scripts/check-dashboard-api-runtime.mjs:197:if (errorResponse.warnings[0] !== 'tenantId is required') throw new Error('error response warnings mismatch')
+scripts/check-dashboard-api-runtime.mjs:202:  request: { tenantId: 'tenant-abc', includeMetadata: false },
+scripts/check-dashboard-api-runtime.mjs:210:  { tenantId: 'tenant-abc', includeMetadata: true },
+scripts/check-dashboard-api-runtime.mjs:216:if (runtimeSuccess.metadata.tenantId !== 'tenant-abc') throw new Error('metadata tenantId mismatch')
+scripts/check-dashboard-api-runtime.mjs:225:const runtimeEmpty = runDashboardApiRuntime({ tenantId: 'tenant-abc' })
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:98:    agentRole: request?.agentContext.agentRole ?? actionAttempt?.agentRole,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:100:    workspaceId: request?.projectContext.workspaceId ?? actionAttempt?.workspaceId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:101:    tenantId: request?.projectContext.tenantId ?? actionAttempt?.tenantId,
+scripts/check-operational-memory-runtime.mjs:6: * operational-memory domain without requiring a live Supabase connection.
+scripts/check-operational-memory-runtime.mjs:60:  assert(fs.existsSync("supabase/migrations/20260522000000_operational_runtime_memory.sql"));
+scripts/check-operational-memory-runtime.mjs:82:  for (const field of ["companyId", "workspaceId", "projectId", "conversationId", "interventionId", "stakeholderId"]) {
+scripts/check-operational-memory-runtime.mjs:103:check("assertScopeIsolation throws on cross-tenant access", async () => {
+scripts/check-operational-memory-runtime.mjs:107:  try { mod.assertScopeIsolation({ companyId: "a", workspaceId: null, projectId: null }, { companyId: "b", workspaceId: null, projectId: null }); }
+scripts/check-operational-memory-runtime.mjs:109:  assert(threw, "Should throw on cross-tenant access");
+scripts/check-operational-memory-runtime.mjs:115:  const result = mod.validateOperationalScope({ companyId: "", workspaceId: null, projectId: null });
+scripts/check-operational-memory-runtime.mjs:122:  const scope = { companyId: "c1", workspaceId: "w1", projectId: "p1" };
+scripts/check-operational-memory-runtime.mjs:137:    scope: { companyId: "c1", workspaceId: null, projectId: null },
+scripts/check-operational-memory-runtime.mjs:156:  const root = { id: "root", recordType: "blocker", summary: "root", detail: null, scope: { companyId: "c1", workspaceId: null, projectId: null }, parentRecordId: null, lineageType: null, resolutionStatus: "unresolved", weights: { continuityWeight: 0.7, operationalPressureWeight: 0.7, escalationWeight: 0.4, unresolvedWeight: 0.7, deliveryImpactWeight: 0.7 }, confidence: 0.7, ingestionSource: "chat_conversation", sourceRef: null, nutrientIds: [], interventionCount: 0, firstObservedAt: new Date().toISOString(), lastObservedAt: new Date().toISOString(), resolvedAt: null, createdAt: new Date().toISOString() };
+scripts/check-operational-memory-runtime.mjs:199:  const record = { id: "r1", recordType: "blocker", summary: "test", detail: null, scope: { companyId: "c1", workspaceId: null, projectId: null }, parentRecordId: null, lineageType: null, resolutionStatus: "unresolved", weights: { continuityWeight: 0.7, operationalPressureWeight: 0.7, escalationWeight: 0.4, unresolvedWeight: 0.7, deliveryImpactWeight: 0.7 }, confidence: 0.7, ingestionSource: "chat_conversation", sourceRef: null, nutrientIds: [], interventionCount: 0, firstObservedAt: new Date().toISOString(), lastObservedAt: new Date().toISOString(), resolvedAt: null, createdAt: new Date().toISOString() };
+scripts/check-operational-memory-runtime.mjs:209:  const record = { id: "r1", recordType: "blocker", summary: "test", detail: null, scope: { companyId: "c1", workspaceId: null, projectId: null }, parentRecordId: null, lineageType: null, resolutionStatus: "resolved", weights: { continuityWeight: 0.7, operationalPressureWeight: 0.7, escalationWeight: 0.4, unresolvedWeight: 0.9, deliveryImpactWeight: 0.7 }, confidence: 0.7, ingestionSource: "chat_conversation", sourceRef: null, nutrientIds: [], interventionCount: 0, firstObservedAt: new Date().toISOString(), lastObservedAt: new Date().toISOString(), resolvedAt: null, createdAt: new Date().toISOString() };
+scripts/check-operational-memory-runtime.mjs:224:  const record = { id: "r1", recordType: "blocker", summary: "procurement blocked", detail: null, scope: { companyId: "c1", workspaceId: null, projectId: null }, parentRecordId: null, lineageType: null, resolutionStatus: "unresolved", weights: { continuityWeight: 0.8, operationalPressureWeight: 0.8, escalationWeight: 0.5, unresolvedWeight: 0.8, deliveryImpactWeight: 0.8 }, confidence: 0.8, ingestionSource: "chat_conversation", sourceRef: null, nutrientIds: [], interventionCount: 0, firstObservedAt: new Date(Date.now() - 10 * 86400000).toISOString(), lastObservedAt: new Date().toISOString(), resolvedAt: null, createdAt: new Date(Date.now() - 10 * 86400000).toISOString() };
+scripts/check-operational-memory-runtime.mjs:232:  const makeRec = (id, status) => ({ id, recordType: "risk", summary: "s", detail: null, scope: { companyId: "c1", workspaceId: null, projectId: null }, parentRecordId: null, lineageType: null, resolutionStatus: status, weights: { continuityWeight: 0.5, operationalPressureWeight: 0.5, escalationWeight: 0.3, unresolvedWeight: 0.5, deliveryImpactWeight: 0.5 }, confidence: 0.7, ingestionSource: "chat_conversation", sourceRef: null, nutrientIds: [], interventionCount: 0, firstObservedAt: new Date().toISOString(), lastObservedAt: new Date().toISOString(), resolvedAt: null, createdAt: new Date().toISOString() });
+scripts/check-operational-memory-runtime.mjs:248:  const record = { id: "r1", recordType: "blocker", summary: "s", detail: null, scope: { companyId: "c1", workspaceId: null, projectId: null }, parentRecordId: null, lineageType: null, resolutionStatus: "unresolved", weights: { continuityWeight: 0.7, operationalPressureWeight: 0.7, escalationWeight: 0.4, unresolvedWeight: 0.7, deliveryImpactWeight: 0.7 }, confidence: 0.7, ingestionSource: "chat_conversation", sourceRef: null, nutrientIds: [], interventionCount: 0, firstObservedAt: new Date().toISOString(), lastObservedAt: new Date().toISOString(), resolvedAt: null, createdAt: new Date().toISOString() };
+scripts/check-operational-memory-runtime.mjs:268:const migration = fs.readFileSync("supabase/migrations/20260522000000_operational_runtime_memory.sql", "utf8");
+scripts/check-operational-memory-runtime.mjs:274:check("migration uses current_company_id() for tenant isolation", () => {
+scripts/check-operational-memory-runtime.mjs:308:  console.log("Tenant isolation: verified");
+scripts/check-dashboard-persistent-lifecycle-store-runtime.mjs:14:assert.equal(mapLifecycleToPersistentRecord({tenantId:'t',lifecycle}).lifecycle_id,'l1')
+scripts/check-dashboard-persistent-lifecycle-store-runtime.mjs:15:assert.equal(mapEventToPersistentRecord({tenantId:'t',event}).event_id,'ev1')
+scripts/check-dashboard-persistent-lifecycle-store-runtime.mjs:16:const store=createPersistentLifecycleStore({config:{provider:'supabase',tenantId:'t'},supabaseClient:fake})
+scripts/check-dashboard-persistent-lifecycle-store-runtime.mjs:22:await runPersistentLifecycleStoreRuntime({store,supabaseClient:fake,now:NOW})
+scripts/check-dashboard-persistent-lifecycle-store-runtime.mjs:23:assert.equal(getPersistentLifecycleStoreHealth({config:{provider:'supabase',tenantId:'t'},supabaseClient:fake}).healthy,true)
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:58:    workspaceId: context.workspaceId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:59:    tenantId: context.tenantId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:62:    agentRole: context.agentRole,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:98:    workspaceId: context.workspaceId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:99:    tenantId: context.tenantId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:103:    agentRole: context.agentRole,
+scripts/check-dashboard-action-center-runtime.mjs:10:const input={dashboardViewModel:{hasCriticalAttention:true,warnings:['w1'],sections:{topRisksTable:[{id:'r1',title:'Critical dependency risk',severity:'critical',source:'risk-engine',affectedProjects:['p1'],rationale:'missing input and dependency unblock'}],interventionsQueue:[{id:'i1',title:'Intervention budget unblock',urgency:'high',ownerLane:'pmo_director',cadence:'Daily',affectedProjects:['p1']}],decisionsWidget:[{id:'d1',title:'Approve with conditions',recommendation:'approve_with_conditions',confidenceScore:0.8,severity:'high'}],alertPanel:[{id:'a1',title:'High cache alert',type:'cache',severity:'high',description:'financial budget payment delayed'}]}},cacheRefreshResult:{cacheStatus:'refresh_required',refreshPlan:{refreshRequired:true,refreshRecommended:true,priority:'high',reasonSummary:'stale',actions:[{id:'c1',sourceKind:'executive_dashboard_report',reason:'stale',priority:'high',title:'Refresh executive dashboard',description:'refresh now'}]},metadata:{refreshRequired:true,refreshRecommended:true,warnings:['cw1']}},hydrationResult:{riskLevel:'high',warnings:[],recoveryPlan:{recoveryRequired:true,actions:['Regenerate executive source'],fallbackMode:'safe'}},pmoInterventionReport:{interventions:[{id:'pmo1',type:'cadence',title:'Client input missing for invoice',affectedProjects:['p2'],urgency:'critical',ownerLane:'project_manager',requiredEvidence:['e1']}]}}
+scripts/check-dashboard-action-center-runtime.mjs:12:const gen=generateDashboardActions(input); assert.equal(gen.some(a=>a.type==='resolve_portfolio_risk'),true); assert.equal(gen.some(a=>a.type==='execute_pmo_intervention'),true); assert.equal(gen.some(a=>a.type==='refresh_dashboard_source'),true); assert.equal(gen.some(a=>a.type==='recover_dashboard_hydration'),true)
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-normalizer.ts:62:    workspaceId: request?.projectContext.workspaceId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-normalizer.ts:63:    tenantId: request?.projectContext.tenantId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-normalizer.ts:67:    agentRole: request?.agentContext.agentRole,
+scripts/check-production-runtime.mjs:39:  "src/lib/production-runtime/tenants/tenant-provisioning.ts",
+scripts/check-production-runtime.mjs:40:  "src/lib/production-runtime/tenants/tenant-runtime-state.ts",
+scripts/check-production-runtime.mjs:41:  "src/lib/production-runtime/tenants/tenant-isolation-validation.ts",
+scripts/check-production-runtime.mjs:42:  "src/lib/production-runtime/workspaces/workspace-provisioning.ts",
+scripts/check-production-runtime.mjs:43:  "src/lib/production-runtime/workspaces/workspace-isolation-validation.ts",
+scripts/check-production-runtime.mjs:74:if (!fs.existsSync(p("docs/architecture/deployment-multitenant-production-operations.md"))) {
+scripts/check-production-runtime.mjs:75:  error("Missing architecture doc: docs/architecture/deployment-multitenant-production-operations.md");
+scripts/check-production-runtime.mjs:109:    "retrieveOperationsTenantProvisioning",
+scripts/check-production-runtime.mjs:110:    "retrieveOperationsWorkspaceProvisioning",
+scripts/check-production-runtime.mjs:125:// ── tenant isolation validation ───────────────────────────────────────────────
+scripts/check-production-runtime.mjs:127:const isolationPath = p("src/lib/production-runtime/tenants/tenant-isolation-validation.ts");
+scripts/check-production-runtime.mjs:130:  if (!/evaluateTenantIsolation/.test(content)) {
+scripts/check-production-runtime.mjs:131:    error("tenant-isolation-validation.ts missing evaluateTenantIsolation");
+scripts/check-production-runtime.mjs:134:    error("tenant-isolation-validation.ts missing row_level_security boundary");
+scripts/check-production-runtime.mjs:172:  if (!/tenant_crossover_debug/.test(content)) {
+scripts/check-production-runtime.mjs:173:    error("environment-governance.ts missing tenant_crossover_debug governance policy");
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-package.ts:22:  workspaceId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-package.ts:23:  tenantId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-package.ts:27:  agentRole?: string;
+scripts/check-dashboard-manual-task-push-runtime.mjs:15:  metadata: { actionId: 'act-001', executionLane: 'risk_management', ownerLane: 'pmo_director', escalationRequired: true, evidenceRequiredCount: 1, source: 'dashboard' },
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-types.ts:46:  workspaceId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-types.ts:47:  tenantId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-types.ts:51:  agentRole?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-detail-view-model.ts:88:          scalarRow("Agent role", handoff.agentRole),
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-gate-result.ts:59:    workspaceId: context.workspaceId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-gate-result.ts:60:    tenantId: context.tenantId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-gate-result.ts:63:    agentRole: context.agentRole,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-gate-result.ts:99:    workspaceId: context.workspaceId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-gate-result.ts:100:    tenantId: context.tenantId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-gate-result.ts:104:    agentRole: context.agentRole,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-fixtures.ts:40:    agentRole: "risk_agent",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-fixtures.ts:43:    workspaceId: "demo.workspace.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-fixtures.ts:44:    tenantId: "demo.tenant.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-fixtures.ts:64:    agentRole: "change_control_agent",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-fixtures.ts:67:    workspaceId: "demo.workspace.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-fixtures.ts:68:    tenantId: "demo.tenant.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-config.ts:4:export type PMFreakAocDecisionInboxDisplayMode = "demo" | "project" | "workspace" | "agent" | "portfolio";
+scripts/smoke-test-vault-digestion.mjs:111:    rationale: 'Ownership implied but no named person or role identified',
+scripts/smoke-test-vault-digestion.mjs:166:  /\balignment (?:discussion|session|meeting|call|achieved|confirmed)\b/i,
+scripts/smoke-test-vault-digestion.mjs:307:function extractSemanticResidue(lines, workspaceId, projectId, digestionRunId) {
+scripts/smoke-test-vault-digestion.mjs:322:        workspaceId,
+scripts/smoke-test-vault-digestion.mjs:362:    workspaceId: rawMaterial.workspaceId,
+scripts/smoke-test-vault-digestion.mjs:389:      workspaceId: context.workspaceId,
+scripts/smoke-test-vault-digestion.mjs:395:  const residue = extractSemanticResidue(normalized.lines, context.workspaceId, context.projectId, runId);
+scripts/smoke-test-vault-digestion.mjs:400:    workspaceId: context.workspaceId,
+scripts/smoke-test-vault-digestion.mjs:422:    workspaceId: 'ws-mep',
+scripts/smoke-test-vault-digestion.mjs:426:    title: 'MEP-14156 Weekly Status — Tenant Provisioning Blocked',
+scripts/smoke-test-vault-digestion.mjs:430:Tenant provisioning is blocked by Cisco SASE portal access issue.
+scripts/smoke-test-vault-digestion.mjs:431:We cannot proceed with SIG configuration until tenant admin credentials are issued.
+scripts/smoke-test-vault-digestion.mjs:433:Dependency: onboarding schedule depends on receiving admin credentials from Cisco.
+scripts/smoke-test-vault-digestion.mjs:440:    workspaceId: 'ws-mep',
+scripts/smoke-test-vault-digestion.mjs:458:    workspaceId: 'ws-mep',
+scripts/smoke-test-vault-digestion.mjs:476:    workspaceId: 'ws-mep',
+scripts/smoke-test-vault-digestion.mjs:488:Waiting for confirmation from client sysadmin Beatriz Rojas.
+scripts/smoke-test-vault-digestion.mjs:494:    workspaceId: 'ws-mep',
+scripts/smoke-test-vault-digestion.mjs:503:Cisco partner engineer available April 14-15 for supervised configuration session.
+scripts/smoke-test-vault-digestion.mjs:504:Client committed to have IT team available for the full two-day session.
+scripts/smoke-test-vault-digestion.mjs:505:SLA: first 50 users must be operational within 72 hours of session start.
+scripts/smoke-test-vault-digestion.mjs:507:Dependency: tenant credentials must be received by April 12 for this timeline to hold.`,
+scripts/smoke-test-vault-digestion.mjs:512:    workspaceId: 'ws-mep',
+scripts/smoke-test-vault-digestion.mjs:530:    workspaceId: 'ws-mep',
+scripts/smoke-test-vault-digestion.mjs:540:Approval required from Cisco Smart Account admin before we can proceed.
+scripts/smoke-test-vault-digestion.mjs:541:Governance gap: no owner identified within client organization for the Cisco portal admin role.
+scripts/smoke-test-vault-digestion.mjs:548:    workspaceId: 'ws-mep',
+scripts/smoke-test-vault-digestion.mjs:555:    content: `Positive update from headquarters onboarding session.
+scripts/smoke-test-vault-digestion.mjs:566:    workspaceId: 'ws-mep',
+scripts/smoke-test-vault-digestion.mjs:584:    workspaceId: 'ws-mep',
+scripts/smoke-test-vault-digestion.mjs:604:    workspaceId: 'ws-ice',
+scripts/smoke-test-vault-digestion.mjs:622:    workspaceId: 'ws-ice',
+scripts/smoke-test-vault-digestion.mjs:641:    workspaceId: 'ws-ice',
+scripts/smoke-test-vault-digestion.mjs:660:    workspaceId: 'ws-ice',
+scripts/smoke-test-vault-digestion.mjs:679:    workspaceId: 'ws-ice',
+scripts/smoke-test-vault-digestion.mjs:698:    workspaceId: 'ws-ice',
+scripts/smoke-test-vault-digestion.mjs:716:    workspaceId: 'ws-ice',
+scripts/smoke-test-vault-digestion.mjs:734:    workspaceId: 'ws-ice',
+scripts/smoke-test-vault-digestion.mjs:752:    workspaceId: 'ws-ice',
+scripts/smoke-test-vault-digestion.mjs:770:    workspaceId: 'ws-ice',
+scripts/smoke-test-vault-digestion.mjs:790:    workspaceId: 'ws-gch',
+scripts/smoke-test-vault-digestion.mjs:801:Governance gap: the Smart Account admin role has no named owner within the client IT department.
+scripts/smoke-test-vault-digestion.mjs:808:    workspaceId: 'ws-gch',
+scripts/smoke-test-vault-digestion.mjs:812:    title: 'ManageEngine — Guided Session Scheduled for April 8',
+scripts/smoke-test-vault-digestion.mjs:816:ManageEngine regional partner has committed to a guided implementation session on April 8.
+scripts/smoke-test-vault-digestion.mjs:817:Session will cover ServiceDesk Plus configuration and asset management module setup.
+scripts/smoke-test-vault-digestion.mjs:818:Commitment from ManageEngine: technical consultant available for full-day session 9am-5pm.
+scripts/smoke-test-vault-digestion.mjs:819:Client IT team lead confirmed they will have 3 engineers available for the session.
+scripts/smoke-test-vault-digestion.mjs:820:SLA for this milestone: session completion activates the 30-day support window.
+scripts/smoke-test-vault-digestion.mjs:821:Promised deliverable: configuration guide document at end of session.`,
+scripts/smoke-test-vault-digestion.mjs:826:    workspaceId: 'ws-gch',
+scripts/smoke-test-vault-digestion.mjs:844:    workspaceId: 'ws-gch',
+scripts/smoke-test-vault-digestion.mjs:862:    workspaceId: 'ws-gch',
+scripts/smoke-test-vault-digestion.mjs:875:Pending from Cisco: access credentials and initial admin setup guide.`,
+scripts/smoke-test-vault-digestion.mjs:880:    workspaceId: 'ws-gch',
+scripts/smoke-test-vault-digestion.mjs:898:    workspaceId: 'ws-gch',
+scripts/smoke-test-vault-digestion.mjs:916:    workspaceId: 'ws-gch',
+scripts/smoke-test-vault-digestion.mjs:935:    workspaceId: 'ws-gch',
+scripts/smoke-test-vault-digestion.mjs:939:    title: 'ManageEngine Session Completed — Several Open Items Remain',
+scripts/smoke-test-vault-digestion.mjs:942:    content: `ManageEngine guided session follow-up.
+scripts/smoke-test-vault-digestion.mjs:943:The April 8 ManageEngine session was completed — ServiceDesk Plus is now configured and operational.
+scripts/smoke-test-vault-digestion.mjs:945:However, several open items remain from the session that were not resolved.
+scripts/smoke-test-vault-digestion.mjs:947:MFA configuration for ManageEngine admin accounts is unclear — needs follow-up with vendor.
+scripts/smoke-test-vault-digestion.mjs:949:Next session scheduled for May 2 to address remaining open items.`,
+scripts/smoke-test-vault-digestion.mjs:954:    workspaceId: 'ws-gch',
+scripts/smoke-test-vault-digestion.mjs:974:    workspaceId: 'ws-hsa',
+scripts/smoke-test-vault-digestion.mjs:993:    workspaceId: 'ws-hsa',
+scripts/smoke-test-vault-digestion.mjs:1011:    workspaceId: 'ws-hsa',
+scripts/smoke-test-vault-digestion.mjs:1029:    workspaceId: 'ws-hsa',
+scripts/smoke-test-vault-digestion.mjs:1047:    workspaceId: 'ws-hsa',
+scripts/smoke-test-vault-digestion.mjs:1066:    workspaceId: 'ws-hsa',
+scripts/smoke-test-vault-digestion.mjs:1084:    workspaceId: 'ws-hsa',
+scripts/smoke-test-vault-digestion.mjs:1103:    workspaceId: 'ws-hsa',
+scripts/smoke-test-vault-digestion.mjs:1121:    workspaceId: 'ws-hsa',
+scripts/smoke-test-vault-digestion.mjs:1140:    workspaceId: 'ws-hsa',
+scripts/smoke-test-vault-digestion.mjs:1161:    workspaceId: 'ws-muc',
+scripts/smoke-test-vault-digestion.mjs:1180:    workspaceId: 'ws-muc',
+scripts/smoke-test-vault-digestion.mjs:1199:    workspaceId: 'ws-muc',
+scripts/smoke-test-vault-digestion.mjs:1218:    workspaceId: 'ws-muc',
+scripts/smoke-test-vault-digestion.mjs:1237:    workspaceId: 'ws-muc',
+scripts/smoke-test-vault-digestion.mjs:1256:    workspaceId: 'ws-muc',
+scripts/smoke-test-vault-digestion.mjs:1275:    workspaceId: 'ws-muc',
+scripts/smoke-test-vault-digestion.mjs:1294:    workspaceId: 'ws-muc',
+scripts/smoke-test-vault-digestion.mjs:1313:    workspaceId: 'ws-muc',
+scripts/smoke-test-vault-digestion.mjs:1333:    workspaceId: 'ws-muc',
+scripts/smoke-test-vault-digestion.mjs:1352:    workspaceId: 'ws-muc',
+scripts/smoke-test-vault-digestion.mjs:1380:    workspaceId: artifact.workspaceId,
+scripts/smoke-test-vault-digestion.mjs:1387:    workspaceId: artifact.workspaceId,
+scripts/smoke-test-vault-digestion.mjs:1479:      if (!ev.workspaceId) violations.push({ artifactId: artifact.id, nutrientId: nutrient.id, violation: 'missing_workspaceId' });
+scripts/smoke-test-vault-digestion.mjs:1480:      if (ev.workspaceId !== artifact.workspaceId) violations.push({ artifactId: artifact.id, nutrientId: nutrient.id, violation: 'workspaceId_mismatch', expected: artifact.workspaceId, got: ev.workspaceId });
+scripts/smoke-test-vault-digestion.mjs:1567:      content: artifact.content, workspaceId: artifact.workspaceId,
+scripts/smoke-test-vault-digestion.mjs:2049:    workspaceId: n.workspaceId,
+scripts/smoke-test-vault-digestion.mjs:2054:    const key = `${sig.workspaceId}:${sig.projectId ?? ''}:${sig.themeKey}`;
+scripts/smoke-test-vault-digestion.mjs:2059:    wpScope: `${sigs[0].workspaceId}:${sigs[0].projectId ?? ''}`,
+scripts/smoke-test-vault-digestion.mjs:2060:    workspaceId: sigs[0].workspaceId, projectId: sigs[0].projectId,
+scripts/smoke-test-vault-digestion.mjs:2080:    const signals = g.sigs.map(({ themeKey: _tk, themeWords: _tw, wpScope: _ws, workspaceId: _wid, projectId: _pid, ...rest }) => rest);
+scripts/smoke-test-vault-digestion.mjs:2081:    result.push({ groupKey: g.key, primaryNutrientType: g.nutrientType, groupingMethod: 'specific_theme', signals, recurrenceProfile: computePatternRecurrenceProfile(signals), involvedNutrientIds: signals.map((s) => s.nutrientId), workspaceId: g.workspaceId, projectId: g.projectId });
+scripts/smoke-test-vault-digestion.mjs:2089:    const key = `${n.workspaceId}:${n.projectId ?? ''}:${n.nutrientType}`;
+scripts/smoke-test-vault-digestion.mjs:2100:    result.push({ groupKey: `project-agg:${key}`, primaryNutrientType: gNutrients[0].nutrientType, groupingMethod: 'project_type_aggregate', signals, recurrenceProfile: profile, involvedNutrientIds: signals.map((s) => s.nutrientId), workspaceId: gNutrients[0].workspaceId, projectId: gNutrients[0].projectId });
+scripts/smoke-test-vault-digestion.mjs:2108:  const coveredByTheme = new Set(themeGroups.map((g) => `${g.workspaceId}:${g.projectId ?? ''}:${g.primaryNutrientType}`));
+scripts/smoke-test-vault-digestion.mjs:2109:  const filteredAggregates = aggregateGroups.filter((ag) => !coveredByTheme.has(`${ag.workspaceId}:${ag.projectId ?? ''}:${ag.primaryNutrientType}`));
+scripts/smoke-test-vault-digestion.mjs:2183:  const scopeKeys = new Set(nutrients.map((n) => `${n.workspaceId}:${n.projectId ?? ''}`));
+scripts/smoke-test-vault-digestion.mjs:2187:    const sr = recoveries.filter((n) => n.workspaceId === ws && (n.projectId ?? '') === (proj ?? ''));
+scripts/smoke-test-vault-digestion.mjs:2188:    const sa = antecedents.filter((n) => n.workspaceId === ws && (n.projectId ?? '') === (proj ?? ''));
+scripts/smoke-test-vault-digestion.mjs:2194:    results.push({ patternType: 'recovery_pattern', promotionReason: 'recovery_after_blockers', title: `Recovery Pattern: ${topR.summary.slice(0, 100)}`, summary: `Recovery signals appeared after ${sa.length} blocker/risk signals.`, severity: 'low', status: 'recovering', trajectory: 'decreasing', workspaceId: ws, projectId: proj || null, involvedNutrientIds: [...sr.map((n) => n.id), ...sa.map((n) => n.id)], involvedResidueIds: residue.filter((r) => r.workspaceId === ws && (r.projectId ?? '') === (proj ?? '')).map((r) => r.id) });
+scripts/smoke-test-vault-digestion.mjs:2199:function buildPatternEvidenceReferences(patternId, workspaceId, nutrients, involvedNutrientIds) {
+scripts/smoke-test-vault-digestion.mjs:2203:    id: crypto.randomUUID(), patternId, workspaceId, nutrientId: n.id, residueId: null,
+scripts/smoke-test-vault-digestion.mjs:2225:    const evidenceReferences = buildPatternEvidenceReferences(patternId, group.workspaceId, allNutrients, group.involvedNutrientIds);
+scripts/smoke-test-vault-digestion.mjs:2226:    patterns.push({ id: patternId, workspaceId: group.workspaceId, projectId: group.projectId, patternType: candidate.patternType, title: candidate.title, summary: candidate.summary, firstSeenAt, lastSeenAt, recurrenceCount: group.recurrenceProfile.totalOccurrences, involvedNutrientIds: group.involvedNutrientIds, involvedResidueIds: [], evidenceReferences, confidence: scores.confidence, severity: scores.severity, trajectory: scores.trajectory, status: candidate.status, promotionReason: candidate.promotionReason, recurrenceProfile: group.recurrenceProfile, createdAt: now, updatedAt: now });
+scripts/smoke-test-vault-digestion.mjs:2232:    const recovNuts = allNutrients.filter((n) => n.nutrientType === 'recovery_signal' && n.workspaceId === rc.workspaceId && (n.projectId ?? '') === (rc.projectId ?? ''));
+scripts/smoke-test-vault-digestion.mjs:2233:    const antNuts = allNutrients.filter((n) => ['blocker_signal','risk_signal','dependency_signal'].includes(n.nutrientType) && n.workspaceId === rc.workspaceId && (n.projectId ?? '') === (rc.projectId ?? ''));
+scripts/smoke-test-vault-digestion.mjs:2235:    const evidenceReferences = buildPatternEvidenceReferences(patternId, rc.workspaceId, allNutrients, rc.involvedNutrientIds);
+scripts/smoke-test-vault-digestion.mjs:2236:    patterns.push({ id: patternId, workspaceId: rc.workspaceId, projectId: rc.projectId, patternType: 'recovery_pattern', title: rc.title, summary: rc.summary, firstSeenAt: allSorted[0]?.createdAt ?? now, lastSeenAt: allSorted[allSorted.length - 1]?.createdAt ?? now, recurrenceCount: recovNuts.length, involvedNutrientIds: rc.involvedNutrientIds, involvedResidueIds: rc.involvedResidueIds, evidenceReferences, confidence: 0.4, severity: 'low', trajectory: 'decreasing', status: 'recovering', promotionReason: 'recovery_after_blockers', recurrenceProfile: { totalOccurrences: recovNuts.length, distinctArtifacts: new Set(recovNuts.map((n) => n.evidence[0]?.sourceArtifactId).filter(Boolean)).size, distinctDigestionRuns: new Set(recovNuts.map((n) => n.digestionRunId)).size, timeSpanDays: 0, multiDaySpread: false }, createdAt: now, updatedAt: now });
+scripts/smoke-test-vault-digestion.mjs:2337:    ['technical_session', [/technical\s+session|mesa\s+t[eé]cnica|guided\s+session|workshop|validaci[oó]n\s+t[eé]cnica/i]],
+scripts/smoke-test-vault-digestion.mjs:2346:      interventions.push({ id: crypto.randomUUID(), workspaceId: n.workspaceId, projectId: n.projectId, interventionType: type, attemptedAt: n.createdAt, targetPatternId: null, summary: n.summary, evidence: n.evidence[0]?.excerpt ?? n.summary });
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-detail-panel-view-model.ts:86:        { label: "Agent role", value: result.agentRole ?? "", emptyLabel: "Not specified" },
+scripts/validate-pmo-flow.mjs:2: * Lightweight validation script for the PMO onboarding flow.
+scripts/validate-pmo-flow.mjs:3: * Run: node scripts/validate-pmo-flow.mjs
+scripts/validate-pmo-flow.mjs:10:  const ALLOWED_PREFIXES = ["/workspace", "/projects", "/dashboard", "/portfolio", "/upload", "/command-center", "/create-command-center", "/create-pmo"];
+scripts/validate-pmo-flow.mjs:30:  ["/create-pmo", true],
+scripts/validate-pmo-flow.mjs:31:  ["/workspace", true],
+scripts/validate-pmo-flow.mjs:37:  ["/create-pmo?ref=x", true],
+scripts/validate-pmo-flow.mjs:38:  ["/create-pmo\n", false],
+scripts/validate-pmo-flow.mjs:53:// ─── 2. PMO tenant payload validation ─────────────────────────────────────────
+scripts/validate-pmo-flow.mjs:55:function validatePmoTenantPayload(payload) {
+scripts/validate-pmo-flow.mjs:58:  if (!payload.identity?.pmoName?.trim()) errors.push("identity.pmoName is required");
+scripts/validate-pmo-flow.mjs:60:  if (!payload.identity?.pmoType) errors.push("identity.pmoType is required");
+scripts/validate-pmo-flow.mjs:74:const validTenant = {
+scripts/validate-pmo-flow.mjs:75:  identity: { pmoName: "Test PMO", organizationName: "Acme", pmoType: "enterprise-pmo", operatingModel: "centralized" },
+scripts/validate-pmo-flow.mjs:85:  [validTenant, true],
+scripts/validate-pmo-flow.mjs:86:  [{ ...validTenant, identity: { ...validTenant.identity, pmoName: "" } }, false],
+scripts/validate-pmo-flow.mjs:93:  const result = validatePmoTenantPayload(payload);
+scripts/validate-pmo-flow.mjs:97:    console.error(`FAIL: validatePmoTenantPayload => ok=${result.ok}, expected ok=${expected}`);
+scripts/validate-pmo-flow.mjs:101:console.log(`PMO tenant payload validation: ${p2} passed, ${f2} failed`);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-extractor.ts:88:  workspaceId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-extractor.ts:89:  tenantId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-extractor.ts:93:  agentRole?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-extractor.ts:151:    workspaceId: input.workspaceId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-extractor.ts:152:    tenantId: input.tenantId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-extractor.ts:156:    agentRole: input.agentRole,
+scripts/check-dashboard-cache-refresh-runtime.mjs:11:await store.saveSnapshot({id:'seed',tenantId:'tenant-1',sourceKind:'executive_dashboard_report',payload:{},generatedAt:new Date(Date.now()-50*60000).toISOString(),schemaVersion:'1',runtimeVersion:'1'})
+scripts/check-dashboard-cache-refresh-runtime.mjs:18:const runtimeResult=await runDashboardCacheRefresh({request:{tenantId:'tenant-1'},store}); assert.equal(!!runtimeResult.metadata,true)
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-request-builder.ts:60:      workspaceId: actionAttempt.workspaceId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-request-builder.ts:61:      tenantId: actionAttempt.tenantId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-request-builder.ts:67:      agentRole: actionAttempt.agentRole,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governance-request.ts:17:    workspaceId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governance-request.ts:18:    tenantId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governance-request.ts:26:    agentRole: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-detail-view-model.ts:64:          { label: "Agent role", value: item.agentRole ?? "", emptyLabel: "Not specified" },
+scripts/check-live-federation-runtime.mjs:32:  "src/lib/live-federation/sessions/connector-session-runtime.ts",
+scripts/check-live-federation-runtime.mjs:33:  "src/lib/live-federation/governance/connector-session-governance.ts",
+scripts/check-live-federation-runtime.mjs:34:  "src/lib/live-federation/diagnostics/connector-session-diagnostics.ts",
+scripts/check-live-federation-runtime.mjs:94:  if (!/tenantId/.test(content)) {
+scripts/check-live-federation-runtime.mjs:95:    error("oauth-state-validation.ts missing tenant-bound validation");
+scripts/check-live-federation-runtime.mjs:126:  if (!content.includes("tenantIsolated")) {
+scripts/check-live-federation-runtime.mjs:127:    error("connector-token-isolation.ts missing tenantIsolated check");
+scripts/check-live-federation-runtime.mjs:129:  if (!content.includes("workspaceIsolated")) {
+scripts/check-live-federation-runtime.mjs:130:    error("connector-token-isolation.ts missing workspaceIsolated check");
+scripts/check-live-federation-runtime.mjs:164:  if (!/cross-tenant/i.test(content)) {
+scripts/check-live-federation-runtime.mjs:165:    error("authenticated-replay.ts missing cross-tenant replay protection");
+scripts/check-live-federation-runtime.mjs:189:    "retrieveConnectorSessionHealthSnapshot",
+scripts/check-live-federation-runtime.mjs:193:    "retrieveLiveConnectorHeartbeatsForSessions",
+scripts/check-live-federation-runtime.mjs:237:  /service_role_[a-zA-Z0-9._-]{20,}/,
+scripts/check-executive-dashboard-aggregation-runtime.mjs:123:        ownerLane: 'pmo_executive',
+scripts/check-executive-dashboard-aggregation-runtime.mjs:130:        title: 'Nexus stakeholder alignment session',
+scripts/check-executive-dashboard-aggregation-runtime.mjs:133:        ownerLane: 'pmo_lead',
+scripts/check-dashboard-real-adapter-connectors-runtime.mjs:15:assert.equal(buildAsanaTaskPayload({ payload, config: { workspaceGid: 'ws' } }).workspace, 'ws')
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:15:    agentRole: "billing_readiness_agent",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:18:    workspaceId: "demo.workspace.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:19:    tenantId: "demo.tenant.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:39:    agentRole: "planning_agent",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:42:    workspaceId: "demo.workspace.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:43:    tenantId: "demo.tenant.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:63:    agentRole: "risk_agent",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:66:    workspaceId: "demo.workspace.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:67:    tenantId: "demo.tenant.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:87:    agentRole: "client_communication_agent",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:90:    workspaceId: "demo.workspace.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:91:    tenantId: "demo.tenant.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:110:    agentRole: "change_control_agent",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:113:    workspaceId: "demo.workspace.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:114:    tenantId: "demo.tenant.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:134:    agentRole: "evidence_agent",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:137:    workspaceId: "demo.workspace.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-fixtures.ts:138:    tenantId: "demo.tenant.aoc-fixture.v1",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-action-attempt.ts:18:export type PMFreakAocAgentActionAttemptRole =
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-action-attempt.ts:34:  agentRole: PMFreakAocAgentActionAttemptRole;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-action-attempt.ts:39:  workspaceId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-action-attempt.ts:40:  tenantId?: string;
+scripts/check-operational-flow-db.mjs:7:const url = process.env.OPERATIONAL_FLOW_TEST_SUPABASE_URL;
+scripts/check-operational-flow-db.mjs:9:const serviceRoleKey = process.env.OPERATIONAL_FLOW_TEST_SERVICE_ROLE_KEY;
+scripts/check-operational-flow-db.mjs:11:if (!url || !anonKey || !serviceRoleKey || !appBaseUrl || process.env.OPERATIONAL_FLOW_TEST_ALLOW_DESTRUCTIVE !== "true") {
+scripts/check-operational-flow-db.mjs:13:    "Operational-flow DB/RLS verification requires an isolated, migrated Supabase project.",
+scripts/check-operational-flow-db.mjs:14:    "Set OPERATIONAL_FLOW_TEST_SUPABASE_URL, OPERATIONAL_FLOW_TEST_ANON_KEY,",
+scripts/check-operational-flow-db.mjs:15:    "OPERATIONAL_FLOW_TEST_SERVICE_ROLE_KEY, OPERATIONAL_FLOW_TEST_BASE_URL and",
+scripts/check-operational-flow-db.mjs:17:    "This check creates and deletes auth users, workspaces, projects and operational records.",
+scripts/check-operational-flow-db.mjs:19:    "NEVER run this check against a production Supabase project.",
+scripts/check-operational-flow-db.mjs:24:// Production safeguard: reject any URL that looks like a real Supabase project
+scripts/check-operational-flow-db.mjs:30:    console.error(`SAFETY ABORT: OPERATIONAL_FLOW_TEST_SUPABASE_URL points to a remote host (${hostname}).\nThis check creates and deletes real data. Only run it against an isolated local Supabase instance.\nIf you intentionally want to run against a remote isolated project, set OPERATIONAL_FLOW_TEST_ALLOW_REMOTE=true.`);
+scripts/check-operational-flow-db.mjs:35:const { createClient } = await import("@supabase/supabase-js");
+scripts/check-operational-flow-db.mjs:37:const admin = createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+scripts/check-operational-flow-db.mjs:38:const clientFor = () => createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+scripts/check-operational-flow-db.mjs:42:let workspaceA;
+scripts/check-operational-flow-db.mjs:43:let workspaceB;
+scripts/check-operational-flow-db.mjs:47:  const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+scripts/check-operational-flow-db.mjs:77:  if (workspaceA || workspaceB) {
+scripts/check-operational-flow-db.mjs:78:    await admin.from("workspaces").delete().in("id", [workspaceA, workspaceB].filter(Boolean));
+scripts/check-operational-flow-db.mjs:80:  await Promise.all(Object.values(users).map(({ id }) => admin.auth.admin.deleteUser(id)));
+scripts/check-operational-flow-db.mjs:89:  workspaceA = randomUUID(); workspaceB = randomUUID();
+scripts/check-operational-flow-db.mjs:91:  assert.ifError((await admin.from("workspaces").insert([
+scripts/check-operational-flow-db.mjs:92:    { id: workspaceA, name: "Operational flow RLS A", created_by_user_id: users.owner.id },
+scripts/check-operational-flow-db.mjs:93:    { id: workspaceB, name: "Operational flow RLS B", created_by_user_id: users.outsider.id },
+scripts/check-operational-flow-db.mjs:95:  assert.ifError((await admin.from("workspace_memberships").insert([
+scripts/check-operational-flow-db.mjs:96:    { workspace_id: workspaceA, user_id: users.owner.id, role: "owner" },
+scripts/check-operational-flow-db.mjs:97:    { workspace_id: workspaceA, user_id: users.pm.id, role: "pm" },
+scripts/check-operational-flow-db.mjs:98:    { workspace_id: workspaceA, user_id: users.viewer.id, role: "viewer" },
+scripts/check-operational-flow-db.mjs:99:    { workspace_id: workspaceB, user_id: users.outsider.id, role: "owner" },
+scripts/check-operational-flow-db.mjs:101:  assert.ifError((await admin.from("projects").insert([
+scripts/check-operational-flow-db.mjs:102:    { id: projectA, workspace_id: workspaceA, user_id: users.owner.id, name: "Operational flow test A" },
+scripts/check-operational-flow-db.mjs:103:    { id: projectB, workspace_id: workspaceB, user_id: users.outsider.id, name: "Operational flow test B" },
+scripts/check-operational-flow-db.mjs:108:  const unauthorizedApi = await apiJson(`/api/operational-flow?workspaceId=${workspaceA}&projectId=${projectA}`);
+scripts/check-operational-flow-db.mjs:110:  const viewerApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: viewerCookie }, body: JSON.stringify({ operation: "create_evidence", workspaceId: workspaceA, projectId: projectA, sourceType: "manual_note", title: "Viewer write", content: "Must be denied" }) });
+scripts/check-operational-flow-db.mjs:112:  const wrongScopeApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ operation: "create_evidence", workspaceId: workspaceB, projectId: projectA, sourceType: "manual_note", title: "Wrong scope", content: "Must be denied" }) });
+scripts/check-operational-flow-db.mjs:114:  const createApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ operation: "create_evidence", workspaceId: workspaceA, projectId: projectA, sourceType: "email", title: "API scope request", content: "Additional work outside scope without formal approval.", sourceReference: "test://api" }) });
+scripts/check-operational-flow-db.mjs:117:  const chainApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ operation: "run_chain", workspaceId: workspaceA, projectId: projectA, evidenceItemId: apiEvidenceId }) });
+scripts/check-operational-flow-db.mjs:119:  const apiRecommendation = await admin.from("recommended_actions").select("id").eq("project_id", projectA).eq("source_signal_id", chainApi.payload.chain[0].signal.id).single();
+scripts/check-operational-flow-db.mjs:121:  const decisionApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ operation: "record_decision", workspaceId: workspaceA, projectId: projectA, recommendationId: apiRecommendation.data.id, decisionStatus: "accepted", decision: "Authorized API decision", rationale: "Owner role mapping verified." }) });
+scripts/check-operational-flow-db.mjs:125:    workspace_id: workspaceA, project_id: projectA, created_by: users.owner.id,
+scripts/check-operational-flow-db.mjs:137:    workspace_id: workspaceA, project_id: projectA, evidence_item_id: ownerEvidence.data.id,
+scripts/check-operational-flow-db.mjs:142:    workspace_id: workspaceA, project_id: projectA, related_entity_type: "risk_issue_record",
+scripts/check-operational-flow-db.mjs:155:  const recommendationResult = await owner.from("recommended_actions").select("id").eq("project_id", projectA).not("governance_event_id", "is", null).order("confidence_score", { ascending: true }).limit(1).single();
+scripts/check-operational-flow-db.mjs:160:    p_decision: "Accept", p_decision_status: "accepted", p_rationale: "PM lacks sponsor/PMO authority.",
+scripts/check-operational-flow-db.mjs:166:    p_decision: "Accept after authorized review", p_decision_status: "accepted", p_rationale: "Owner authority verified by role mapping v1.",
+scripts/check-operational-flow-db.mjs:177:  const outsiderEvidence = await admin.from("evidence_items").insert({ ...evidenceInsert, id: randomUUID(), workspace_id: workspaceB, project_id: projectB, created_by: users.outsider.id }).select("id").single();
+scripts/check-operational-flow-db.mjs:180:  assert.ifError(crossRead.error); assert.equal(crossRead.data.length, 0, "cross-workspace read must be filtered by RLS");
+scripts/check-operational-flow-db.mjs:181:  await expectDenied(owner.from("evidence_items").insert({ ...evidenceInsert, id: randomUUID(), workspace_id: workspaceB, project_id: projectB }), "cross-workspace write");
+scripts/check-operational-flow-db.mjs:187:  assert.ifError((await admin.from("evidence_items").insert(bulk.map(({ evidenceId, index }) => ({ ...evidenceInsert, id: evidenceId, title: `Assurance evidence ${index}` })))).error);
+scripts/check-operational-flow-db.mjs:188:  assert.ifError((await admin.from("operational_signals").insert(bulk.map(({ evidenceId, signalId, index }) => ({ id: signalId, workspace_id: workspaceA, project_id: projectA, evidence_item_id: evidenceId, signal_type: "schedule_risk", severity: "medium", confidence_score: 80, summary: `Signal ${index}`, rationale: "Count verification", detected_by: "system/deterministic:test", status: "open" })))).error);
+scripts/check-operational-flow-db.mjs:189:  assert.ifError((await admin.from("risk_issue_records").insert(bulk.map(({ signalId, riskId, index }) => ({ id: riskId, workspace_id: workspaceA, project_id: projectA, signal_id: signalId, type: "risk", title: `Risk ${index}`, description: "Count verification", severity: "medium", probability: "medium", impact: "medium", status: "open" })))).error);
+scripts/check-operational-flow-db.mjs:190:  assert.ifError((await admin.from("governance_events").insert(bulk.map(({ riskId, governanceId, index }) => ({ id: governanceId, workspace_id: workspaceA, project_id: projectA, related_entity_type: "risk_issue_record", related_entity_id: riskId, rule_key: `count_rule_${index}`, authority_required: "baseline review", evidence_required: false, governance_status: index % 2 ? "decision_required" : "violation", explanation: "Exact count verification" })))).error);
+scripts/check-operational-flow-db.mjs:191:  const assurance = await owner.rpc("get_operational_assurance_summary", { p_workspace_id: workspaceA, p_project_id: projectA });
+scripts/check-operational-flow-db.mjs:195:  const seedEnv = { ...process.env, NEXT_PUBLIC_SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey };
+scripts/check-operational-flow-db.mjs:196:  const firstSeed = JSON.parse(execFileSync(process.execPath, ["scripts/seed-operational-flow-demo.mjs", workspaceA, users.owner.id], { encoding: "utf8", env: seedEnv }));
+scripts/check-operational-flow-db.mjs:197:  const secondSeed = JSON.parse(execFileSync(process.execPath, ["scripts/seed-operational-flow-demo.mjs", workspaceA, users.owner.id], { encoding: "utf8", env: seedEnv }));
+scripts/check-operational-flow-db.mjs:200:  console.log(JSON.stringify({ ok: true, checks: ["role-aware evidence RLS", "derived-table direct writes denied", "cross-workspace denied", "transactional idempotent chain", "authority denial", "atomic decision/evidence/recommendation", "append-only audit trail", "frozen evidence", "exact assurance counts > 30", "idempotent seed", "authenticated API create/run/decision", "API 401/403 scope and role denials"] }, null, 2));
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-inbox-item.ts:81:    agentRole: item.agentRole,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-inbox-item.ts:83:    workspaceId: item.workspaceId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-inbox-item.ts:84:    tenantId: item.tenantId,
+scripts/check-security-definer-hardening.mjs:12://      DEFINER function is callable by any role unless revoked).
+scripts/check-security-definer-hardening.mjs:30:const MIGRATIONS_DIR = path.join(ROOT, "supabase/migrations");
+scripts/check-security-definer-hardening.mjs:104:      problems.push(`${name}: no 'revoke all on function ... from public' found anywhere in supabase/migrations/ — relies on PostgreSQL's default PUBLIC execute grant`);
+scripts/check-dashboard-background-refresh-runtime.mjs:10:const req = { tenantId: 'tenant-check', workspaceId: 'ws-check', portfolioId: 'pf-check' }
+scripts/check-dashboard-background-refresh-runtime.mjs:43:const drySnap = await s2.getLatestSnapshot({ tenantId: 'tenant-check', sourceKind: 'executive_dashboard_report' })
+scripts/check-dashboard-role-authorization-runtime.mjs:2:import auth from '../src/lib/dashboard/role-authorization/index.ts'
+scripts/check-dashboard-role-authorization-runtime.mjs:3:const { getRoleCapabilities, resolveActorCapabilities, inferSensitiveItemType, isActorInRequiredLane, canActorAccessSensitiveType, authorizeApprovalQueueCard, authorizeTaskLifecycle, buildDashboardRoleAuthorizationReport, runDashboardRoleAuthorization } = auth
+scripts/check-dashboard-role-authorization-runtime.mjs:5:const actor={id:'a1',roles:['pmo_director']}
+scripts/check-dashboard-role-authorization-runtime.mjs:9:assert.ok(getRoleCapabilities('viewer').includes('view_queue_item'))
+scripts/check-dashboard-role-authorization-runtime.mjs:10:assert.ok(resolveActorCapabilities({id:'x',roles:['viewer','pmo_director']}).includes('override_approval'))
+scripts/check-dashboard-role-authorization-runtime.mjs:16:const report=buildDashboardRoleAuthorizationReport({actor,generatedAt:new Date().toISOString(),cardAuthorizations:[authorizeApprovalQueueCard({actor,card})],lifecycleAuthorizations:[authorizeTaskLifecycle({actor,lifecycle})]})
+scripts/check-dashboard-role-authorization-runtime.mjs:18:assert.equal(runDashboardRoleAuthorization({actor,cards:[card],lifecycles:[lifecycle]}).totalLifecycles,1)
+scripts/check-dashboard-role-authorization-runtime.mjs:19:console.log('[ok] dashboard role authorization runtime valid')
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governance-client-config.ts:19:  tenantId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governance-client-config.ts:20:  workspaceId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governance-client-config.ts:71:    tenantId: input?.tenantId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governance-client-config.ts:72:    workspaceId: input?.workspaceId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-context.ts:23:  workspaceId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-context.ts:24:  tenantId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-context.ts:28:  agentRole?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-context.ts:122:    workspaceId: firstDefined(gateResult?.workspaceId, inboxItem?.workspaceId),
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-context.ts:123:    tenantId: firstDefined(gateResult?.tenantId, inboxItem?.tenantId),
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-context.ts:127:    agentRole: firstDefined(gateResult?.agentRole, inboxItem?.agentRole),
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-item.ts:37:  workspaceId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-item.ts:38:  tenantId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-item.ts:42:  agentRole?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-result.ts:37:  agentRole?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-result.ts:39:  workspaceId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-result.ts:40:  tenantId?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-response.ts:58:    workspaceId: context.workspaceId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-response.ts:59:    tenantId: context.tenantId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-response.ts:62:    agentRole: context.agentRole,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-response.ts:98:    workspaceId: context.workspaceId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-response.ts:99:    tenantId: context.tenantId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-response.ts:103:    agentRole: context.agentRole,
+src/features/navigation/module-registry.ts:8:  memoryRole: string;
+src/features/navigation/module-registry.ts:20:    memoryRole: "Cross-workspace operational state",
+src/features/navigation/module-registry.ts:30:    memoryRole: "Conversational continuity and context recall",
+src/features/navigation/module-registry.ts:40:    memoryRole: "System of record for operational intelligence",
+src/features/navigation/module-registry.ts:50:    memoryRole: "Primary intake into operational memory",
+src/features/navigation/module-registry.ts:59:    memoryRole: "Decision-layer synthesis from memory and alerts",
+src/features/navigation/module-registry.ts:69:    memoryRole: "Human-system signals attached to memory timeline",
+src/features/navigation/module-registry.ts:79:    memoryRole: "Temporal intelligence over memory deltas",
+src/features/navigation/module-registry.ts:89:    memoryRole: "Intervention control informed by memory and synthesis",
+src/features/navigation/module-registry.ts:99:    memoryRole: "Execution evidence written back into memory",
+src/features/navigation/module-registry.ts:109:    memoryRole: "Scoped delivery contexts linked to global memory",
+src/features/navigation/module-registry.ts:116:      "Invite distribution, trial state, and activation visibility for controlled rollout.",
+src/features/navigation/module-registry.ts:119:    memoryRole:
+src/features/navigation/module-registry.ts:120:      "Founder-led adoption telemetry and workspace activation status",
+src/features/navigation/module-registry.ts:127:      "People, roles, and approvals to keep execution safe and fast.",
+src/features/navigation/module-registry.ts:130:    memoryRole: "Governed usage of organizational memory",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-detail-view-model.ts:82:          { label: "Agent role", value: result.agentRole ?? "", emptyLabel: "Not specified" },
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-ui-display.ts:63:    workspaceId: context.workspaceId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-ui-display.ts:64:    tenantId: context.tenantId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-ui-display.ts:67:    agentRole: context.agentRole,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-ui-display.ts:103:    workspaceId: context.workspaceId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-ui-display.ts:104:    tenantId: context.tenantId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-ui-display.ts:108:    agentRole: context.agentRole,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-evaluator.ts:38:    agentRole: gateInput.actionAttempt?.agentRole,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-evaluator.ts:40:    workspaceId: gateInput.actionAttempt?.workspaceId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-evaluator.ts:41:    tenantId: gateInput.actionAttempt?.tenantId,
+src/features/runtime/capability-reveal/capability-reveal-selectors.ts:2:import { NAVIGATION_HIERARCHY } from "@/lib/workspace/navigation-hierarchy";
+src/features/runtime/capability-reveal/capability-reveal-selectors.ts:11:  RoleProfile,
+src/features/runtime/capability-reveal/capability-reveal-selectors.ts:13:import { REVEAL_DOMAIN_ORDER, ROLE_DOMAIN_PRIORITIES } from "./capability-reveal-contract";
+src/features/runtime/capability-reveal/capability-reveal-selectors.ts:14:import { isHiddenForProfile, type CapabilityProfile } from "@/lib/workspace/pilot-capability-set";
+src/features/runtime/capability-reveal/capability-reveal-selectors.ts:28:export const computeRoleProfile = (role: string): RoleProfile => {
+src/features/runtime/capability-reveal/capability-reveal-selectors.ts:29:  const normalized = role.toLowerCase();
+src/features/runtime/capability-reveal/capability-reveal-selectors.ts:30:  if (normalized.includes("owner") || normalized.includes("admin") || normalized.includes("pmo")) return "pmo";
+src/features/runtime/capability-reveal/capability-reveal-selectors.ts:52:  if (input.canUseGovernanceDirectives || input.planTier === "pmo") return continuity === "stable" ? "constraint" : "governance";
+src/features/runtime/capability-reveal/capability-reveal-selectors.ts:56:export const computeUnlockedDomains = (stage: CapabilityRevealStage, role: RoleProfile, planTier: Plan): CapabilityDomain[] => {
+src/features/runtime/capability-reveal/capability-reveal-selectors.ts:61:  for (const d of ROLE_DOMAIN_PRIORITIES[role] ?? []) base.add(d);
+src/features/runtime/capability-reveal/capability-reveal-selectors.ts:62:  if (planTier === "pmo") { base.add("governance"); base.add("executive"); }
+src/features/runtime/capability-reveal/capability-reveal-selectors.ts:75:  const roleProfile = computeRoleProfile(input.role);
+src/features/runtime/capability-reveal/capability-reveal-selectors.ts:79:  const unlockedDomains = computeUnlockedDomains(stage, roleProfile, input.planTier);
+src/features/runtime/capability-reveal/capability-reveal-selectors.ts:81:  return { stage, planTier: input.planTier, roleProfile, hasProject: input.hasProject, evidenceDensity, continuityMaturity, unlockedDomains, blockedDomains, revealReasons: [`plan:${input.planTier}`, `role:${roleProfile}`, `stage:${stage}`, `evidence:${evidenceDensity}`, `continuity:${continuityMaturity}`], educationalHints: computeRevealHints({ stage, evidenceDensity, continuityMaturity, blockedDomains }) };
+src/features/runtime/capability-reveal/capability-reveal-types.ts:11:export type RoleProfile = "pm" | "pmo" | "executive" | "ops";
+src/features/runtime/capability-reveal/capability-reveal-types.ts:33:  roleProfile: RoleProfile;
+src/features/runtime/capability-reveal/capability-reveal-types.ts:45:  role: string;
+src/features/runtime/capability-reveal/capability-reveal-contract.ts:19:export const ROLE_DOMAIN_PRIORITIES: Record<string, CapabilityDomain[]> = {
+src/features/runtime/capability-reveal/capability-reveal-contract.ts:21:  pmo: ["executive", "governance", "memory", "coordination"],
+src/features/command-center/vault-intake-panel.tsx:8:  workspaceId,
+src/features/command-center/vault-intake-panel.tsx:13:  workspaceId: string;
+src/features/command-center/vault-intake-panel.tsx:30:      const vaultResult = await postVaultIntake({ workspaceId, projectId, rawContent: content });
+src/features/command-center/vault-intake-panel.tsx:33:        const created = await postOperationalFlow(workspaceId, projectId, {
+src/features/command-center/vault-intake-panel.tsx:40:        await postOperationalFlow(workspaceId, projectId, { operation: "run_chain", evidenceItemId: created.evidence.id });
+src/features/command-center/command-feed.tsx:135:          message.role === "assistant" ? (
+src/features/command-center/operational-data.ts:16:export function useOperationalFlow(workspaceId: string, projectId: string) {
+src/features/command-center/operational-data.ts:17:  const endpoint = `/api/operational-flow?workspaceId=${encodeURIComponent(workspaceId)}&projectId=${encodeURIComponent(projectId)}`;
+src/features/command-center/operational-data.ts:21:export async function postOperationalFlow(workspaceId: string, projectId: string, payload: AnyRecord) {
+src/features/command-center/operational-data.ts:25:    body: JSON.stringify({ workspaceId, projectId, ...payload }),
+src/features/command-center/operational-data.ts:32:export async function postVaultIntake(params: { workspaceId: string; projectId: string; rawContent: string }) {
+src/features/command-center/types.ts:86:  role: "assistant" | "user";
+src/features/domain-policy-pack-runtime/jurisdiction/jurisdiction-pack-registry.ts:22:  // identifying fields the query descriptor provides. Does not imply any
+src/features/domain-policy-pack-runtime/jurisdiction/jurisdiction-pack-registry.ts:28:function descriptorMatches(packJurisdiction: JurisdictionDescriptor, query: JurisdictionDescriptor): boolean {
+src/features/domain-policy-pack-runtime/jurisdiction/jurisdiction-pack-registry.ts:30:    [query.countryCode, packJurisdiction.countryCode],
+src/features/domain-policy-pack-runtime/jurisdiction/jurisdiction-pack-registry.ts:31:    [query.subdivisionCode, packJurisdiction.subdivisionCode],
+src/features/domain-policy-pack-runtime/jurisdiction/jurisdiction-pack-registry.ts:32:    [query.regionCode, packJurisdiction.regionCode],
+src/features/domain-policy-pack-runtime/jurisdiction/jurisdiction-pack-registry.ts:33:    [query.marketCode, packJurisdiction.marketCode],
+src/features/domain-policy-pack-runtime/jurisdiction/jurisdiction-pack-registry.ts:36:  let hasQueryIdentifier = false;
+src/features/domain-policy-pack-runtime/jurisdiction/jurisdiction-pack-registry.ts:37:  for (const [queryValue, packValue] of identifiers) {
+src/features/domain-policy-pack-runtime/jurisdiction/jurisdiction-pack-registry.ts:38:    if (queryValue === undefined) continue;
+src/features/domain-policy-pack-runtime/jurisdiction/jurisdiction-pack-registry.ts:39:    hasQueryIdentifier = true;
+src/features/domain-policy-pack-runtime/jurisdiction/jurisdiction-pack-registry.ts:40:    if (packValue !== queryValue) return false;
+src/features/domain-policy-pack-runtime/jurisdiction/jurisdiction-pack-registry.ts:42:  return hasQueryIdentifier;
+src/features/command-center/conversation-data.ts:8:  workspaceId?: string;
+src/features/command-center/conversation-data.ts:31:  return messages.slice(-limit).map((message) => ({ role: message.role, message: message.content }));
+src/features/command-center/conversation-data.ts:41:    role: "assistant",
+src/features/command-center/detail-drawer.tsx:22:        role="dialog"
+src/app/logout/route.ts:2:import { createSupabaseServerClient } from "@/lib/supabase/server";
+src/app/logout/route.ts:3:import { hasSupabaseEnv } from "@/lib/supabase/env";
+src/app/logout/route.ts:6:  if (hasSupabaseEnv) {
+src/app/logout/route.ts:7:    const supabase = await createSupabaseServerClient();
+src/app/logout/route.ts:8:    await supabase.auth.signOut();
+src/features/command-center/operational-decision-loop.tsx:24:export function OperationalDecisionLoop({ workspaceId, projectId }: { workspaceId: string; projectId: string }) {
+src/features/command-center/operational-decision-loop.tsx:25:  const endpoint = `/api/operational-flow?workspaceId=${encodeURIComponent(workspaceId)}&projectId=${encodeURIComponent(projectId)}`;
+src/features/command-center/operational-decision-loop.tsx:40:    const response = await fetch("/api/operational-flow", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspaceId, projectId, ...payload }) });
+src/features/command-center/operational-decision-loop.tsx:97:        <div><p className="text-[10px] uppercase tracking-[0.28em] text-indigo-300">Evidence-backed operating loop</p><h2 className="text-lg font-semibold text-slate-100">Evidence → Signal → Risk / Issue → Governance → Recommendation → Decision</h2><p className="mt-1 max-w-3xl text-xs text-slate-400">PMFreak applies deterministic operational governance rules aligned with AOC concepts. Final authority is checked against PMFreak workspace roles v1.</p></div>
+src/features/command-center/operational-decision-loop.tsx:108:      </form> : <p className="rounded-lg border border-white/10 bg-slate-950/30 p-3 text-xs text-slate-400">Read-only role: evidence intake and human decisions are unavailable.</p>}
+src/features/command-center/operational-decision-loop.tsx:112:      {data?.actor.canCreateEvidence && <details className="rounded-xl border border-white/10 bg-slate-950/25 p-3"><summary className="cursor-pointer text-sm font-semibold text-slate-200">Record evidence-backed manual decision</summary><form onSubmit={recordManualDecision} className="mt-3 grid gap-2 md:grid-cols-2"><input required value={manualDecision} onChange={(e) => setManualDecision(e.target.value)} className="rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-slate-100" placeholder="Decision made by the authorized project role" /><select required value={manualEvidenceId || String(data?.evidence[0]?.id ?? "")} onChange={(e) => setManualEvidenceId(e.target.value)} className="rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-slate-100"><option value="">Select supporting evidence</option>{(data?.evidence ?? []).map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.title)}</option>)}</select><textarea required rows={2} value={manualRationale} onChange={(e) => setManualRationale(e.target.value)} className="rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-slate-100 md:col-span-2" placeholder="Decision rationale" /><button disabled={busy || !(data?.evidence.length)} className="rounded-lg border border-cyan-300/35 bg-cyan-300/[0.08] px-4 py-2 text-xs font-semibold text-cyan-100 md:col-span-2 disabled:opacity-50">Record decision with evidence snapshot</button></form></details>}
+src/features/command-center/command-center-client.tsx:51:  workspaceId,
+src/features/command-center/command-center-client.tsx:60:  workspaceId: string;
+src/features/command-center/command-center-client.tsx:63:  role: string;
+src/features/command-center/command-center-client.tsx:65:  planTier: "free" | "pro" | "pmo";
+src/features/command-center/command-center-client.tsx:88:        body: JSON.stringify({ workspaceId }),
+src/features/command-center/command-center-client.tsx:117:        workspaceName={companyName ?? "Demo PMO"}
+src/features/command-center/command-center-client.tsx:118:        workspaceId={workspaceId}
+src/features/command-center/project-sidebar.tsx:9:  workspaceName,
+src/features/command-center/project-sidebar.tsx:17:  workspaceName: string;
+src/features/command-center/project-sidebar.tsx:31:        <p className="mt-0.5 text-xs text-slate-400">Workspace: {workspaceName}</p>
+src/app/debug-session/page.tsx:4:import { createBrowserClient } from "@supabase/ssr";
+src/app/debug-session/page.tsx:5:import { getSupabaseEnv } from "@/lib/supabase/env";
+src/app/debug-session/page.tsx:7:export default function DebugSessionPage() {
+src/app/debug-session/page.tsx:8:  const [clientSession, setClientSession] = useState<Record<string, unknown> | null>(null);
+src/app/debug-session/page.tsx:14:      const { url, anonKey } = getSupabaseEnv();
+src/app/debug-session/page.tsx:15:      const supabase = createBrowserClient(url, anonKey);
+src/app/debug-session/page.tsx:17:      const session = await supabase.auth.getSession();
+src/app/debug-session/page.tsx:18:      setClientSession(session.data.session ? {
+src/app/debug-session/page.tsx:19:        userId: session.data.session.user.id,
+src/app/debug-session/page.tsx:20:        email: session.data.session.user.email,
+src/app/debug-session/page.tsx:21:        expiresAt: session.data.session.expires_at,
+src/app/debug-session/page.tsx:35:      <h1>Debug Session</h1>
+src/app/debug-session/page.tsx:37:      <h2>Client session</h2>
+src/app/debug-session/page.tsx:38:      <pre>{JSON.stringify(clientSession, null, 2)}</pre>
+src/features/command-center/command-center-layout.tsx:25:    role: "assistant",
+src/features/command-center/command-center-layout.tsx:36:      role: "assistant",
+src/features/command-center/command-center-layout.tsx:67:  workspaceName,
+src/features/command-center/command-center-layout.tsx:68:  workspaceId,
+src/features/command-center/command-center-layout.tsx:75:  workspaceName: string;
+src/features/command-center/command-center-layout.tsx:76:  /** Real workspace id, used to load/record project evidence and decisions. */
+src/features/command-center/command-center-layout.tsx:77:  workspaceId: string;
+src/features/command-center/command-center-layout.tsx:101:  const { data: flowData, mutate: mutateFlow } = useOperationalFlow(workspaceId, selectedProject?.id ?? "");
+src/features/command-center/command-center-layout.tsx:130:      await postOperationalFlow(workspaceId, selectedProject?.id ?? "", {
+src/features/command-center/command-center-layout.tsx:154:    const userMessage: ChatMessage = { id: nextId("user"), role: "user", content: text };
+src/features/command-center/command-center-layout.tsx:164:      workspaceId,
+src/features/command-center/command-center-layout.tsx:177:            role: "assistant",
+src/features/command-center/command-center-layout.tsx:190:        role: "assistant",
+src/features/command-center/command-center-layout.tsx:210:    setMessages((current) => [...current, { id: nextId("assistant"), role: "assistant", content: summary }]);
+src/features/command-center/command-center-layout.tsx:228:            workspaceName={workspaceName}
+src/features/command-center/command-center-layout.tsx:242:                workspaceId={workspaceId}
+src/features/command-center/command-center-layout.tsx:269:          workspaceName={workspaceName}
+src/features/command-center/demo-data.ts:3:export const DEMO_WORKSPACE_NAME = "Demo PMO";
+src/features/command-center/demo-data.ts:191:    role: "assistant",
+src/features/command-center/demo-data.ts:197:    role: "user",
+src/features/command-center/demo-data.ts:202:    role: "assistant",
+src/app/forgot-password/page.tsx:5:import { createSupabaseBrowserClient } from "@/lib/supabase/client";
