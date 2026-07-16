@@ -123,11 +123,23 @@ test("founder/internal routes use isFounderOrInternalUser or evaluateFounderOrIn
   assert.ok(founderFiles.length >= 6, "expected the founder/internal API surface to be registered");
   for (const entry of founderFiles) {
     const src = readFileSync(entry.file, "utf8");
+    // requireFounderProgramOperator is an accepted named wrapper: it calls
+    // isFounderOrInternalUser server-side before body parse and emits
+    // founder_program_denied telemetry (src/lib/founder-program/authz.ts);
+    // the companion assertion below pins that implementation so the wrapper
+    // can never silently drop the founder gate.
     assert.ok(
-      src.includes("isFounderOrInternalUser") || src.includes("evaluateFounderOrInternalAccess"),
-      `${entry.file} is classified founder-internal and must call isFounderOrInternalUser/evaluateFounderOrInternalAccess`,
+      src.includes("isFounderOrInternalUser") ||
+        src.includes("evaluateFounderOrInternalAccess") ||
+        src.includes("requireFounderProgramOperator"),
+      `${entry.file} is classified founder-internal and must call isFounderOrInternalUser/evaluateFounderOrInternalAccess (directly or via requireFounderProgramOperator)`,
     );
   }
+  const wrapperSrc = readFileSync("src/lib/founder-program/authz.ts", "utf8");
+  assert.ok(
+    wrapperSrc.includes("isFounderOrInternalUser(user)"),
+    "requireFounderProgramOperator must keep delegating to isFounderOrInternalUser",
+  );
 });
 
 test("trust handshake mutation routes resolve the actor from the session, never the request body (Perilla 8 regression guard)", () => {

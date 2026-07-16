@@ -60,6 +60,7 @@ presented as real.
 
 | Module | Paths | Owner | User | Risk | Plan |
 | --- | --- | --- | --- | --- | --- |
+| Founder Circle Program (Sprint 01) | `src/lib/founder-program/**`, `/api/founder-program/**`, `/founder-circle`, `/founder-program`, migration `20260828000000` | Founder | Nobody (all `PMFREAK_FOUNDER_PROGRAM_*` flags off by default; DB settings row seeded disabled) | Low while off — fully fail-closed (404s); real, tested code when enabled (see `docs/founder-program/`) | Enable per `docs/founder-program/14-launch-checklist.md` for the closed founder cohort only; never a public-beta vehicle |
 | Conversational-brain decision support | `src/lib/playbook-engine/conversation/decision-support/**` (default-off feature-flag gate) | Founder | Nobody (flag off) | Low while off | Keep off for pilot |
 | Capability reveal / awakening progression | `src/features/runtime/capability-reveal`, `src/lib/workspace/awakening-state` | Founder | All users (as nav gating only) | Low | Keep — now also carries pilot profile |
 | Federation webhook ingestion | `/api/federation/webhooks/*` (in-memory processing) | Founder | Secret-gated callers | Medium if sold as integration | Do not demo as live integrations |

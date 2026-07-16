@@ -39,3 +39,11 @@ must be true before the first partner's real data enters).
 onboard partners **the moment** conditions B1, B2 (one operator session
 with hosted credentials) and B9 (counsel-approved agreement, signed per
 partner) are satisfied. No partner real data before B1+B2+B9.
+
+## D. Founder Circle Program (Sprint 01 addendum, 2026-07-16)
+
+The operational vehicle for recruiting/admitting/activating pilot
+participants now exists as the **Founder Circle Program** (default-off,
+fail-closed; `docs/founder-program/`). Its own enablement gate is
+`docs/founder-program/14-launch-checklist.md` and it inherits B1/B2/B9 —
+this addendum changes nothing about the conditions above.
