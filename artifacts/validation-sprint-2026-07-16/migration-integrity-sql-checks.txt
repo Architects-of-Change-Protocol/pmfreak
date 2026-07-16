@@ -1,0 +1,67 @@
+Mandatory integrity SQL (sprint section 5.2), run against a seeded
+representative pre-refactor database (2 workspaces with distinct roles,
+6 projects mixing active/archived/completed, one zero-project workspace,
+one single-project workspace, one many-project workspace, pre-existing
+conversations/documents/risks/governance) after applying
+20260828000000_workspace_pmo_project_hierarchy.sql.
+
+select count(*) from projects;                                          -- 6  (before: 6 — zero loss)
+select count(*) from pmos;                                              -- 2  (WS-A + WS-B; WS-C correctly excluded, zero projects/governance)
+select count(*) from projects where pmo_id is null;                     -- 0  (100% backfilled)
+select count(*) from projects p
+  join pmos m on m.id = p.pmo_id
+ where p.workspace_id <> m.workspace_id;                                -- 0  (zero workspace/PMO mismatches)
+
+Pre-existing data preservation (row counts identical before/after):
+  workspace_memberships           6 -> 6
+  workspace_governance            1 -> 1
+  raid_items                      2 -> 2
+  vault_documents                 2 -> 2
+  runtime_conversation_state      1 -> 1
+  message_analyses                1 -> 1
+  operational_governance_briefs   1 -> 1
+
+Per-workspace assignment detail:
+  workspace       | pmo                | pmo_type    | project_count
+  Consulting Co PMO | Consulting Co PMO | company_pmo | 5   (name sourced from workspace_governance identity)
+  Workspace          | General PMO       | company_pmo | 1   (fallback name — no governance tenant existed)
+  Empty Portfolio     | (none)           | (none)      | 0   (zero PMOs — correctly excluded, no projects/governance)
+
+Idempotency (sprint section 5.3):
+  Re-running the isolated backfill block 3x in sequence against the
+  already-migrated state: INSERT 0 0 / UPDATE 0 each time — zero duplicate
+  PMOs, zero re-assignment side effects.
+
+Concurrency (sprint section 5.3, explicit "Default PMO / Default PMO /
+Default PMO" failure mode):
+  BEFORE FIX: 2 truly concurrent executions of the backfill against a reset
+    (no-PMO) workspace produced 2 duplicate "General PMO" rows 45us apart
+    (reproduced and captured — see below).
+  AFTER FIX (pg_advisory_xact_lock wrapping the backfill in a DO block):
+    5 truly concurrent executions against the same reset workspace produced
+    exactly 1 PMO. Re-verified 3x.
+
+Raw reproduction of the pre-fix race (workspace_id bbbbbbbb...):
+  id                                   | name        | created_at
+  3033193e-e41f-466b-aa8f-6338752f9dac | General PMO | 2026-07-16 20:47:14.835899+00
+  037d96d9-f076-405b-bccf-ea485633e04e | General PMO | 2026-07-16 20:47:14.835946+00
+
+Cross-workspace consistency trigger proof (sprint sections 6.3/6.2 — "RLS
+protege incluso si se llama directamente a Supabase"):
+  Raw SQL UPDATE by a legitimate workspace-B member, setting their own
+  workspace-B project's pmo_id to a KNOWN workspace-A PMO id:
+    BEFORE FIX: UPDATE 1 (succeeded — RLS does not validate pmo_id's owning
+      workspace, only the project row's own workspace membership)
+    AFTER FIX: ERROR — projects.pmo_id must reference a PMO in the same
+      workspace (project workspace bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1,
+      pmo b80e5ecc-ab64-4ba8-bc4e-3206f032cd58)
+  Legitimate same-workspace pmo_id assignment continues to succeed normally
+  after the fix (verified).
+
+Fresh-apply proof (all 149 migrations, empty database):
+  Migration files discovered: 149
+  Tables in public schema: 413
+  Tables without RLS enabled: 1 (agent_attestation_nonces — pre-existing,
+    unrelated to this sprint's tables)
+  Fresh apply: PASS
+  Schema contracts: PASS

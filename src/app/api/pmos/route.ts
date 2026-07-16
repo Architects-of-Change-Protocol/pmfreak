@@ -3,6 +3,7 @@ import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
+import { requireWorkspaceRole as requireWorkspaceMinimumRole } from "@/lib/workspace-access";
 import { resolvePreferredWorkspace } from "@/lib/workspaces/preferred-workspace";
 import { createPmo, listPmosWithProjects, normalizePmoType } from "@/lib/pmos/pmo-service";
 
@@ -16,6 +17,21 @@ function handleAccessError(error: unknown) {
     return denyFromAccessError(error, { status: 403, routeId: ROUTE_ID, message: "Forbidden" });
   }
   return null;
+}
+
+/**
+ * PMO mutation routes require workspace role pm-or-above (owner/admin/pm),
+ * matching the "workspace managers can manage pmos" RLS policy exactly —
+ * app-layer enforcement so a viewer gets a clean 403 instead of relying
+ * solely on the RLS write rejecting and surfacing as a generic 500.
+ */
+async function requirePmoManagerRole(workspaceId: string): Promise<NextResponse | null> {
+  try {
+    await requireWorkspaceMinimumRole(workspaceId, "pm");
+    return null;
+  } catch {
+    return denyResponse({ status: 403, routeId: ROUTE_ID, message: "Forbidden", reason: "insufficient_role", eventType: "workspace_scope_violation" });
+  }
 }
 
 export async function GET(request: Request) {
@@ -45,6 +61,8 @@ export async function POST(request: Request) {
       return denyResponse({ status: 403, routeId: ROUTE_ID, message: "Workspace context required.", reason: "workspace_missing", actorUserId: user.id, eventType: "workspace_scope_violation" });
     }
     await requireWorkspaceMember(resolution.workspaceId);
+    const roleDenied = await requirePmoManagerRole(resolution.workspaceId);
+    if (roleDenied) return roleDenied;
 
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const name = typeof body.name === "string" ? body.name.trim() : "";

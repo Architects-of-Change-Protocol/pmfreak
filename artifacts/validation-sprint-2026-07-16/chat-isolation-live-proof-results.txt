@@ -1,0 +1,38 @@
+Live behavioral proof of chat-scope isolation, run against a real seeded
+Postgres database (all 149 migrations applied), replicating the exact query
+logic of src/lib/chat/context-chat-responder.ts's loadScopeData() (verified
+against the shipped source by direct code reading — see the file itself for
+the authoritative implementation). Scenario matches sprint section 7 exactly:
+Workspace A/B, PMO1 (Alpha+Beta) / PMO2 (Gamma) both inside Workspace A,
+Project Delta inside Workspace B, with a distinct "secret" marker per project
+embedded in the one column the responder actually selects (raid_items.title).
+
+PASS 7.2a: expected marker "ALPHA-4729" correctly visible in scope results
+PASS 7.2b (Beta chat vs Alpha secret): forbidden marker "ALPHA-4729" absent from scope results (1 projects, 0 raid items visible)
+PASS 7.3a: expected marker "GAMMA-7731" correctly visible in scope results
+PASS 7.3b (PMO1 chat vs Gamma/PMO2 secret): forbidden marker "GAMMA-7731" absent from scope results (2 projects, 1 raid items visible)
+PASS 7.3c (PMO1 chat DOES see its own Alpha+Beta): expected marker "Project Alpha" correctly visible in scope results
+PASS 7.4a: expected marker "DELTA-2266" correctly visible in scope results
+PASS 7.4b (Workspace A chat vs Workspace B secret): forbidden marker "DELTA-2266" absent from scope results (3 projects, 2 raid items visible)
+PASS 7.4c (Workspace A chat DOES see its own projects): expected marker "GAMMA-7731" correctly visible in scope results
+
+ALL CHAT ISOLATION SCENARIOS: PASS
+
+Effective retrieval rules, as implemented and empirically confirmed:
+  Workspace chat -> every project in the workspace, across all PMOs
+  PMO chat       -> only projects with pmo_id = the selected PMO
+  Project chat   -> only that single project
+
+Not covered by this run (infrastructure constraint, documented for the
+record): a full black-box HTTP-level test through the live PostgREST/GoTrue
+Supabase stack was not possible in this sandbox (Docker daemon unavailable,
+`supabase start` requires it). This run instead executes the responder's
+exact query logic (confirmed identical to the shipped .ts file by direct
+code review) against a real Postgres database with real RLS-protected
+tables, which validates the query construction and data isolation
+behaviorally rather than only by static reading. Combined with the separate
+RLS negative-test suite (rls-test-results.txt), which proves the database
+itself refuses cross-tenant reads/writes regardless of what queries a client
+issues, this gives two independent layers of empirical evidence. Recommend
+a full PostgREST-backed run of this exact scenario (or the sprint's literal
+manual-QA steps) as a pre-production CI gate.

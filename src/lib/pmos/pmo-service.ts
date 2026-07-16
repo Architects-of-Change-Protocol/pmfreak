@@ -62,6 +62,18 @@ export async function listPmosWithProjects(workspaceId: string, opts?: { include
   }));
 }
 
+/**
+ * Looks up a PMO's own workspace_id without pre-knowing it — the
+ * authoritative source for scope derivation. Callers must still verify the
+ * caller is a member of the returned workspace; this function performs no
+ * authorization by itself.
+ */
+export async function getPmoWorkspaceId(pmoId: string): Promise<string | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.from("pmos").select("workspace_id").eq("id", pmoId).maybeSingle<{ workspace_id: string }>();
+  return data?.workspace_id ?? null;
+}
+
 export async function getPmoById(workspaceId: string, pmoId: string): Promise<PmoRow | null> {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase

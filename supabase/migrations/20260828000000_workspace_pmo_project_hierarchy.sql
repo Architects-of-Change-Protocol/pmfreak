@@ -206,42 +206,124 @@ create policy "workspace members can manage context_messages"
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Backfill: default PMO per configured workspace + project attachment
+--
+-- The default-PMO insert is a check-then-insert ("...where not exists
+-- (select 1 from pmos where workspace_id = w.id)"), which is not safe
+-- against two concurrent executions of this migration: under READ
+-- COMMITTED, both could pass the NOT EXISTS check before either commits,
+-- producing two default PMOs for the same workspace (reproduced empirically
+-- during validation — two concurrent runs each inserted a "General PMO" row
+-- for the same workspace). Wrapping the insert+update in a single DO block
+-- guarded by a migration-scoped advisory lock closes this: the lock is
+-- acquired and the whole backfill executes as one atomic unit (a DO block
+-- is always a single statement, so this holds regardless of whether an
+-- outer tool wraps the file in its own transaction), serializing any
+-- concurrent executions of this backfill against each other. This adds no
+-- constraint to the pmos table itself — multiple PMOs per workspace remains
+-- a fully supported, unconstrained product feature; only this one-time
+-- backfill step is serialized.
 -- ─────────────────────────────────────────────────────────────────────────────
 
-insert into pmos (workspace_id, name, pmo_type, created_by_user_id)
-select
-  w.id,
-  coalesce(
-    nullif(wg.governance_jsonb -> 'identity' ->> 'pmoName', ''),
-    nullif(w.name, 'Workspace'),
-    'General PMO'
-  ),
-  case
-    when w.command_center_type in ('company_pmo', 'team_portfolio', 'independent', 'client_portfolio', 'improvement_program')
-      then w.command_center_type
-    else 'company_pmo'
-  end,
-  w.created_by_user_id
-from workspaces w
-left join workspace_governance wg
-  on wg.workspace_id = w.id::text
- and wg.status = 'active'
-where (
-    exists (select 1 from projects p where p.workspace_id = w.id)
-    or wg.workspace_id is not null
-  )
-  and not exists (select 1 from pmos pm where pm.workspace_id = w.id);
+do $$
+begin
+  perform pg_advisory_xact_lock(hashtext('pmfreak_pmo_backfill_20260828000000'));
 
-update projects p
-set pmo_id = pm.id
-from pmos pm
-where p.pmo_id is null
-  and pm.workspace_id = p.workspace_id
-  and pm.status = 'active'
-  and pm.id = (
-    select pm2.id from pmos pm2
-    where pm2.workspace_id = p.workspace_id
-      and pm2.status = 'active'
-    order by pm2.created_at asc
-    limit 1
-  );
+  insert into pmos (workspace_id, name, pmo_type, created_by_user_id)
+  select
+    w.id,
+    coalesce(
+      nullif(wg.governance_jsonb -> 'identity' ->> 'pmoName', ''),
+      nullif(w.name, 'Workspace'),
+      'General PMO'
+    ),
+    case
+      when w.command_center_type in ('company_pmo', 'team_portfolio', 'independent', 'client_portfolio', 'improvement_program')
+        then w.command_center_type
+      else 'company_pmo'
+    end,
+    w.created_by_user_id
+  from workspaces w
+  -- workspace_governance.workspace_id is uuid on a fresh database (its
+  -- create table references workspaces(id)); the text cast on both sides
+  -- keeps this join valid on any environment where it drifted to text.
+  left join workspace_governance wg
+    on wg.workspace_id::text = w.id::text
+   and wg.status = 'active'
+  where (
+      exists (select 1 from projects p where p.workspace_id = w.id)
+      or wg.workspace_id is not null
+    )
+    and not exists (select 1 from pmos pm where pm.workspace_id = w.id);
+
+  update projects p
+  set pmo_id = pm.id
+  from pmos pm
+  where p.pmo_id is null
+    and pm.workspace_id = p.workspace_id
+    and pm.status = 'active'
+    and pm.id = (
+      select pm2.id from pmos pm2
+      where pm2.workspace_id = p.workspace_id
+        and pm2.status = 'active'
+      order by pm2.created_at asc
+      limit 1
+    );
+end $$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Cross-workspace consistency triggers.
+--
+-- RLS on `projects` and `context_conversations` validates that the acting
+-- user is a member of the row's OWN workspace_id — it does not (and
+-- structurally cannot, via a plain USING/WITH CHECK boolean policy without
+-- an expensive per-row subquery repeated on every policy) verify that a
+-- referenced pmo_id/project_id actually belongs to that same workspace_id.
+-- Verified during validation: a workspace-B member with legitimate UPDATE
+-- rights on their own workspace-B project can set projects.pmo_id to a PMO
+-- belonging to workspace A via a direct SQL/Supabase-client call — RLS does
+-- not block it. The application layer (project-admin-service.ts,
+-- pmo-service.ts, context-chat/route.ts) already validates this before
+-- issuing the write, so the sanctioned API surface is safe; these triggers
+-- close the same gap at the database layer itself, so the invariant holds
+-- even for direct Supabase client calls, service-role scripts, or any
+-- future code path that writes these columns without going through the
+-- existing service layer.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create or replace function enforce_project_pmo_same_workspace() returns trigger as $$
+begin
+  if new.pmo_id is not null then
+    if (select workspace_id from pmos where id = new.pmo_id) is distinct from new.workspace_id then
+      raise exception 'projects.pmo_id must reference a PMO in the same workspace (project workspace %, pmo %)', new.workspace_id, new.pmo_id
+        using errcode = '23514';
+    end if;
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger projects_pmo_same_workspace
+  before insert or update of pmo_id, workspace_id on projects
+  for each row execute function enforce_project_pmo_same_workspace();
+
+create or replace function enforce_context_conversation_same_workspace() returns trigger as $$
+begin
+  if new.pmo_id is not null then
+    if (select workspace_id from pmos where id = new.pmo_id) is distinct from new.workspace_id then
+      raise exception 'context_conversations.pmo_id must reference a PMO in the same workspace (conversation workspace %, pmo %)', new.workspace_id, new.pmo_id
+        using errcode = '23514';
+    end if;
+  end if;
+  if new.project_id is not null then
+    if (select workspace_id from projects where id = new.project_id) is distinct from new.workspace_id then
+      raise exception 'context_conversations.project_id must reference a project in the same workspace (conversation workspace %, project %)', new.workspace_id, new.project_id
+        using errcode = '23514';
+    end if;
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger context_conversations_same_workspace
+  before insert or update of pmo_id, project_id, workspace_id on context_conversations
+  for each row execute function enforce_context_conversation_same_workspace();

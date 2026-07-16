@@ -16,6 +16,18 @@ export function normalizeProjectStatus(value: unknown): ProjectStatus | null {
   return PROJECT_STATUSES.includes(value as ProjectStatus) ? (value as ProjectStatus) : null;
 }
 
+/**
+ * Looks up a project's own workspace_id without pre-knowing it — the
+ * authoritative source for scope derivation (never trust a caller-supplied
+ * or cookie-derived workspaceId for an entity that carries its own). Callers
+ * must still independently verify the caller may access the project.
+ */
+export async function getProjectWorkspaceId(projectId: string): Promise<string | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.from("projects").select("workspace_id").eq("id", projectId).maybeSingle<{ workspace_id: string }>();
+  return data?.workspace_id ?? null;
+}
+
 export async function getProjectInWorkspace(workspaceId: string, projectId: string): Promise<ProjectRow | null> {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
+import { requireWorkspaceRole as requireWorkspaceMinimumRole } from "@/lib/workspace-access";
 import { resolvePreferredWorkspace } from "@/lib/workspaces/preferred-workspace";
 import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 import { duplicatePmo } from "@/lib/pmos/pmo-service";
@@ -22,6 +23,11 @@ export async function POST(_request: Request, { params }: Params) {
       return denyResponse({ status: 403, routeId: ROUTE_ID, message: "Workspace context required.", reason: "workspace_missing", actorUserId: user.id, eventType: "workspace_scope_violation" });
     }
     await requireWorkspaceMember(resolution.workspaceId);
+    try {
+      await requireWorkspaceMinimumRole(resolution.workspaceId, "pm");
+    } catch {
+      return denyResponse({ status: 403, routeId: ROUTE_ID, message: "Forbidden", reason: "insufficient_role", actorUserId: user.id, eventType: "workspace_scope_violation" });
+    }
 
     const pmo = await duplicatePmo(resolution.workspaceId, pmoId, user.id);
     return NextResponse.json({ pmo }, { status: 201 });

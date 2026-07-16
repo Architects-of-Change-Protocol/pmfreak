@@ -1,0 +1,19 @@
+CONTROL PASS: auth.uid() resolves to viewer-a
+CONTROL PASS: viewer-a CAN see own workspace-A pmos (1 rows)
+PASS test_1: viewer-a cannot see workspace-B/C pmos
+PASS test_2: viewer-a cannot see workspace-B projects
+psql:/tmp/claude-0/-home-user-pmfreak/198fcc8b-1705-5319-816a-3701dc03988c/scratchpad/mig/rls-negative-tests.sql:38: NOTICE:  PASS test_3: viewer-a INSERT blocked by RLS (new row violates row-level security policy for table "pmos")
+CONTROL PASS: auth.uid() resolves to pm-a
+psql:/tmp/claude-0/-home-user-pmfreak/198fcc8b-1705-5319-816a-3701dc03988c/scratchpad/mig/rls-negative-tests.sql:52: NOTICE:  PASS test_4: pm-a (role=pm) INSERT succeeded as expected
+psql:/tmp/claude-0/-home-user-pmfreak/198fcc8b-1705-5319-816a-3701dc03988c/scratchpad/mig/rls-negative-tests.sql:60: NOTICE:  PASS test_5: cross-workspace PMO insert blocked by RLS (new row violates row-level security policy for table "pmos")
+CONTROL PASS: auth.uid() resolves to owner-b
+psql:/tmp/claude-0/-home-user-pmfreak/198fcc8b-1705-5319-816a-3701dc03988c/scratchpad/mig/rls-negative-tests.sql:81: NOTICE:  PASS test_6: raw SQL UPDATE did not change pmo_id cross-workspace
+CONTROL PASS: auth.uid() resolves to viewer-a (2nd check)
+PASS test_7: viewer-a cannot read workspace-B context_messages
+PASS test_8: owner-b (the real owner) CAN read their own workspace-B context_messages
+
+--- Supplementary: DB-trigger enforcement with a KNOWN cross-workspace pmo_id
+--- (test_6 above used a live subquery that RLS blinds to zero rows for an
+--- outsider — this test supplies the id directly, as would happen if it
+--- leaked via any channel, proving the trigger itself rejects the write) ---
+NOTICE:  PASS test_6b: DB TRIGGER rejected cross-workspace pmo_id assignment via known/hardcoded id (projects.pmo_id must reference a PMO in the same workspace (project workspace bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1, pmo b80e5ecc-ab64-4ba8-bc4e-3206f032cd58))

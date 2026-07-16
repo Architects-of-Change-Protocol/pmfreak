@@ -108,9 +108,14 @@ test("responder narrows PMO scope to its own projects and project scope to itsel
 
 test("context chat API exists for all three levels", () => {
   const route = fs.readFileSync("src/app/api/context-chat/route.ts", "utf8");
-  assert.ok(route.includes("parseContextScope"));
+  // Scope resolution derives workspace_id from the pmo/project entity
+  // itself (getPmoWorkspaceId/getProjectWorkspaceId) rather than the
+  // caller's preferred workspace — see
+  // tests/workspace-pmo-project-validation-sprint.test.mjs for the
+  // regression test covering this directly.
+  assert.ok(route.includes("resolveAndAuthorizeScope"));
   assert.ok(route.includes("requireProjectAccess"));
-  assert.ok(route.includes("getPmoById"));
+  assert.ok(route.includes("getPmoWorkspaceId"));
 });
 
 test("chat pages exist per level", () => {

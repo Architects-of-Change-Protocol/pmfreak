@@ -1,6 +1,13 @@
 # Workspace → PMO → Project Hierarchy
 
-Status: implemented (UX Architecture Refactoring Sprint).
+Status: implemented (UX Architecture Refactoring Sprint), validated
+(Acceptance, Migration & Context Isolation Validation Sprint — see
+`artifacts/validation-sprint-2026-07-16/EXECUTIVE-REPORT.md`). The
+validation sprint found and fixed a PMO-backfill concurrency race, a
+database-layer gap allowing cross-workspace `pmo_id`/`project_id`
+assignment via direct SQL (closed with triggers), a context-chat scope
+derivation bug, and two authorization gaps in PMO/project mutation routes
+— see the report for full details and re-verified evidence.
 
 PMFreak's conceptual root used to be the Project: the sidebar listed projects
 flat, the "PMO" was a governance JSON blob 1:1 with the workspace, and the

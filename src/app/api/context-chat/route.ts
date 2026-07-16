@@ -4,10 +4,11 @@ import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response"
 import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 import { requireAuthenticatedUser, requireProjectAccess, requireWorkspaceMember } from "@/lib/security/server-authorization";
 import { resolvePreferredWorkspace } from "@/lib/workspaces/preferred-workspace";
-import { contextIdFor, parseContextScope, type ContextScope } from "@/lib/context/context-scope";
+import { contextIdFor, type ContextScope } from "@/lib/context/context-scope";
 import { appendMessage, getOrCreateConversation, listMessages } from "@/lib/chat/context-chat-service";
 import { buildContextReply } from "@/lib/chat/context-chat-responder";
-import { getPmoById } from "@/lib/pmos/pmo-service";
+import { getPmoWorkspaceId } from "@/lib/pmos/pmo-service";
+import { getProjectWorkspaceId } from "@/lib/projects/project-admin-service";
 
 const ROUTE_ID = "/api/context-chat";
 const MAX_MESSAGE_LENGTH = 8000;
@@ -23,41 +24,59 @@ function handleAccessError(error: unknown) {
 }
 
 /**
- * Verifies the caller may use the requested scope. Beyond workspace
- * membership this pins each level to a real row in that workspace so a
- * scope can never be forged across tenants.
+ * Resolves the scope AND authorizes it in one step. Critically, the
+ * workspace_id for a pmo/project scope is always derived from the entity's
+ * OWN row — never from the caller's preferred-workspace cookie/session. A
+ * user can belong to several workspaces; if their preferred workspace
+ * differs from the workspace the requested PMO/project actually lives in,
+ * trusting the preferred workspace would persist a conversation row whose
+ * workspace_id doesn't match its project_id/pmo_id, which both mislabels
+ * the row and (via the workspace-membership RLS read policy) would let
+ * members of the WRONG workspace read a conversation about an entity they
+ * have no relationship to. Deriving workspace_id from the entity closes
+ * that gap: the row's workspace_id is always correct by construction, and
+ * the existing requireProjectAccess/requireWorkspaceMember calls remain the
+ * authorization gate.
  */
-async function authorizeScope(scope: ContextScope) {
-  await requireWorkspaceMember(scope.workspaceId);
-  if (scope.type === "pmo") {
-    const pmo = await getPmoById(scope.workspaceId, scope.pmoId);
-    if (!pmo) return NextResponse.json({ error: "PMO not found in this workspace." }, { status: 404 });
-  }
-  if (scope.type === "project") {
-    await requireProjectAccess(scope.projectId, "read");
-  }
-  return null;
-}
+async function resolveAndAuthorizeScope(
+  input: { contextType?: unknown; pmoId?: unknown; projectId?: unknown },
+  userId: string
+): Promise<{ scope: ContextScope } | { error: "workspace_missing" | "invalid_scope" } | { denied: NextResponse }> {
+  const contextType = typeof input.contextType === "string" ? input.contextType : null;
 
-async function resolveScope(input: { contextType?: unknown; pmoId?: unknown; projectId?: unknown }, userId: string) {
-  const resolution = await resolvePreferredWorkspace(userId);
-  if (!resolution.workspaceId) return { error: "workspace_missing" } as const;
+  if (contextType === "workspace") {
+    const resolution = await resolvePreferredWorkspace(userId);
+    if (!resolution.workspaceId) return { error: "workspace_missing" };
+    await requireWorkspaceMember(resolution.workspaceId);
+    return { scope: { type: "workspace", workspaceId: resolution.workspaceId } };
+  }
 
-  const scope = parseContextScope({
-    workspaceId: resolution.workspaceId,
-    contextType: typeof input.contextType === "string" ? input.contextType : null,
-    pmoId: typeof input.pmoId === "string" ? input.pmoId : null,
-    projectId: typeof input.projectId === "string" ? input.projectId : null,
-  });
-  if (!scope) return { error: "invalid_scope" } as const;
-  return { scope } as const;
+  if (contextType === "pmo") {
+    const pmoId = typeof input.pmoId === "string" ? input.pmoId : null;
+    if (!pmoId) return { error: "invalid_scope" };
+    const workspaceId = await getPmoWorkspaceId(pmoId);
+    if (!workspaceId) return { denied: NextResponse.json({ error: "PMO not found." }, { status: 404 }) };
+    await requireWorkspaceMember(workspaceId);
+    return { scope: { type: "pmo", workspaceId, pmoId } };
+  }
+
+  if (contextType === "project") {
+    const projectId = typeof input.projectId === "string" ? input.projectId : null;
+    if (!projectId) return { error: "invalid_scope" };
+    const workspaceId = await getProjectWorkspaceId(projectId);
+    if (!workspaceId) return { denied: NextResponse.json({ error: "Project not found." }, { status: 404 }) };
+    await requireProjectAccess(projectId, "read");
+    return { scope: { type: "project", workspaceId, projectId } };
+  }
+
+  return { error: "invalid_scope" };
 }
 
 export async function GET(request: Request) {
   try {
     const { user } = await requireAuthenticatedUser();
     const url = new URL(request.url);
-    const resolved = await resolveScope(
+    const resolved = await resolveAndAuthorizeScope(
       {
         contextType: url.searchParams.get("contextType"),
         pmoId: url.searchParams.get("pmoId"),
@@ -65,12 +84,10 @@ export async function GET(request: Request) {
       },
       user.id
     );
+    if ("denied" in resolved) return resolved.denied;
     if ("error" in resolved) {
       return NextResponse.json({ error: resolved.error === "workspace_missing" ? "Workspace context required." : "Invalid context scope." }, { status: 400 });
     }
-
-    const deniedScope = await authorizeScope(resolved.scope);
-    if (deniedScope) return deniedScope;
 
     const conversation = await getOrCreateConversation(resolved.scope, user.id);
     const messages = await listMessages(conversation.id, resolved.scope.workspaceId);
@@ -97,13 +114,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Message is too long." }, { status: 400 });
     }
 
-    const resolved = await resolveScope(body, user.id);
+    const resolved = await resolveAndAuthorizeScope(body, user.id);
+    if ("denied" in resolved) return resolved.denied;
     if ("error" in resolved) {
       return NextResponse.json({ error: resolved.error === "workspace_missing" ? "Workspace context required." : "Invalid context scope." }, { status: 400 });
     }
-
-    const deniedScope = await authorizeScope(resolved.scope);
-    if (deniedScope) return deniedScope;
 
     const conversation = await getOrCreateConversation(resolved.scope, user.id);
 

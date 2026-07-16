@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { requireAuthenticatedUser, requireProjectAccess } from "@/lib/security/server-authorization";
+import { requireWorkspaceRole as requireWorkspaceMinimumRole } from "@/lib/workspace-access";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 import {
@@ -123,7 +124,21 @@ export async function PATCH(request: Request, { params }: Params) {
     if (typeof body.ownerUserId !== "string" || !body.ownerUserId.trim()) {
       return Response.json({ error: "Invalid ownerUserId." }, { status: 400 });
     }
-    patch.ownerUserId = body.ownerUserId.trim();
+    const ownerUserId = body.ownerUserId.trim();
+    // Ownership must land on an actual workspace member — otherwise a
+    // project could be silently reassigned to a user with no relationship
+    // to the workspace, breaking every downstream "assigned PM" surface.
+    const supabase = await createSupabaseServerClient();
+    const { data: targetMembership } = await supabase
+      .from("workspace_memberships")
+      .select("user_id")
+      .eq("workspace_id", scoped.workspace_id)
+      .eq("user_id", ownerUserId)
+      .maybeSingle();
+    if (!targetMembership) {
+      return Response.json({ error: "New owner must be a member of this workspace." }, { status: 400 });
+    }
+    patch.ownerUserId = ownerUserId;
   }
 
   if (Object.keys(patch).length === 0) {
@@ -145,6 +160,17 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   const scoped = await loadScopedProject(authorized.projectId);
   if (!scoped) return Response.json({ error: "Project not found." }, { status: 404 });
+
+  // Hard-deleting a project cascades through documents, tasks, risks, and
+  // conversations with no way back. The projects table's DELETE RLS policy
+  // does not restrict by role (any workspace member passes it), so this
+  // app-layer check is the only gate distinguishing "can edit" from "can
+  // permanently destroy" — require at least admin.
+  try {
+    await requireWorkspaceMinimumRole(scoped.workspace_id, "admin");
+  } catch {
+    return denyResponse({ status: 403, routeId: "/api/projects/[id]", message: "Forbidden", reason: "insufficient_role", actorUserId: authorized.user.id, projectId: authorized.projectId, eventType: "project_scope_violation" });
+  }
 
   try {
     await deleteProject(scoped.workspace_id, authorized.projectId);

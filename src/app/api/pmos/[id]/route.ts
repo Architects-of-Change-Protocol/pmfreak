@@ -3,6 +3,7 @@ import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security/server-authorization";
+import { requireWorkspaceRole as requireWorkspaceMinimumRole } from "@/lib/workspace-access";
 import { resolvePreferredWorkspace } from "@/lib/workspaces/preferred-workspace";
 import { deletePmo, getPmoById, normalizePmoType, updatePmo, type UpdatePmoInput } from "@/lib/pmos/pmo-service";
 
@@ -35,6 +36,23 @@ async function resolveScopedRequest(pmoIdRaw: string) {
   return { user, workspaceId: resolution.workspaceId, pmoId } as const;
 }
 
+/**
+ * PMO mutations require workspace role pm-or-above, matching the "workspace
+ * managers can manage pmos" RLS policy — enforced at the app layer so a
+ * viewer gets a clean 403 instead of a generic 500 once the RLS write is
+ * rejected by Postgres.
+ */
+async function resolveScopedMutation(pmoIdRaw: string) {
+  const scoped = await resolveScopedRequest(pmoIdRaw);
+  if ("error" in scoped) return scoped;
+  try {
+    await requireWorkspaceMinimumRole(scoped.workspaceId, "pm");
+  } catch {
+    return { error: denyResponse({ status: 403, routeId: ROUTE_ID, message: "Forbidden", reason: "insufficient_role", actorUserId: scoped.user.id, eventType: "workspace_scope_violation" }) } as const;
+  }
+  return scoped;
+}
+
 export async function GET(_request: Request, { params }: Params) {
   const { id } = await params;
   try {
@@ -54,7 +72,7 @@ export async function GET(_request: Request, { params }: Params) {
 export async function PATCH(request: Request, { params }: Params) {
   const { id } = await params;
   try {
-    const scoped = await resolveScopedRequest(id);
+    const scoped = await resolveScopedMutation(id);
     if ("error" in scoped) return scoped.error;
 
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
@@ -101,7 +119,7 @@ export async function PATCH(request: Request, { params }: Params) {
 export async function DELETE(_request: Request, { params }: Params) {
   const { id } = await params;
   try {
-    const scoped = await resolveScopedRequest(id);
+    const scoped = await resolveScopedMutation(id);
     if ("error" in scoped) return scoped.error;
 
     const existing = await getPmoById(scoped.workspaceId, scoped.pmoId);
