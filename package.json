@@ -77,7 +77,15 @@
     "check:dependency-security": "node scripts/check-dependency-security.mjs",
     "check:beta-release": "node scripts/check-beta-release.mjs",
     "check:fresh-db-migrations": "node scripts/check-fresh-db-migrations.mjs",
-    "check:security-definer-hardening": "node scripts/check-security-definer-hardening.mjs"
+    "check:security-definer-hardening": "node scripts/check-security-definer-hardening.mjs",
+    "compliance:licenses:generate": "node scripts/compliance/generate-third-party-license-inventory.mjs",
+    "compliance:licenses:check": "node scripts/compliance/check-third-party-license-policy.mjs",
+    "compliance:repository:check": "node scripts/compliance/check-repository-license-policy.mjs",
+    "compliance:publication:check": "node scripts/compliance/check-package-publication-safety.mjs",
+    "compliance:ip:check": "node scripts/compliance/check-ip-governance-artifacts.mjs",
+    "compliance:sbom": "node scripts/compliance/generate-sbom.mjs",
+    "compliance:test": "node --test tests/compliance/*.test.mjs",
+    "compliance:check": "npm run compliance:repository:check && npm run compliance:publication:check && npm run compliance:licenses:generate && npm run compliance:licenses:check && npm run compliance:sbom && npm run compliance:ip:check && npm run compliance:test"
   },
   "dependencies": {
     "@aoc-enterprise/runtime": "file:src/aoc/enterprise",
@@ -108,5 +116,6 @@
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5"
-  }
+  },
+  "license": "UNLICENSED"
 }

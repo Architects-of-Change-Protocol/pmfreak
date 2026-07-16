@@ -1,0 +1,15 @@
+import fs from 'node:fs'; import path from 'node:path'; import {readJson,sha256,commit,root,classifyLicense} from './compliance-lib.mjs';
+const lock=readJson('package-lock.json'), rootPkg=readJson('package.json'), policy=readJson('config/compliance/license-policy.json');
+const direct=new Set([...Object.keys(rootPkg.dependencies||{}),...Object.keys(rootPkg.devDependencies||{}),...Object.keys(rootPkg.optionalDependencies||{}),...Object.keys(rootPkg.peerDependencies||{})]);
+const lockHash=sha256('package-lock.json'); const pkgs=[];
+for(const [loc,meta] of Object.entries(lock.packages||{})){
+ if(!loc||!loc.startsWith('node_modules/')) continue; const name=meta.name||loc.replace(/^node_modules\//,'');
+ let lic=meta.license||'UNKNOWN'; let version=meta.version||'UNKNOWN'; if((!meta.license||!meta.version) && meta.link){ try{ const lp=JSON.parse(fs.readFileSync(path.join(root, loc, 'package.json'),'utf8')); lic=lp.license||lic; version=lp.version||version; }catch{} } const c=classifyLicense(lic,policy);
+ pkgs.push({name,version,relationship:direct.has(name)?'direct':'transitive',scope: direct.has(name)? (rootPkg.dependencies?.[name]?'runtime':'dev-or-other'):'transitive',declaredLicense:lic,repositoryUrl: typeof meta.repository==='string'?meta.repository:meta.repository?.url||null,homepage:meta.homepage||null,dependencyPath:loc,classification:c.classification,reviewStatus:c.classification==='ALLOWED'?'LOW_FRICTION':'REVIEW_REQUIRED',notes:c.reason,licenseMetadataSource:'package-lock.json packages entry',missingOrUnknownLicense:!meta.license||lic==='UNKNOWN'});
+}
+pkgs.sort((a,b)=>a.name.localeCompare(b.name)||a.version.localeCompare(b.version));
+const counts={total:pkgs.length,direct:pkgs.filter(p=>p.relationship==='direct').length,transitive:pkgs.filter(p=>p.relationship==='transitive').length,allowed:pkgs.filter(p=>p.classification==='ALLOWED').length,reviewRequired:pkgs.filter(p=>p.classification==='REVIEW_REQUIRED').length,blocked:pkgs.filter(p=>p.classification==='BLOCKED').length,unknown:pkgs.filter(p=>p.missingOrUnknownLicense).length};
+const inv={schemaVersion:'1.0.0',generatedAt:new Date().toISOString(),repositoryCommit:commit(),lockfile:{path:'package-lock.json',sha256:lockHash,lockfileVersion:lock.lockfileVersion},packageManager:'npm',counts,packages:pkgs};
+fs.mkdirSync(path.join(root,'artifacts/compliance'),{recursive:true}); fs.writeFileSync(path.join(root,'artifacts/compliance/third-party-license-inventory.json'),JSON.stringify(inv,null,2)+'\n');
+fs.writeFileSync(path.join(root,'artifacts/compliance/third-party-license-summary.md'),`# Third-Party License Summary\n\nGenerated: ${inv.generatedAt}\nCommit: ${inv.repositoryCommit}\nLockfile SHA-256: ${lockHash}\n\n| Metric | Count |\n| --- | ---: |\n${Object.entries(counts).map(([k,v])=>`| ${k} | ${v} |`).join('\n')}\n\nThis is a technical inventory for periodic review; it is not legal advice. Review-required entries must be assessed before release.\n`);
+console.log(`Generated third-party inventory for ${pkgs.length} packages.`);
