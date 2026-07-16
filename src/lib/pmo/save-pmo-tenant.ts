@@ -1,7 +1,7 @@
 "use server";
 
 import { getAuthUser } from "@/lib/auth";
-import { resolveCanonicalWorkspace } from "@/lib/workspaces/canonical-workspace-resolver";
+import { resolveWriteWorkspace } from "@/lib/workspaces/resolve-write-workspace";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import type { PmoTenant } from "./pmo-tenant-types";
 import { validatePmoTenantPayload } from "./pmo-tenant-validate";
@@ -52,7 +52,7 @@ export async function savePmoTenant(tenant: PmoTenant): Promise<PmoTenantSaveRes
     }
     userId = user.id;
 
-    const resolution = await resolveCanonicalWorkspace(user.id);
+    const resolution = await resolveWriteWorkspace(user.id);
     if (!resolution.workspaceId) {
       emit("error", "pmo.create.failed", { correlationId, userId, failureClass: "no_workspace" });
       return { status: "fatal_failure", error: "No active workspace found for this account.", failureClass: "no_workspace", correlationId };

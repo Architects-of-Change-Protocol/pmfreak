@@ -3,7 +3,7 @@ import { requireAuthenticatedUser, requireWorkspaceMember } from "@/lib/security
 import { denyFromAccessError } from "@/lib/security/deny-response";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { saveOperationalMemory, type OperationalDomain } from "@/lib/operational-memory";
-import { ensureUserWorkspace } from "@/lib/workspaces";
+import { resolveWriteWorkspace } from "@/lib/workspaces/resolve-write-workspace";
 import { ensureDefaultPmo } from "@/lib/pmos/pmo-service";
 
 type TemplateInput = { domain: OperationalDomain; title: string; text: string };
@@ -11,9 +11,10 @@ type TemplateInput = { domain: OperationalDomain; title: string; text: string };
 export async function POST(request: Request) {
   const { user } = await requireAuthenticatedUser();
 
-  // Resolve the workspace from the authenticated user rather than requiring
-  // a request header (this endpoint is called from the browser without SDK context).
-  const workspace = await ensureUserWorkspace(user.id);
+  // Resolve the workspace from the authenticated user (honoring their
+  // preferred/active workspace selection) rather than requiring a request
+  // header (this endpoint is called from the browser without SDK context).
+  const workspace = await resolveWriteWorkspace(user.id);
   const workspaceId = workspace.workspaceId;
 
   try {

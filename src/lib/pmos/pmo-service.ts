@@ -189,13 +189,21 @@ export async function moveProjectToPmo(workspaceId: string, projectId: string, p
 /**
  * Returns the workspace's default PMO (oldest active), creating one when the
  * workspace has none yet. Used to keep legacy single-PMO flows working.
+ *
+ * Runs as a single Postgres function (ensure_default_pmo, advisory-lock
+ * guarded — see 20260828000002) rather than a check-then-insert from
+ * application code: two concurrent calls for the same brand-new workspace
+ * (e.g. a double-submitted onboarding form) would otherwise both observe
+ * zero PMOs and both create a "General PMO" row before either commits, the
+ * same race already closed for the one-time migration backfill.
  */
 export async function ensureDefaultPmo(workspaceId: string, userId: string, preferredName?: string): Promise<PmoRow> {
-  const existing = await listPmos(workspaceId);
-  if (existing.length > 0) return existing[0];
-  return createPmo({
-    workspaceId,
-    name: preferredName?.trim() || "General PMO",
-    createdByUserId: userId,
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("ensure_default_pmo", {
+    p_workspace_id: workspaceId,
+    p_name: preferredName?.trim() || "General PMO",
+    p_created_by_user_id: userId,
   });
+  if (error || !data) throw new Error(`Unable to ensure default PMO: ${error?.message ?? "unknown"}`);
+  return data as unknown as PmoRow;
 }

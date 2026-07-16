@@ -3,7 +3,7 @@
 import { getAuthUser } from "@/lib/auth";
 import { canCreateMoreProjects } from "@/lib/feature-gates";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { ensureUserWorkspace } from "@/lib/workspaces";
+import { resolveWriteWorkspace } from "@/lib/workspaces/resolve-write-workspace";
 import { ensureDefaultPmo, getPmoById } from "@/lib/pmos/pmo-service";
 import { generateAndPersistOperationalGovernanceBrief } from "@/lib/projects/first-insight";
 import type { ProjectOnboardingPayload } from "./project-onboarding-types";
@@ -98,7 +98,7 @@ export async function saveProjectOnboarding(
 
     let ensured: { workspaceId: string };
     try {
-      ensured = await ensureUserWorkspace(user.id);
+      ensured = await resolveWriteWorkspace(user.id);
     } catch (wsErr) {
       const detail = wsErr instanceof Error ? wsErr.message : "unknown workspace error";
       emit("project.create.failed", {

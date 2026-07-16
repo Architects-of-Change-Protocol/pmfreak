@@ -5,11 +5,13 @@ import fs from "node:fs";
 // ─── Regression tests for defects found by an automated review (Codex) on
 // PR #526 (Workspace → PMO → Project hierarchy) after it was merged to main.
 // Each test pins a fix so a future refactor cannot silently reintroduce the
-// defect. Findings judged ambiguous or architecturally significant (which
-// workspace new projects/PMOs should resolve to; the ensureDefaultPmo
-// runtime race; what counts as "PMO setup complete" for onboarding) were
-// deliberately left out of this sprint pending a product decision — see the
-// PR conversation, not this file, for that triage.
+// defect. Three findings were architecturally significant enough to check
+// with the user before fixing (see PR conversation): which workspace new
+// projects/PMOs should resolve to for multi-workspace users, the
+// ensureDefaultPmo runtime race, and what counts as "PMO setup complete"
+// for onboarding. The user asked for the first two to be fixed and the
+// third investigated (not changed) — both are covered below alongside the
+// first-round findings.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const layout = fs.readFileSync("src/app/(protected)/layout.tsx", "utf8");
@@ -18,6 +20,14 @@ const contextChatService = fs.readFileSync("src/lib/chat/context-chat-service.ts
 const savePmoTenant = fs.readFileSync("src/lib/pmo/save-pmo-tenant.ts", "utf8");
 const projectAdminService = fs.readFileSync("src/lib/projects/project-admin-service.ts", "utf8");
 const migration = fs.readFileSync("supabase/migrations/20260828000001_workspace_pmo_project_hierarchy.sql", "utf8");
+const ensureDefaultPmoMigration = fs.readFileSync("supabase/migrations/20260828000002_ensure_default_pmo_advisory_lock.sql", "utf8");
+const resolveWriteWorkspace = fs.readFileSync("src/lib/workspaces/resolve-write-workspace.ts", "utf8");
+const pmoService = fs.readFileSync("src/lib/pmos/pmo-service.ts", "utf8");
+const saveProjectOnboarding = fs.readFileSync("src/lib/projects/save-project-onboarding.ts", "utf8");
+const projectsActions = fs.readFileSync("src/app/(protected)/projects/actions.ts", "utf8");
+const commandCenterActions = fs.readFileSync("src/app/(protected)/command-center/actions.ts", "utf8");
+const gettingStarted = fs.readFileSync("src/app/api/getting-started/route.ts", "utf8");
+const onboardingState = fs.readFileSync("src/lib/auth/resolve-onboarding-state.ts", "utf8");
 
 // ─── Finding: resolveCanonicalWorkspace's `recovered` flag (meaning "the
 // preferred-workspace cookie didn't match a real membership, fell back") was
@@ -31,8 +41,8 @@ const migration = fs.readFileSync("supabase/migrations/20260828000001_workspace_
 
 test("protected layout only skips the trial check for a workspace freshly bootstrapped in this request, never for a stale/tampered preferred-workspace cookie", () => {
   assert.ok(
-    /isRecovered:\s*justBootstrapped/.test(layout),
-    "resolveOnboardingState must receive a flag scoped to the explicit ensureUserWorkspace bootstrap branch, not resolvedWorkspace.recovered"
+    /isRecovered:\s*resolvedWorkspace\.bootstrapped/.test(layout),
+    "resolveOnboardingState must receive a flag scoped to resolveWriteWorkspace's own bootstrap branch, not a cookie-mismatch-fallback signal"
   );
   assert.ok(
     !/isRecovered:\s*resolvedWorkspace\.recovered/.test(layout),
@@ -126,4 +136,87 @@ test("a trigger enforces context_messages.workspace_id matches its conversation'
   assert.ok(migration.includes("enforce_context_message_same_workspace"));
   assert.ok(/create trigger context_messages_same_workspace/.test(migration));
   assert.ok(/before insert or update of conversation_id, workspace_id on context_messages/.test(migration));
+});
+
+// ─── Finding (architecturally significant — user approved the fix):
+// saveProjectOnboarding.ts, savePmoTenant.ts, projects/actions.ts,
+// command-center/actions.ts, and api/getting-started all resolved the
+// workspace to write into via ensureUserWorkspace/resolveCanonicalWorkspace
+// with no preferred-workspace argument — always the user's OLDEST
+// membership, never the workspace they're actually viewing/switched to via
+// the preferred-workspace cookie. A user in Workspace A (oldest) and
+// Workspace B (active/selected) would have a project or PMO silently
+// created in Workspace A regardless of which workspace's UI they were
+// using. Closed by centralizing resolution in one helper
+// (resolveWriteWorkspace) that honors the caller's real, membership-
+// validated preferred workspace and only falls back to
+// ensureUserWorkspace's oldest-membership/bootstrap behavior when no valid
+// preference exists. ─────────────────────────────────────────────────────
+
+test("resolveWriteWorkspace resolves the caller's preferred (cookie-selected, membership-validated) workspace, falling back to ensureUserWorkspace only when none exists", () => {
+  assert.ok(resolveWriteWorkspace.includes("resolvePreferredWorkspace"), "must consult the preferred-workspace cookie via the validated resolver");
+  assert.ok(resolveWriteWorkspace.includes("ensureUserWorkspace"), "must still fall back to bootstrap/oldest-membership resolution when there is no valid preference");
+  const fnBody = resolveWriteWorkspace.slice(resolveWriteWorkspace.indexOf("export async function resolveWriteWorkspace"));
+  const preferredCallIdx = fnBody.indexOf("resolvePreferredWorkspace");
+  const ensureCallIdx = fnBody.indexOf("ensureUserWorkspace(userId)");
+  assert.ok(preferredCallIdx > -1 && ensureCallIdx > -1 && preferredCallIdx < ensureCallIdx, "must check the preferred workspace before ever falling back to ensureUserWorkspace");
+});
+
+test("every project/PMO write entry point resolves its workspace via resolveWriteWorkspace, not ensureUserWorkspace/resolveCanonicalWorkspace directly", () => {
+  for (const [name, src] of [
+    ["save-project-onboarding.ts", saveProjectOnboarding],
+    ["save-pmo-tenant.ts", savePmoTenant],
+    ["projects/actions.ts", projectsActions],
+    ["command-center/actions.ts", commandCenterActions],
+    ["api/getting-started/route.ts", gettingStarted],
+  ]) {
+    assert.ok(src.includes("resolveWriteWorkspace"), `${name} must resolve its workspace via resolveWriteWorkspace`);
+    assert.ok(!/\bensureUserWorkspace\(/.test(src), `${name} must not call ensureUserWorkspace directly (bypasses the preferred-workspace cookie)`);
+    assert.ok(!/\bresolveCanonicalWorkspace\(/.test(src), `${name} must not call resolveCanonicalWorkspace directly (bypasses the shared bootstrap fallback)`);
+  }
+});
+
+// ─── Finding (architecturally significant — user approved the fix):
+// ensureDefaultPmo (pmo-service.ts) was a check-then-insert
+// (listPmos() then createPmo()) run from application code — the same race
+// class already fixed for the one-time migration backfill via
+// pg_advisory_xact_lock, just triggered at runtime by any of four
+// concurrent project-creation entry points instead of migration time.
+// Closed by moving the check-then-insert into a single Postgres function
+// (ensure_default_pmo, 20260828000002) that acquires the advisory lock and
+// performs both steps in one transaction — verified live: 5 truly
+// concurrent calls against the same brand-new workspace all returned the
+// identical PMO id, exactly one row created. ────────────────────────────────
+
+test("ensureDefaultPmo calls the advisory-lock-guarded ensure_default_pmo RPC instead of a check-then-insert from application code", () => {
+  const fn = pmoService.slice(pmoService.indexOf("export async function ensureDefaultPmo"));
+  assert.ok(/\.rpc\("ensure_default_pmo"/.test(fn), "must delegate to the single-transaction RPC, not listPmos()+createPmo()");
+  assert.ok(!/listPmos\(/.test(fn), "must not read-then-decide from application code — the whole check-then-insert must happen inside the RPC");
+});
+
+test("the ensure_default_pmo Postgres function acquires a workspace-scoped advisory lock before its check-then-insert, and its EXECUTE grant is explicitly scoped (not left at the PUBLIC default)", () => {
+  assert.ok(/pg_advisory_xact_lock\(hashtext\(/.test(ensureDefaultPmoMigration));
+  assert.ok(/create or replace function ensure_default_pmo/.test(ensureDefaultPmoMigration));
+  assert.ok(/revoke all on function public\.ensure_default_pmo/.test(ensureDefaultPmoMigration), "must not rely on Postgres's default PUBLIC execute grant, matching this codebase's established convention");
+  assert.ok(/grant execute on function public\.ensure_default_pmo.*to authenticated, service_role/.test(ensureDefaultPmoMigration));
+});
+
+// ─── Finding (investigated, not changed — user asked to check intent first):
+// resolveOnboardingState treats ANY active pmos row as proof "PMO setup" is
+// complete, including the lightweight auto-created "General PMO" from
+// ensureDefaultPmo. Traced both onboarding entry points: api/getting-started
+// and savePmoTenant BOTH explicitly set user_metadata.onboarding_completed
+// = true after creating their respective PMO, independent of each other —
+// confirming getting-started is a deliberate, self-contained, complete
+// onboarding path in its own right, not a partial stub. Treating any active
+// pmos row as satisfying the DB-level "PMO setup" check is consistent with
+// that design (a secondary source of truth for surfaces that can't wait for
+// a JWT refresh), not a gap — so this finding is pinned as intentional
+// rather than fixed. ─────────────────────────────────────────────────────
+
+test("getting-started is a self-contained onboarding path that marks onboarding complete on its own, independent of the savePmoTenant wizard (confirms resolveOnboardingState's any-active-pmos-row check is intentional, not a gap)", () => {
+  assert.ok(gettingStarted.includes("ensureDefaultPmo"), "getting-started creates its own default PMO rather than requiring the wizard to have run first");
+  assert.ok(/onboarding_completed:\s*true/.test(gettingStarted), "getting-started must independently mark onboarding complete, confirming it's a complete path, not a partial stub");
+  assert.ok(/onboarding_completed:\s*true/.test(savePmoTenant), "the full wizard also independently marks onboarding complete, matching the same pattern");
+  assert.ok(onboardingState.includes('.from("pmos")'), "the DB-level check accepting any active pmos row is the intended secondary source of truth for these two independent complete-onboarding paths");
 });
