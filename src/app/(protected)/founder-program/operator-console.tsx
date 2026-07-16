@@ -60,7 +60,12 @@ export function FounderProgramOperatorConsole() {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    // Deferred so the initial fetch never sets state synchronously inside
+    // the effect (react-hooks cascading-render rule); cancelable on unmount.
+    const timer = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [refresh]);
 
   async function act(path: string, body: Json, confirmText?: string) {

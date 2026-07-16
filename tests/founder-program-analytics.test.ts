@@ -21,7 +21,7 @@ function captureClient(rows: Record<string, unknown>[] = [], failInsert = false)
   return {
     rows,
     client: {
-      from: (_table: string) => ({
+      from: () => ({
         insert: async (row: Record<string, unknown>) => {
           if (failInsert) return { error: { message: "insert failed" } };
           rows.push(row);
