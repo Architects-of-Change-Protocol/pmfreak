@@ -114,3 +114,9 @@ The forgot-password flow sends users to `${NEXT_PUBLIC_SITE_URL}/auth/reset-pass
 ## Operational evidence-to-decision loop
 
 The first complete PMFreak cognitive-operational circuit is documented in [`docs/operational-evidence-decision-loop.md`](docs/operational-evidence-decision-loop.md). It covers the deterministic signal detector, PMFreak role-mapping authority checks, immutable evidence-linked decisions, Command Center integration, exact Project Assurance Summary v1 metrics, the idempotent demo seed, and the isolated Supabase DB/RLS verifier.
+
+## Intellectual Property and Licensing
+
+PMFreak is proprietary commercial SaaS software of OnChainFest LLC, except where third-party components or externally owned materials are separately identified. This repository does not grant a public license to use, copy, modify, distribute, sublicense, publish, sell, or create derivative works from the proprietary portions of PMFreak.
+
+Access to this source repository does not imply permission to use or distribute the software. Third-party dependencies retain their respective licenses and notices. Contributions should not be submitted unless authorized by OnChainFest LLC and reviewed for ownership, security, provenance, and license compatibility. Legal and commercial terms for the PMFreak service are maintained in the applicable business or legal documents.

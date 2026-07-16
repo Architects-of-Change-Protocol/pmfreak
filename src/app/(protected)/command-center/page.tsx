@@ -12,6 +12,7 @@ import { getCompanySubscription } from "@/lib/billing";
 import { getPlanCapabilities } from "@/lib/feature-gates";
 import { WorkspaceContextBanner } from "@/components/pmfreak/workspace/workspace-context-banner";
 import { loadLatestOperationalGovernanceBrief } from "@/lib/projects/first-insight";
+import { noteFounderCommandCenterVisit } from "@/lib/founder-program/checkpoints";
 
 export default async function CommandCenterPage({
   searchParams,
@@ -25,6 +26,10 @@ export default async function CommandCenterPage({
   const workspace = preferred.workspaceId
     ? { workspaceId: preferred.workspaceId }
     : await ensureUserWorkspace(user.id);
+  const workspace = await ensureUserWorkspace(user.id);
+  // Founder Circle onboarding evidence — flag-gated no-op for everyone else,
+  // and internally fail-silent so it can never affect this page.
+  await noteFounderCommandCenterVisit(user.id);
   const supabase = await createSupabaseServerClient();
   const params = await searchParams;
   const fromOnboarding = params.from === "onboarding";

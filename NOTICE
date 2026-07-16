@@ -1,0 +1,11 @@
+PMFreak
+Intended owner: OnChainFest LLC
+Year: 2026
+
+PMFreak is documented in this repository as proprietary commercial SaaS software. All rights are reserved for proprietary portions owned by or licensed to OnChainFest LLC, except where otherwise identified.
+
+This repository does not grant a public license to use, copy, modify, distribute, sublicense, publish, sell, or create derivative works from PMFreak proprietary source code, product-specific documentation, configuration, or assets.
+
+Third-party software, libraries, SDKs, APIs, trademarks, services, assets, and other materials remain subject to their respective ownership and license terms. Dependency evidence is tracked in artifacts/compliance/third-party-license-inventory.json and summarized in artifacts/compliance/third-party-license-summary.md. SaaS service terms, customer terms, and commercial legal terms are maintained outside this notice as applicable.
+
+This document is an operational repository notice for technical governance and does not replace legal advice or modify third-party license obligations.

@@ -46,13 +46,30 @@ export async function POST(request: Request) {
     recorded_by: user.id,
   });
 
-  if (error) {
-    // Unique violation = already accepted this version: idempotent success.
-    if (error.code === "23505") {
-      return NextResponse.json({ ok: true, alreadyAccepted: true, agreementVersion: PILOT_AGREEMENT_VERSION });
-    }
+  if (error && error.code !== "23505") {
     return safeInternalErrorResponse(ROUTE_ID, new Error(error.message));
   }
+  // Unique violation = already accepted this version: idempotent success.
+  const alreadyAccepted = error?.code === "23505";
 
-  return NextResponse.json({ ok: true, alreadyAccepted: false, agreementVersion: PILOT_AGREEMENT_VERSION });
+  // Founder Circle hook (best-effort, never blocks the acceptance record):
+  // when the founder program is enabled and this user is a participant in
+  // agreement_pending, the acceptance advances their program lifecycle.
+  // The acceptance row above stays the single source of truth either way.
+  try {
+    const { loadFounderProgramConfig } = await import("@/lib/founder-program/config");
+    const config = await loadFounderProgramConfig();
+    if (config.enabled) {
+      const { syncFounderAgreementAcceptance } = await import("@/lib/founder-program/admission");
+      await syncFounderAgreementAcceptance({
+        userId: user.id,
+        agreementVersion: PILOT_AGREEMENT_VERSION,
+        requiredAgreementVersion: config.settings.requiredAgreementVersion,
+      });
+    }
+  } catch {
+    // Program-side sync failures must not undo or hide a recorded acceptance.
+  }
+
+  return NextResponse.json({ ok: true, alreadyAccepted, agreementVersion: PILOT_AGREEMENT_VERSION });
 }

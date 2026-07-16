@@ -291,6 +291,24 @@ export const PRIVILEGED_ACCESS_REGISTRY: readonly PrivilegedAccessEntry[] = [
     needsRlsBeforeSwap: false,
   },
   {
+    file: "src/lib/founder-program/db.ts",
+    purpose:
+      "Founder Circle Program service surface (single factory for the whole src/lib/founder-program domain): all founder_* tables are deliberately service-role-only — operator views aggregate program data across all workspaces, and participant writes (application, feedback, withdrawal) are validated in route handlers against tables that grant clients no insert/update/delete at all. Participant reads use narrow column-scoped self-select RLS policies, never this client.",
+    riskLevel: "MEDIUM",
+    mitigations: [
+      "Single factory (createFounderProgramDbClient) — no other founder-program file may construct a privileged client, keeping the audit surface to one entry",
+      "Every operator route checks isFounderOrInternalUser before parsing the body or instantiating the client; denials logged as founder_program_denied",
+      "Every participant route resolves the participant record by the authenticated user id before any mutation (self-scoping in the route layer on top of RLS)",
+      "All lifecycle state changes go through the founder_program_transition SECURITY DEFINER function (settings row locked, capacity checked, compare-and-swap state update, append-only audit row) — execute granted only to service_role",
+      "Invitation tokens generated with 24 random bytes (192 bits), stored as SHA-256 only; token_hash is never selectable by client roles and never logged",
+      "Feature flags fail closed: with PMFREAK_FOUNDER_PROGRAM_* unset, routes return controlled responses before this client is ever created",
+      "actorUserId threaded into the privileged access context for telemetry attribution",
+      "See docs/founder-program/05-authorization-model.md",
+    ],
+    strictCriteriaMet: "L4",
+    needsRlsBeforeSwap: false,
+  },
+  {
     file: "src/lib/auth/resolve-onboarding-state.ts",
     purpose: "Onboarding/trial-gate resolver: reads the caller's workspace memberships and active trial license, and expires it server-side if past trial_end_at, to decide routing (no_workspace/needs_pmo_setup/needs_project/active/trial_blocked). System-level write across workspace boundaries that RLS on the authenticated user would block.",
     riskLevel: "MEDIUM",

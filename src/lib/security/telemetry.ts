@@ -116,6 +116,12 @@ export type SecurityEventType =
 
   // Perilla 9 — abuse protection (rate limit / cooldown denials).
   | "abuse_rate_limited"
+
+  // Founder Circle Program Sprint 01 — lifecycle transitions, operator
+  // actions, and denials on program routes.
+  | "founder_program_transition"
+  | "founder_program_operator_action"
+  | "founder_program_denied"
 ;
 
 type SecurityEventPayload = {

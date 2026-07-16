@@ -145,6 +145,110 @@ export const ROUTE_GUARD_REGISTRY: readonly RouteGuardEntry[] = [
     requiredGuard: "isFounderOrInternalUser",
     dataAccess: ["early_access_invites", "trial_licenses", "workspace_activations", "early_access_events"],
   },
+
+  // ── Founder Circle Program (Sprint 01) ─────────────────────────────────
+  // Operator surfaces: requireFounderProgramOperator = program-enabled gate
+  // + getAuthUser + isFounderOrInternalUser BEFORE body parse, with
+  // founder_program_denied telemetry (src/lib/founder-program/authz.ts).
+  {
+    file: "src/app/api/founder-program/operator/invitations/route.ts",
+    kind: "api-route",
+    classification: "founder-internal",
+    requiredGuard: "requireFounderProgramOperator",
+    dataAccess: ["founder_invitations", "founder_participants"],
+    notes: "Invite links are returned exactly once and never persisted or logged; token_hash is never selected in list responses.",
+  },
+  {
+    file: "src/app/api/founder-program/operator/participants/route.ts",
+    kind: "api-route",
+    classification: "founder-internal",
+    requiredGuard: "requireFounderProgramOperator",
+    dataAccess: ["founder_participants"],
+  },
+  {
+    file: "src/app/api/founder-program/operator/participants/actions/route.ts",
+    kind: "api-route",
+    classification: "founder-internal",
+    requiredGuard: "requireFounderProgramOperator",
+    dataAccess: ["founder_participants", "founder_membership_transitions", "pilot_agreement_acceptances", "workspaces"],
+    notes: "All state changes flow through the founder_program_transition SECURITY DEFINER function (capacity + CAS).",
+  },
+  {
+    file: "src/app/api/founder-program/operator/feedback/route.ts",
+    kind: "api-route",
+    classification: "founder-internal",
+    requiredGuard: "requireFounderProgramOperator",
+    dataAccess: ["founder_feedback"],
+  },
+  {
+    file: "src/app/api/founder-program/operator/discovery-sessions/route.ts",
+    kind: "api-route",
+    classification: "founder-internal",
+    requiredGuard: "requireFounderProgramOperator",
+    dataAccess: ["founder_discovery_sessions", "founder_participants"],
+  },
+  {
+    file: "src/app/api/founder-program/operator/decisions/route.ts",
+    kind: "api-route",
+    classification: "founder-internal",
+    requiredGuard: "requireFounderProgramOperator",
+    dataAccess: ["founder_program_decisions", "founder_participants"],
+  },
+  {
+    file: "src/app/api/founder-program/operator/dashboard/route.ts",
+    kind: "api-route",
+    classification: "founder-internal",
+    requiredGuard: "requireFounderProgramOperator",
+    dataAccess: ["founder_participants", "founder_invitations", "founder_membership_transitions", "founder_onboarding_checkpoints", "founder_feedback", "founder_discovery_sessions", "founder_program_decisions", "founder_program_events"],
+  },
+  {
+    file: "src/app/(protected)/founder-program/page.tsx",
+    kind: "page",
+    classification: "founder-internal",
+    requiredGuard: "isFounderOrInternalUser",
+    dataAccess: ["founder_program_settings (via loadFounderProgramConfig)"],
+  },
+  // Participant surfaces: requireFounderProgramParticipantContext =
+  // program-enabled gate + getAuthUser; every query self-scopes by the
+  // resolved user id on top of RLS self-select policies.
+  {
+    file: "src/app/api/founder-program/invitation/[token]/route.ts",
+    kind: "api-route",
+    classification: "invite-acceptance",
+    requiredGuard: "requireFounderProgramParticipantContext",
+    dataAccess: ["founder_invitations (by token hash)", "founder_participants"],
+    notes: "Token is a bearer credential resolved by sha256 only; unknown/revoked/expired are indistinguishable; per-IP+token abuse limit.",
+  },
+  {
+    file: "src/app/api/founder-program/application/route.ts",
+    kind: "api-route",
+    classification: "invite-acceptance",
+    requiredGuard: "requireFounderProgramParticipantContext",
+    dataAccess: ["founder_invitations", "founder_participants", "founder_applications"],
+    notes: "Email binding: invitation email must equal the authenticated account email.",
+  },
+  {
+    file: "src/app/api/founder-program/application/withdraw/route.ts",
+    kind: "api-route",
+    classification: "auth-only",
+    requiredGuard: "requireFounderProgramParticipantContext",
+    dataAccess: ["founder_participants", "founder_applications"],
+  },
+  {
+    file: "src/app/api/founder-program/status/route.ts",
+    kind: "api-route",
+    classification: "auth-only",
+    requiredGuard: "requireFounderProgramParticipantContext",
+    dataAccess: ["founder_participants", "founder_onboarding_checkpoints"],
+  },
+  {
+    file: "src/app/api/founder-program/feedback/route.ts",
+    kind: "api-route",
+    classification: "auth-only",
+    requiredGuard: "requireFounderProgramParticipantContext",
+    dataAccess: ["founder_feedback", "founder_participants"],
+    notes: "Participant reads exclude internal triage fields (projection + column-scoped grant).",
+  },
   {
     file: "src/app/api/runtime/hardening/route.ts",
     kind: "api-route",

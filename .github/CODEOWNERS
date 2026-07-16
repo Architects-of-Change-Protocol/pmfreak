@@ -1,0 +1,17 @@
+* @vicvalch
+/COPYRIGHT @vicvalch
+/NOTICE @vicvalch
+/THIRD_PARTY_NOTICES.md @vicvalch
+/CONTRIBUTING.md @vicvalch
+/package.json @vicvalch
+/package-lock.json @vicvalch
+/config/compliance/ @vicvalch
+/scripts/compliance/ @vicvalch
+/tests/compliance/ @vicvalch
+/docs/governance/ip-compliance/ @vicvalch
+/.github/workflows/ @vicvalch
+/.github/CODEOWNERS @vicvalch
+/supabase/migrations/ @vicvalch
+/src/lib/auth/ @vicvalch
+/src/lib/security/ @vicvalch
+/src/aoc/ @vicvalch
