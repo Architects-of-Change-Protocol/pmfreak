@@ -4,7 +4,7 @@ import fs from "node:fs";
 
 // ─── Load source files ────────────────────────────────────────────────────────
 
-const migration = fs.readFileSync("supabase/migrations/20260828000000_workspace_pmo_project_hierarchy.sql", "utf8");
+const migration = fs.readFileSync("supabase/migrations/20260828000001_workspace_pmo_project_hierarchy.sql", "utf8");
 const contract = fs.readFileSync("src/lib/db/database-contract.ts", "utf8");
 const chatService = fs.readFileSync("src/lib/chat/context-chat-service.ts", "utf8");
 const chatResponder = fs.readFileSync("src/lib/chat/context-chat-responder.ts", "utf8");

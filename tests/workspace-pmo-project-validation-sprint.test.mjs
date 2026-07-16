@@ -7,7 +7,7 @@ import fs from "node:fs";
 // future refactor cannot silently reintroduce the defect.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const migration = fs.readFileSync("supabase/migrations/20260828000000_workspace_pmo_project_hierarchy.sql", "utf8");
+const migration = fs.readFileSync("supabase/migrations/20260828000001_workspace_pmo_project_hierarchy.sql", "utf8");
 const pmosRoute = fs.readFileSync("src/app/api/pmos/route.ts", "utf8");
 const pmoIdRoute = fs.readFileSync("src/app/api/pmos/[id]/route.ts", "utf8");
 const pmoDuplicateRoute = fs.readFileSync("src/app/api/pmos/[id]/duplicate/route.ts", "utf8");

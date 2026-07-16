@@ -10,7 +10,7 @@ import fs from "node:fs";
 // ─────────────────────────────────────────────────────────────────────────────
 
 const projectAdminService = fs.readFileSync("src/lib/projects/project-admin-service.ts", "utf8");
-const migration = fs.readFileSync("supabase/migrations/20260828000000_workspace_pmo_project_hierarchy.sql", "utf8");
+const migration = fs.readFileSync("supabase/migrations/20260828000001_workspace_pmo_project_hierarchy.sql", "utf8");
 const rbac = fs.readFileSync("src/lib/security/rbac.ts", "utf8");
 const pmosRoute = fs.readFileSync("src/app/api/pmos/route.ts", "utf8");
 const pmoIdRoute = fs.readFileSync("src/app/api/pmos/[id]/route.ts", "utf8");

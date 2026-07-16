@@ -90,7 +90,7 @@ export const WORKSPACE_MEMBERSHIP_SELECTABLE_COLUMNS = [
 // Source: 20260504100000_projects_system.sql
 //         20260512160000_workspace_authorization_rewrite.sql (workspace_id)
 //         20260601000000_schema_contract_hardening.sql (onboarding_payload)
-//         20260828000000_workspace_pmo_project_hierarchy.sql (pmo_id)
+//         20260828000001_workspace_pmo_project_hierarchy.sql (pmo_id)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ProjectStatus = "active" | "archived" | "completed";
@@ -131,7 +131,7 @@ export const PROJECT_SELECTABLE_COLUMNS = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 // pmos
-// Source: 20260828000000_workspace_pmo_project_hierarchy.sql
+// Source: 20260828000001_workspace_pmo_project_hierarchy.sql
 //
 // First-class PMO container: Workspace → PMO → Project. A workspace can hold
 // many PMOs; every project belongs to exactly one PMO (pmo_id, backfilled).
@@ -177,7 +177,7 @@ export const PMO_SELECTABLE_COLUMNS = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 // context_conversations / context_messages
-// Source: 20260828000000_workspace_pmo_project_hierarchy.sql
+// Source: 20260828000001_workspace_pmo_project_hierarchy.sql
 //
 // One isolated chat thread per context scope (workspace | pmo | project).
 // Scope shape is enforced by a CHECK constraint; the AI layer must never mix

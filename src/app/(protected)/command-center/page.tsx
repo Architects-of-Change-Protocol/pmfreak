@@ -26,7 +26,6 @@ export default async function CommandCenterPage({
   const workspace = preferred.workspaceId
     ? { workspaceId: preferred.workspaceId }
     : await ensureUserWorkspace(user.id);
-  const workspace = await ensureUserWorkspace(user.id);
   // Founder Circle onboarding evidence — flag-gated no-op for everyone else,
   // and internally fail-silent so it can never affect this page.
   await noteFounderCommandCenterVisit(user.id);

@@ -22,7 +22,7 @@ Workspace          (the whole organization; a user can belong to many)
 
 ## Data model
 
-Migration: `supabase/migrations/20260828000000_workspace_pmo_project_hierarchy.sql`.
+Migration: `supabase/migrations/20260828000001_workspace_pmo_project_hierarchy.sql`.
 
 | Table / column | Purpose |
 | --- | --- |
