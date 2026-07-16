@@ -5,6 +5,7 @@ import { requireAuthUser } from "@/lib/auth";
 import { canCreateMoreProjects } from "@/lib/feature-gates";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ensureUserWorkspace } from "@/lib/workspaces";
+import { ensureDefaultPmo } from "@/lib/pmos/pmo-service";
 
 const asField = (value: FormDataEntryValue | null) => String(value ?? "").trim();
 
@@ -42,9 +43,10 @@ export async function activateContextAction(formData: FormData) {
     .join("\n\n") || null;
 
   const ensured = await ensureUserWorkspace(user.id);
+  const defaultPmo = await ensureDefaultPmo(ensured.workspaceId, user.id);
   const { data, error } = await supabase
     .from("projects")
-    .insert({ user_id: user.id, workspace_id: ensured.workspaceId, name, description })
+    .insert({ user_id: user.id, workspace_id: ensured.workspaceId, pmo_id: defaultPmo.id, name, description })
     .select("id")
     .single<{ id: string }>();
 

@@ -1,6 +1,9 @@
 import { CreateProjectWizard } from "@/components/pmfreak/projects/create-project-wizard";
 
-export default function CreateProjectPage() {
+type Props = { searchParams: Promise<{ pmoId?: string }> };
+
+export default async function CreateProjectPage({ searchParams }: Props) {
+  const { pmoId } = await searchParams;
   return (
     <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#050507] p-6 shadow-[0_40px_120px_rgba(0,0,0,0.55)] md:p-10">
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:48px_48px]" />
@@ -19,7 +22,7 @@ export default function CreateProjectPage() {
           </p>
         </header>
 
-        <CreateProjectWizard />
+        <CreateProjectWizard pmoId={pmoId} />
       </div>
     </section>
   );

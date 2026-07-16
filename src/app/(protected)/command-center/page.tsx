@@ -1,7 +1,10 @@
+import Link from "next/link";
 import { activateContextAction } from "./actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth";
 import { ensureUserWorkspace } from "@/lib/workspaces";
+import { resolvePreferredWorkspace } from "@/lib/workspaces/preferred-workspace";
+import { listPmosWithProjects } from "@/lib/pmos/pmo-service";
 import { CommandCenterClient } from "@/features/command-center/command-center-client";
 import { CommandCenterEmptyState } from "@/features/command-center/command-center-empty-state";
 import { resolveActiveProject } from "@/lib/resolve-active-project";
@@ -17,7 +20,12 @@ export default async function CommandCenterPage({
   searchParams: Promise<{ from?: string; projectId?: string; briefGeneration?: string; error?: string }>;
 }) {
   const user = await requireAuthUser();
-  const workspace = await ensureUserWorkspace(user.id);
+  // Honor the user's active-workspace selection; fall back to the bootstrap
+  // workspace for accounts that have never switched.
+  const preferred = await resolvePreferredWorkspace(user.id);
+  const workspace = preferred.workspaceId
+    ? { workspaceId: preferred.workspaceId }
+    : await ensureUserWorkspace(user.id);
   // Founder Circle onboarding evidence — flag-gated no-op for everyone else,
   // and internally fail-silent so it can never affect this page.
   await noteFounderCommandCenterVisit(user.id);
@@ -69,9 +77,25 @@ export default async function CommandCenterPage({
 
   const initialBrief = await loadLatestOperationalGovernanceBrief(resolution.project!.id, supabase);
 
+  // Operations strip: the Command Center is the workspace's operations
+  // console, so it surfaces the full PMO portfolio, not just one project.
+  const pmoPortfolio = await listPmosWithProjects(workspace.workspaceId);
+  const portfolioProjects = pmoPortfolio.reduce((sum, pmo) => sum + pmo.projects.length, 0);
+  const portfolioActive = pmoPortfolio.reduce((sum, pmo) => sum + pmo.projects.filter((p) => p.status === "active").length, 0);
+
   return (
     <div className="space-y-4">
       <WorkspaceContextBanner lens="Command Center" variant="light" />
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/80 px-4 py-3">
+        <p className="text-xs text-slate-600">
+          Operating across <span className="font-semibold text-slate-900">{pmoPortfolio.length}</span> PMO{pmoPortfolio.length === 1 ? "" : "s"} ·{" "}
+          <span className="font-semibold text-slate-900">{portfolioProjects}</span> project{portfolioProjects === 1 ? "" : "s"} ({portfolioActive} active)
+        </p>
+        <div className="flex gap-2 text-xs font-medium">
+          <Link href="/pmos" className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-slate-700 transition hover:bg-slate-50">Manage PMOs</Link>
+          <Link href="/chat" className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-slate-700 transition hover:bg-slate-50">Workspace Chat</Link>
+        </div>
+      </div>
       <CommandCenterClient
         key={resolution.project!.id}
         firstRun={fromOnboarding}

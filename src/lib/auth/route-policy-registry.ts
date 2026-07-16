@@ -26,6 +26,9 @@ const WORKSPACE_CORE_ROUTES = [
 const WORKSPACE_CONTEXTUAL_ROUTES = [
   "/dashboard",
   "/command-center",
+  "/workspaces",
+  "/pmos",
+  "/chat",
   "/portfolio",
   "/executive",
   "/stakeholder-intel",

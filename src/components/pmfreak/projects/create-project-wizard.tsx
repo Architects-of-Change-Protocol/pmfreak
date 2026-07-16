@@ -688,7 +688,7 @@ function StepBrainActivation({
 
 // ─── Main Wizard ───────────────────────────────────────────────────────────────
 
-export function CreateProjectWizard() {
+export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [errors, setErrors] = useState<string[]>([]);
@@ -778,7 +778,7 @@ export function CreateProjectWizard() {
 
     let result: ProjectSaveResult;
     try {
-      result = await saveProjectOnboarding(payload, correlationId);
+      result = await saveProjectOnboarding(payload, correlationId, { pmoId: pmoId ?? null });
     } catch {
       // Server action transport failure — treat as recoverable
       setSaveError("A network error occurred. Your draft is preserved. Please try again.");
@@ -799,11 +799,12 @@ export function CreateProjectWizard() {
       return;
     }
 
-    // Persistence confirmed — safe to clear draft and navigate
+    // Persistence confirmed — safe to clear draft and navigate.
+    // Projects open on their Overview; chat/execution are views inside it.
     clearDraft();
-    const briefParam = result.briefStatus === "generation_failed" ? "&briefGeneration=failed" : "";
+    const briefParam = result.briefStatus === "generation_failed" ? "?briefGeneration=failed" : "";
     navigationCommittedRef.current = true;
-    router.push(`/command-center?projectId=${result.projectId}${briefParam}`);
+    router.push(`/projects/${result.projectId}${briefParam}`);
   };
 
   const handleRetry = () => {

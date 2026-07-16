@@ -4,7 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DERIVED_LENS_METADATA } from "@/lib/workspace/derived-lens-metadata";
+import { NAVIGATION_HIERARCHY } from "@/lib/workspace/navigation-hierarchy";
 import { AdvancedDrawer } from "@/components/pmfreak/navigation/advanced-drawer";
+import { SidebarPmoTree } from "@/components/pmfreak/navigation/sidebar-pmo-tree";
 import { computeCapabilityRevealState, computeNavigationRail } from "@/features/runtime/capability-reveal/capability-reveal-selectors";
 import { AWAKENING_EVENT, isLensUnlocked, loadAwakeningState, deriveAwakeningState, type AwakeningState } from "@/lib/workspace/awakening-state";
 import { loadImprintState } from "@/lib/workspace/operational-imprint-profile";
@@ -798,10 +800,11 @@ export function OperationalShell({ children, user, capabilityProfile = "pilot" }
     ...item,
     locked: !isLensUnlocked(item.href, awakening.stage),
   }));
-  const primaryNav = navItems.filter((item) => item.idle === "text-indigo-100/90");
-  const lensNav = navItems.filter((item) => item.idle === "text-slate-300" && !item.href.startsWith("/projects") && !item.href.startsWith("/programs") && !item.href.startsWith("/upload") && !item.href.startsWith("/team"));
-  const utilityNav = navItems.filter((item) => ["/projects", "/programs", "/upload", "/team"].includes(item.href));
-  const advancedNav = navItems.filter((item) => item.idle === "text-slate-300" && !lensNav.includes(item) && !utilityNav.includes(item));
+  const tierByHref = new Map(NAVIGATION_HIERARCHY.map((node) => [node.href, node.tier]));
+  const primaryNav = navItems.filter((item) => tierByHref.get(item.href) === "primary");
+  const lensNav = navItems.filter((item) => tierByHref.get(item.href) === "lens");
+  const utilityNav = navItems.filter((item) => tierByHref.get(item.href) === "utility");
+  const advancedNav = navItems.filter((item) => tierByHref.get(item.href) === "advanced");
 
   const imprintFocus = (() => {
     try { return loadImprintState("", "", "").profile; } catch { return null; }
@@ -895,9 +898,17 @@ export function OperationalShell({ children, user, capabilityProfile = "pilot" }
             <nav aria-label="Grouped navigation">
               <div className="space-y-3">
                 <div>
-                  <p className="mb-1 text-[9px] uppercase tracking-[0.28em] text-zinc-600">Workspace</p>
-                  <Link href="/workspace" className="block rounded-lg border border-white/[0.05] px-2.5 py-1.5 text-xs text-slate-300 hover:border-white/[0.12]">Workspace</Link>
+                  <div className="mb-1 flex items-center justify-between px-1">
+                    <p className="text-[9px] uppercase tracking-[0.28em] text-zinc-600">Workspace</p>
+                    <Link href="/workspaces/new" className="text-[10px] font-semibold text-cyan-300/80 hover:text-cyan-200" title="Create a new workspace">
+                      + New
+                    </Link>
+                  </div>
+                  <Link href="/workspaces" className="block truncate rounded-lg border border-white/[0.05] px-2.5 py-1.5 text-xs text-slate-300 hover:border-white/[0.12]">
+                    {user.companyName || "Workspace"}
+                  </Link>
                 </div>
+                <SidebarPmoTree activeProjectId={projectId || undefined} onSelectProject={(id) => setProjectId(id)} />
                 <div>
                   <p className="mb-1 text-[9px] uppercase tracking-[0.28em] text-zinc-600">Lenses</p>
                   <div className="space-y-1">

@@ -4,6 +4,7 @@ import { getAuthUser } from "@/lib/auth";
 import { canCreateMoreProjects } from "@/lib/feature-gates";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ensureUserWorkspace } from "@/lib/workspaces";
+import { ensureDefaultPmo, getPmoById } from "@/lib/pmos/pmo-service";
 import { generateAndPersistOperationalGovernanceBrief } from "@/lib/projects/first-insight";
 import type { ProjectOnboardingPayload } from "./project-onboarding-types";
 
@@ -38,7 +39,8 @@ function emit(event: string, fields: Record<string, unknown>) {
 
 export async function saveProjectOnboarding(
   payload: ProjectOnboardingPayload,
-  correlationId?: string
+  correlationId?: string,
+  opts?: { pmoId?: string | null }
 ): Promise<ProjectSaveResult> {
   const cid = correlationId ?? `proj_${Date.now()}`;
   let insertedProjectId: string | null = null;
@@ -131,11 +133,23 @@ export async function saveProjectOnboarding(
 
     const supabase = await createSupabaseServerClient();
 
+    // Attach the project to its PMO: an explicit selection (e.g. "New
+    // Project" launched from a PMO page) wins; otherwise the workspace's
+    // default PMO is used/created.
+    let pmoId: string;
+    const requestedPmo = opts?.pmoId ? await getPmoById(ensured.workspaceId, opts.pmoId) : null;
+    if (requestedPmo) {
+      pmoId = requestedPmo.id;
+    } else {
+      const defaultPmo = await ensureDefaultPmo(ensured.workspaceId, user.id);
+      pmoId = defaultPmo.id;
+    }
     const { data, error } = await supabase
       .from("projects")
       .insert({
         user_id: user.id,
         workspace_id: ensured.workspaceId,
+        pmo_id: pmoId,
         name: payload.identity.projectName,
         description: payload.deliveryContext.problemStatement || null,
         status: "active",

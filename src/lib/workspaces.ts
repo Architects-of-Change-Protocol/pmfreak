@@ -105,6 +105,33 @@ export async function ensureUserWorkspace(userId: string) {
   return { workspaceId: createdWorkspace.id, role: "owner" as const, created: true };
 }
 
+/**
+ * Explicit "New Workspace" flow (in contrast to the silent first-login
+ * bootstrap above): creates an additional workspace with the given name and
+ * makes the user its owner. A user can belong to many workspaces; the
+ * active one is tracked via the preferred-workspace cookie.
+ */
+// PRIVILEGED_ACCESS: Creating a workspace + first membership predates any membership row, so RLS would block both writes.
+// AUDIT_REF: service-role-risk-register.md
+export async function createWorkspace(userId: string, name: string): Promise<{ workspaceId: string }> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Workspace name is required.");
+
+  const supabase = createSupabaseServiceRoleClient({ routeId: "lib.workspaces", operation: "create_workspace", reason: "workspace_creation", systemActor: "system", actorUserId: userId });
+  const { data: created, error } = await supabase
+    .from("workspaces")
+    .insert({ name: trimmed, created_by_user_id: userId })
+    .select("id")
+    .single<{ id: string }>();
+
+  if (error || !created?.id) {
+    throw new Error(`Unable to create workspace: ${error?.message ?? "unknown"}`);
+  }
+
+  await ensureWorkspaceMembership(userId, created.id, "owner");
+  return { workspaceId: created.id };
+}
+
 export async function getActiveWorkspaceContext(userId: string): Promise<WorkspaceContext> {
   const ensured = await ensureUserWorkspace(userId);
   const supabase = await createSupabaseServerClient();

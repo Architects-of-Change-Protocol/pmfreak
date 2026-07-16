@@ -1,0 +1,15 @@
+PMFreak Fresh Database Migration Proof
+Mode: local
+Migration files discovered: 149
+
+[apply:local] target: postgresql://[redacted]@127...[redacted]
+  Tables in public schema: 413
+  Tables without RLS enabled: 1
+
+Environment safety........ PASS
+Migration inventory....... PASS
+Migration ordering........ PASS
+Fresh apply............... PASS
+Schema contracts.......... PASS
+Decision.................. PASS
+

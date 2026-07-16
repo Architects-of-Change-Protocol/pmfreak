@@ -90,17 +90,24 @@ export const WORKSPACE_MEMBERSHIP_SELECTABLE_COLUMNS = [
 // Source: 20260504100000_projects_system.sql
 //         20260512160000_workspace_authorization_rewrite.sql (workspace_id)
 //         20260601000000_schema_contract_hardening.sql (onboarding_payload)
+//         20260828000001_workspace_pmo_project_hierarchy.sql (pmo_id)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ProjectStatus = "active" | "archived" | "completed";
+
+export type ProjectMethodology = "predictive" | "agile" | "hybrid" | "kanban" | "other";
 
 export type ProjectRow = {
   id: string;                  // uuid
   user_id: string;             // uuid references auth.users
   workspace_id: string;        // uuid references workspaces (not null after migration)
+  pmo_id: string | null;       // uuid references pmos (nullable for legacy rows; added 20260828)
   name: string;                // text not null
   description: string | null;  // text
   status: ProjectStatus;       // text not null default 'active'
+  methodology: ProjectMethodology | null; // text, nullable (added 20260828)
+  icon: string | null;         // text, nullable (added 20260828)
+  color: string | null;        // text, nullable (added 20260828)
   onboarding_payload: Record<string, unknown> | null; // jsonb (added 20260601)
   created_at: string;          // timestamptz
   updated_at: string;          // timestamptz
@@ -110,13 +117,125 @@ export const PROJECT_SELECTABLE_COLUMNS = [
   "id",
   "user_id",
   "workspace_id",
+  "pmo_id",
   "name",
   "description",
   "status",
+  "methodology",
+  "icon",
+  "color",
   "onboarding_payload",
   "created_at",
   "updated_at",
 ] as const satisfies ReadonlyArray<keyof ProjectRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// pmos
+// Source: 20260828000001_workspace_pmo_project_hierarchy.sql
+//
+// First-class PMO container: Workspace → PMO → Project. A workspace can hold
+// many PMOs; every project belongs to exactly one PMO (pmo_id, backfilled).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PmoStatus = "active" | "archived";
+
+export type PmoType =
+  | "company_pmo"
+  | "team_portfolio"
+  | "independent"
+  | "client_portfolio"
+  | "improvement_program"
+  | "personal";
+
+export type PmoRow = {
+  id: string;                       // uuid
+  workspace_id: string;             // uuid references workspaces
+  name: string;                     // text not null
+  description: string | null;       // text
+  pmo_type: PmoType;                // text not null default 'company_pmo'
+  icon: string | null;              // text
+  color: string | null;             // text
+  status: PmoStatus;                // text not null default 'active'
+  created_by_user_id: string | null; // uuid references auth.users
+  created_at: string;               // timestamptz
+  updated_at: string;               // timestamptz
+};
+
+export const PMO_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "name",
+  "description",
+  "pmo_type",
+  "icon",
+  "color",
+  "status",
+  "created_by_user_id",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof PmoRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// context_conversations / context_messages
+// Source: 20260828000001_workspace_pmo_project_hierarchy.sql
+//
+// One isolated chat thread per context scope (workspace | pmo | project).
+// Scope shape is enforced by a CHECK constraint; the AI layer must never mix
+// history across scopes.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ContextConversationType = "workspace" | "pmo" | "project";
+export type ContextConversationStatus = "active" | "archived";
+
+export type ContextConversationRow = {
+  id: string;                        // uuid
+  workspace_id: string;              // uuid references workspaces
+  context_type: ContextConversationType; // text not null
+  pmo_id: string | null;             // uuid references pmos (required for pmo scope)
+  project_id: string | null;         // uuid references projects (required for project scope)
+  title: string;                     // text not null default 'Conversation'
+  status: ContextConversationStatus; // text not null default 'active'
+  created_by_user_id: string | null; // uuid references auth.users
+  created_at: string;                // timestamptz
+  updated_at: string;                // timestamptz
+};
+
+export const CONTEXT_CONVERSATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "context_type",
+  "pmo_id",
+  "project_id",
+  "title",
+  "status",
+  "created_by_user_id",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof ContextConversationRow>;
+
+export type ContextMessageRole = "user" | "assistant" | "system";
+
+export type ContextMessageRow = {
+  id: string;                        // uuid
+  conversation_id: string;           // uuid references context_conversations
+  workspace_id: string;              // uuid references workspaces
+  role: ContextMessageRole;          // text not null
+  content: string;                   // text not null
+  metadata: Record<string, unknown> | null; // jsonb
+  created_by_user_id: string | null; // uuid references auth.users
+  created_at: string;                // timestamptz
+};
+
+export const CONTEXT_MESSAGE_SELECTABLE_COLUMNS = [
+  "id",
+  "conversation_id",
+  "workspace_id",
+  "role",
+  "content",
+  "metadata",
+  "created_by_user_id",
+  "created_at",
+] as const satisfies ReadonlyArray<keyof ContextMessageRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // workspace_governance
