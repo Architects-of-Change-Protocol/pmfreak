@@ -81,6 +81,72 @@ export function hasMetActivationCriteria(reached: readonly { checkpoint: Founder
 }
 
 /**
+ * Derives product-usage checkpoints from REAL domain records — never from
+ * client self-reporting (no fake activation): a project row in the
+ * participant's program workspace ⇒ first_project_created; an execution
+ * task in that workspace ⇒ first_data_entered; any platform event for the
+ * workspace ⇒ first_core_capability_used. Runs opportunistically on status/
+ * dashboard loads; every record is idempotent.
+ */
+export async function reconcileFounderUsageCheckpoints(
+  participant: { id: string; user_id: string | null; workspace_id: string | null },
+  deps: { client?: SupabaseLike } = {},
+): Promise<void> {
+  if (!participant.workspace_id) return;
+  const client = deps.client ?? createFounderProgramDbClient({ operation: "reconcile_usage_checkpoints" });
+
+  const { data: projects } = await client
+    .from("projects")
+    .select("id")
+    .eq("workspace_id", participant.workspace_id)
+    .limit(1);
+  if (projects && projects.length > 0) {
+    await recordFounderCheckpoint({ participantId: participant.id, userId: participant.user_id, checkpoint: "first_project_created" }, { client });
+  }
+
+  const { data: tasks } = await client
+    .from("execution_tasks")
+    .select("id")
+    .eq("workspace_id", participant.workspace_id)
+    .limit(1);
+  if (tasks && tasks.length > 0) {
+    await recordFounderCheckpoint({ participantId: participant.id, userId: participant.user_id, checkpoint: "first_data_entered" }, { client });
+  }
+
+  const { data: events } = await client
+    .from("platform_events")
+    .select("id")
+    .eq("workspace_id", participant.workspace_id)
+    .limit(1);
+  if (events && events.length > 0) {
+    await recordFounderCheckpoint({ participantId: participant.id, userId: participant.user_id, checkpoint: "first_core_capability_used" }, { client });
+  }
+}
+
+/**
+ * Explicit, flag-gated hook for the command-center page (an explicit,
+ * removable call — not hidden coupling). Fails silently: a founder-program
+ * outage can never affect the command center itself.
+ */
+export async function noteFounderCommandCenterVisit(userId: string): Promise<void> {
+  try {
+    const { resolveFounderProgramFlags } = await import("@/lib/founder-program/config");
+    if (!resolveFounderProgramFlags().programEnabled) return;
+    const client = createFounderProgramDbClient({ operation: "note_command_center_visit", actorUserId: userId });
+    const { data: participant } = await client
+      .from("founder_participants")
+      .select("id, lifecycle_state, user_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!participant) return;
+    if (!["onboarding_active", "activated", "feedback_active"].includes(participant.lifecycle_state)) return;
+    await recordFounderCheckpoint({ participantId: participant.id, userId, checkpoint: "first_command_center_visit" }, { client });
+  } catch {
+    // Never let program bookkeeping break a core surface.
+  }
+}
+
+/**
  * System promotion onboarding_active → activated when the canonical
  * criteria hold. Idempotent: the CAS inside the transition function makes a
  * concurrent double-promotion resolve to exactly one applied transition.

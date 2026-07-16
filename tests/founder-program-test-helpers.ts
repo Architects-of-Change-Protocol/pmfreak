@@ -59,8 +59,12 @@ class Query {
     private readonly table: string,
   ) {}
 
-  select(_columns?: string) {
-    if (this.pendingInsert) return this; // insert().select() chain
+  private projection: string[] | null = null;
+
+  select(columns?: string) {
+    if (columns && columns.trim() !== "*") {
+      this.projection = columns.split(",").map((c) => c.trim()).filter(Boolean);
+    }
     return this;
   }
 
@@ -133,6 +137,10 @@ class Query {
       rows.sort((a, b) => (String(a[column]) < String(b[column]) ? (ascending ? -1 : 1) : ascending ? 1 : -1));
     }
     if (this.rangeBounds) rows = rows.slice(this.rangeBounds.from, this.rangeBounds.to + 1);
+    if (this.projection) {
+      const projection = this.projection;
+      rows = rows.map((row) => Object.fromEntries(projection.filter((c) => c in row).map((c) => [c, row[c]])));
+    }
     return rows;
   }
 

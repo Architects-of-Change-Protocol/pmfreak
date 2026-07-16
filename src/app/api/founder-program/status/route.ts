@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { reconcileFounderAgreementVersion } from "@/lib/founder-program/admission";
 import { recordFounderProgramEvent } from "@/lib/founder-program/analytics";
 import { requireFounderProgramParticipantContext } from "@/lib/founder-program/authz";
-import { getFounderCheckpoints, recordFounderCheckpoint } from "@/lib/founder-program/checkpoints";
+import { getFounderCheckpoints, reconcileFounderUsageCheckpoints, recordFounderCheckpoint } from "@/lib/founder-program/checkpoints";
 import { createFounderProgramDbClient } from "@/lib/founder-program/db";
 import { grantsProgramAccess, type FounderLifecycleState } from "@/lib/founder-program/lifecycle";
 import { logger, safeErrorMessage } from "@/lib/observability/logger";
@@ -40,6 +40,10 @@ export async function GET() {
 
     if (grantsProgramAccess(state)) {
       await recordFounderCheckpoint({ participantId: participant.id, userId: gate.user.id, checkpoint: "first_login" }, { client });
+      await reconcileFounderUsageCheckpoints(
+        { id: participant.id, user_id: participant.user_id, workspace_id: participant.workspace_id },
+        { client },
+      );
       await recordFounderProgramEvent({ eventName: "founder_return_visit", participantId: participant.id });
     }
 
