@@ -147,6 +147,23 @@ export async function savePmoTenant(tenant: PmoTenant): Promise<PmoTenantSaveRes
           error: pmoInsertError.message,
         });
       }
+    } else {
+      // Re-running the wizard on a workspace that already has a default PMO
+      // must keep it in sync with the workspace name update above — otherwise
+      // the pmos row (what navigation/chat/project-assignment hang off) is
+      // left showing a stale name after a rename.
+      const { error: pmoUpdateError } = await supabaseClient
+        .from("pmos")
+        .update({ name: tenant.identity.pmoName, pmo_type: commandCenterType, updated_at: new Date().toISOString() })
+        .eq("id", existingPmo.id);
+      if (pmoUpdateError) {
+        emit("warn", "pmo.create.pmo_entity_warn", {
+          correlationId,
+          userId,
+          workspaceId,
+          error: pmoUpdateError.message,
+        });
+      }
     }
 
     emit("info", "pmo.create.persisted", {

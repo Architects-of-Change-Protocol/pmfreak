@@ -67,15 +67,19 @@ export async function getOrCreateConversation(scope: ContextScope, userId: strin
 
 export async function listMessages(conversationId: string, workspaceId: string, limit = 200): Promise<ContextMessageRow[]> {
   const supabase = await createSupabaseServerClient();
+  // Order descending to take the most recent `limit` rows, then reverse to
+  // chronological order for display — ordering ascending before the limit
+  // would instead return the oldest messages, stranding long conversations
+  // on their earliest 200 messages forever.
   const { data, error } = await supabase
     .from("context_messages")
     .select(MESSAGE_COLUMNS)
     .eq("conversation_id", conversationId)
     .eq("workspace_id", workspaceId)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(`Unable to load messages: ${error.message}`);
-  return (data ?? []) as unknown as ContextMessageRow[];
+  return ((data ?? []) as unknown as ContextMessageRow[]).reverse();
 }
 
 export async function appendMessage(input: {

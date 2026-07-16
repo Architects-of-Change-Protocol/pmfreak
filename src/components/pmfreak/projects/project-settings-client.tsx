@@ -53,6 +53,13 @@ export function ProjectSettingsClient({ project, pmos }: { project: ProjectSetti
     setError(null);
     setSaved(false);
     try {
+      // Only send pmoId when the user actually changed it via the dropdown.
+      // The dropdown only lists active PMOs, so a project currently sitting
+      // in an archived PMO keeps form.pmoId at that archived id with no
+      // matching <option> selected; resending it unconditionally would
+      // resubmit that unchanged, untouched value on every save and trip the
+      // server's archived-PMO rejection for edits unrelated to the PMO field.
+      const pmoChanged = form.pmoId !== (project.pmo_id ?? "");
       const res = await fetch(`/api/projects/${project.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -63,7 +70,7 @@ export function ProjectSettingsClient({ project, pmos }: { project: ProjectSetti
           methodology: form.methodology || null,
           icon: form.icon || null,
           color: form.color || null,
-          pmoId: form.pmoId || null,
+          ...(pmoChanged ? { pmoId: form.pmoId || null } : {}),
         }),
       });
       if (!res.ok) {

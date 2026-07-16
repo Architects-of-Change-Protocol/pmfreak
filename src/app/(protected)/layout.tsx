@@ -27,16 +27,25 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   let resolvedWorkspace = await resolvePreferredWorkspace(user.id);
   console.log("[protected-layout] workspace resolution status:", resolvedWorkspace.status, "workspaceId:", resolvedWorkspace.workspaceId ?? "(none)");
 
+  // Only a workspace freshly bootstrapped in THIS request has no trial
+  // history yet. resolvedWorkspace.recovered (from resolveCanonicalWorkspace)
+  // means something unrelated — "the preferred-workspace cookie didn't match
+  // a real membership, so we fell back" — which a client can trigger on any
+  // request just by holding a stale/tampered cookie. Conflating the two let
+  // a trial-blocked user skip the trial gate indefinitely by never fixing
+  // that cookie, so only the explicit bootstrap case may skip the check.
+  let justBootstrapped = false;
   if (!resolvedWorkspace.workspaceId) {
     const ensured = await ensureUserWorkspace(user.id);
     resolvedWorkspace = { workspaceId: ensured.workspaceId, role: ensured.role, status: "resolved", recovered: true, issues: [] };
+    justBootstrapped = true;
     console.log("[protected-layout] workspace bootstrapped:", ensured.workspaceId);
   }
 
   // Canonical onboarding state — single source of truth for all routing decisions.
   // Trial gating, PMO check, project check, and internal-user bypass all live
   // exclusively inside resolveOnboardingState(). No local gates here.
-  const onboardingState = await resolveOnboardingState(user, resolvedWorkspace.workspaceId, { isRecovered: resolvedWorkspace.recovered });
+  const onboardingState = await resolveOnboardingState(user, resolvedWorkspace.workspaceId, { isRecovered: justBootstrapped });
   console.log("[protected-layout] onboarding state:", onboardingState);
 
   if (onboardingState === "trial_blocked") {
