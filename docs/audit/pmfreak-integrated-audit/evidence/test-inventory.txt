@@ -1,0 +1,636 @@
+TEST FILES
+./artifacts/vault-smoke-test-report.json
+./artifacts/vault-smoke-test-report.md
+./docs/audit/pmfreak-integrated-audit/evidence/test-inventory.txt
+./docs/security/agent-attestation-v2.md
+./scripts/fresh-db-rls-smoke-test.sql
+./scripts/run-launch-smoke-tests.mjs
+./scripts/smoke-test-vault-digestion.mjs
+./src/aoc/protocol/ports/agent-attestation.ts
+./src/lib/aoc/adapters/agent-attestation.ts
+./src/lib/security/agent-attestation.ts
+./supabase/migrations/20260515000000_agent_attestation_nonces.sql
+./supabase/migrations/20260826000000_fix_agent_attestation_nonces_grants.sql
+./tests/abuse-protection-boundary.test.mjs
+./tests/adaptive-confidence.test.mjs
+./tests/admin-founder-endpoint-boundary.test.mjs
+./tests/agent-beta-onboarding-demo-data-tenant-readiness.test.mjs
+./tests/agent-controlled-action-conversion-approval-bridge.test.mjs
+./tests/agent-controlled-execution-finalization-adapter-dispatch-gate.test.mjs
+./tests/agent-controlled-execution-learning-signals-governance-feedback-loop.test.mjs
+./tests/agent-controlled-execution-result-reconciliation-human-outcome-review.test.mjs
+./tests/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.test.mjs
+./tests/agent-controlled-pmo-governance-intelligence-dashboard.test.mjs
+./tests/agent-controlled-policy-implementation-gate-dry-run-change-executor.test.mjs
+./tests/agent-controlled-policy-implementation-planning-workspace.test.mjs
+./tests/agent-controlled-policy-version-activation-rollback-gate.test.mjs
+./tests/agent-controlled-project-intelligence-handoff.test.mjs
+./tests/agent-end-to-end-governance-runtime-integration-production-hardening.test.mjs
+./tests/agent-execution-results-evidence.test.mjs
+./tests/agent-execution-runtime.test.mjs
+./tests/agent-human-review-action-inbox.test.mjs
+./tests/agent-memory-context.test.mjs
+./tests/agent-observability-audit.test.mjs
+./tests/agent-pmo-governance-proposal-review-controlled-policy-change-backlog.test.mjs
+./tests/agent-tool-adapter-layer.test.mjs
+./tests/agent-tool-approval.test.mjs
+./tests/agent-tool-registry.test.mjs
+./tests/ai-egress-governance-contract.test.mjs
+./tests/ai-provider-abstraction-contract.test.mjs
+./tests/ai-response-verifier-contract.test.mjs
+./tests/ai-runtime-guardrails.test.mjs
+./tests/aoc-session-free-governance-contract.test.mjs
+./tests/asymmetric-verification-phase-6-1.test.mjs
+./tests/attention-orchestration.test.mjs
+./tests/auth-redirect-resolution.test.mjs
+./tests/authority-governance.test.mjs
+./tests/authorization-adversarial-contract.test.mjs
+./tests/authorization-adversarial-phase-4-3.test.mjs
+./tests/authorization-adversarial-phase-4-5.test.mjs
+./tests/autonomous-intervention-runtime.test.mjs
+./tests/beta-release-gate.test.mjs
+./tests/billing-authorization-workspace-membership.test.mjs
+./tests/billing-checkout-session-route.test.mjs
+./tests/billing-webhook-idempotency.test.mjs
+./tests/build-import-integrity.test.mjs
+./tests/canonical-envelope-conformance.test.mjs
+./tests/capability-claims-contract.test.mjs
+./tests/command-center-conversation-gateway-integration.test.mjs
+./tests/compliance/compliance-scripts.test.mjs
+./tests/connectors-runtime.test.mjs
+./tests/constitutional-brief.test.mjs
+./tests/constitutional-context-engine.test.mjs
+./tests/constitutional-dashboard.test.mjs
+./tests/constitutional-decision-lifecycle.test.mjs
+./tests/constitutional-digest-engine.test.ts
+./tests/constitutional-intelligence.test.mjs
+./tests/constitutional-learning-engine.test.ts
+./tests/constitutional-memory-foundation.test.mjs
+./tests/constitutional-ratification.test.ts
+./tests/constitutional-workspace.test.mjs
+./tests/consumer-boundary-audit.test.ts
+./tests/continuity-retrieval.test.mjs
+./tests/conversation-vault-ingestion.test.mjs
+./tests/conversational-brain-intent-classifier.test.mjs
+./tests/coordination-intelligence.test.mjs
+./tests/cost-governance-agent.test.mjs
+./tests/create-pmo-flow.test.mjs
+./tests/create-project-brain.test.mjs
+./tests/create-project-flow.test.mjs
+./tests/critical-path-intelligence.test.mjs
+./tests/critical-path.test.mjs
+./tests/cross-domain-correlation-engine.test.mjs
+./tests/dashboard-action-center-runtime.test.mjs
+./tests/dashboard-action-ui.test.mjs
+./tests/dashboard-api-runtime.test.mjs
+./tests/dashboard-approval-mutation-runtime.test.mjs
+./tests/dashboard-approval-queue-ui-runtime.test.mjs
+./tests/dashboard-approval-workflow-runtime.test.mjs
+./tests/dashboard-authorization-enforcement-runtime.test.mjs
+./tests/dashboard-background-refresh-runtime.test.mjs
+./tests/dashboard-cache-refresh-runtime.test.mjs
+./tests/dashboard-consumption-runtime.test.mjs
+./tests/dashboard-honest-labels.test.ts
+./tests/dashboard-live-adapter-connector-runtime.test.mjs
+./tests/dashboard-manual-task-push-runtime.test.mjs
+./tests/dashboard-persistent-lifecycle-store-runtime.test.mjs
+./tests/dashboard-real-adapter-connectors-runtime.test.mjs
+./tests/dashboard-role-authorization-runtime.test.mjs
+./tests/dashboard-runtime-integration.test.mjs
+./tests/dashboard-source-hydration-runtime.test.mjs
+./tests/dashboard-task-adapter-runtime.test.mjs
+./tests/dashboard-task-lifecycle-runtime.test.mjs
+./tests/data-contracts-contract.test.mjs
+./tests/db-schema-contract.test.mjs
+./tests/decision-effectiveness-foundation.test.mjs
+./tests/decision-outcome-engine.test.mjs
+./tests/delegated-authority-contract.test.mjs
+./tests/deterministic-verification-phase-6-4.test.mjs
+./tests/distributed-trust-coordination-phase-6-2-contract.test.mjs
+./tests/early-access-invite-email-boundary.test.mjs
+./tests/enterprise-runtime-registry-isolation.test.mjs
+./tests/enterprise-runtime-sovereignty-imports.test.mjs
+./tests/enterprise-ux.test.mjs
+./tests/error-leakage-boundary.test.mjs
+./tests/escalation-intelligence.test.mjs
+./tests/evidence-linked-decisions.test.mjs
+./tests/execution-augmentation.test.mjs
+./tests/execution-projection-engine.test.ts
+./tests/execution-reality-engine.test.ts
+./tests/execution-task-dependencies.test.mjs
+./tests/execution-tasks.test.mjs
+./tests/executive-brief.test.mjs
+./tests/executive-command-runtime.test.mjs
+./tests/executive-dashboard-aggregation-runtime.test.mjs
+./tests/executive-decision-simulation-runtime.test.mjs
+./tests/external-verifier-phase-6-contract.test.mjs
+./tests/first-insight-engine.test.mjs
+./tests/first-operational-contact.test.mjs
+./tests/founder-program-admission.test.ts
+./tests/founder-program-analytics.test.ts
+./tests/founder-program-application.test.ts
+./tests/founder-program-config.test.ts
+./tests/founder-program-dashboard.test.ts
+./tests/founder-program-feedback.test.ts
+./tests/founder-program-invitations.test.ts
+./tests/founder-program-lifecycle.test.ts
+./tests/founder-program-migration.test.mjs
+./tests/founder-program-security.test.ts
+./tests/founder-program-test-helpers.ts
+./tests/founder-program-transitions.test.ts
+./tests/fresh-db-migrations-inventory.test.mjs
+./tests/fresh-db-migrations-safety-guard.test.mjs
+./tests/gateway-tracer-contract.test.mjs
+./tests/governance-action-engine.test.ts
+./tests/governance-approval-runtime-contract.test.mjs
+./tests/governance-brief.test.mjs
+./tests/governance-capability-secret.test.ts
+./tests/governance-commitment-engine.test.ts
+./tests/governance-runtime-contract.test.mjs
+./tests/governance-signal-engine.test.ts
+./tests/governance-ux-contract.test.mjs
+./tests/governed-execution-contract.test.mjs
+./tests/guided-operational-activation-runtime.test.mjs
+./tests/hardened-trust-interoperability-phase-6-3.test.mjs
+./tests/honest-ai-copy.test.mjs
+./tests/intelligence-bridge.test.mjs
+./tests/intervention-efficacy.test.mjs
+./tests/intervention-learning-engine.test.mjs
+./tests/intervention-memory.test.mjs
+./tests/invite-workspace-role-boundary.test.mjs
+./tests/jurisdiction-pack-composer.test.ts
+./tests/jurisdiction-pack-export.test.ts
+./tests/jurisdiction-pack-no-overclaim.test.ts
+./tests/jurisdiction-pack-resolver.test.ts
+./tests/jurisdiction-pack-runtime.test.ts
+./tests/jurisdiction-pack-test-helpers.ts
+./tests/jurisdiction-pack-validator.test.ts
+./tests/learned-execution-patterns.test.mjs
+./tests/legacy-shell-quarantine.test.mjs
+./tests/legacy-surface-demotion.test.mjs
+./tests/live-federation-ingestion-barrel.test.mjs
+./tests/live-federation-ingestion.test.mjs
+./tests/live-federation-runtime.test.mjs
+./tests/local-authority-bypass-hardening.test.mjs
+./tests/memory-prioritization.test.mjs
+./tests/multi-provider-routing-contract.test.mjs
+./tests/multilingual-operational-language.test.mjs
+./tests/navigation-collapse.test.mjs
+./tests/nutrient-operational-bridge-contract.test.mjs
+./tests/observability-readiness.test.mjs
+./tests/operational-brief.test.mjs
+./tests/operational-command-center.test.ts
+./tests/operational-consequence-engine.test.ts
+./tests/operational-continuity-cognition.test.mjs
+./tests/operational-continuity-retrieval-engine.test.mjs
+./tests/operational-decision-engine.test.ts
+./tests/operational-flow-contract.test.mjs
+./tests/operational-imprint.test.mjs
+./tests/operational-memory-v1-contract.test.mjs
+./tests/operational-metering-engine.test.mjs
+./tests/operational-runtime-memory-contract.test.mjs
+./tests/organizational-digital-twin.test.mjs
+./tests/organizational-memory-foundation.test.mjs
+./tests/organizational-pattern-foundation.test.mjs
+./tests/pattern-extraction-foundation.test.mjs
+./tests/persistent-snapshot-store-runtime.test.mjs
+./tests/personal-pattern-extraction.test.mjs
+./tests/personal-pm-effectiveness.test.ts
+./tests/personal-pm-memory.test.ts
+./tests/personal-pm-patterns.test.ts
+./tests/personal-portfolio.test.mjs
+./tests/pilot-agreement-readiness.test.ts
+./tests/pilot-capability-set.test.ts
+./tests/platform-events-contract.test.mjs
+./tests/platform-events-invariants.test.mjs
+./tests/playbook-engine-audit-trail.test.mjs
+./tests/playbook-engine-closure-billing.test.mjs
+./tests/playbook-engine-communications-playbook.test.mjs
+./tests/playbook-engine-constitution-generator.test.mjs
+./tests/playbook-engine-conversation-brain-router.test.mjs
+./tests/playbook-engine-conversation-clarification-response-strategy.test.mjs
+./tests/playbook-engine-conversation-context-resolver.test.mjs
+./tests/playbook-engine-conversation-decision-clarification-architecture.test.mjs
+./tests/playbook-engine-conversation-decision-support-adapter-mapping-plan.test.mjs
+./tests/playbook-engine-conversation-decision-support-candidate-handler.test.mjs
+./tests/playbook-engine-conversation-decision-support-clarification-gated-integration-plan.test.mjs
+./tests/playbook-engine-conversation-decision-support-classifier-boundary.test.mjs
+./tests/playbook-engine-conversation-decision-support-default-off-feature-flag-implementation-shell.test.mjs
+./tests/playbook-engine-conversation-decision-support-default-off-route-composer-integration-adapter.test.mjs
+./tests/playbook-engine-conversation-decision-support-production-wiring-readiness-feature-flag-gate.test.mjs
+./tests/playbook-engine-conversation-decision-support-response-draft-harness.test.mjs
+./tests/playbook-engine-conversation-decision-support-response-draft-quality-evaluation.test.mjs
+./tests/playbook-engine-conversation-decision-support-response-qa-dry-run-plan.test.mjs
+./tests/playbook-engine-conversation-decision-support-shadow-capture-harness.test.mjs
+./tests/playbook-engine-conversation-decision-support-shadow-controlled-replay.test.mjs
+./tests/playbook-engine-conversation-decision-support-shadow-mapping.test.mjs
+./tests/playbook-engine-conversation-decision-support-shadow-mode-prep.test.mjs
+./tests/playbook-engine-conversation-decision-support-shadow-persistence-readiness.test.mjs
+./tests/playbook-engine-conversation-decision-support-shadow-storage-adapter-plan.test.mjs
+./tests/playbook-engine-conversation-decision-support-shadow-storage-fake-adapter.test.mjs
+./tests/playbook-engine-conversation-decision-support-shadow-storage-policy.test.mjs
+./tests/playbook-engine-conversation-decision-support-user-visible-dry-run-evaluation-harness.test.mjs
+./tests/playbook-engine-conversation-demo-scenarios.test.mjs
+./tests/playbook-engine-conversation-gateway.test.mjs
+./tests/playbook-engine-conversation-general-pm-advice-boundary.test.mjs
+./tests/playbook-engine-conversation-intent-classifier.test.mjs
+./tests/playbook-engine-conversation-intent-compatibility.test.mjs
+./tests/playbook-engine-conversation-intent-golden-evaluation.test.mjs
+./tests/playbook-engine-conversation-intent-vocabulary-calibration.test.mjs
+./tests/playbook-engine-conversation-response-composer.test.mjs
+./tests/playbook-engine-foundation.test.mjs
+./tests/playbook-engine-governance-snapshot.test.mjs
+./tests/playbook-engine-materialization-phase-2.test.mjs
+./tests/playbook-engine-materialization.test.mjs
+./tests/playbook-engine-operational-intelligence.test.mjs
+./tests/playbook-engine-recommendation-engine.test.mjs
+./tests/pm-capacity-load-intelligence.test.mjs
+./tests/pm-detail-intelligence.test.mjs
+./tests/pm-performance-engine.test.mjs
+./tests/pm-performance-snapshot-activation.test.mjs
+./tests/pm-registry-operationalization.test.mjs
+./tests/pm-registry.test.mjs
+./tests/pmfreak-aoc-action-attempt.test.ts
+./tests/pmfreak-aoc-claim-safety.test.ts
+./tests/pmfreak-aoc-decision-inbox-category.test.ts
+./tests/pmfreak-aoc-decision-inbox-claim-safety.test.ts
+./tests/pmfreak-aoc-decision-inbox-collection.test.ts
+./tests/pmfreak-aoc-decision-inbox-config.test.ts
+./tests/pmfreak-aoc-decision-inbox-descriptor.test.ts
+./tests/pmfreak-aoc-decision-inbox-detail-view-model.test.ts
+./tests/pmfreak-aoc-decision-inbox-determinism.test.ts
+./tests/pmfreak-aoc-decision-inbox-empty-error-state.test.ts
+./tests/pmfreak-aoc-decision-inbox-filters.test.ts
+./tests/pmfreak-aoc-decision-inbox-fixtures.test.ts
+./tests/pmfreak-aoc-decision-inbox-grouping.test.ts
+./tests/pmfreak-aoc-decision-inbox-next-step.test.ts
+./tests/pmfreak-aoc-decision-inbox-no-action-guard.test.ts
+./tests/pmfreak-aoc-decision-inbox-no-side-effects.test.ts
+./tests/pmfreak-aoc-decision-inbox-normalizer.test.ts
+./tests/pmfreak-aoc-decision-inbox-redaction.test.ts
+./tests/pmfreak-aoc-decision-inbox-severity.test.ts
+./tests/pmfreak-aoc-decision-inbox-sorting.test.ts
+./tests/pmfreak-aoc-decision-inbox-status.test.ts
+./tests/pmfreak-aoc-decision-inbox-summary.test.ts
+./tests/pmfreak-aoc-decision-summary.test.ts
+./tests/pmfreak-aoc-determinism.test.ts
+./tests/pmfreak-aoc-errors.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-batch.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-checklist-view-model.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-claim-safety.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-config.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-context.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-descriptor.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-detail-view-model.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-determinism.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-empty-error-state.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-extractor.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-fixtures.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-from-gate-result.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-from-response.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-from-ui-display.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-next-step.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-no-attachment-guard.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-no-communication-guard.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-no-mutation-guard.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-no-side-effects.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-no-task-guard.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-priority.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-redaction.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-review-packet.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-summary.test.ts
+./tests/pmfreak-aoc-evidence-requirement-handoff-type-inference.test.ts
+./tests/pmfreak-aoc-fixtures.test.ts
+./tests/pmfreak-aoc-gate-result-ui-action-hint.test.ts
+./tests/pmfreak-aoc-gate-result-ui-badge.test.ts
+./tests/pmfreak-aoc-gate-result-ui-banner-view-model.test.ts
+./tests/pmfreak-aoc-gate-result-ui-blocker-view-model.test.ts
+./tests/pmfreak-aoc-gate-result-ui-card-view-model.test.ts
+./tests/pmfreak-aoc-gate-result-ui-claim-safety.test.ts
+./tests/pmfreak-aoc-gate-result-ui-config.test.ts
+./tests/pmfreak-aoc-gate-result-ui-descriptor.test.ts
+./tests/pmfreak-aoc-gate-result-ui-detail-panel-view-model.test.ts
+./tests/pmfreak-aoc-gate-result-ui-determinism.test.ts
+./tests/pmfreak-aoc-gate-result-ui-display-model.test.ts
+./tests/pmfreak-aoc-gate-result-ui-empty-error-state.test.ts
+./tests/pmfreak-aoc-gate-result-ui-fixtures.test.ts
+./tests/pmfreak-aoc-gate-result-ui-labels.test.ts
+./tests/pmfreak-aoc-gate-result-ui-no-action-guard.test.ts
+./tests/pmfreak-aoc-gate-result-ui-no-mutation-guard.test.ts
+./tests/pmfreak-aoc-gate-result-ui-no-side-effects.test.ts
+./tests/pmfreak-aoc-gate-result-ui-redaction.test.ts
+./tests/pmfreak-aoc-gate-result-ui-requirement-list.test.ts
+./tests/pmfreak-aoc-gate-result-ui-safety-disclaimer.test.ts
+./tests/pmfreak-aoc-gate-result-ui-trace-view-model.test.ts
+./tests/pmfreak-aoc-governance-client-config.test.ts
+./tests/pmfreak-aoc-governance-client-descriptor.test.ts
+./tests/pmfreak-aoc-governance-client.test.ts
+./tests/pmfreak-aoc-governance-request.test.ts
+./tests/pmfreak-aoc-governed-action-gate-batch.test.ts
+./tests/pmfreak-aoc-governed-action-gate-claim-safety.test.ts
+./tests/pmfreak-aoc-governed-action-gate-config.test.ts
+./tests/pmfreak-aoc-governed-action-gate-descriptor.test.ts
+./tests/pmfreak-aoc-governed-action-gate-detail-view-model.test.ts
+./tests/pmfreak-aoc-governed-action-gate-determinism.test.ts
+./tests/pmfreak-aoc-governed-action-gate-evaluator.test.ts
+./tests/pmfreak-aoc-governed-action-gate-fixtures.test.ts
+./tests/pmfreak-aoc-governed-action-gate-from-inbox-item.test.ts
+./tests/pmfreak-aoc-governed-action-gate-from-response.test.ts
+./tests/pmfreak-aoc-governed-action-gate-input.test.ts
+./tests/pmfreak-aoc-governed-action-gate-next-step.test.ts
+./tests/pmfreak-aoc-governed-action-gate-no-execution-guard.test.ts
+./tests/pmfreak-aoc-governed-action-gate-no-mutation-guard.test.ts
+./tests/pmfreak-aoc-governed-action-gate-no-side-effects.test.ts
+./tests/pmfreak-aoc-governed-action-gate-policy.test.ts
+./tests/pmfreak-aoc-governed-action-gate-reason.test.ts
+./tests/pmfreak-aoc-governed-action-gate-redaction.test.ts
+./tests/pmfreak-aoc-governed-action-gate-result.test.ts
+./tests/pmfreak-aoc-governed-action-gate-summary.test.ts
+./tests/pmfreak-aoc-governed-action-gate-trace.test.ts
+./tests/pmfreak-aoc-governed-action-gate-verdict.test.ts
+./tests/pmfreak-aoc-health.test.ts
+./tests/pmfreak-aoc-local-governance-transport.test.ts
+./tests/pmfreak-aoc-no-mutation-guard.test.ts
+./tests/pmfreak-aoc-no-production-side-effects.test.ts
+./tests/pmfreak-aoc-redaction.test.ts
+./tests/pmfreak-aoc-remote-governance-claim-safety.test.ts
+./tests/pmfreak-aoc-remote-governance-determinism.test.ts
+./tests/pmfreak-aoc-remote-governance-errors.test.ts
+./tests/pmfreak-aoc-remote-governance-health.test.ts
+./tests/pmfreak-aoc-remote-governance-no-side-effects.test.ts
+./tests/pmfreak-aoc-remote-governance-redaction.test.ts
+./tests/pmfreak-aoc-remote-governance-request-serializer.test.ts
+./tests/pmfreak-aoc-remote-governance-response-mapper.test.ts
+./tests/pmfreak-aoc-remote-governance-response-parser.test.ts
+./tests/pmfreak-aoc-remote-governance-response-validator.test.ts
+./tests/pmfreak-aoc-remote-governance-transport-config.test.ts
+./tests/pmfreak-aoc-remote-governance-transport-descriptor.test.ts
+./tests/pmfreak-aoc-remote-governance-transport.test.ts
+./tests/pmfreak-aoc-request-builder.test.ts
+./tests/pmfreak-aoc-request-validator.test.ts
+./tests/pmfreak-aoc-unsupported-remote-transport.test.ts
+./tests/pmo-command-center.test.mjs
+./tests/pmo-executive-reporting.test.mjs
+./tests/pmo-governance-compliance-engine.test.mjs
+./tests/pmo-governance-compliance.test.mjs
+./tests/pmo-intervention-automation-runtime.test.mjs
+./tests/pmo-intervention.test.mjs
+./tests/portfolio-brief.test.mjs
+./tests/portfolio-conflict-runtime.test.mjs
+./tests/portfolio-intelligence.test.mjs
+./tests/portfolio-load-balancing-runtime.test.mjs
+./tests/predictive-operational-intelligence.test.mjs
+./tests/production-deployment-boundary.test.mjs
+./tests/production-runtime.test.mjs
+./tests/program-board.test.ts
+./tests/program-builder-ui.test.ts
+./tests/program-hierarchy.test.mjs
+./tests/program-materialization.test.ts
+./tests/program-roadmap-parser.test.ts
+./tests/program-roadmap-sources.test.mjs
+./tests/programs.test.mjs
+./tests/project-constitution-amendment-governance.test.mjs
+./tests/project-constitution-foundation.test.mjs
+./tests/project-constitution-lifecycle.test.mjs
+./tests/project-constitution.test.mjs
+./tests/project-constitutional-decision-governance.test.mjs
+./tests/project-discovery.test.mjs
+./tests/project-evidence-content.test.mjs
+./tests/project-evidence.test.mjs
+./tests/project-operating-system.test.ts
+./tests/protocol-import-boundaries.test.mjs
+./tests/prototype-pollution-guard.test.mjs
+./tests/proxy-routing.test.mjs
+./tests/quality-governance-agent.test.mjs
+./tests/raid-auto-extraction.test.mjs
+./tests/realtime-operational-telemetry.test.mjs
+./tests/recognition-runtime-actor-registry.test.ts
+./tests/recognition-runtime-audit-ledger.test.ts
+./tests/recognition-runtime-capability-token.test.ts
+./tests/recognition-runtime-demo-scenarios.test.ts
+./tests/recognition-runtime-policy-evaluator.test.ts
+./tests/recognition-runtime-trust-domain-passport.test.ts
+./tests/recognition-runtime-verifier.test.ts
+./tests/recommendation-effectiveness-engine.test.ts
+./tests/recommended-actions.test.mjs
+./tests/replay-protection-contract.test.mjs
+./tests/resilient-fetch-contract.test.mjs
+./tests/resolve-onboarding-state.test.mjs
+./tests/route-guard-consistency.test.mjs
+./tests/route-policy-registry.test.mjs
+./tests/row-validation-contract.test.mjs
+./tests/runtime-authority-provider-resolution.test.mjs
+./tests/runtime-consumer-boundary.test.mjs
+./tests/runtime-consumer-sovereignty-boundary.test.mjs
+./tests/runtime-contract-canonicalization.test.mjs
+./tests/runtime-contracts-canonical-surface.test.mjs
+./tests/runtime-conversation-state.test.mjs
+./tests/runtime-first-sdk-enforcement.test.mjs
+./tests/runtime-hardening-barrel.test.mjs
+./tests/runtime-hardening.test.mjs
+./tests/runtime-persistence.test.mjs
+./tests/runtime-validation.test.mjs
+./tests/safe-route-error.test.ts
+./tests/schedule-foundation.test.mjs
+./tests/security-definer-hardening.test.mjs
+./tests/signup-role-escalation.test.mjs
+./tests/sovereign-recommendation-engine.test.ts
+./tests/spreadsheet-dependency-boundary.test.mjs
+./tests/spreadsheet-export-workbook.test.ts
+./tests/spreadsheet-reader-contract.test.ts
+./tests/spreadsheet-security-boundary.test.ts
+./tests/spreadsheet-test-helpers.ts
+./tests/stripe-webhook-billing-lifecycle.test.mjs
+./tests/stripe-webhook-route.test.mjs
+./tests/stripe-webhook-test-helpers.ts
+./tests/stripe-webhook-verification.test.mjs
+./tests/supabase-rls-service-role-boundary.test.mjs
+./tests/task-drafts.test.mjs
+./tests/tenant-isolation-contract.test.mjs
+./tests/trial-domain-foundation.test.mjs
+./tests/trial-harness.test.mjs
+./tests/trust-domains-phase-5-5-contract.test.mjs
+./tests/upload-contract.test.mjs
+./tests/upload-hardening-contract.test.mjs
+./tests/upload-provider-contract.test.mjs
+./tests/upload-quota-atomicity-contract.test.mjs
+./tests/vault-digestive-system-contract.test.mjs
+./tests/vault-intake-authorization.test.ts
+./tests/vault-intake.test.mjs
+./tests/vault-intervention-learning-contract.test.mjs
+./tests/vault-intervention-memory-contract.test.mjs
+./tests/vault-learned-patterns-contract.test.mjs
+./tests/vault-smoke-test-digestion.test.mjs
+./tests/workspace-compression.test.mjs
+./tests/workspace-convergence.test.mjs
+./tests/workspace-invite-token-hashing.test.mjs
+./tests/workspace-role-update-boundary.test.mjs
+SKIPS
+src/features/trial/metering/domain/metering-types.ts:11:  complexityScore?: number;
+tests/dashboard-background-refresh-runtime.test.mjs:50:  assert.equal(typeof result.skippedReason, 'string')
+tests/constitutional-digest-engine.test.ts:75:  [/\b(?:technical.complex|complejidad|technical.debt)\b/i, "technical_complexity"],
+tests/constitutional-digest-engine.test.ts:91:  [/\b(?:successful|[eé]xito|completado|delivered\s+on.time)\b/i, "successful_delivery"],
+tests/pmo-executive-reporting.test.mjs:471:    assert.equal(second.skipped_duplicates, first.created_alerts.length);
+src/features/trial/schemas/trial-schemas.ts:72:    operationalComplexitySignals: normalizeSignalMap(input.operationalComplexitySignals),
+tests/dashboard-manual-task-push-runtime.test.mjs:184:  assert.equal(report.skippedCount, 1)
+tests/dashboard-manual-task-push-runtime.test.mjs:269:  assert.equal(report.skippedCount, report.totalProjections - report.envelopeCount)
+tests/sovereign-recommendation-engine.test.ts:97:  delivery_pattern: { recommendationType: "delivery_improvement", recommendationScope: "delivery", recommendationText: "Establecer puntos de control de entrega y criterios de éxito." },
+tests/sovereign-recommendation-engine.test.ts:98:  outcome_pattern: { recommendationType: "delivery_improvement", recommendationScope: "project", recommendationText: "Definir criterios de éxito y fracaso para este patrón." },
+src/features/trial/activation/state/activation-runtime-state.ts:35:  operationalComplexityIndicators: Record<string, number>;
+tests/pm-performance-snapshot-activation.test.mjs:310:    assert.equal(result.data.skipped, 0);
+tests/pm-performance-snapshot-activation.test.mjs:325:    assert.equal(result.data.skipped, 1);
+tests/fresh-db-migrations-safety-guard.test.mjs:29:test("verify-only mode (no DB vars) passes with exit 0", () => {
+tests/fresh-db-migrations-safety-guard.test.mjs:153:  const savedExitCode = process.exitCode;
+tests/fresh-db-migrations-safety-guard.test.mjs:154:  process.exitCode = undefined;
+tests/fresh-db-migrations-safety-guard.test.mjs:158:  assert.equal(process.exitCode, undefined);
+tests/fresh-db-migrations-safety-guard.test.mjs:160:  process.exitCode = savedExitCode;
+tests/pmo-intervention.test.mjs:299:    assert.equal(result.skipped_duplicates, 0);
+tests/pmo-intervention.test.mjs:389:    assert.equal(second.skipped_duplicates, 1);
+src/features/trial/types/trial-types.ts:84:  operationalComplexitySignals?: Record<string, unknown>;
+tests/beta-release-gate.test.mjs:51:test("blocking failures stop the gate and exit 1; advisory gates cannot block", () => {
+tests/beta-release-gate.test.mjs:57:  assert.match(source, /process\.exit\(blockingFailure \? 1 : 0\)/, "exit code must reflect ONLY blocking gates");
+tests/beta-release-gate.test.mjs:69:test("dependency security gate distinguishes clean/conditional/unexpected via exit codes", () => {
+tests/beta-release-gate.test.mjs:71:  assert.match(source, /process\.exit\(1\)/);
+tests/beta-release-gate.test.mjs:72:  assert.match(source, /process\.exit\(accepted > 0 \? 2 : 0\)/);
+tests/upload-hardening-contract.test.mjs:177:test('upload_failed reason codes cover early-exit paths', () => {
+src/features/enterprise-ux/narratives/operational-tour-runtime.ts:82:        "The Executive View translates operational complexity into stakeholder-appropriate summaries with bounded-certainty language. It is not a marketing dashboard — it is an honest operational narrative for decision-makers.",
+tests/agent-controlled-project-intelligence-handoff.test.mjs:60:    "performance_intervention", "client_escalation", "project_complexity",
+tests/dashboard-live-adapter-connector-runtime.test.mjs:23:test('8 selector skips non-ready lifecycle',()=>assert.equal(selectExecutableLifecycles({lifecycles:[{...lifecycle(),status:'created'}]}).skipped[0].status,'skipped'))
+src/features/enterprise-ux/empty-states/empty-state-intelligence.ts:65:      "Executive digests translate operational complexity into stakeholder-appropriate language — with uncertainty disclosures and governance context included by default.",
+tests/security-definer-hardening.test.mjs:28:test("the checker passes (exit 0) against the current migration set", () => {
+src/features/enterprise-ux/onboarding/onboarding-runtime.ts:32:  for (const id of partialOverrides?.skippedStepIds ?? []) {
+src/features/enterprise-ux/onboarding/onboarding-runtime.ts:42:  const completableSteps = state.steps.filter((s) => !s.skippable || !state.skippedStepIds.includes(s.id));
+src/features/enterprise-ux/onboarding/onboarding-runtime.ts:44:  const skipped = state.skippedStepIds.length;
+src/features/enterprise-ux/onboarding/onboarding-runtime.ts:57:          !state.skippedStepIds.includes(s.id)
+src/features/enterprise-ux/onboarding/onboarding-checklist.ts:126:        "The executive digest translates operational complexity into stakeholder-appropriate narratives. It includes uncertainty disclosures and governance boundaries to prevent over-reliance on automated summaries.",
+src/features/enterprise-ux/onboarding/onboarding-state.ts:62:  if (!step?.skippable) return state;
+src/features/enterprise-ux/onboarding/onboarding-state.ts:64:  const skippedStepIds = state.skippedStepIds.includes(stepId)
+src/features/enterprise-ux/onboarding/onboarding-state.ts:65:    ? state.skippedStepIds
+src/features/enterprise-ux/onboarding/onboarding-state.ts:66:    : [...state.skippedStepIds, stepId];
+src/app/api/analyze-ai/route.ts:17:const ANALYSIS_SCHEMA: Record<string, unknown> = { type: "object", additionalProperties: false, properties: { executive_summary: { type: "string" }, functional_requirements: { type: "array", items: { type: "string" } }, non_functional_requirements: { type: "array", items: { type: "string" } }, risks: { type: "array", items: { type: "string" } }, dependencies: { type: "array", items: { type: "string" } }, ambiguities: { type: "array", items: { type: "string" } }, missing_information: { type: "array", items: { type: "string" } }, client_questions: { type: "array", items: { type: "string" } }, suggested_next_steps: { type: "array", items: { type: "string" } }, complexity: { type: "string", enum: ["Low", "Medium", "High"] } }, required: ["executive_summary", "functional_requirements", "non_functional_requirements", "risks", "dependencies", "ambiguities", "missing_information", "client_questions", "suggested_next_steps", "complexity"] };
+src/app/api/analyze-ai/route.ts:20:type AIAnalysisResult = { executive_summary: string; functional_requirements: string[]; non_functional_requirements: string[]; risks: string[]; dependencies: string[]; ambiguities: string[]; missing_information: string[]; client_questions: string[]; suggested_next_steps: string[]; complexity: "Low" | "Medium" | "High" };
+src/app/api/analyze-ai/route.ts:21:type AIAnalysisResponse = AIAnalysisResult & { similar_projects: string[]; historical_risks: string[]; estimated_relative_complexity: string };
+src/app/api/analyze-ai/route.ts:27:  const complexity = candidate.complexity === "Low" || candidate.complexity === "Medium" || candidate.complexity === "High" ? candidate.complexity : null;
+src/app/api/analyze-ai/route.ts:28:  if (!complexity || typeof candidate.executive_summary !== "string") return null;
+src/app/api/analyze-ai/route.ts:29:  return { executive_summary: candidate.executive_summary.trim(), functional_requirements: normalizeStringArray(candidate.functional_requirements), non_functional_requirements: normalizeStringArray(candidate.non_functional_requirements), risks: normalizeStringArray(candidate.risks), dependencies: normalizeStringArray(candidate.dependencies), ambiguities: normalizeStringArray(candidate.ambiguities), missing_information: normalizeStringArray(candidate.missing_information), client_questions: normalizeStringArray(candidate.client_questions), suggested_next_steps: normalizeStringArray(candidate.suggested_next_steps), complexity };
+src/app/api/analyze-ai/route.ts:123:    const recordBase: Omit<StoredProjectAnalysis, "similarProjects" | "historicalRisks" | "estimatedRelativeComplexity"> = { id: crypto.randomUUID(), projectName, uploadDate: new Date().toISOString(), executiveSummary: analysis.executive_summary, requirements: [...analysis.functional_requirements, ...analysis.non_functional_requirements], risks: analysis.risks, dependencies: analysis.dependencies, ambiguities: analysis.ambiguities, complexity: analysis.complexity, sourceFileNames };
+src/app/api/analyze-ai/route.ts:124:    const intelligence = portfolioEnabled ? enrichWithPortfolioIntelligence(recordBase, previousProjects) : { similarProjects: [] as string[], historicalRisks: [] as string[], estimatedRelativeComplexity: "Portfolio memory is available on PMO plan." };
+src/app/api/analyze-ai/route.ts:127:    const enrichedResponse: AIAnalysisResponse = { ...analysis, similar_projects: intelligence.similarProjects, historical_risks: intelligence.historicalRisks, estimated_relative_complexity: intelligence.estimatedRelativeComplexity };
+src/lib/project-memory.ts:4:export type ComplexityLevel = "Low" | "Medium" | "High";
+src/lib/project-memory.ts:15:  complexity: ComplexityLevel;
+src/lib/project-memory.ts:19:  estimatedRelativeComplexity: string;
+src/lib/project-memory.ts:22:const complexityScore: Record<ComplexityLevel, number> = {
+src/lib/project-memory.ts:56:  complexity: ComplexityLevel;
+src/lib/project-memory.ts:60:  estimated_relative_complexity: string;
+src/lib/project-memory.ts:70:  complexity: row.complexity,
+src/lib/project-memory.ts:74:  estimatedRelativeComplexity: row.estimated_relative_complexity,
+src/lib/project-memory.ts:83:      "project_id, project_name, upload_date, executive_summary, requirements, risks, dependencies, ambiguities, complexity, source_file_names, similar_projects, historical_risks, estimated_relative_complexity",
+src/lib/project-memory.ts:130:    complexity: project.complexity,
+src/lib/project-memory.ts:134:    estimated_relative_complexity: project.estimatedRelativeComplexity,
+src/lib/project-memory.ts:153:  const complexityDistance = Math.abs(complexityScore[current.complexity] - complexityScore[candidate.complexity]);
+src/lib/project-memory.ts:155:  return sharedRequirements * 2 + sharedDependencies * 3 - complexityDistance;
+src/lib/project-memory.ts:158:const estimateRelativeComplexity = (current: ComplexityLevel, historical: ComplexityLevel[]) => {
+src/lib/project-memory.ts:163:  const average = historical.reduce((sum, level) => sum + complexityScore[level], 0) / historical.length;
+src/lib/project-memory.ts:164:  const delta = complexityScore[current] - average;
+src/lib/project-memory.ts:167:    return "Above historical average complexity.";
+src/lib/project-memory.ts:171:    return "Below historical average complexity.";
+src/lib/project-memory.ts:174:  return "In line with historical average complexity.";
+src/lib/project-memory.ts:178:  current: Omit<StoredProjectAnalysis, "similarProjects" | "historicalRisks" | "estimatedRelativeComplexity">,
+src/lib/project-memory.ts:180:): Pick<StoredProjectAnalysis, "similarProjects" | "historicalRisks" | "estimatedRelativeComplexity"> => {
+src/lib/project-memory.ts:185:        { ...current, similarProjects: [], historicalRisks: [], estimatedRelativeComplexity: "" },
+src/lib/project-memory.ts:195:  const estimatedRelativeComplexity = estimateRelativeComplexity(
+src/lib/project-memory.ts:196:    current.complexity,
+src/lib/project-memory.ts:197:    previousProjects.map((project) => project.complexity),
+src/lib/project-memory.ts:203:    estimatedRelativeComplexity,
+src/lib/db/database-contract.ts:7696:  implementation_complexity: string;
+src/lib/db/database-contract.ts:7707:  "implementation_complexity", "confidence_score", "summary", "safe_payload_json", "created_at",
+src/app/api/programs/[id]/materialize/route.ts:69:        skippedCards: report.skippedCards,
+src/lib/contracts/index.ts:458:  complexity: (typeof COMPLEXITY_LEVEL_VALUES)[number];
+src/lib/contracts/index.ts:462:  estimatedRelativeComplexity: string;
+src/lib/contracts/index.ts:475:    complexity: stringEnum("complexity", COMPLEXITY_LEVEL_VALUES),
+src/lib/contracts/index.ts:479:    estimatedRelativeComplexity: string("estimatedRelativeComplexity"),
+src/lib/program-materializations/program-materialization-service.ts:199:        report.skippedCards++;
+src/lib/program-materializations/program-materialization-service.ts:221:        report.skippedCards++;
+src/lib/constitutional-digest/explain-capability.ts:134:        "technical_complexity",
+src/lib/constitutional-digest/types.ts:66:  | "technical_complexity"
+src/lib/constitutional-digest/pattern-extraction-engine.ts:30:  [/\b(?:technical.complex|complejidad|technical.debt|arquitectura|integr[ae]ci[oó]n)\b/i, "technical_complexity"],
+src/lib/constitutional-digest/pattern-extraction-engine.ts:46:  [/\b(?:successful|[eé]xito|completado|entregado|delivered\s+on.time|a\s+tiempo)\b/i, "successful_delivery"],
+src/lib/portfolio/load-balancing/types.ts:40:  implementationComplexity: number
+src/lib/portfolio/load-balancing/balancing-recommendation-engine.ts:5:  return action.projectedHealthGain * 2 + action.expectedLoadReduction - action.implementationComplexity
+src/lib/portfolio/load-balancing/balancing-recommendation-engine.ts:11:  const conservativeActions = ranked.filter((action) => action.implementationComplexity <= 3).slice(0, 2)
+src/lib/portfolio/load-balancing/balancing-recommendation-engine.ts:28:        'Balanced Plan: selected for optimal tradeoff between health improvement, implementation complexity, and executive coordination load.',
+src/lib/portfolio/load-balancing/redistribution-engine.ts:21:      implementationComplexity: 3,
+src/lib/portfolio/load-balancing/redistribution-engine.ts:35:      implementationComplexity: 2,
+src/lib/portfolio/load-balancing/redistribution-engine.ts:48:    implementationComplexity: 2,
+src/lib/portfolio/load-balancing/redistribution-engine.ts:60:    implementationComplexity: 2,
+src/lib/portfolio/load-balancing/redistribution-engine.ts:73:      implementationComplexity: 4,
+src/lib/portfolio/load-balancing/redistribution-engine.ts:86:    implementationComplexity: 5,
+src/lib/portfolio/pmo-intervention-automation/evidence-engine.ts:74:    'Exit criteria',
+src/lib/portfolio/conflict-arbitration/arbitration-engine.ts:25:        strategy(conflict.id, 'staffing', 'Temporary Staffing Escalation', 'Short-term augmentation can absorb demand spikes without full replanning.', ['Authorize contractor or internal surge team for constrained role', 'Set 30-day exit and handover criteria'], 'Restores concurrency capacity while preserving timelines.', true),
+src/lib/portfolio/executive-decision-simulation/tradeoff-engine.ts:169:      negativeImpact: 'Contractor or surge staffing increases short-term budget exposure and financial reporting complexity.',
+src/lib/portfolio/executive-decision-simulation/tradeoff-engine.ts:179:      title: 'Reduced portfolio dependency risk vs. coordination complexity increase',
+src/lib/portfolio/executive-decision-simulation/tradeoff-engine.ts:181:      negativeImpact: 'Larger team size increases coordination overhead and introduces communication complexity at the project level.',
+src/lib/dashboard/live-adapter-connectors/live-adapter-connector-runtime.ts:18:  const results: DashboardLiveExecutionResult[] = [...selection.skipped]
+src/lib/dashboard/background-refresh/background-refresh-runtime.ts:38:    skippedReason: plannerResult.skippedReason,
+src/lib/playbook-engine/types.ts:124:  exitEvidence: PlaybookFactKey[];
+src/lib/playbook-engine/constitution-generator.ts:95:    ? Array.from(new Set([...matchedPhase.entryEvidence, ...matchedPhase.exitEvidence]))
+src/lib/playbook-engine/constitution-generator.ts:96:    : Array.from(new Set(playbook.phases.flatMap((p) => [...p.entryEvidence, ...p.exitEvidence])));
+src/lib/playbook-engine/seed-playbook.ts:22:      exitEvidence: ["hasApprovedCharter", "hasApprovedConstitution", "hasStakeholderMap"],
+src/lib/playbook-engine/seed-playbook.ts:29:      exitEvidence: [
+src/lib/playbook-engine/seed-playbook.ts:43:      exitEvidence: [],
+src/lib/playbook-engine/seed-playbook.ts:50:      exitEvidence: [],
+src/lib/playbook-engine/seed-playbook.ts:57:      exitEvidence: ["hasClientSignoff", "hasFinalInvoiceIssued", "hasClosureChecklistStarted"],
+src/lib/playbook-engine/conversation/decision-support/decisionSupportShadowCaptureHarness.ts:17: *   call, and disappears the moment the process exits.
+src/lib/playbook-engine/conversation/decision-support/decisionSupportShadowCaptureHarness.ts:520: * exits or `clear()` is called. Never wired to any production code path.
+src/lib/playbook-engine/conversation/decision-support/decisionSupportShadowCaptureStorageFakeAdapter.ts:11: * in-memory record disappears the moment the process exits or `adapter.clear()` is called.
+src/lib/playbook-engine/conversation/decision-support/decisionSupportShadowCaptureStorageFakeAdapter.ts:948:      "exits or clear() is called, is never shared across requests/processes, and is never backed by any durable medium.",
+src/lib/agents/agent-pmo-project-handoff-validation.ts:59:  "performance_intervention", "client_escalation", "project_complexity",
+src/lib/agents/agent-pmo-approval-pack-service.ts:233:    implementationComplexity: impactLevel === "critical" || impactLevel === "high" ? "complex" : "moderate",
+src/lib/agents/agent-pmo-project-handoff-types.ts:37:  | "project_complexity"
+src/lib/agents/agent-pmo-approval-pack-registry.ts:200:  implementationComplexity: string;
+src/lib/agents/agent-pmo-approval-pack-registry.ts:218:    implementationComplexity: input.implementationComplexity,
+src/lib/agents/agent-pmo-approval-pack-types.ts:136:  implementationComplexity: string;
+src/lib/constitutional-learning/recommendation-engine.ts:31:  "risk_pattern::technical_complexity": {
+src/lib/pilot/pilot-agreement.ts:36:  { id: "data-return", title: "Data Return & Deletion", placeholder: "[LEGAL REVIEW REQUIRED] Operator-run export on request (RR-EXPORT commitment); deletion on pilot exit; timelines." },
+src/lib/pilot/pilot-agreement.ts:37:  { id: "termination", title: "Term & Termination", placeholder: "[LEGAL REVIEW REQUIRED] Pilot duration, either-party exit, effect on data." },
+src/lib/constitutional-recommendations/generation-engine.ts:55:  "risk_pattern::technical_complexity": {
+src/lib/constitutional-recommendations/generation-engine.ts:59:    description: "High technical complexity pattern recurs across project commitments.",
+src/lib/constitutional-recommendations/generation-engine.ts:308:      "Establecer puntos de control de entrega y criterios de éxito para este patrón. " +
+src/lib/constitutional-recommendations/generation-engine.ts:317:      "Definir criterios de éxito y fracaso para este patrón antes del compromiso del proyecto. " +
+src/lib/founder-program/discovery.ts:18:  "exit_interview",
+src/components/pmfreak/interactive-demo.tsx:186:            <div className="flex items-center justify-between"><h3 className="text-xl font-black">Prepare Update Mode</h3><button onClick={() => setExecutiveMode((v) => !v)} className="rounded-full border border-white/20 px-3 py-1 text-xs">{executiveMode ? "Exit" : "Enter"}</button></div>
+src/components/pmfreak/interactive-demo.tsx:190:            <div className="flex items-center justify-between"><h3 className="text-xl font-black">Team Coordination Mode</h3><button onClick={() => setWarRoomMode((v) => !v)} className="rounded-full border border-white/20 px-3 py-1 text-xs">{warRoomMode ? "Exit" : "Enter"}</button></div>
+src/components/program-builder/MaterializationPanel.tsx:101:              <p className="mt-0.5 text-lg font-semibold text-slate-100">{result.skippedCards}</p>
+src/app/api/execution-task-dependencies/materialize/route.ts:59:  return NextResponse.json({ ok: true, inserted: result.inserted, skipped: result.skipped });
+src/app/(protected)/upload/page.tsx:63:  estimatedComplexity: {
+src/app/(protected)/upload/page.tsx:79:  complexity: "Low" | "Medium" | "High";
+src/app/(protected)/upload/page.tsx:82:  estimated_relative_complexity: string;
+src/app/(protected)/upload/page.tsx:96:  complexityLevel: "Low" | "Medium" | "High";
+src/app/(protected)/upload/page.tsx:97:  complexityRationale: string;
+src/app/(protected)/upload/page.tsx:100:  estimatedRelativeComplexity: string;
+src/app/(protected)/upload/page.tsx:296:const pickComplexity = (input: {
+src/app/(protected)/upload/page.tsx:320:        "Moderate delivery complexity based on the current level of scope definition and project risk indicators.",
+src/app/(protected)/upload/page.tsx:382:  const estimatedComplexity = pickComplexity({
+src/app/(protected)/upload/page.tsx:397:    estimatedComplexity,
+src/app/(protected)/upload/page.tsx:420:  complexityLevel: analysisResult.estimatedComplexity.level,
+src/app/(protected)/upload/page.tsx:421:  complexityRationale: analysisResult.estimatedComplexity.rationale,
+src/app/(protected)/upload/page.tsx:424:  estimatedRelativeComplexity: "Portfolio baseline not available in rule-based mode.",
+src/app/(protected)/upload/page.tsx:437:  complexityLevel: analysisResult.complexity,
+src/app/(protected)/upload/page.tsx:438:  complexityRationale: `AI-assessed complexity for this scope is ${analysisResult.complexity}.`,
+src/app/(protected)/upload/page.tsx:441:  estimatedRelativeComplexity: analysisResult.estimated_relative_complexity,
+src/app/(protected)/upload/page.tsx:808:        `Complexity: ${displayAnalysisResult.complexityLevel}`,
+src/app/(protected)/upload/page.tsx:1036:                    displayAnalysisResult.complexityLevel === "High"
+src/app/(protected)/upload/page.tsx:1038:                      : displayAnalysisResult.complexityLevel === "Medium"
+src/app/(protected)/upload/page.tsx:1043:                  Complexity: {displayAnalysisResult.complexityLevel}
+src/app/(protected)/upload/page.tsx:1126:                title="Estimated complexity"
+src/app/(protected)/upload/page.tsx:1128:                description={displayAnalysisResult.complexityRationale}
+src/app/(protected)/upload/page.tsx:1133:                description={displayAnalysisResult.estimatedRelativeComplexity}
+src/app/(protected)/portfolio/page.tsx:11:  complexity: "Low" | "Medium" | "High";
+src/app/(protected)/portfolio/page.tsx:16:const complexityBadge = (complexity: PortfolioProject["complexity"]) => {
+src/app/(protected)/portfolio/page.tsx:17:  if (complexity === "High") {
+src/app/(protected)/portfolio/page.tsx:21:  if (complexity === "Medium") {
+src/app/(protected)/portfolio/page.tsx:80:            <p className="mt-2 text-sm text-slate-300">Project history, risk, and complexity.</p>
+src/app/(protected)/portfolio/page.tsx:118:                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${complexityBadge(project.complexity)}`}>
+src/app/(protected)/portfolio/page.tsx:119:                      {project.complexity}
+src/app/(protected)/pmo-interventions/page.tsx:357:            <span>Skipped duplicates: {generateResult.skipped_duplicates}</span>

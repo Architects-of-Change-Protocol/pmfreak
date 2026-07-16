@@ -1,0 +1,201 @@
+$ npm run build
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> pmfreak@0.1.0 build
+> next build
+
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+▲ Next.js 16.2.10 (Turbopack)
+- Experiments (use with caution):
+  · serverActions
+
+  Creating an optimized production build ...
+Turbopack build encountered 1 warnings:
+./next.config.ts
+Encountered unexpected file in NFT list
+A file was traced that indicates that the whole project was traced unintentionally. Somewhere in the import trace below, there are:
+- filesystem operations (like path.join, path.resolve or fs.readFile), or
+- very dynamic requires (like require('./' + foo)).
+To resolve this, you can
+- remove them if possible, or
+- only use them in development, or
+- make sure they are statically scoped to some subfolder: path.join(process.cwd(), 'data', bar), or
+- add ignore comments: path.join(/*turbopackIgnore: true*/ process.cwd(), bar)
+
+Import trace:
+  App Route:
+    ./next.config.ts
+    ./src/lib/runtime-hardening/degraded-mode.ts
+    ./src/app/api/runtime/hardening/route.ts
+
+
+✓ Compiled successfully in 100s
+  Running TypeScript ...
+  Finished TypeScript in 97s ...
+  Collecting page data using 2 workers ...
+  Generating static pages using 2 workers (0/406) ...
+  Generating static pages using 2 workers (101/406) 
+  Generating static pages using 2 workers (202/406) 
+  Generating static pages using 2 workers (304/406) 
+✓ Generating static pages using 2 workers (406/406) in 2.4s
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /accept-invite
+├ ƒ /accept-invite/[token]
+├ ƒ /api/agents/audit/decisions
+├ ƒ /api/agents/audit/decisions/[decisionId]
+├ ƒ /api/agents/audit/events
+├ ƒ /api/agents/audit/events/[eventId]
+├ ƒ /api/agents/audit/exports
+├ ƒ /api/agents/audit/exports/[exportId]
+├ ƒ /api/agents/audit/summary
+├ ƒ /api/agents/audit/timeline
+├ ƒ /api/agents/context-policies
+├ ƒ /api/agents/context-policies/[policyKey]
+├ ƒ /api/agents/context-policies/defaults
+├ ƒ /api/agents/execution/action-conversions
+├ ƒ /api/agents/execution/action-conversions/[conversionId]
+├ ƒ /api/agents/execution/action-conversions/[conversionId]/approval-bridge
+├ ƒ /api/agents/execution/action-conversions/[conversionId]/approval-satisfied
+├ ƒ /api/agents/execution/action-conversions/[conversionId]/cancel
+├ ƒ /api/agents/execution/action-conversions/[conversionId]/events
+├ ƒ /api/agents/execution/action-conversions/[conversionId]/execution-request
+├ ƒ /api/agents/execution/action-conversions/[conversionId]/preflight
+├ ƒ /api/agents/execution/action-conversions/from-action-draft
+├ ƒ /api/agents/execution/action-conversions/summary
+├ ƒ /api/agents/execution/adapter-executions
+├ ƒ /api/agents/execution/adapter-executions/[adapterExecutionId]
+├ ƒ /api/agents/execution/adapter-executions/[adapterExecutionId]/events
+├ ƒ /api/agents/execution/adapters
+├ ƒ /api/agents/execution/adapters/[adapterKey]
+├ ƒ /api/agents/execution/approval-pack/approval-checklist
+├ ƒ /api/agents/execution/approval-pack/assemble
+├ ƒ /api/agents/execution/approval-pack/data
+... [truncated for Sprint 0 evidence hygiene] ...
+├ ƒ /api/schedule/milestones/update
+├ ƒ /api/schedule/tasks/update
+├ ƒ /api/sdk/agents
+├ ƒ /api/sdk/agents/[id]
+├ ƒ /api/sdk/agents/evaluate
+├ ƒ /api/sdk/agents/scopes
+├ ƒ /api/sdk/audit/agents
+├ ƒ /api/sdk/audit/capabilities
+├ ƒ /api/sdk/audit/resources
+├ ƒ /api/sdk/audit/timeline
+├ ƒ /api/sdk/capabilities/grants
+├ ƒ /api/sdk/capabilities/grants/[id]/revoke
+├ ƒ /api/sdk/capabilities/requests
+├ ƒ /api/sdk/capabilities/requests/[id]/approve
+├ ƒ /api/sdk/capabilities/requests/[id]/deny
+├ ƒ /api/sdk/policies
+├ ƒ /api/sdk/policies/[id]
+├ ƒ /api/sdk/policies/evaluate
+├ ƒ /api/task-drafts
+├ ƒ /api/task-drafts/from-recommended-action
+├ ƒ /api/task-drafts/status
+├ ƒ /api/telemetry/first-user
+├ ƒ /api/upload
+├ ƒ /api/v1/agent-scopes
+├ ƒ /api/v1/agents
+├ ƒ /api/v1/agents/[id]
+├ ƒ /api/v1/audit-events
+├ ƒ /api/v1/capability-grants
+├ ƒ /api/v1/capability-grants/[id]/revoke
+├ ƒ /api/v1/capability-requests
+├ ƒ /api/v1/capability-requests/[id]/approve
+├ ƒ /api/v1/capability-requests/[id]/deny
+├ ƒ /api/v1/delegations
+├ ƒ /api/v1/delegations/[id]/revoke
+├ ƒ /api/v1/delegations/evaluate
+├ ƒ /api/v1/policies
+├ ƒ /api/v1/policies/[id]
+├ ƒ /api/v1/policies/evaluate
+├ ƒ /api/vault/intake
+├ ○ /apple-icon.png
+├ ƒ /audit
+├ ƒ /auth/callback
+├ ○ /auth/reset-password
+├ ƒ /billing
+├ ƒ /capabilities
+├ ƒ /change-detection
+├ ƒ /command-center
+├ ƒ /copilot
+├ ƒ /create-command-center
+├ ƒ /create-pmo
+├ ƒ /dashboard
+├ ○ /debug-session
+├ ƒ /early-access
+├ ƒ /escalation-guide
+├ ƒ /evidence
+├ ƒ /executive
+├ ƒ /follow-up-dashboard
+├ ○ /forgot-password
+├ ƒ /founder-circle
+├ ƒ /founder-circle/invite/[token]
+├ ƒ /founder-program
+├ ƒ /getting-started
+├ ƒ /governance
+├ ○ /icon.png
+├ ƒ /input-hub
+├ ƒ /intelligence
+├ ƒ /login
+├ ƒ /logout
+├ ƒ /meetings
+├ ƒ /message-nudges
+├ ƒ /onboarding
+├ ƒ /operational-memory
+├ ƒ /pilot-agreement
+├ ƒ /playground
+├ ƒ /pm-capacity
+├ ƒ /pm-performance
+├ ƒ /pm-registry
+├ ƒ /pm-registry/[pmId]
+├ ƒ /pmo-command-center
+├ ƒ /pmo-executive-reporting
+├ ƒ /pmo-governance-compliance
+├ ƒ /pmo-interventions
+├ ƒ /pmo/invite-team
+├ ƒ /policies
+├ ƒ /policy-dry-run-gate
+├ ƒ /policy-implementation-planning
+├ ƒ /political-risk
+├ ƒ /portfolio
+├ ○ /pricing
+├ ƒ /programs
+├ ƒ /programs/[id]
+├ ƒ /programs/[id]/board
+├ ƒ /programs/[id]/builder
+├ ƒ /programs/[id]/materializations
+├ ƒ /programs/[id]/parse-results
+├ ƒ /programs/[id]/sources
+├ ƒ /programs/new
+├ ƒ /project-memory
+├ ƒ /projects
+├ ƒ /projects/[id]
+├ ƒ /projects/[id]/follow-up
+├ ƒ /projects/new
+├ ƒ /signup
+├ ƒ /signup/confirm-email
+├ ƒ /stakeholder-intel
+├ ƒ /team
+├ ○ /trial-inactive
+├ ƒ /trials
+├ ƒ /trust/agents
+├ ƒ /upload
+├ ƒ /workspace
+└ ƒ /workspace/setup
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+exit:0 duration:211s

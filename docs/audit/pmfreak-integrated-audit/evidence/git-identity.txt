@@ -1,0 +1,80 @@
+$ pwd
+/workspace/pmfreak
+$ git rev-parse --show-toplevel
+/workspace/pmfreak
+$ git remote -v
+$ git branch --show-current
+work
+$ git rev-parse HEAD
+626cc6c763d64f41f2a3bb3b3fb11eb3b5629946
+$ git show
+626cc6c763d64f41f2a3bb3b3fb11eb3b5629946
+2026-07-16 12:07:15 -0600
+vicvalch
+36937201+vicvalch@users.noreply.github.com
+chore(governance): harden intellectual property and license compliance (#524)
+$ git status --short
+?? docs/audit/
+$ git status --branch --short
+## work
+?? docs/audit/
+$ git log
+626cc6c (HEAD -> work) chore(governance): harden intellectual property and license compliance (#524)
+54a16b5 Founder Circle Program — Sprint 01 data foundation & operations (#523)
+7c5e94c Pilot Gate Sprint 01: Readiness documentation and capability gating (#522)
+30862d1 docs(productization): establish validated PMFreak SaaS readiness baseline (#521)
+52da0f2 Perilla 13B: hosted Supabase validation prep (RR-MIGRATE remains OPEN) (#520)
+02e09c6 Perilla 13: Fresh database migration proof — find and fix 26 real migration defects, close 2 RLS gaps (#519)
+8422302 Perilla 12: Close RR-XLSX by replacing vulnerable spreadsheet dependency (#518)
+b735529 Perilla 11: Beta Release Closure Gate — validate, remediate, decide (CONDITIONAL GO) (#517)
+1f4119c Perilla 10: harden production secrets/env/CORS/deployment boundary (#516)
+1756e0e Perilla 9: add abuse-protection layer for signup/invite/billing/trust/AI surfaces (#515)
+128726f Perilla 8: harden route middleware / server guard consistency (#514)
+5547353 Perilla 7: harden Supabase RLS / service-role trust boundary (#513)
+76802f8 Harden Stripe webhook / billing lifecycle trust boundary (Perilla 6) (#512)
+0c4482f Perilla 5: harden founder/admin/early-access/trial-license endpoint boundary (#511)
+764365b Perilla 4: Harden workspace member role update / owner-safety boundary (#510)
+1d16a13 Perilla 3: Harden invite acceptance and workspace role assignment (#509)
+31322be Perilla 2: Fix billing authorization to use workspace membership role (#508)
+e5accae Close signup role escalation: never trust client-supplied role (#507)
+0848d50 Add PMFreak Evidence Requirement Handoff v1 (#506)
+578c579 Add PMFreak AOC Gate Result UI v1 (#505)
+$ git branch -vv
+* work 626cc6c chore(governance): harden intellectual property and license compliance (#524)
+$ git tag --list
+$ git rev-parse --is-shallow-repository
+true
+$ git submodule status
+$ git worktree list
+/workspace/pmfreak  626cc6c [work]
+$ git lfs env
+git-lfs/3.4.1 (GitHub; linux amd64; go 1.22.2)
+git version 2.43.0
+
+LocalWorkingDir=/workspace/pmfreak
+LocalGitDir=/workspace/pmfreak/.git
+LocalGitStorageDir=/workspace/pmfreak/.git
+LocalMediaDir=/workspace/pmfreak/.git/lfs/objects
+LocalReferenceDirs=
+TempDir=/workspace/pmfreak/.git/lfs/tmp
+ConcurrentTransfers=8
+TusTransfers=false
+BasicTransfersOnly=false
+SkipDownloadErrors=false
+FetchRecentAlways=false
+FetchRecentRefsDays=7
+FetchRecentCommitsDays=0
+FetchRecentRefsIncludeRemotes=true
+PruneOffsetDays=3
+PruneVerifyRemoteAlways=false
+PruneRemoteName=origin
+LfsStorageDir=/workspace/pmfreak/.git/lfs
+AccessDownload=none
+AccessUpload=none
+DownloadTransfers=basic,lfs-standalone-file,ssh
+UploadTransfers=basic,lfs-standalone-file,ssh
+GIT_EXEC_PATH=/usr/lib/git-core
+GIT_PAGER=cat
+git config filter.lfs.process = "git-lfs filter-process"
+git config filter.lfs.smudge = "git-lfs smudge -- %f"
+git config filter.lfs.clean = "git-lfs clean -- %f"

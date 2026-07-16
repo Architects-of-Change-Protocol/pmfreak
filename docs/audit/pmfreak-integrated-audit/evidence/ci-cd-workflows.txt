@@ -1,0 +1,189 @@
+WORKFLOWS
+.github/workflows/ci-governance.yml
+name: CI Governance
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  governance-gate:
+    name: Governance Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Build AOC packages
+        run: npm run build:aoc
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Tests
+        run: npm test
+      - name: Runtime governance
+        run: npm run check:governance
+      - name: Publish readiness
+        run: npm run check:publish-ready
+
+      - name: Package purity
+        run: npm run check:package-purity
+.github/workflows/aoc-packages-version-check.yml
+name: AOC Package Version Check
+on:
+  pull_request:
+    paths:
+      - 'src/aoc/**'
+
+jobs:
+  version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check @aoc-enterprise/runtime version bumped
+        run: |
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- src/aoc/enterprise/ | wc -l)
+          if [ "$CHANGED" -eq 0 ]; then
+            echo "No changes in src/aoc/enterprise/ — skipping version check."
+            exit 0
+          fi
+          BASE_VERSION=$(git show origin/${{ github.base_ref }}:src/aoc/enterprise/package.json | node -e "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).version))")
+          CURRENT_VERSION=$(node -e "console.log(require('./src/aoc/enterprise/package.json').version)")
+          if [ "$BASE_VERSION" = "$CURRENT_VERSION" ]; then
+            echo "ERROR: src/aoc/enterprise changed but version not bumped (still $CURRENT_VERSION)"
+            echo "Bump the version in src/aoc/enterprise/package.json before merging."
+            exit 1
+          fi
+          echo "Version bumped: $BASE_VERSION -> $CURRENT_VERSION"
+
+      - name: Check @aoc/protocol version bumped
+        run: |
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- src/aoc/protocol/ | wc -l)
+          if [ "$CHANGED" -eq 0 ]; then
+            echo "No changes in src/aoc/protocol/ — skipping version check."
+            exit 0
+          fi
+          BASE_VERSION=$(git show origin/${{ github.base_ref }}:src/aoc/protocol/package.json | node -e "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).version))")
+          CURRENT_VERSION=$(node -e "console.log(require('./src/aoc/protocol/package.json').version)")
+          if [ "$BASE_VERSION" = "$CURRENT_VERSION" ]; then
+            echo "ERROR: src/aoc/protocol changed but version not bumped (still $CURRENT_VERSION)"
+            echo "Bump the version in src/aoc/protocol/package.json before merging."
+            exit 1
+          fi
+          echo "Version bumped: $BASE_VERSION -> $CURRENT_VERSION"
+.github/workflows/release-governance.yml
+name: Release Governance
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run check:release-readiness
+      - name: Create release PR / versions
+        uses: changesets/action@v1
+        with:
+          version: npm run changeset:version
+          publish: npm run changeset:publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package purity
+        run: npm run check:package-purity
+.github/workflows/ip-compliance.yml
+name: IP Compliance
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+timeout-minutes: 20
+
+concurrency:
+  group: ip-compliance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compliance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run compliance checks
+        run: npm run compliance:check
+      - name: Regenerate compliance artifacts for drift check
+        run: |
+          npm run compliance:licenses:generate
+          npm run compliance:sbom
+          git diff --exit-code -- artifacts/compliance/third-party-license-inventory.json artifacts/compliance/third-party-license-summary.md artifacts/compliance/sbom.cdx.json
+      - name: Upload compliance artifacts
+        if: failure() || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: compliance-artifacts
+          path: artifacts/compliance/
+          if-no-files-found: error
+.github/workflows/aoc-packages-publish.yml
+name: Publish AOC Packages
+on:
+  push:
+    tags:
+      - 'aoc-v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run check:publish-ready
+      - name: Publish @aoc-enterprise/runtime
+        working-directory: src/aoc/enterprise
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish @aoc/protocol
+        working-directory: src/aoc/protocol
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

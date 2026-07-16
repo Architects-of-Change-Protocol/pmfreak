@@ -1,0 +1,163 @@
+./src/lib/supabase/env.ts
+./src/lib/aoc/contracts/envelope-helpers.ts
+./src/lib/aoc/contracts/sdk-envelope.ts
+./src/lib/dashboard/manual-task-push/push-envelope-builder.ts
+./src/lib/security/environment.ts
+./src/lib/production-runtime/environments/environment-isolation.ts
+./src/lib/production-runtime/environments/runtime-environments.ts
+./src/lib/production-runtime/environments/environment-governance.ts
+ENV REFS
+./scripts/seed-operational-flow-demo.mjs:14:const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+./scripts/seed-operational-flow-demo.mjs:15:const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+./scripts/check-fresh-db-migrations.mjs:68:  const hasHosted = process.env.SUPABASE_DB_URL && process.env.SUPABASE_ACCESS_TOKEN && process.env.SUPABASE_PROJECT_REF;
+./scripts/check-fresh-db-migrations.mjs:69:  const hasLocal = process.env.FRESH_DB_URL;
+./scripts/check-fresh-db-migrations.mjs:78:  if (process.env.ALLOW_DESTRUCTIVE_FRESH_DB_TEST !== "true") {
+./scripts/check-fresh-db-migrations.mjs:85:  const dbUrl = mode === "hosted" ? process.env.SUPABASE_DB_URL : process.env.FRESH_DB_URL;
+./scripts/check-fresh-db-migrations.mjs:92:    const expected = process.env.FRESH_DB_EXPECTED_PROJECT_REF;
+./scripts/check-fresh-db-migrations.mjs:96:    if (expected !== process.env.SUPABASE_PROJECT_REF) {
+./scripts/check-fresh-db-migrations.mjs:97:      return fail(`FRESH_DB_EXPECTED_PROJECT_REF (${expected}) does not match SUPABASE_PROJECT_REF (${redact(process.env.SUPABASE_PROJECT_REF)}). Refusing to run.`);
+./scripts/check-fresh-db-migrations.mjs:137:  const dbUrl = process.env.FRESH_DB_URL;
+./scripts/check-fresh-db-migrations.mjs:151:  const projectRef = process.env.SUPABASE_PROJECT_REF;
+./scripts/check-fresh-db-migrations.mjs:155:    env: { ...process.env, SUPABASE_ACCESS_TOKEN: process.env.SUPABASE_ACCESS_TOKEN },
+./scripts/check-fresh-db-migrations.mjs:160:    env: { ...process.env, SUPABASE_ACCESS_TOKEN: process.env.SUPABASE_ACCESS_TOKEN },
+./scripts/check-fresh-db-migrations.mjs:208:    env: { ...process.env, SUPABASE_ACCESS_TOKEN: process.env.SUPABASE_ACCESS_TOKEN },
+./scripts/check-fresh-db-migrations.mjs:314:    const smoke = runSchemaSmoke(process.env.FRESH_DB_URL);
+./scripts/check-operational-flow-db.mjs:7:const url = process.env.OPERATIONAL_FLOW_TEST_SUPABASE_URL;
+./scripts/check-operational-flow-db.mjs:8:const anonKey = process.env.OPERATIONAL_FLOW_TEST_ANON_KEY;
+./scripts/check-operational-flow-db.mjs:9:const serviceRoleKey = process.env.OPERATIONAL_FLOW_TEST_SERVICE_ROLE_KEY;
+./scripts/check-operational-flow-db.mjs:10:const appBaseUrl = process.env.OPERATIONAL_FLOW_TEST_BASE_URL?.replace(/\/$/, "");
+./scripts/check-operational-flow-db.mjs:11:if (!url || !anonKey || !serviceRoleKey || !appBaseUrl || process.env.OPERATIONAL_FLOW_TEST_ALLOW_DESTRUCTIVE !== "true") {
+./scripts/check-operational-flow-db.mjs:27:if (!/localhost|127\.0\.0\.1|0\.0\.0\.0|\.local(:\d+)?$/.test(url) && !process.env.OPERATIONAL_FLOW_TEST_ALLOW_REMOTE === "true") {
+./src/proxy.ts:40:  if (isInternalDebugRoute(pathname) && process.env.NODE_ENV === "production") {
+./docs/security/admin-founder-endpoint-boundary.md:101:`process.env.FOUNDER_EMAIL_ALLOWLIST` is split on `,`, each entry trimmed and
+./docs/upload-flow.md:120:2. Add a new branch in `getUploadProvider()` keyed on `process.env.STORAGE_PROVIDER`.
+./src/features/command-center/command-feed.tsx:72:      {message.gatewayMeta && process.env.NODE_ENV !== "production" && (
+./src/lib/email/provider.ts:18:const EMAIL_PROVIDER = process.env.EMAIL_PROVIDER?.toLowerCase() ?? "resend";
+./src/lib/email/provider.ts:19:const EMAIL_FROM = process.env.EMAIL_FROM ?? "PMFreak Founder <founder@pmfreak.com>";
+./src/lib/email/provider.ts:25:      configured: Boolean(process.env.RESEND_API_KEY),
+./src/lib/email/provider.ts:53:        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+./src/lib/db/supabase-server.ts:19:  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+./src/lib/db/supabase-server.ts:27:  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+./src/lib/db/supabase-server.ts:34:  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+./src/lib/early-access.ts:59:  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+./src/lib/production-runtime/environments/runtime-environments.ts:7:  const envVar = process.env.NODE_ENV ?? "development";
+./src/lib/production-runtime/environments/runtime-environments.ts:8:  const appEnv = process.env.APP_ENV;
+./src/lib/production-runtime/environments/runtime-environments.ts:37:  if (environment === "production" && process.env.NODE_ENV !== "production") {
+./src/lib/production-runtime/environments/runtime-environments.ts:41:  if (environment !== "local" && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+./src/lib/auth/auth-decision-debug.ts:8:  if (process.env.NODE_ENV !== "development") return;
+./src/lib/auth.ts:91:    (process.env.FOUNDER_EMAIL_ALLOWLIST ?? "")
+./src/app/api/upload/route.ts:84:  const v = Number(process.env.UPLOAD_MAX_FILE_SIZE_BYTES);
+./src/app/api/upload/route.ts:88:  const v = Number(process.env.UPLOAD_MAX_FILES_PER_REQUEST);
+./src/app/api/upload/route.ts:92:  const v = Number(process.env.UPLOAD_MAX_TOTAL_SIZE_BYTES);
+./src/app/api/upload/route.ts:96:  const v = Number(process.env.UPLOAD_EXTRACTION_TIMEOUT_MS);
+./src/lib/billing-webhook-lifecycle.ts:84:  if (priceId === process.env.STRIPE_PRO_PRICE_ID) return { planKey: "pro", priceId };
+./src/lib/billing-webhook-lifecycle.ts:85:  if (priceId === process.env.STRIPE_PMO_PRICE_ID) return { planKey: "pmo", priceId };
+./src/lib/security/invite-tokens.ts:29:export function resolveInviteTtlHours(rawValue: string | undefined = process.env.INVITE_TOKEN_TTL_HOURS): number {
+./src/lib/security/environment.ts:25:  const vercelEnv = process.env.VERCEL_ENV;
+./src/lib/security/environment.ts:30:  if (process.env.NODE_ENV === "test") return "test";
+./src/lib/security/environment.ts:31:  if (process.env.NODE_ENV === "production") return "production";
+./src/lib/security/environment.ts:119:  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+./src/lib/security/environment.ts:123:  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL;
+./src/lib/security/origin-policy.ts:38:  for (const raw of [process.env.NEXT_PUBLIC_APP_URL, process.env.NEXT_PUBLIC_SITE_URL, process.env.APP_URL]) {
+./src/lib/security/origin-policy.ts:45:  if (env === "preview" && process.env.VERCEL_URL) {
+./src/lib/security/origin-policy.ts:46:    const previewOrigin = normalizeOrigin(`https://${process.env.VERCEL_URL}`);
+./src/lib/security/origin-policy.ts:82:  const configured = normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || process.env.APP_URL || null);
+./src/lib/security/agent-attestation.ts:17:  const secret = process.env.PMFREAK_AGENT_TOKEN_SECRET;
+./src/lib/security/abuse-protection.ts:59:const HASH_PEPPER = process.env.ABUSE_HASH_PEPPER ?? "pmfreak-abuse-v1";
+./src/lib/security/trust-coordination.ts:100:    : createHmac("sha256", input.hmacSecret ?? process.env.PMFREAK_TRUST_EVENT_HMAC_SECRET ?? "").update(payload).digest("base64url");
+./src/lib/security/trust-coordination.ts:115:    const expected = createHmac("sha256", process.env.PMFREAK_TRUST_EVENT_HMAC_SECRET ?? "").update(payload).digest("base64url");
+./src/app/api/ready/route.ts:18:  const raw = process.env.HEALTHCHECK_DATABASE_TIMEOUT_MS;
+./src/app/api/ready/route.ts:31:  if (process.env.NODE_ENV === "production") {
+./src/lib/ai/providers/openai-provider.ts:52:  return Boolean(process.env.OPENAI_API_KEY);
+./src/lib/ai/providers/openai-provider.ts:59:    const apiKey = process.env.OPENAI_API_KEY;
+./src/lib/ai/providers/openai-provider.ts:68:    const model = request.modelPreference ?? process.env.DEFAULT_AI_MODEL ?? DEFAULT_MODEL;
+./src/lib/ai/providers/router.ts:26:const DEFAULT_MODEL = process.env.DEFAULT_AI_MODEL ?? "gpt-4.1-mini";
+./src/lib/ai/providers/router.ts:30:  "meta-intelligence": process.env.OPENAI_META_INTELLIGENCE_MODEL ?? DEFAULT_MODEL,
+./src/lib/ai/providers/router.ts:31:  "message-nudges": process.env.OPENAI_MESSAGE_NUDGES_MODEL ?? DEFAULT_MODEL,
+./src/lib/ai/providers/router.ts:55:  const providerId = process.env.DEFAULT_AI_PROVIDER ?? "openai";
+./src/lib/ai/providers/provider-candidate-resolver.ts:33:  return process.env.DEFAULT_AI_PROVIDER ?? "openai";
+./src/lib/ai/gateway/inference-gateway.ts:9:  const providerId = ((request.metadata?.provider as string | undefined) ?? process.env.DEFAULT_AI_PROVIDER ?? "openai").toLowerCase();
+./src/app/api/billing/create-checkout-session/route.ts:102:  const stripeEnabled = Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
+./src/app/api/billing/create-checkout-session/route.ts:108:  const priceId = plan === "pmo" ? process.env.STRIPE_PMO_PRICE_ID : process.env.STRIPE_PRO_PRICE_ID;
+./src/app/api/billing/webhook/route.ts:52:  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+./src/app/api/route-debug/route.ts:10:    commit: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+./src/app/api/route-debug/route.ts:11:    branch: process.env.VERCEL_GIT_COMMIT_REF ?? null,
+./src/app/api/route-debug/route.ts:12:    vercelEnv: process.env.VERCEL_ENV ?? null,
+./src/lib/stripe.ts:6:  const secretKey = process.env.STRIPE_SECRET_KEY;
+./src/lib/aoc/providers/portable-memory.ts:31:      runtimeVersion: process.env.PMFREAK_RUNTIME_VERSION ?? "unknown",
+./src/lib/storage/upload-provider.ts:20:const BUCKET = process.env.SUPABASE_STORAGE_BUCKET ?? "pmfreak-documents";
+./src/lib/storage/upload-provider.ts:41:    if (process.env.UPLOAD_VERIFY_BUCKET === "true") {
+./src/lib/storage/upload-provider.ts:134:  const provider = process.env.STORAGE_PROVIDER;
+./src/lib/first-user-telemetry.ts:26:  store.set(COOKIE_NAME, sessionId, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 14 });
+./src/lib/founder-program/invitations.ts:27:  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+./src/lib/supabase/env.ts:1:const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+./src/lib/supabase/env.ts:2:const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+./src/lib/supabase/env.ts:3:const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+./src/lib/observability/logger.ts:38:export function resolveLogLevel(raw: string | undefined = process.env.LOG_LEVEL): LogLevel {
+./src/sdk/examples/basic.ts:3:const client = createAocClient({ baseUrl: "https://your-app.example.com", token: process.env.PMFREAK_TOKEN, workspaceId: "workspace_123" });
+./tests/abuse-protection-boundary.test.mjs:265:  process.env.STRIPE_SECRET_KEY = "sk_test_123";
+./tests/abuse-protection-boundary.test.mjs:266:  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_123";
+./tests/abuse-protection-boundary.test.mjs:267:  process.env.STRIPE_PRO_PRICE_ID = "price_pro";
+./tests/production-deployment-boundary.test.mjs:287:  const allowlistedEnvReads = new Set(["process.env.VERCEL_GIT_COMMIT_SHA", "process.env.VERCEL_GIT_COMMIT_REF", "process.env.VERCEL_ENV", "process.env.NEXT_PUBLIC_BUILD_TIMESTAMP", "process.env.npm_package_version"]);
+./tests/admin-founder-endpoint-boundary.test.mjs:86:  const original = process.env.FOUNDER_EMAIL_ALLOWLIST;
+./tests/admin-founder-endpoint-boundary.test.mjs:87:  process.env.FOUNDER_EMAIL_ALLOWLIST = "victor@example.com, other@example.com";
+./tests/admin-founder-endpoint-boundary.test.mjs:101:    if (original === undefined) delete process.env.FOUNDER_EMAIL_ALLOWLIST;
+./tests/admin-founder-endpoint-boundary.test.mjs:102:    else process.env.FOUNDER_EMAIL_ALLOWLIST = original;
+./tests/admin-founder-endpoint-boundary.test.mjs:107:  const original = process.env.FOUNDER_EMAIL_ALLOWLIST;
+./tests/admin-founder-endpoint-boundary.test.mjs:108:  process.env.FOUNDER_EMAIL_ALLOWLIST = "  spaced@example.com  ,, ,another@example.com";
+./tests/admin-founder-endpoint-boundary.test.mjs:114:    if (original === undefined) delete process.env.FOUNDER_EMAIL_ALLOWLIST;
+./tests/admin-founder-endpoint-boundary.test.mjs:115:    else process.env.FOUNDER_EMAIL_ALLOWLIST = original;
+./tests/fresh-db-migrations-safety-guard.test.mjs:30:  const result = run({ PATH: process.env.PATH });
+./tests/fresh-db-migrations-safety-guard.test.mjs:36:  const result = run({ PATH: process.env.PATH, FRESH_DB_URL: "postgresql://user:pass@localhost:5432/scratch" });
+./tests/fresh-db-migrations-safety-guard.test.mjs:43:    PATH: process.env.PATH,
+./tests/fresh-db-migrations-safety-guard.test.mjs:53:    PATH: process.env.PATH,
+./tests/fresh-db-migrations-safety-guard.test.mjs:65:    PATH: process.env.PATH,
+./tests/fresh-db-migrations-safety-guard.test.mjs:78:    PATH: process.env.PATH,
+./tests/fresh-db-migrations-safety-guard.test.mjs:96:    PATH: process.env.PATH,
+./tests/fresh-db-migrations-safety-guard.test.mjs:114:  delete process.env.SUPABASE_DB_URL;
+./tests/fresh-db-migrations-safety-guard.test.mjs:115:  delete process.env.SUPABASE_ACCESS_TOKEN;
+./tests/fresh-db-migrations-safety-guard.test.mjs:116:  delete process.env.SUPABASE_PROJECT_REF;
+./tests/fresh-db-migrations-safety-guard.test.mjs:117:  delete process.env.FRESH_DB_URL;
+./tests/fresh-db-migrations-safety-guard.test.mjs:124:  delete process.env.FRESH_DB_URL;
+./tests/fresh-db-migrations-safety-guard.test.mjs:125:  process.env.SUPABASE_DB_URL = "postgresql://x/y";
+./tests/fresh-db-migrations-safety-guard.test.mjs:126:  process.env.SUPABASE_ACCESS_TOKEN = "tok";
+./tests/fresh-db-migrations-safety-guard.test.mjs:127:  delete process.env.SUPABASE_PROJECT_REF;
+./tests/fresh-db-migrations-safety-guard.test.mjs:134:  delete process.env.SUPABASE_DB_URL;
+./tests/fresh-db-migrations-safety-guard.test.mjs:135:  delete process.env.SUPABASE_ACCESS_TOKEN;
+./tests/fresh-db-migrations-safety-guard.test.mjs:136:  delete process.env.SUPABASE_PROJECT_REF;
+./tests/fresh-db-migrations-safety-guard.test.mjs:137:  process.env.FRESH_DB_URL = "postgresql://localhost/scratch";
+./tests/fresh-db-migrations-safety-guard.test.mjs:144:  delete process.env.FRESH_DB_URL;
+./tests/fresh-db-migrations-safety-guard.test.mjs:145:  process.env.SUPABASE_DB_URL = "postgresql://db.ref.supabase.co/postgres";
+./tests/fresh-db-migrations-safety-guard.test.mjs:146:  process.env.SUPABASE_ACCESS_TOKEN = "tok";
+./tests/fresh-db-migrations-safety-guard.test.mjs:147:  process.env.SUPABASE_PROJECT_REF = "ref";
+./tests/fresh-db-migrations-safety-guard.test.mjs:156:  delete process.env.ALLOW_DESTRUCTIVE_FRESH_DB_TEST;
+./tests/billing-checkout-session-route.test.mjs:130:  process.env.STRIPE_SECRET_KEY = "sk_test_123";
+./tests/billing-checkout-session-route.test.mjs:131:  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_123";
+./tests/billing-checkout-session-route.test.mjs:132:  process.env.STRIPE_PRO_PRICE_ID = "price_pro";
+./tests/billing-checkout-session-route.test.mjs:133:  process.env.STRIPE_PMO_PRICE_ID = "price_pmo";
+./tests/stripe-webhook-billing-lifecycle.test.mjs:15:  process.env.STRIPE_PRO_PRICE_ID = "price_pro";
+./tests/stripe-webhook-billing-lifecycle.test.mjs:16:  process.env.STRIPE_PMO_PRICE_ID = "price_pmo";
+./tests/observability-readiness.test.mjs:13:process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://readiness-test.supabase.co";
+./tests/observability-readiness.test.mjs:14:process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "anon-key-for-readiness-test";
+./tests/observability-readiness.test.mjs:133:  process.env.HEALTHCHECK_DATABASE_TIMEOUT_MS = "100";
+./tests/observability-readiness.test.mjs:135:    delete process.env.HEALTHCHECK_DATABASE_TIMEOUT_MS;
+./tests/observability-readiness.test.mjs:161:  assert.ok(!raw.includes(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY), "anon key value must never appear");
+./tests/consumer-boundary-audit.test.ts:145:  const enforce = process.env.PROTOCOL_CONSUMER_AUDIT_ENFORCE === "1";
+./tests/stripe-webhook-route.test.mjs:88:  process.env.STRIPE_SECRET_KEY = "sk_test_123";
+./tests/stripe-webhook-route.test.mjs:89:  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_super_secret_value";
+./tests/stripe-webhook-route.test.mjs:107:  delete process.env.STRIPE_WEBHOOK_SECRET;
+./tests/stripe-webhook-route.test.mjs:245:  delete process.env.STRIPE_WEBHOOK_SECRET;
+./tests/signup-role-escalation.test.mjs:111:  const previous = process.env.FOUNDER_EMAIL_ALLOWLIST;
+./tests/signup-role-escalation.test.mjs:112:  process.env.FOUNDER_EMAIL_ALLOWLIST = "trusted-partner@example.com";
+./tests/signup-role-escalation.test.mjs:117:    if (previous === undefined) delete process.env.FOUNDER_EMAIL_ALLOWLIST;
+./tests/signup-role-escalation.test.mjs:118:    else process.env.FOUNDER_EMAIL_ALLOWLIST = previous;
+./tests/playbook-engine-conversation-decision-support-default-off-feature-flag-implementation-shell.test.mjs:1219:  // property/bracket access on it (process.env.X / process.env["X"]), which is what an actual runtime read
+./src/app/api/federation/webhooks/[connectorId]/route.ts:19:    requireSystemOrWebhookSecret(bearerToken, process.env.FEDERATION_WEBHOOK_SECRET);
+./src/app/signup/actions.ts:35:  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+./src/app/api/build-info/route.ts:10:    commit: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+./src/app/api/build-info/route.ts:11:    branch: process.env.VERCEL_GIT_COMMIT_REF ?? null,
+./src/app/api/build-info/route.ts:12:    vercelEnv: process.env.VERCEL_ENV ?? null,
+./src/app/api/build-info/route.ts:13:    buildTimestamp: process.env.NEXT_PUBLIC_BUILD_TIMESTAMP ?? null,
+./src/aoc/enterprise/runtime/authority-provider.ts:9:  const raw = process.env.AOC_RUNTIME_AUTHORITY_PROVIDER;
+./src/aoc/runtime-consumer/runtime-decision.ts:21:    runtimeVersion: input.runtimeVersion ?? process.env.PMFREAK_RUNTIME_VERSION ?? "unknown",
+./src/aoc/runtime-consumer/runtime-context.ts:20:    runtimeVersion: input.runtimeVersion ?? process.env.PMFREAK_RUNTIME_VERSION ?? "unknown",

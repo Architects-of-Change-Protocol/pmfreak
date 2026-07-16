@@ -1,0 +1,201 @@
+$ npm test
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> pmfreak@0.1.0 test
+> tsx --test tests/*.test.mjs tests/*.test.ts
+
+TAP version 13
+# [security] {
+#   event: 'abuse_rate_limited',
+#   timestamp: '2026-07-16T19:21:01.861Z',
+#   routeId: 'test.scope',
+#   metadata: {
+#     key: 'test.scope:4c2ed2869eb8f5abb49c1fc8ae08ae0390b4379f2db855e593a5690da268390d',
+#     action: null,
+#     limit: 3,
+#     windowSeconds: 60,
+#     count: 4
+#   }
+# }
+# [security] failed_to_persist_event Error: Missing Supabase service role environment variables.
+#     at getSupabaseServiceRoleEnv (/workspace/pmfreak/src/lib/supabase/env.ts:19:11)
+#     at createPrivilegedSupabaseClient (/workspace/pmfreak/src/lib/security/privileged-access.ts:22:35)
+#     at logSecurityEvent (/workspace/pmfreak/src/lib/security/telemetry.ts:153:22)
+#     at enforceAbuseLimit (data:text/javascript,__filename%3D%22%2Fworkspace%2Fpmfreak%2Fsrc%2Flib%2Fsecurity%2Fabuse-protection.ts%22%3B(()%3D%3E%7Brequire%20%3D%20require(%22node%3Amodule%22).createRequire(%22file%3A%2F%2F%2Fworkspace%2Fpmfreak%2Fsrc%2Flib%2Fsecurity%2Fabuse-protection.ts%22)%3B%0A%22use%20strict%22%3Bvar%20__defProp%3DObject.defineProperty%3Bvar%20__getOwnPropDesc%3DObject.getOwnPropertyDescriptor%3Bvar%20__getOwnPropNames%3DObject.getOwnPropertyNames%3Bvar%20__hasOwnProp%3DObject.prototype.hasOwnProperty%3Bvar%20__name%3D(target%2Cvalue)%3D%3E__defProp(target%2C%22name%22%2C%7Bvalue%2Cconfigurable%3Atrue%7D)%3Bvar%20__export%3D(target%2Call)%3D%3E%7Bfor(var%20name%20in%20all)__defProp(target%2Cname%2C%7Bget%3Aall%5Bname%5D%2Cenumerable%3Atrue%7D)%7D%3Bvar%20__copyProps%3D(to%2Cfrom%2Cexcept%2Cdesc)%3D%3E%7Bif(from%26%26typeof%20from%3D%3D%3D%22object%22%7C%7Ctypeof%20from%3D%3D%3D%22function%22)%7Bfor(let%20key%20of%20__getOwnPropNames(from))if(!__hasOwnProp.call(to%2Ckey)%26%26key!%3D%3Dexcept)__defProp(to%2Ckey%2C%7Bget%3A()%3D%3Efrom%5Bkey%5D%2Cenumerable%3A!(desc%3D__getOwnPropDesc(from%2Ckey))%7C%7Cdesc.enumerable%7D)%7Dreturn%20to%7D%3Bvar%20__toCommonJS%3Dmod%3D%3E__copyProps(__defProp(%7B%7D%2C%22__esModule%22%2C%7Bvalue%3Atrue%7D)%2Cmod)%3Bvar%20abuse_protection_exports%3D%7B%7D%3B__export(abuse_protection_exports%2C%7BabuseDenyResponse%3A()%3D%3EabuseDenyResponse%2CbuildAbuseKey%3A()%3D%3EbuildAbuseKey%2CcreateInMemoryAbuseStore%3A()%3D%3EcreateInMemoryAbuseStore%2CenforceAbuseLimit%3A()%3D%3EenforceAbuseLimit%2CgetClientIp%3A()%3D%3EgetClientIp%2CgetClientIpFromHeaders%3A()%3D%3EgetClientIpFromHeaders%2ChashAbuseIdentifier%3A()%3D%3EhashAbuseIdentifier%2CnormalizeAbuseIdentifier%3A()%3D%3EnormalizeAbuseIdentifier%7D)%3Bmodule.exports%3D__toCommonJS(abuse_protection_exports)%3Bvar%20import_node_crypto%3Drequire(%22node%3Acrypto%22)%3Bvar%20import_env%3Drequire(%22%40%2Flib%2Fsupabase%2Fenv%22)%3Bvar%20import_privileged_access%3Drequire(%22%40%2Flib%2Fsecurity%2Fprivileged-access%22)%3Bvar%20import_telemetry%3Drequire(%22%40%2Flib%2Fsecurity%2Ftelemetry%22)%3Bfunction%20normalizeAbuseIdentifier(value)%7Bconst%20trimmed%3D(value%3F%3F%22%22).trim().toLowerCase()%3Breturn%20trimmed.length%3E0%3Ftrimmed%3A%22anonymous%22%7D__name(normalizeAbuseIdentifier%2C%22normalizeAbuseIdentifier%22)%3Bconst%20HASH_PEPPER%3Dprocess.env.ABUSE_HASH_PEPPER%3F%3F%22pmfreak-abuse-v1%22%3Bfunction%20hashAbuseIdentifier(value)%7Bconst%20normalized%3DnormalizeAbuseIdentifier(value)%3Breturn(0%2Cimport_node_crypto.createHash)(%22sha256%22).update(%60%24%7BHASH_PEPPER%7D%3A%24%7Bnormalized%7D%60).digest(%22hex%22)%7D__name(hashAbuseIdentifier%2C%22hashAbuseIdentifier%22)%3Bfunction%20buildAbuseKey(parts)%7Breturn%20parts.filter(part%3D%3Etypeof%20part%3D%3D%3D%22string%22%26%26part.length%3E0).join(%22%3A%22)%7D__name(buildAbuseKey%2C%22buildAbuseKey%22)%3Bfunction%20getClientIp(request)%7Bconst%20forwarded%3Drequest.headers.get(%22x-forwarded-for%22)%3Bif(forwarded)%7Bconst%20first%3Dforwarded.split(%22%2C%22)%5B0%5D%3F.trim()%3Bif(first)return%20first%7Dconst%20real%3Drequest.headers.get(%22x-real-ip%22)%3Bif(real%3F.trim())return%20real.trim()%3Breturn%22unknown%22%7D__name(getClientIp%2C%22getClientIp%22)%3Bfunction%20getClientIpFromHeaders(headersList)%7Bconst%20forwarded%3DheadersList.get(%22x-forwarded-for%22)%3Bif(forwarded)%7Bconst%20first%3Dforwarded.split(%22%2C%22)%5B0%5D%3F.trim()%3Bif(first)return%20first%7Dconst%20real%3DheadersList.get(%22x-real-ip%22)%3Bif(real%3F.trim())return%20real.trim()%3Breturn%22unknown%22%7D__name(getClientIpFromHeaders%2C%22getClientIpFromHeaders%22)%3Bconst%20REDACTED_METADATA_KEY_FRAGMENTS%3D%5B%22token%22%2C%22email%22%2C%22secret%22%2C%22password%22%2C%22authorization%22%2C%22cookie%22%5D%3Bfunction%20redactAbuseMetadata(metadata%3D%7B%7D)%7Breturn%20Object.fromEntries(Object.entries(metadata).filter((%5Bkey%5D)%3D%3E!REDACTED_METADATA_KEY_FRAGMENTS.some(fragment%3D%3Ekey.toLowerCase().includes(fragment))))%7D__name(redactAbuseMetadata%2C%22redactAbuseMetadata%22)%3Bfunction%20computeWindowStart(now%2CwindowSeconds)%7Bconst%20windowMs%3DwindowSeconds*1e3%3Breturn%20Math.floor(now%2FwindowMs)*windowMs%7D__name(computeWindowStart%2C%22computeWindowStart%22)%3Bfunction%20createInMemoryAbuseStore()%7Bconst%20counters%3Dnew%20Map%3Breturn%7Basync%20increment(%7Bscope%2CidentifierHash%2CwindowSeconds%2Cnow%7D)%7Bconst%20mapKey%3D%60%24%7Bscope%7D%3A%3A%24%7BidentifierHash%7D%60%3Bconst%20windowStart%3DcomputeWindowStart(now%2CwindowSeconds)%3Bconst%20existing%3Dcounters.get(mapKey)%3Bif(existing%26%26existing.windowStart%3D%3D%3DwindowStart)%7Bexisting.count%2B%3D1%3Breturn%7B...existing%7D%7Dconst%20next%3D%7Bcount%3A1%2CwindowStart%7D%3Bcounters.set(mapKey%2Cnext)%3Breturn%7B...next%7D%7D%7D%7D__name(createInMemoryAbuseStore%2C%22createInMemoryAbuseStore%22)%3Bconst%20sharedInMemoryAbuseStore%3DcreateInMemoryAbuseStore()%3Bfunction%20createSupabaseAbuseStore()%7Breturn%7Basync%20increment(%7Bscope%2CidentifierHash%2CwindowSeconds%2Cnow%2Cmetadata%7D)%7Bconst%20windowStartMs%3DcomputeWindowStart(now%2CwindowSeconds)%3Bconst%20supabase%3D(0%2Cimport_privileged_access.createPrivilegedSupabaseClient)(%7BrouteId%3A%22security.abuse-protection%22%2Coperation%3A%22increment_rate_limit%22%2Creason%3A%22abuse_rate_limit_tracking%22%2CsystemActor%3A%22system%22%7D)%3Bconst%7Bdata%2Cerror%7D%3Dawait%20supabase.rpc(%22abuse_rate_limit_increment%22%2C%7Bp_scope%3Ascope%2Cp_identifier_hash%3AidentifierHash%2Cp_window_start%3Anew%20Date(windowStartMs).toISOString()%2Cp_metadata%3AredactAbuseMetadata(metadata)%7D)%3Bif(error)%7Bthrow%20new%20Error(%60Unable%20to%20increment%20abuse%20rate%20limit%3A%20%24%7Berror.message%7D%60)%7Dreturn%7Bcount%3Atypeof%20data%3D%3D%3D%22number%22%3Fdata%3ANumber(data)%2CwindowStart%3AwindowStartMs%7D%7D%7D%7D__name(createSupabaseAbuseStore%2C%22createSupabaseAbuseStore%22)%3Blet%20sharedSupabaseAbuseStore%3Dnull%3Bfunction%20selectAbuseStore()%7Bif(import_env.hasSupabaseServiceRoleEnv)%7Bif(!sharedSupabaseAbuseStore)sharedSupabaseAbuseStore%3DcreateSupabaseAbuseStore()%3Breturn%20sharedSupabaseAbuseStore%7Dreturn%20sharedInMemoryAbuseStore%7D__name(selectAbuseStore%2C%22selectAbuseStore%22)%3Basync%20function%20enforceAbuseLimit(input%2Cdeps%3D%7B%7D)%7Bconst%20now%3Ddeps.now%3F%3FDate.now%3Bconst%20identifierHash%3DhashAbuseIdentifier(input.identifier)%3Bconst%20key%3DbuildAbuseKey(%5Binput.scope%2Cinput.action%2CidentifierHash%5D)%3Bif(!Number.isFinite(input.limit)%7C%7Cinput.limit%3C%3D0%7C%7C!Number.isFinite(input.windowSeconds)%7C%7Cinput.windowSeconds%3C%3D0)%7Breturn%7Ballowed%3Afalse%2Ckey%2Creason%3A%22invalid_key%22%7D%7Dconst%20store%3Ddeps.store%3F%3FselectAbuseStore()%3Bconst%20nowMs%3Dnow()%3Bconst%20scope%3DbuildAbuseKey(%5Binput.scope%2Cinput.action%5D)%3Blet%20result%3Btry%7Bresult%3Dawait%20store.increment(%7Bscope%2CidentifierHash%2CwindowSeconds%3Ainput.windowSeconds%2Cnow%3AnowMs%2Cmetadata%3A%7Bscope%3Ainput.scope%2Caction%3Ainput.action%3F%3Fnull%2C...input.metadata%7D%7D)%7Dcatch(error)%7Bconsole.error(%22%5Babuse-protection%5D%20store_increment_failed%22%2C%7Bscope%3Ainput.scope%2Caction%3Ainput.action%3F%3Fnull%2Cerror%3Aerror%20instanceof%20Error%3Ferror.message%3A%22unknown%22%7D)%3Breturn%7Ballowed%3Afalse%2Ckey%2Creason%3A%22rate_limited%22%7D%7Dconst%20resetAt%3Dnew%20Date(result.windowStart%2Binput.windowSeconds*1e3).toISOString()%3Bif(result.count%3Einput.limit)%7Bconst%20retryAfterSeconds%3DMath.max(1%2CMath.ceil((result.windowStart%2Binput.windowSeconds*1e3-nowMs)%2F1e3))%3Bvoid(0%2Cimport_telemetry.logSecurityEvent)(%22abuse_rate_limited%22%2C%7BrouteId%3Ainput.scope%2Cmetadata%3A%7Bkey%2Caction%3Ainput.action%3F%3Fnull%2Climit%3Ainput.limit%2CwindowSeconds%3Ainput.windowSeconds%2Ccount%3Aresult.count%7D%7D)%3Breturn%7Ballowed%3Afalse%2Ckey%2Creason%3A%22rate_limited%22%2CretryAfterSeconds%2CresetAt%7D%7Dreturn%7Ballowed%3Atrue%2Ckey%2Cremaining%3AMath.max(0%2Cinput.limit-result.count)%2CresetAt%7D%7D__name(enforceAbuseLimit%2C%22enforceAbuseLimit%22)%3Bfunction%20abuseDenyResponse(decision%2Cmessage%3D%22Too%20many%20requests.%20Please%20try%20again%20later.%22)%7Bconst%20headers%3Dnew%20Headers(%7B%22content-type%22%3A%22application%2Fjson%22%7D)%3Bif(decision.retryAfterSeconds)headers.set(%22Retry-After%22%2CString(decision.retryAfterSeconds))%3Breturn%20new%20Response(JSON.stringify(%7Berror%3Amessage%2Ccode%3Adecision.reason%7D)%2C%7Bstatus%3A429%2Cheaders%7D)%7D__name(abuseDenyResponse%2C%22abuseDenyResponse%22)%3B0%26%26(module.exports%3D%7BabuseDenyResponse%2CbuildAbuseKey%2CcreateInMemoryAbuseStore%2CenforceAbuseLimit%2CgetClientIp%2CgetClientIpFromHeaders%2ChashAbuseIdentifier%2CnormalizeAbuseIdentifier%7D)%3B%0A%7D)()%0A?filePath=%2Fworkspace%2Fpmfreak%2Fsrc%2Flib%2Fsecurity%2Fabuse-protection.ts:2:5993)
+#     at async TestContext.<anonymous> (file:///workspace/pmfreak/tests/abuse-protection-boundary.test.mjs:112:14)
+#     at async Test.run (node:internal/test_runner/test:797:9)
+#     at async Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+# [security] {
+#   event: 'abuse_rate_limited',
+#   timestamp: '2026-07-16T19:21:01.907Z',
+#   routeId: 'test.window',
+#   metadata: {
+#     key: 'test.window:ab13185dcdb10a66fe51011ef1212e80f1c80a4d27739a26623d1d8c31b7bb5b',
+#     action: null,
+#     limit: 2,
+#     windowSeconds: 10,
+#     count: 3
+#   }
+# }
+# [security] failed_to_persist_event Error: Missing Supabase service role environment variables.
+#     at getSupabaseServiceRoleEnv (/workspace/pmfreak/src/lib/supabase/env.ts:19:11)
+#     at createPrivilegedSupabaseClient (/workspace/pmfreak/src/lib/security/privileged-access.ts:22:35)
+#     at logSecurityEvent (/workspace/pmfreak/src/lib/security/telemetry.ts:153:22)
+#     at enforceAbuseLimit (data:text/javascript,__filename%3D%22%2Fworkspace%2Fpmfreak%2Fsrc%2Flib%2Fsecurity%2Fabuse-protection.ts%22%3B(()%3D%3E%7Brequire%20%3D%20require(%22node%3Amodule%22).createRequire(%22file%3A%2F%2F%2Fworkspace%2Fpmfreak%2Fsrc%2Flib%2Fsecurity%2Fabuse-protection.ts%22)%3B%0A%22use%20strict%22%3Bvar%20__defProp%3DObject.defineProperty%3Bvar%20__getOwnPropDesc%3DObject.getOwnPropertyDescriptor%3Bvar%20__getOwnPropNames%3DObject.getOwnPropertyNames%3Bvar%20__hasOwnProp%3DObject.prototype.hasOwnProperty%3Bvar%20__name%3D(target%2Cvalue)%3D%3E__defProp(target%2C%22name%22%2C%7Bvalue%2Cconfigurable%3Atrue%7D)%3Bvar%20__export%3D(target%2Call)%3D%3E%7Bfor(var%20name%20in%20all)__defProp(target%2Cname%2C%7Bget%3Aall%5Bname%5D%2Cenumerable%3Atrue%7D)%7D%3Bvar%20__copyProps%3D(to%2Cfrom%2Cexcept%2Cdesc)%3D%3E%7Bif(from%26%26typeof%20from%3D%3D%3D%22object%22%7C%7Ctypeof%20from%3D%3D%3D%22function%22)%7Bfor(let%20key%20of%20__getOwnPropNames(from))if(!__hasOwnProp.call(to%2Ckey)%26%26key!%3D%3Dexcept)__defProp(to%2Ckey%2C%7Bget%3A()%3D%3Efrom%5Bkey%5D%2Cenumerable%3A!(desc%3D__getOwnPropDesc(from%2Ckey))%7C%7Cdesc.enumerable%7D)%7Dreturn%20to%7D%3Bvar%20__toCommonJS%3Dmod%3D%3E__copyProps(__defProp(%7B%7D%2C%22__esModule%22%2C%7Bvalue%3Atrue%7D)%2Cmod)%3Bvar%20abuse_protection_exports%3D%7B%7D%3B__export(abuse_protection_exports%2C%7BabuseDenyResponse%3A()%3D%3EabuseDenyResponse%2CbuildAbuseKey%3A()%3D%3EbuildAbuseKey%2CcreateInMemoryAbuseStore%3A()%3D%3EcreateInMemoryAbuseStore%2CenforceAbuseLimit%3A()%3D%3EenforceAbuseLimit%2CgetClientIp%3A()%3D%3EgetClientIp%2CgetClientIpFromHeaders%3A()%3D%3EgetClientIpFromHeaders%2ChashAbuseIdentifier%3A()%3D%3EhashAbuseIdentifier%2CnormalizeAbuseIdentifier%3A()%3D%3EnormalizeAbuseIdentifier%7D)%3Bmodule.exports%3D__toCommonJS(abuse_protection_exports)%3Bvar%20import_node_crypto%3Drequire(%22node%3Acrypto%22)%3Bvar%20import_env%3Drequire(%22%40%2Flib%2Fsupabase%2Fenv%22)%3Bvar%20import_privileged_access%3Drequire(%22%40%2Flib%2Fsecurity%2Fprivileged-access%22)%3Bvar%20import_telemetry%3Drequire(%22%40%2Flib%2Fsecurity%2Ftelemetry%22)%3Bfunction%20normalizeAbuseIdentifier(value)%7Bconst%20trimmed%3D(value%3F%3F%22%22).trim().toLowerCase()%3Breturn%20trimmed.length%3E0%3Ftrimmed%3A%22anonymous%22%7D__name(normalizeAbuseIdentifier%2C%22normalizeAbuseIdentifier%22)%3Bconst%20HASH_PEPPER%3Dprocess.env.ABUSE_HASH_PEPPER%3F%3F%22pmfreak-abuse-v1%22%3Bfunction%20hashAbuseIdentifier(value)%7Bconst%20normalized%3DnormalizeAbuseIdentifier(value)%3Breturn(0%2Cimport_node_crypto.createHash)(%22sha256%22).update(%60%24%7BHASH_PEPPER%7D%3A%24%7Bnormalized%7D%60).digest(%22hex%22)%7D__name(hashAbuseIdentifier%2C%22hashAbuseIdentifier%22)%3Bfunction%20buildAbuseKey(parts)%7Breturn%20parts.filter(part%3D%3Etypeof%20part%3D%3D%3D%22string%22%26%26part.length%3E0).join(%22%3A%22)%7D__name(buildAbuseKey%2C%22buildAbuseKey%22)%3Bfunction%20getClientIp(request)%7Bconst%20forwarded%3Drequest.headers.get(%22x-forwarded-for%22)%3Bif(forwarded)%7Bconst%20first%3Dforwarded.split(%22%2C%22)%5B0%5D%3F.trim()%3Bif(first)return%20first%7Dconst%20real%3Drequest.headers.get(%22x-real-ip%22)%3Bif(real%3F.trim())return%20real.trim()%3Breturn%22unknown%22%7D__name(getClientIp%2C%22getClientIp%22)%3Bfunction%20getClientIpFromHeaders(headersList)%7Bconst%20forwarded%3DheadersList.get(%22x-forwarded-for%22)%3Bif(forwarded)%7Bconst%20first%3Dforwarded.split(%22%2C%22)%5B0%5D%3F.trim()%3Bif(first)return%20first%7Dconst%20real%3DheadersList.get(%22x-real-ip%22)%3Bif(real%3F.trim())return%20real.trim()%3Breturn%22unknown%22%7D__name(getClientIpFromHeaders%2C%22getClientIpFromHeaders%22)%3Bconst%20REDACTED_METADATA_KEY_FRAGMENTS%3D%5B%22token%22%2C%22email%22%2C%22secret%22%2C%22password%22%2C%22authorization%22%2C%22cookie%22%5D%3Bfunction%20redactAbuseMetadata(metadata%3D%7B%7D)%7Breturn%20Object.fromEntries(Object.entries(metadata).filter((%5Bkey%5D)%3D%3E!REDACTED_METADATA_KEY_FRAGMENTS.some(fragment%3D%3Ekey.toLowerCase().includes(fragment))))%7D__name(redactAbuseMetadata%2C%22redactAbuseMetadata%22)%3Bfunction%20computeWindowStart(now%2CwindowSeconds)%7Bconst%20windowMs%3DwindowSeconds*1e3%3Breturn%20Math.floor(now%2FwindowMs)*windowMs%7D__name(computeWindowStart%2C%22computeWindowStart%22)%3Bfunction%20createInMemoryAbuseStore()%7Bconst%20counters%3Dnew%20Map%3Breturn%7Basync%20increment(%7Bscope%2CidentifierHash%2CwindowSeconds%2Cnow%7D)%7Bconst%20mapKey%3D%60%24%7Bscope%7D%3A%3A%24%7BidentifierHash%7D%60%3Bconst%20windowStart%3DcomputeWindowStart(now%2CwindowSeconds)%3Bconst%20existing%3Dcounters.get(mapKey)%3Bif(existing%26%26existing.windowStart%3D%3D%3DwindowStart)%7Bexisting.count%2B%3D1%3Breturn%7B...existing%7D%7Dconst%20next%3D%7Bcount%3A1%2CwindowStart%7D%3Bcounters.set(mapKey%2Cnext)%3Breturn%7B...next%7D%7D%7D%7D__name(createInMemoryAbuseStore%2C%22createInMemoryAbuseStore%22)%3Bconst%20sharedInMemoryAbuseStore%3DcreateInMemoryAbuseStore()%3Bfunction%20createSupabaseAbuseStore()%7Breturn%7Basync%20increment(%7Bscope%2CidentifierHash%2CwindowSeconds%2Cnow%2Cmetadata%7D)%7Bconst%20windowStartMs%3DcomputeWindowStart(now%2CwindowSeconds)%3Bconst%20supabase%3D(0%2Cimport_privileged_access.createPrivilegedSupabaseClient)(%7BrouteId%3A%22security.abuse-protection%22%2Coperation%3A%22increment_rate_limit%22%2Creason%3A%22abuse_rate_limit_tracking%22%2CsystemActor%3A%22system%22%7D)%3Bconst%7Bdata%2Cerror%7D%3Dawait%20supabase.rpc(%22abuse_rate_limit_increment%22%2C%7Bp_scope%3Ascope%2Cp_identifier_hash%3AidentifierHash%2Cp_window_start%3Anew%20Date(windowStartMs).toISOString()%2Cp_metadata%3AredactAbuseMetadata(metadata)%7D)%3Bif(error)%7Bthrow%20new%20Error(%60Unable%20to%20increment%20abuse%20rate%20limit%3A%20%24%7Berror.message%7D%60)%7Dreturn%7Bcount%3Atypeof%20data%3D%3D%3D%22number%22%3Fdata%3ANumber(data)%2CwindowStart%3AwindowStartMs%7D%7D%7D%7D__name(createSupabaseAbuseStore%2C%22createSupabaseAbuseStore%22)%3Blet%20sharedSupabaseAbuseStore%3Dnull%3Bfunction%20selectAbuseStore()%7Bif(import_env.hasSupabaseServiceRoleEnv)%7Bif(!sharedSupabaseAbuseStore)sharedSupabaseAbuseStore%3DcreateSupabaseAbuseStore()%3Breturn%20sharedSupabaseAbuseStore%7Dreturn%20sharedInMemoryAbuseStore%7D__name(selectAbuseStore%2C%22selectAbuseStore%22)%3Basync%20function%20enforceAbuseLimit(input%2Cdeps%3D%7B%7D)%7Bconst%20now%3Ddeps.now%3F%3FDate.now%3Bconst%20identifierHash%3DhashAbuseIdentifier(input.identifier)%3Bconst%20key%3DbuildAbuseKey(%5Binput.scope%2Cinput.action%2CidentifierHash%5D)%3Bif(!Number.isFinite(input.limit)%7C%7Cinput.limit%3C%3D0%7C%7C!Number.isFinite(input.windowSeconds)%7C%7Cinput.windowSeconds%3C%3D0)%7Breturn%7Ballowed%3Afalse%2Ckey%2Creason%3A%22invalid_key%22%7D%7Dconst%20store%3Ddeps.store%3F%3FselectAbuseStore()%3Bconst%20nowMs%3Dnow()%3Bconst%20scope%3DbuildAbuseKey(%5Binput.scope%2Cinput.action%5D)%3Blet%20result%3Btry%7Bresult%3Dawait%20store.increment(%7Bscope%2CidentifierHash%2CwindowSeconds%3Ainput.windowSeconds%2Cnow%3AnowMs%2Cmetadata%3A%7Bscope%3Ainput.scope%2Caction%3Ainput.action%3F%3Fnull%2C...input.metadata%7D%7D)%7Dcatch(error)%7Bconsole.error(%22%5Babuse-protection%5D%20store_increment_failed%22%2C%7Bscope%3Ainput.scope%2Caction%3Ainput.action%3F%3Fnull%2Cerror%3Aerror%20instanceof%20Error%3Ferror.message%3A%22unknown%22%7D)%3Breturn%7Ballowed%3Afalse%2Ckey%2Creason%3A%22rate_limited%22%7D%7Dconst%20resetAt%3Dnew%20Date(result.windowStart%2Binput.windowSeconds*1e3).toISOString()%3Bif(result.count%3Einput.limit)%7Bconst%20retryAfterSeconds%3DMath.max(1%2CMath.ceil((result.windowStart%2Binput.windowSeconds*1e3-nowMs)%2F1e3))%3Bvoid(0%2Cimport_telemetry.logSecurityEvent)(%22abuse_rate_limited%22%2C%7BrouteId%3Ainput.scope%2Cmetadata%3A%7Bkey%2Caction%3Ainput.action%3F%3Fnull%2Climit%3Ainput.limit%2CwindowSeconds%3Ainput.windowSeconds%2Ccount%3Aresult.count%7D%7D)%3Breturn%7Ballowed%3Afalse%2Ckey%2Creason%3A%22rate_limited%22%2CretryAfterSeconds%2CresetAt%7D%7Dreturn%7Ballowed%3Atrue%2Ckey%2Cremaining%3AMath.max(0%2Cinput.limit-result.count)%2CresetAt%7D%7D__name(enforceAbuseLimit%2C%22enforceAbuseLimit%22)%3Bfunction%20abuseDenyResponse(decision%2Cmessage%3D%22Too%20many%20requests.%20Please%20try%20again%20later.%22)%7Bconst%20headers%3Dnew%20Headers(%7B%22content-type%22%3A%22application%2Fjson%22%7D)%3Bif(decision.retryAfterSeconds)headers.set(%22Retry-After%22%2CString(decision.retryAfterSeconds))%3Breturn%20new%20Response(JSON.stringify(%7Berror%3Amessage%2Ccode%3Adecision.reason%7D)%2C%7Bstatus%3A429%2Cheaders%7D)%7D__name(abuseDenyResponse%2C%22abuseDenyResponse%22)%3B0%26%26(module.exports%3D%7BabuseDenyResponse%2CbuildAbuseKey%2CcreateInMemoryAbuseStore%2CenforceAbuseLimit%2CgetClientIp%2CgetClientIpFromHeaders%2ChashAbuseIdentifier%2CnormalizeAbuseIdentifier%7D)%3B%0A%7D)()%0A?filePath=%2Fworkspace%2Fpmfreak%2Fsrc%2Flib%2Fsecurity%2Fabuse-protection.ts:2:5993)
+#     at async TestContext.<anonymous> (file:///workspace/pmfreak/tests/abuse-protection-boundary.test.mjs:135:17)
+#     at async Test.run (node:internal/test_runner/test:797:9)
+#     at async Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+# [billing] checkout session created {
+#   companyId: 'company-1',
+#   customerId: 'cus_existing',
+#   plan: 'pro',
+#   sessionId: 'sess_1'
+# }
+# Subtest: 1. abuse-protection-registry.ts exists and exports a non-empty registry
+ok 1 - 1. abuse-protection-registry.ts exists and exports a non-empty registry
+  ---
+  duration_ms: 1.744435
+  ...
+# Subtest: 2. registry covers public state-creating routes: trust handshake request, early-access accept, workspace invite accept
+ok 2 - 2. registry covers public state-creating routes: trust handshake request, early-access accept, workspace invite accept
+  ---
+  duration_ms: 0.5557
+  ...
+# Subtest: 3. registry covers create-checkout-session and create-portal-session
+ok 3 - 3. registry covers create-checkout-session and create-portal-session
+  ---
+  duration_ms: 0.508514
+  ...
+# Subtest: 4. registry covers workspace invite create and early-access invite create/resend
+ok 4 - 4. registry covers workspace invite create and early-access invite create/resend
+  ---
+  duration_ms: 0.600864
+  ...
+# Subtest: 5. registry covers AI/upload/evidence expensive routes
+ok 5 - 5. registry covers AI/upload/evidence expensive routes
+  ---
+  duration_ms: 0.498635
+  ...
+# Subtest: 6. hashAbuseIdentifier("secret-token") does not contain "secret-token"
+ok 6 - 6. hashAbuseIdentifier("secret-token") does not contain "secret-token"
+... [truncated for Sprint 0 evidence hygiene] ...
+ok 6044 - regression: Sprint 35R user-visible dry run evaluation harness metrics stay clean against the 79-case corpus
+  ---
+  duration_ms: 2.464644
+  ...
+# Subtest: regression: Sprint 34R response draft quality evaluation metrics stay clean against the 79-case corpus
+ok 6045 - regression: Sprint 34R response draft quality evaluation metrics stay clean against the 79-case corpus
+  ---
+  duration_ms: 1549.201114
+  ...
+# Subtest: regression: Sprint 33R response draft harness metrics stay clean against the 79-case corpus
+ok 6046 - regression: Sprint 33R response draft harness metrics stay clean against the 79-case corpus
+  ---
+  duration_ms: 1547.053447
+  ...
+# Subtest: regression: Sprint 32R response QA plan metrics stay clean against the 79-case corpus
+ok 6047 - regression: Sprint 32R response QA plan metrics stay clean against the 79-case corpus
+  ---
+  duration_ms: 1558.530033
+  ...
+# Subtest: regression: Sprint 31R clarification-gated integration plan metrics stay clean against the 79-case corpus
+ok 6048 - regression: Sprint 31R clarification-gated integration plan metrics stay clean against the 79-case corpus
+  ---
+  duration_ms: 1124.451254
+  ...
+# Subtest: regression: Sprint 30R controlled replay metrics stay clean against the 79-case corpus
+ok 6049 - regression: Sprint 30R controlled replay metrics stay clean against the 79-case corpus
+  ---
+  duration_ms: 598.278871
+  ...
+# Subtest: regression: Sprint 29R persistence readiness baseline matches the documented Sprint 29R result
+ok 6050 - regression: Sprint 29R persistence readiness baseline matches the documented Sprint 29R result
+  ---
+  duration_ms: 243.219009
+  ...
+# Subtest: regression: Sprint 28R fake adapter metrics stay clean against the 79-case corpus
+ok 6051 - regression: Sprint 28R fake adapter metrics stay clean against the 79-case corpus
+  ---
+  duration_ms: 169.095169
+  ...
+# Subtest: regression: Sprint 27R adapter plan metrics stay clean against the 79-case corpus
+ok 6052 - regression: Sprint 27R adapter plan metrics stay clean against the 79-case corpus
+  ---
+  duration_ms: 95.694347
+  ...
+# Subtest: regression: Sprint 26R storage policy metrics stay clean against the 79-case corpus
+ok 6053 - regression: Sprint 26R storage policy metrics stay clean against the 79-case corpus
+  ---
+  duration_ms: 23.544094
+  ...
+# Subtest: regression: Sprint 25R shadow capture harness metrics stay clean against the 79-case corpus
+ok 6054 - regression: Sprint 25R shadow capture harness metrics stay clean against the 79-case corpus
+  ---
+  duration_ms: 17.780195
+  ...
+# Subtest: regression: Sprint 24R shadow mode prep metrics stay clean against the 79-case corpus
+ok 6055 - regression: Sprint 24R shadow mode prep metrics stay clean against the 79-case corpus
+  ---
+  duration_ms: 82.26813
+  ...
+# Subtest: regression: Sprint 22R clarification response evaluation still runs cleanly
+ok 6056 - regression: Sprint 22R clarification response evaluation still runs cleanly
+  ---
+  duration_ms: 18.100606
+  ...
+# Subtest: regression: golden intent compatibilityRate is unaffected by this sprint
+ok 6057 - regression: golden intent compatibilityRate is unaffected by this sprint
+  ---
+  duration_ms: 14.228987
+  ...
+# Subtest: this module does not import router/composer/production handlers/endpoint/db/gmail/fetch
+ok 6058 - this module does not import router/composer/production handlers/endpoint/db/gmail/fetch
+  ---
+  duration_ms: 1.337685
+  ...
+# Subtest: this module never imports intentCompatibilityAdapter.ts, intentClassifier.rules.ts, or intent-patterns.ts
+ok 6059 - this module never imports intentCompatibilityAdapter.ts, intentClassifier.rules.ts, or intent-patterns.ts
+  ---
+  duration_ms: 0.754807
+  ...
+# Subtest: no feature flag / env read is ever performed by this sprint
+ok 6060 - no feature flag / env read is ever performed by this sprint
+  ---
+  duration_ms: 0.493006
+  ...
+# Subtest: no database/migration/storage-adapter vocabulary appears as executable code (only as string literals/docs)
+ok 6061 - no database/migration/storage-adapter vocabulary appears as executable code (only as string literals/docs)
+  ---
+  duration_ms: 0.747693
+  ...
+# Subtest: this module never calls the system clock (no bare Date.now()/new Date()) or an LLM
+ok 6062 - this module never calls the system clock (no bare Date.now()/new Date()) or an LLM
+  ---
+  duration_ms: 0.700365
+  ...
+# Subtest: this module never imports from tests/fixtures/
+ok 6063 - this module never imports from tests/fixtures/
+  ---
+  duration_ms: 0.541118
+  ...
+# Subtest: this module never actually implements or activates a feature flag (no true literal assigned to a feature-flag-shaped field)
+ok 6064 - this module never actually implements or activates a feature flag (no true literal assigned to a feature-flag-shaped field)
+  ---
+  duration_ms: 0.586564
+  ...
+# Subtest: decision-support/index.ts barrel is not re-exported from the production conversation barrel
+ok 6065 - decision-support/index.ts barrel is not re-exported from the production conversation barrel
+  ---
+  duration_ms: 0.420614
+  ...
+# Subtest: no migration/SQL/table file was created by this sprint
+ok 6066 - no migration/SQL/table file was created by this sprint
+  ---
+  duration_ms: 0.634695
+  ...
+# Subtest: no feature flag implementation file was created by this sprint
+ok 6067 - no feature flag implementation file was created by this sprint
+  ---
+  duration_ms: 0.465619
+  ...
+exit:124 duration:240s

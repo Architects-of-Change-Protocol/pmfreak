@@ -1,0 +1,4 @@
+v20.20.2
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+11.4.2
+0.34.6

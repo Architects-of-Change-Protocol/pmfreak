@@ -1,0 +1,501 @@
+AI SEARCH
+src/proxy.ts:61:      const decision = resolvePostAuthDestination({
+src/proxy.ts:67:      return NextResponse.redirect(new URL(decision.destination, request.url));
+scripts/check-compatibility-governance.mjs:5:  ['src/aoc/protocol/package.json', ['.', './contracts']],
+scripts/check-compatibility-governance.mjs:6:  ['src/aoc/enterprise/package.json', ['.', './runtime']]
+scripts/check-no-local-authority-bypass.mjs:5: * final authorization decisions locally instead of delegating to the AOC Enterprise Runtime.
+scripts/check-no-local-authority-bypass.mjs:22:// Files explicitly allowed to call evaluatePolicyDecision because their result is
+scripts/check-no-local-authority-bypass.mjs:27:  "src/lib/aoc/adapters/policy-evaluation.ts",   // the adapter implementation itself
+scripts/check-no-local-authority-bypass.mjs:34:  "src/aoc/enterprise/",   // AOC Enterprise Runtime package internals
+scripts/check-no-local-authority-bypass.mjs:35:  "src/aoc/protocol/",     // AOC Protocol definitions and port contracts
+scripts/check-no-local-authority-bypass.mjs:42:  "src/lib/security/agent-access.ts",
+scripts/check-no-local-authority-bypass.mjs:49:  "src/app/api/sdk/agents/route.ts",
+scripts/check-no-local-authority-bypass.mjs:50:  "src/app/api/sdk/agents/[id]/route.ts",
+scripts/check-no-local-authority-bypass.mjs:51:  "src/app/api/sdk/agents/scopes/route.ts",
+scripts/check-no-local-authority-bypass.mjs:52:  "src/app/api/sdk/audit/agents/route.ts",
+scripts/check-no-local-authority-bypass.mjs:112:    // Rule 1: evaluatePolicyDecision used outside allowlisted files → likely a local authority bypass.
+scripts/check-no-local-authority-bypass.mjs:113:    if (/evaluatePolicyDecision\(/.test(line) && !POLICY_EVAL_ALLOWLIST.has(relPath)) {
+scripts/check-no-local-authority-bypass.mjs:114:      error(relPath, lineNo, "evaluatePolicyDecision() called outside allowed files. Route local policy results through authorizeRuntimeAction instead.");
+scripts/check-no-local-authority-bypass.mjs:122:    // Rule 3: Explicit 'allowed: true' return without a preceding runtime decision reference.
+scripts/check-no-local-authority-bypass.mjs:125:      // Check surrounding context (5 lines back) for runtime decision reference.
+scripts/check-no-local-authority-bypass.mjs:127:      if (!/authorizeRuntimeAction|runtimeDecision|decision\.allowed/.test(context)) {
+scripts/check-no-local-authority-bypass.mjs:128:        warn(relPath, lineNo, "Possible local allow return without runtime decision context. Verify this is not a final authorization decision.");
+scripts/check-no-local-authority-bypass.mjs:132:    // Rule 4: Catch block that RETURNS an allow decision → permissive fallback.
+scripts/check-no-local-authority-bypass.mjs:154:      if (/return\s*\{[\s\S]*allowed:\s*true|return\s*\{[\s\S]*decision:\s*["']allow["']/.test(catchBody)) {
+scripts/check-no-local-authority-bypass.mjs:155:        error(relPath, lineNo, "Catch block returns an allow decision — permissive fallback detected. Must fail closed on error.");
+scripts/check-no-local-authority-bypass.mjs:159:    // Rule 5: ROLE_PERMISSION_MAP used outside rbac.ts in a final-decision context.
+scripts/check-no-local-authority-bypass.mjs:164:    // Rule 6: Direct grant insert without runtime decision reference nearby.
+scripts/check-no-local-authority-bypass.mjs:167:      if (!/authorizeRuntimeAction|runtimeDecision|requireWorkspaceRole|requireGovernancePermission/.test(context)) {
+scripts/check-no-local-authority-bypass.mjs:174:// Verify SDK governance routes each call authorizeRuntimeAction and check decision.allowed.
+scripts/check-no-local-authority-bypass.mjs:187:  if (!src.includes("decision.allowed")) {
+scripts/check-no-local-authority-bypass.mjs:188:    error(relPath, 0, "SDK governance route does not check decision.allowed. Must gate data access on runtime authorization result.");
+scripts/check-no-local-authority-bypass.mjs:205:    error(relPath, 0, "Critical auth file does not call authorizeRuntimeAction. Must delegate to AOC Enterprise Runtime.");
+scripts/check-runtime-hardening.mjs:128:// ── recovery recommendations only (no automated fixes) ───────────────────────
+scripts/check-governance-typing.mjs:3:  'src/aoc/enterprise/runtime/external-authority-adapter.ts',
+scripts/check-governance-typing.mjs:4:  'src/aoc/enterprise/runtime/delegated-capabilities-bridge.ts',
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:1:import type { PMFreakAocDecisionInboxItem } from "./pmfreak-aoc-decision-inbox-types";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:2:import type { PMFreakAocGateResultUIDisplayModel } from "./pmfreak-aoc-gate-result-ui-display-model";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:3:import type { PMFreakAocGovernanceResponse } from "./pmfreak-aoc-governance-response";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:4:import type { PMFreakAocGovernedActionGateResult } from "./pmfreak-aoc-governed-action-gate-result";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:5:import type { PMFreakAocEvidenceRequirementHandoffConfig } from "./pmfreak-aoc-evidence-requirement-handoff-config";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:6:import { createPMFreakAocEvidenceRequirementHandoffFromDecisionInboxItem } from "./pmfreak-aoc-evidence-requirement-handoff-from-inbox-item";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:7:import { createPMFreakAocEvidenceRequirementHandoffFromGateResult } from "./pmfreak-aoc-evidence-requirement-handoff-from-gate-result";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:8:import { createPMFreakAocEvidenceRequirementHandoffFromGovernanceResponse } from "./pmfreak-aoc-evidence-requirement-handoff-from-response";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:9:import { createPMFreakAocEvidenceRequirementHandoffFromGateResultUIDisplayModel } from "./pmfreak-aoc-evidence-requirement-handoff-from-ui-display";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:10:import type { PMFreakAocEvidenceRequirementHandoffPackage } from "./pmfreak-aoc-evidence-requirement-handoff-package";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:12:export type PMFreakAocEvidenceRequirementHandoffBatchInput = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:13:  responses?: PMFreakAocGovernanceResponse[];
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:14:  inboxItems?: PMFreakAocDecisionInboxItem[];
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:15:  gateResults?: PMFreakAocGovernedActionGateResult[];
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:16:  displayModels?: PMFreakAocGateResultUIDisplayModel[];
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:17:  config?: Partial<PMFreakAocEvidenceRequirementHandoffConfig>;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:22:// displayModels — each list processed via its own builder, in input
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:23:// array order. No AOC calls, no evidence attachment, no task creation,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:25:export function batchCreatePMFreakAocEvidenceRequirementHandoffs(
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:26:  input: PMFreakAocEvidenceRequirementHandoffBatchInput,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:27:): PMFreakAocEvidenceRequirementHandoffPackage[] {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:28:  const handoffs: PMFreakAocEvidenceRequirementHandoffPackage[] = [];
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:31:    handoffs.push(createPMFreakAocEvidenceRequirementHandoffFromGateResult({ gateResult, config: input.config }));
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:35:    handoffs.push(createPMFreakAocEvidenceRequirementHandoffFromDecisionInboxItem({ inboxItem, config: input.config }));
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:39:    handoffs.push(createPMFreakAocEvidenceRequirementHandoffFromGovernanceResponse({ response, config: input.config }));
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:42:  for (const displayModel of input.displayModels ?? []) {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-batch.ts:43:    handoffs.push(createPMFreakAocEvidenceRequirementHandoffFromGateResultUIDisplayModel({ displayModel, config: input.config }));
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-types.ts:1:export type PMFreakAocRemoteGovernanceAuthMode =
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-types.ts:4:  | "bearer_token"
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-claim-safety.ts:1:import { PMFREAK_AOC_GOVERNED_ACTION_GATE_CLAIM_SAFE_PHRASES, PMFREAK_AOC_GOVERNED_ACTION_GATE_PROHIBITED_OVERCLAIM_PHRASES } from "./pmfreak-aoc-governed-action-gate-claim-safety";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-claim-safety.ts:2:import { PMFreakAocGovernanceClientError } from "./pmfreak-aoc-errors";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-claim-safety.ts:5:// module's phrase corpus (which itself extends the decision inbox and
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-claim-safety.ts:9:export const PMFREAK_AOC_GATE_RESULT_UI_PROHIBITED_OVERCLAIM_PHRASES = [
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-claim-safety.ts:10:  ...PMFREAK_AOC_GOVERNED_ACTION_GATE_PROHIBITED_OVERCLAIM_PHRASES,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-claim-safety.ts:11:  "fully trusted agent",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-claim-safety.ts:43:export const PMFREAK_AOC_GATE_RESULT_UI_CLAIM_SAFE_PHRASES = [
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-claim-safety.ts:44:  ...PMFREAK_AOC_GOVERNED_ACTION_GATE_CLAIM_SAFE_PHRASES,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-claim-safety.ts:45:  "AOC gate result UI",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-claim-safety.ts:51:export type PMFreakAocGateResultUIClaimSafetyResult = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-claim-safety.ts:57:export function evaluatePMFreakAocGateResultUIClaimSafety(value: unknown): PMFreakAocGateResultUIClaimSafetyResult {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-claim-safety.ts:59:  const unsafePhrases = PMFREAK_AOC_GATE_RESULT_UI_PROHIBITED_OVERCLAIM_PHRASES.filter((phrase) => checkedText.includes(phrase));
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-claim-safety.ts:63:export function assertNoPMFreakAocGateResultUIOverclaim(value: unknown): void {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-claim-safety.ts:64:  const result = evaluatePMFreakAocGateResultUIClaimSafety(value);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-claim-safety.ts:66:    throw new PMFreakAocGovernanceClientError("unsafe_claim", `Output contains prohibited overclaim phrase(s): ${result.unsafePhrases.join(", ")}`, {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-summary.ts:1:import type { PMFreakAocGovernanceDecision, PMFreakAocGovernanceDecisionSeverity, PMFreakAocGovernanceResponse } from "./pmfreak-aoc-governance-response";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-summary.ts:3:const NEXT_STEPS: Record<PMFreakAocGovernanceDecision, string> = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-summary.ts:4:  allow: "AOC governance response indicates this request context was allowed. Do not treat this as proof of production execution.",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-summary.ts:16:export type PMFreakAocGovernanceDecisionSummary = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-summary.ts:17:  decision: PMFreakAocGovernanceDecision;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-summary.ts:18:  decisionLabel: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-summary.ts:19:  severity: PMFreakAocGovernanceDecisionSeverity;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-summary.ts:25:export function createPMFreakAocGovernanceDecisionSummary(
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-summary.ts:26:  response: PMFreakAocGovernanceResponse,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-summary.ts:27:): PMFreakAocGovernanceDecisionSummary {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-summary.ts:29:    decision: response.decision,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-summary.ts:30:    decisionLabel: response.decisionLabel,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-summary.ts:31:    severity: response.decisionSeverity,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-summary.ts:33:    nextStep: NEXT_STEPS[response.decision],
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-no-task-guard.ts:2:  PMFREAK_AOC_EVIDENCE_REQUIREMENT_HANDOFF_ID,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-no-task-guard.ts:3:  PMFREAK_AOC_EVIDENCE_REQUIREMENT_HANDOFF_TASK_FORBIDDEN_OPERATIONS,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-no-task-guard.ts:4:} from "./pmfreak-aoc-evidence-requirement-handoff-constants";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-no-task-guard.ts:5:import { PMFreakAocGovernanceClientError } from "./pmfreak-aoc-errors";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-no-task-guard.ts:7:export function isPMFreakAocEvidenceRequirementHandoffForbiddenTaskOperation(operationName: string): boolean {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-no-task-guard.ts:8:  return (PMFREAK_AOC_EVIDENCE_REQUIREMENT_HANDOFF_TASK_FORBIDDEN_OPERATIONS as readonly string[]).includes(operationName);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-no-task-guard.ts:14:export function assertPMFreakAocEvidenceRequirementHandoffDoesNotCreateTasks(operationName: string): void {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-no-task-guard.ts:15:  if (isPMFreakAocEvidenceRequirementHandoffForbiddenTaskOperation(operationName)) {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-no-task-guard.ts:16:    throw new PMFreakAocGovernanceClientError(
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-no-task-guard.ts:18:      `Operation "${operationName}" is forbidden for ${PMFREAK_AOC_EVIDENCE_REQUIREMENT_HANDOFF_ID}: PMFreak Evidence Requirement Handoff v1 is handoff-only and does not create tasks.`,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-error-state.ts:1:import { redactPMFreakAocEvidenceRequirementHandoffValue } from "./pmfreak-aoc-evidence-requirement-handoff-redaction";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-error-state.ts:3:export type PMFreakAocEvidenceRequirementHandoffErrorState = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-error-state.ts:14:// caller-supplied error string can never leak an email/token/secret/
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-error-state.ts:15:// bearer-token/connection-string/file-path into the display layer.
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-error-state.ts:16:export function createPMFreakAocEvidenceRequirementHandoffErrorState(message?: string): PMFreakAocEvidenceRequirementHandoffErrorState {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-error-state.ts:17:  const safeMessage = message ? (redactPMFreakAocEvidenceRequirementHandoffValue(message, "safe_demo") as string) : DEFAULT_ERROR_MESSAGE;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-redaction.ts:1:import { redactPMFreakAocGovernancePayloadValue } from "./pmfreak-aoc-redaction";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-redaction.ts:2:import type { PMFreakAocDecisionInboxRedactionMode } from "./pmfreak-aoc-decision-inbox-config";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-redaction.ts:20:// Reuses the base module's deterministic redaction (email/token/secret
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-redaction.ts:26:export function redactPMFreakAocDecisionInboxValue(value: unknown, mode: PMFreakAocDecisionInboxRedactionMode): unknown {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-redaction.ts:27:  const redacted = redactPMFreakAocGovernancePayloadValue(value, mode);
+scripts/seed-operational-flow-demo.mjs:17:const db = createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+scripts/seed-operational-flow-demo.mjs:33:  const created = await db.from("projects").insert({ workspace_id: workspaceId, user_id: actorUserId, name: "Demo Project — Client Scope Alignment", description: "Auditable PMFreak evidence-to-decision demonstration.", onboarding_payload: { demoScenarioKey: SCENARIO_KEY, demo: true } }).select("id,name,onboarding_payload").single();
+scripts/seed-operational-flow-demo.mjs:38:const ids = Object.fromEntries(["evidence","scopeSignal","approvalSignal","change","decisionNeeded","scopeGovernance","approvalGovernance","scopeRecommendation","approvalRecommendation","decision","run","output","link"].map((name) => [name, stableId(name)]));
+scripts/seed-operational-flow-demo.mjs:42:  const riskIds = [ids.change, ids.decisionNeeded];
+scripts/seed-operational-flow-demo.mjs:44:  const recommendationIds = [ids.scopeRecommendation, ids.approvalRecommendation];
+scripts/seed-operational-flow-demo.mjs:46:    ["decision_evidence_links", "decision_record_id", [ids.decision]],
+scripts/seed-operational-flow-demo.mjs:47:    ["operational_decision_records", "id", [ids.decision]],
+scripts/seed-operational-flow-demo.mjs:48:    ["recommended_actions", "id", recommendationIds],
+scripts/seed-operational-flow-demo.mjs:52:    ["agent_outputs", "agent_run_id", [ids.run]],
+scripts/seed-operational-flow-demo.mjs:53:    ["agent_runs", "id", [ids.run]],
+scripts/seed-operational-flow-demo.mjs:67:    db.from("risk_issue_records").select("id", { count: "exact", head: true }).in("id", [ids.change, ids.decisionNeeded]),
+scripts/seed-operational-flow-demo.mjs:69:    db.from("recommended_actions").select("id", { count: "exact", head: true }).in("id", [ids.scopeRecommendation, ids.approvalRecommendation]),
+scripts/seed-operational-flow-demo.mjs:70:    db.from("operational_decision_records").select("id", { count: "exact", head: true }).eq("id", ids.decision),
+scripts/seed-operational-flow-demo.mjs:71:    db.from("decision_evidence_links").select("id", { count: "exact", head: true }).eq("decision_record_id", ids.decision),
+scripts/seed-operational-flow-demo.mjs:72:    db.from("agent_runs").select("id", { count: "exact", head: true }).eq("id", ids.run),
+scripts/seed-operational-flow-demo.mjs:73:    db.from("agent_outputs").select("id", { count: "exact", head: true }).eq("id", ids.output),
+scripts/seed-operational-flow-demo.mjs:74:    db.from("recommended_actions").select("status,decided_by").eq("id", ids.scopeRecommendation).maybeSingle(),
+scripts/seed-operational-flow-demo.mjs:79:  const recommendationComplete = checks[8].data?.status === "accepted" && checks[8].data?.decided_by === actorUserId;
+scripts/seed-operational-flow-demo.mjs:81:  const complete = !reset && countsComplete && recommendationComplete && evidenceComplete;
+scripts/seed-operational-flow-demo.mjs:83:    console.log(JSON.stringify({ ok: true, disposition, projectDisposition, workspaceId, projectId, scenarioKey: SCENARIO_KEY, commandCenterUrl: `/command-center?projectId=${projectId}`, counts: { evidence: 1, signals: 2, risksIssues: 2, governanceEvents: 2, recommendations: 2, decisions: 1, evidenceLinks: 1 } }, null, 2));
+scripts/seed-operational-flow-demo.mjs:100:  { id: ids.decisionNeeded, workspace_id: workspaceId, project_id: projectId, signal_id: ids.approvalSignal, type: "decision_needed", title: "Formal approval required", description: "Execution was requested before formal approval.", severity: "high", probability: "high", impact: "high", owner_user_id: actorUserId, status: "open" },
+scripts/seed-operational-flow-demo.mjs:103:  { id: ids.scopeGovernance, workspace_id: workspaceId, project_id: projectId, related_entity_type: "risk_issue_record", related_entity_id: ids.change, rule_key: "scope_authority_v1", authority_required: "sponsor or PMO", evidence_required: true, governance_status: "decision_required", explanation: "A scope change requires sponsor or PMO authority and a traceable decision before execution." },
+scripts/seed-operational-flow-demo.mjs:104:  { id: ids.approvalGovernance, workspace_id: workspaceId, project_id: projectId, related_entity_type: "risk_issue_record", related_entity_id: ids.decisionNeeded, rule_key: "approval_required_v1", authority_required: "authorized approver", evidence_required: true, governance_status: "decision_required", explanation: "Formal approval is missing; work must not proceed until an authorized human decides." },
+scripts/seed-operational-flow-demo.mjs:106:const recommendation = "Request formal scope and approval confirmation before executing the requested work.";
+scripts/seed-operational-flow-demo.mjs:107:fail("create_demo_recommendations", (await db.from("recommended_actions").insert([
+scripts/seed-operational-flow-demo.mjs:108:  { id: ids.scopeRecommendation, workspace_id: workspaceId, project_id: projectId, governance_event_id: ids.scopeGovernance, risk_issue_id: ids.change, title: "Confirm scope before execution", description: recommendation, recommendation, recommended_action_type: "validate_scope", status: "proposed", confidence_score: 92, impact_level: "high", rationale: { method: "deterministic_rule_v1" }, urgency: "high", evidence_summary: { evidenceItemId: ids.evidence, evidenceHash: evidence.evidence_hash, evidenceVersion: evidence.version, signalId: ids.scopeSignal }, source_signal_id: ids.scopeSignal, fingerprint: createHash("sha256").update(`${workspaceId}:${ids.scopeGovernance}`).digest("hex"), decision_reason: "Do not execute until formal confirmation is received.", decided_by: actorUserId, decided_at: new Date().toISOString() },
+scripts/seed-operational-flow-demo.mjs:109:  { id: ids.approvalRecommendation, workspace_id: workspaceId, project_id: projectId, governance_event_id: ids.approvalGovernance, risk_issue_id: ids.decisionNeeded, title: "Obtain formal approval", description: recommendation, recommendation, recommended_action_type: "request_approval", status: "proposed", confidence_score: 95, impact_level: "high", rationale: { method: "deterministic_rule_v1" }, urgency: "high", evidence_summary: { evidenceItemId: ids.evidence, evidenceHash: evidence.evidence_hash, evidenceVersion: evidence.version, signalId: ids.approvalSignal }, source_signal_id: ids.approvalSignal, fingerprint: createHash("sha256").update(`${workspaceId}:${ids.approvalGovernance}`).digest("hex") },
+scripts/seed-operational-flow-demo.mjs:112:fail("create_demo_decision", (await db.from("operational_decision_records").insert({ id: ids.decision, workspace_id: workspaceId, project_id: projectId, recommendation_id: ids.scopeRecommendation, governance_event_id: ids.scopeGovernance, decided_by: actorUserId, decision: "Accept recommendation: obtain formal confirmation before execution.", decision_status: "accepted", rationale: "Protect scope, schedule and commercial position before committing delivery capacity.", authority_basis: authorityEvaluation.authority_basis, authority_evaluation: authorityEvaluation })).error);
+scripts/seed-operational-flow-demo.mjs:113:fail("link_demo_evidence", (await db.from("decision_evidence_links").insert({ id: ids.link, decision_record_id: ids.decision, evidence_item_id: ids.evidence, link_reason: "Client email contains the out-of-scope request and absence of formal approval.", evidence_hash_at_decision: evidence.evidence_hash, evidence_version_at_decision: evidence.version, evidence_title_snapshot: evidence.title, evidence_source_reference_snapshot: evidence.source_reference })).error);
+scripts/seed-operational-flow-demo.mjs:114:fail("transition_demo_recommendation", (await db.from("recommended_actions").update({ status: "accepted", decision_reason: "Do not execute until formal confirmation is received.", decided_by: actorUserId, decided_at: new Date().toISOString() }).eq("id", ids.scopeRecommendation)).error);
+scripts/seed-operational-flow-demo.mjs:115:fail("create_demo_run", (await db.from("agent_runs").insert({ id: ids.run, workspace_id: workspaceId, project_id: projectId, agent_key: "system/deterministic:governance_signal_detector_v1", input_summary: "Client request for out-of-scope activity", status: "completed" })).error);
+scripts/seed-operational-flow-demo.mjs:116:fail("create_demo_output", (await db.from("agent_outputs").insert({ id: ids.output, agent_run_id: ids.run, output_type: "operational_chain", output_payload: { detectorKind: "system/deterministic", scenarioKey: SCENARIO_KEY, signalIds: [ids.scopeSignal, ids.approvalSignal] } })).error);
+scripts/seed-operational-flow-demo.mjs:118:console.log(JSON.stringify({ ok: true, disposition, projectDisposition, workspaceId, projectId, scenarioKey: SCENARIO_KEY, commandCenterUrl: `/command-center?projectId=${projectId}`, counts: { evidence: 1, signals: 2, risksIssues: 2, governanceEvents: 2, recommendations: 2, decisions: 1, evidenceLinks: 1 } }, null, 2));
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:1:import { PMFREAK_AOC_GOVERNANCE_CLIENT_DISCLAIMERS, PMFREAK_AOC_GOVERNANCE_SAFE_LABELS } from "./pmfreak-aoc-governance-client-constants";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:2:import type { PMFreakAocGovernanceRequest } from "./pmfreak-aoc-governance-request";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:4:  PMFreakAocGovernanceDecision,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:5:  PMFreakAocGovernanceDecisionSeverity,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:6:  PMFreakAocGovernanceResponse,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:7:  PMFreakAocGovernanceResponseTraceStep,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:8:} from "./pmfreak-aoc-governance-response";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:9:import { validatePMFreakAocGovernanceRequest } from "./pmfreak-aoc-request-validator";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:10:import type { PMFreakAocGovernanceTransport } from "./pmfreak-aoc-transport";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:12:const DECISION_LABELS: Record<PMFreakAocGovernanceDecision, string> = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:25:const DECISION_SEVERITY: Record<PMFreakAocGovernanceDecision, PMFreakAocGovernanceDecisionSeverity> = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:47:export function buildPMFreakAocGovernanceResponseId(requestId: string): string {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:48:  return `pmfreak.aoc.response.${toSafeIdSegment(requestId)}.v1`;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:55:export type PMFreakAocLocalMockGovernanceTransportOptions = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:56:  forcedDecision?: PMFreakAocGovernanceDecision;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:57:  responseMap?: Record<string, Partial<PMFreakAocGovernanceResponse>>;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:60:// Deterministic decision rules, evaluated in order (most specific first):
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:72:function computeDecision(request: PMFreakAocGovernanceRequest): { decision: PMFreakAocGovernanceDecision; reasonCodes: string[]; trace: PMFreakAocGovernanceResponseTraceStep[] } {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:73:  const trace: PMFreakAocGovernanceResponseTraceStep[] = [];
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:74:  const validation = validatePMFreakAocGovernanceRequest(request);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:84:    return { decision: "deny", reasonCodes: ["invalid_request"], trace };
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:95:    return { decision: "deny", reasonCodes: ["cancelled_action_attempt"], trace };
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:114:    return { decision: "require_evidence", reasonCodes: ["billing_missing_evidence"], trace };
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:124:    return { decision: "require_billing_review", reasonCodes: ["billing_missing_billing_review"], trace };
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:137:    return { decision: "require_evidence", reasonCodes: ["missing_evidence"], trace };
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:140:  const approvalRules: Array<{ kind: string; decision: PMFreakAocGovernanceDecision; reasonCode: string }> = [
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:141:    { kind: "pm_approval", decision: "require_pm_approval", reasonCode: "missing_pm_approval" },
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:142:    { kind: "customer_validation", decision: "require_customer_validation", reasonCode: "missing_customer_validation" },
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:143:    { kind: "contract_review", decision: "require_contract_review", reasonCode: "missing_contract_review" },
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:144:    { kind: "security_review", decision: "require_security_review", reasonCode: "missing_security_review" },
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:145:    { kind: "executive_approval", decision: "require_executive_approval", reasonCode: "missing_executive_approval" },
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:157:      return { decision: rule.decision, reasonCodes: [rule.reasonCode], trace };
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:162:    stepId: "final_decision",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:163:    label: "Final decision",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:168:  return { decision: "allow", reasonCodes: ["no_blocking_conditions"], trace };
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:171:function buildSafeSummary(decision: PMFreakAocGovernanceDecision, request: PMFreakAocGovernanceRequest): string {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:173:  switch (decision) {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:175:      return `AOC governance (local mock) evaluated "${actionTitle}" and found no blocking conditions in this request context.`;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:177:      return `AOC governance (local mock) evaluated "${actionTitle}" and this request context is denied.`;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:179:      return `AOC governance (local mock) evaluated "${actionTitle}" and placed this request context on hold.`;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:181:      return `AOC governance (local mock) evaluated "${actionTitle}" and found missing evidence references.`;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:183:      return `AOC governance (local mock) evaluated "${actionTitle}" and found a missing billing review approval.`;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:185:      return `AOC governance (local mock) evaluated "${actionTitle}" and found a missing PM approval.`;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:187:      return `AOC governance (local mock) evaluated "${actionTitle}" and found a missing customer validation approval.`;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:189:      return `AOC governance (local mock) evaluated "${actionTitle}" and found a missing contract review approval.`;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:191:      return `AOC governance (local mock) evaluated "${actionTitle}" and found a missing security review approval.`;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:193:      return `AOC governance (local mock) evaluated "${actionTitle}" and found a missing executive approval.`;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:195:      return `AOC governance (local mock) evaluated "${actionTitle}".`;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:199:// Explicitly labeled `local_mock_aoc` — this is a deterministic PMFreak-side
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:200:// stand-in for AOC Governance, not production AOC.
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:201:export function createLocalMockPMFreakAocGovernanceTransport(
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:202:  options?: PMFreakAocLocalMockGovernanceTransportOptions,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:203:): PMFreakAocGovernanceTransport {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:206:    async evaluateGovernanceRequest(request: PMFreakAocGovernanceRequest): Promise<PMFreakAocGovernanceResponse> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:207:      const { decision: computedDecision, reasonCodes, trace } = computeDecision(request);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:208:      const decision = options?.forcedDecision ?? computedDecision;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:210:      const responseId = buildPMFreakAocGovernanceResponseId(request.requestId);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:212:      const response: PMFreakAocGovernanceResponse = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:217:        evaluatedBy: "local_mock_aoc",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:218:        decision,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:219:        decisionLabel: DECISION_LABELS[decision],
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:220:        decisionSeverity: DECISION_SEVERITY[decision],
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:222:        safeSummary: buildSafeSummary(decision, request),
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:230:        safeLabels: [...PMFREAK_AOC_GOVERNANCE_SAFE_LABELS],
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-local-governance-transport.ts:231:        disclaimers: ["This decision was produced by a deterministic local/mock AOC governance transport, not production AOC.", ...PMFREAK_AOC_GOVERNANCE_CLIENT_DISCLAIMERS],
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:1:import type { PMFreakAocDecisionInboxItem } from "./pmfreak-aoc-decision-inbox-types";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:3:export type PMFreakAocDecisionInboxSummary = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:5:  byDecision: Record<string, number>;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:6:  byDecisionStatus: Record<string, number>;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:34:export function summarizePMFreakAocDecisionInboxItems(items: PMFreakAocDecisionInboxItem[]): PMFreakAocDecisionInboxSummary {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:35:  const byDecision: Record<string, number> = {};
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:36:  const byDecisionStatus: Record<string, number> = {};
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:53:    increment(byDecision, item.decision);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:54:    increment(byDecisionStatus, item.decisionStatus);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:55:    increment(bySeverity, item.decisionSeverity);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:59:    if (item.decisionStatus === "allowed") allowedCount += 1;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:60:    if (item.decisionStatus === "blocked") blockedCount += 1;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:61:    if (item.decisionStatus === "held") heldCount += 1;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:62:    if (item.decisionStatus === "needs_evidence") needsEvidenceCount += 1;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:63:    if (NEEDS_APPROVAL_STATUSES.has(item.decisionStatus)) needsApprovalCount += 1;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:64:    if (item.decisionStatus === "needs_billing_review") needsBillingReviewCount += 1;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:65:    if (item.decisionStatus === "needs_contract_review") needsContractReviewCount += 1;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:66:    if (item.decisionStatus === "needs_security_review") needsSecurityReviewCount += 1;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:74:    byDecision,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-decision-inbox-summary.ts:75:    byDecisionStatus,
+scripts/check-beta-release.mjs:16://   * build:aoc runs FIRST — @aoc/protocol and @aoc-enterprise/runtime dist/
+scripts/check-beta-release.mjs:35:  { name: "AOC Packages Build", command: "npm run build:aoc", severity: "blocking" },
+scripts/check-beta-release.mjs:88:const decision = blockingFailure ? "NO-GO" : results.some((r) => r.status !== "PASS") ? "CONDITIONAL GO" : "GO";
+scripts/check-beta-release.mjs:90:console.log(`\nDecision: ${decision}`);
+scripts/check-beta-release.mjs:91:if (!blockingFailure && decision === "CONDITIONAL GO") {
+scripts/check-beta-release.mjs:98:  JSON.stringify({ generatedAt: new Date().toISOString(), decision, results }, null, 2),
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:2:  PMFREAK_AOC_GOVERNED_ACTION_GATE_CAPABILITIES,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:3:  PMFREAK_AOC_GOVERNED_ACTION_GATE_DISCLAIMERS,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:4:  PMFREAK_AOC_GOVERNED_ACTION_GATE_FORBIDDEN_OPERATIONS,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:5:  PMFREAK_AOC_GOVERNED_ACTION_GATE_ID,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:6:  PMFREAK_AOC_GOVERNED_ACTION_GATE_NAME,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:7:  PMFREAK_AOC_GOVERNED_ACTION_GATE_SAFE_LABELS,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:8:} from "./pmfreak-aoc-governed-action-gate-constants";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:10:export type PMFreakAocGovernedActionGateDescriptor = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:15:  runtimeDirection: "pmfreak_consumes_aoc_governance";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:21:  decisionWritebackCapable: false;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:33:export function createPMFreakAocGovernedActionGateDescriptor(): PMFreakAocGovernedActionGateDescriptor {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:35:    featureId: PMFREAK_AOC_GOVERNED_ACTION_GATE_ID,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:36:    featureName: PMFREAK_AOC_GOVERNED_ACTION_GATE_NAME,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:39:    runtimeDirection: "pmfreak_consumes_aoc_governance",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:45:    decisionWritebackCapable: false,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:51:    capabilities: Object.values(PMFREAK_AOC_GOVERNED_ACTION_GATE_CAPABILITIES),
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:52:    forbiddenOperations: [...PMFREAK_AOC_GOVERNED_ACTION_GATE_FORBIDDEN_OPERATIONS],
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:53:    safeLabels: [...PMFREAK_AOC_GOVERNED_ACTION_GATE_SAFE_LABELS],
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-descriptor.ts:54:    disclaimers: [...PMFREAK_AOC_GOVERNED_ACTION_GATE_DISCLAIMERS],
+scripts/check-dependency-security.mjs:24:      "docs/release/xlsx-replacement-decision.md), so the flaw is unreachable. Re-check on exceljs upgrades.",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:2:  PMFREAK_AOC_REMOTE_GOVERNANCE_DEFAULT_ENDPOINT_PATH,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:3:  PMFREAK_AOC_REMOTE_GOVERNANCE_DEFAULT_MAX_PAYLOAD_SIZE_KB,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:4:  PMFREAK_AOC_REMOTE_GOVERNANCE_DEFAULT_SHARED_SECRET_HEADER_NAME,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:5:  PMFREAK_AOC_REMOTE_GOVERNANCE_DEFAULT_TIMEOUT_MS,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:6:  PMFREAK_AOC_REMOTE_GOVERNANCE_TRANSPORT_ID,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:7:} from "./pmfreak-aoc-remote-governance-transport-constants";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:8:import type { PMFreakAocRemoteGovernanceAuthMode } from "./pmfreak-aoc-remote-governance-transport-types";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:9:import type { PMFreakAocGovernanceRedactionMode } from "./pmfreak-aoc-governance-client-types";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:10:import { createPMFreakAocRemoteGovernanceTransportError } from "./pmfreak-aoc-remote-governance-errors";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:12:export type PMFreakAocRemoteGovernanceTransportConfig = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:14:  aocBaseUrl: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:17:  authMode: PMFreakAocRemoteGovernanceAuthMode;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:21:  bearerToken?: string;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:28:  allowDecisionWriteback: false;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:32:  redactionMode: PMFreakAocGovernanceRedactionMode;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:41:// pmfreak-aoc-governance-client-config.ts — so runtime callers cannot
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:44:export function createPMFreakAocRemoteGovernanceTransportConfig(
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:45:  input: Partial<PMFreakAocRemoteGovernanceTransportConfig>,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:46:): PMFreakAocRemoteGovernanceTransportConfig {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:47:  if (!input?.aocBaseUrl) {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:48:    throw createPMFreakAocRemoteGovernanceTransportError(
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:50:      "aocBaseUrl is required to configure the PMFreak AOC Remote Governance Transport v1.",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:61:      "allowActionExecution was requested as true but is forced to false: PMFreak AOC Remote Governance Transport v1 does not execute actions in v1.",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:66:      "allowProductionMutations was requested as true but is forced to false: PMFreak AOC Remote Governance Transport v1 is non-mutating in v1.",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:69:  if (rawInput.allowDecisionWriteback === true) {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:71:      "allowDecisionWriteback was requested as true but is forced to false: PMFreak AOC Remote Governance Transport v1 does not write back decisions in v1.",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:76:      "allowInvoiceCreation was requested as true but is forced to false: PMFreak AOC Remote Governance Transport v1 does not create invoices in v1.",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:81:      "allowCommunications was requested as true but is forced to false: PMFreak AOC Remote Governance Transport v1 does not send communications in v1.",
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:86:    transportId: PMFREAK_AOC_REMOTE_GOVERNANCE_TRANSPORT_ID,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:87:    aocBaseUrl: input.aocBaseUrl,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:88:    endpointPath: input.endpointPath ?? PMFREAK_AOC_REMOTE_GOVERNANCE_DEFAULT_ENDPOINT_PATH,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:90:    sharedSecretHeaderName: input.sharedSecretHeaderName ?? PMFREAK_AOC_REMOTE_GOVERNANCE_DEFAULT_SHARED_SECRET_HEADER_NAME,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:92:    bearerToken: input.bearerToken,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:93:    timeoutMs: input.timeoutMs ?? PMFREAK_AOC_REMOTE_GOVERNANCE_DEFAULT_TIMEOUT_MS,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:94:    maxPayloadSizeKb: input.maxPayloadSizeKb ?? PMFREAK_AOC_REMOTE_GOVERNANCE_DEFAULT_MAX_PAYLOAD_SIZE_KB,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-transport-config.ts:97:    allowDecisionWriteback: false,
+scripts/run-launch-smoke-tests.mjs:11:  const source = readFileSync("src/lib/aoc/bootstrap.ts", "utf8");
+scripts/run-launch-smoke-tests.mjs:19:  const source = readFileSync("src/aoc/enterprise/runtime/composition.ts", "utf8");
+scripts/check-aoc-packages.mjs:6:  'src/aoc/protocol/package.json',
+scripts/check-aoc-packages.mjs:7:  'src/aoc/enterprise/package.json',
+scripts/check-aoc-packages.mjs:28:  console.error('AOC package manifest checks failed:\n');
+scripts/check-aoc-packages.mjs:33:console.log('AOC package manifest checks passed.');
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:2:  demoPMFreakAocGovernedActionGateBlockedResult,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:3:  demoPMFreakAocGovernedActionGateErrorResult,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:4:  demoPMFreakAocGovernedActionGateHeldResult,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:5:  demoPMFreakAocGovernedActionGateNeedsApprovalResult,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:6:  demoPMFreakAocGovernedActionGateNeedsEvidenceResult,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:7:  demoPMFreakAocGovernedActionGateNeedsReviewResult,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:8:  demoPMFreakAocGovernedActionGatePassedResult,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:9:} from "./pmfreak-aoc-governed-action-gate-fixtures";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:10:import { createPMFreakAocGateResultBannerViewModel } from "./pmfreak-aoc-gate-result-ui-banner-view-model";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:11:import type { PMFreakAocGateResultBannerViewModel } from "./pmfreak-aoc-gate-result-ui-banner-view-model";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:12:import { createPMFreakAocGateResultBlockerViewModel } from "./pmfreak-aoc-gate-result-ui-blocker-view-model";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:13:import type { PMFreakAocGateResultBlockerViewModel } from "./pmfreak-aoc-gate-result-ui-blocker-view-model";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:14:import { createPMFreakAocGateResultCardViewModel } from "./pmfreak-aoc-gate-result-ui-card-view-model";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:15:import type { PMFreakAocGateResultCardViewModel } from "./pmfreak-aoc-gate-result-ui-card-view-model";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:16:import { createPMFreakAocGateResultDetailPanelViewModel } from "./pmfreak-aoc-gate-result-ui-detail-panel-view-model";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:17:import type { PMFreakAocGateResultDetailPanelViewModel } from "./pmfreak-aoc-gate-result-ui-detail-panel-view-model";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:18:import { createPMFreakAocGateResultUIDisplayModel } from "./pmfreak-aoc-gate-result-ui-display-model";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:19:import type { PMFreakAocGateResultUIDisplayModel } from "./pmfreak-aoc-gate-result-ui-display-model";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:20:import { createPMFreakAocGateResultUIEmptyState } from "./pmfreak-aoc-gate-result-ui-empty-state";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:21:import type { PMFreakAocGateResultUIEmptyState } from "./pmfreak-aoc-gate-result-ui-empty-state";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:22:import { createPMFreakAocGateResultUIErrorState } from "./pmfreak-aoc-gate-result-ui-error-state";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:23:import type { PMFreakAocGateResultUIErrorState } from "./pmfreak-aoc-gate-result-ui-error-state";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:24:import { createPMFreakAocGateRequirementListViewModel } from "./pmfreak-aoc-gate-result-ui-requirement-list";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:25:import type { PMFreakAocGateRequirementListViewModel } from "./pmfreak-aoc-gate-result-ui-requirement-list";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:26:import { createPMFreakAocGateSafetyDisclaimerViewModel } from "./pmfreak-aoc-gate-result-ui-safety-disclaimer";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:27:import type { PMFreakAocGateSafetyDisclaimerViewModel } from "./pmfreak-aoc-gate-result-ui-safety-disclaimer";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:28:import { createPMFreakAocGateTraceViewModel } from "./pmfreak-aoc-gate-result-ui-trace-view-model";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:29:import type { PMFreakAocGateTraceViewModel } from "./pmfreak-aoc-gate-result-ui-trace-view-model";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:33:// identifiers from pmfreak-aoc-fixtures.ts and
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:34:// pmfreak-aoc-decision-inbox-fixtures.ts): no real customer names,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:38:export async function demoPMFreakAocGateResultUIPassedDisplayModel(): Promise<PMFreakAocGateResultUIDisplayModel> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:39:  const result = await demoPMFreakAocGovernedActionGatePassedResult();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:40:  return createPMFreakAocGateResultUIDisplayModel({ result });
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:43:export async function demoPMFreakAocGateResultUIBlockedDisplayModel(): Promise<PMFreakAocGateResultUIDisplayModel> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:44:  const result = await demoPMFreakAocGovernedActionGateBlockedResult();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:45:  return createPMFreakAocGateResultUIDisplayModel({ result });
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:48:export async function demoPMFreakAocGateResultUIHeldDisplayModel(): Promise<PMFreakAocGateResultUIDisplayModel> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:49:  const result = await demoPMFreakAocGovernedActionGateHeldResult();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:50:  return createPMFreakAocGateResultUIDisplayModel({ result });
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:53:export async function demoPMFreakAocGateResultUINeedsEvidenceDisplayModel(): Promise<PMFreakAocGateResultUIDisplayModel> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:54:  const result = await demoPMFreakAocGovernedActionGateNeedsEvidenceResult();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:55:  return createPMFreakAocGateResultUIDisplayModel({ result });
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:58:export async function demoPMFreakAocGateResultUINeedsApprovalDisplayModel(): Promise<PMFreakAocGateResultUIDisplayModel> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:59:  const result = await demoPMFreakAocGovernedActionGateNeedsApprovalResult();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:60:  return createPMFreakAocGateResultUIDisplayModel({ result });
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:63:export async function demoPMFreakAocGateResultUINeedsReviewDisplayModel(): Promise<PMFreakAocGateResultUIDisplayModel> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:64:  const result = await demoPMFreakAocGovernedActionGateNeedsReviewResult();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:65:  return createPMFreakAocGateResultUIDisplayModel({ result });
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:68:export async function demoPMFreakAocGateResultUIErrorDisplayModel(): Promise<PMFreakAocGateResultUIDisplayModel> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:69:  const result = await demoPMFreakAocGovernedActionGateErrorResult();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:70:  return createPMFreakAocGateResultUIDisplayModel({ result });
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:73:export async function demoPMFreakAocGateResultUIPassedBanner(): Promise<PMFreakAocGateResultBannerViewModel> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:74:  const result = await demoPMFreakAocGovernedActionGatePassedResult();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:75:  return createPMFreakAocGateResultBannerViewModel({ result });
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:78:export async function demoPMFreakAocGateResultUIBlockedBanner(): Promise<PMFreakAocGateResultBannerViewModel> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:79:  const result = await demoPMFreakAocGovernedActionGateBlockedResult();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:80:  return createPMFreakAocGateResultBannerViewModel({ result });
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:83:export async function demoPMFreakAocGateResultUINeedsEvidenceCard(): Promise<PMFreakAocGateResultCardViewModel> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:84:  const result = await demoPMFreakAocGovernedActionGateNeedsEvidenceResult();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:85:  return createPMFreakAocGateResultCardViewModel({ result });
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:88:export async function demoPMFreakAocGateResultUINeedsReviewDetailPanel(): Promise<PMFreakAocGateResultDetailPanelViewModel> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:89:  const result = await demoPMFreakAocGovernedActionGateNeedsReviewResult();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:90:  return createPMFreakAocGateResultDetailPanelViewModel({ result });
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:93:export async function demoPMFreakAocGateResultUIBlocker(): Promise<PMFreakAocGateResultBlockerViewModel> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:94:  const result = await demoPMFreakAocGovernedActionGateNeedsEvidenceResult();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:95:  return createPMFreakAocGateResultBlockerViewModel(result);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:98:export async function demoPMFreakAocGateResultUIRequirementList(): Promise<PMFreakAocGateRequirementListViewModel> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:99:  const result = await demoPMFreakAocGovernedActionGateNeedsEvidenceResult();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:100:  return createPMFreakAocGateRequirementListViewModel(result);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:103:export async function demoPMFreakAocGateResultUITrace(): Promise<PMFreakAocGateTraceViewModel> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:104:  const result = await demoPMFreakAocGovernedActionGatePassedResult();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:105:  return createPMFreakAocGateTraceViewModel(result);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:108:export async function demoPMFreakAocGateResultUISafetyDisclaimer(): Promise<PMFreakAocGateSafetyDisclaimerViewModel> {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:109:  const result = await demoPMFreakAocGovernedActionGatePassedResult();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:110:  return createPMFreakAocGateSafetyDisclaimerViewModel(result);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:113:export function demoPMFreakAocGateResultUIEmptyState(): PMFreakAocGateResultUIEmptyState {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:114:  return createPMFreakAocGateResultUIEmptyState();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:117:export function demoPMFreakAocGateResultUIErrorState(): PMFreakAocGateResultUIErrorState {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-fixtures.ts:118:  return createPMFreakAocGateResultUIErrorState();
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:1:import type { PMFreakAocAgentActionAttempt } from "./pmfreak-aoc-action-attempt";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:2:import type { PMFreakAocGovernanceRequest } from "./pmfreak-aoc-governance-request";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:3:import type { PMFreakAocGovernanceResponse } from "./pmfreak-aoc-governance-response";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:4:import { PMFREAK_AOC_GOVERNED_ACTION_GATE_ID, PMFREAK_AOC_GOVERNED_ACTION_GATE_SAFE_LABELS } from "./pmfreak-aoc-governed-action-gate-constants";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:5:import { createPMFreakAocGovernedActionGateConfig } from "./pmfreak-aoc-governed-action-gate-config";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:6:import type { PMFreakAocGovernedActionGateConfig } from "./pmfreak-aoc-governed-action-gate-config";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:7:import { evaluatePMFreakAocGovernedActionGateClaimSafety } from "./pmfreak-aoc-governed-action-gate-claim-safety";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:8:import { createPMFreakAocGateFlagsFromVerdict } from "./pmfreak-aoc-governed-action-gate-policy";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:9:import { createPMFreakAocGateReasonCodes } from "./pmfreak-aoc-governed-action-gate-reason";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:10:import { createPMFreakAocGateSafeNextStep } from "./pmfreak-aoc-governed-action-gate-next-step";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:11:import { buildPMFreakAocGovernedActionGateResultId } from "./pmfreak-aoc-governed-action-gate-result";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:12:import type { PMFreakAocGovernedActionGateResult } from "./pmfreak-aoc-governed-action-gate-result";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:13:import { createPMFreakAocGovernedActionGateTrace } from "./pmfreak-aoc-governed-action-gate-trace";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:14:import { mapPMFreakAocDecisionToGateVerdict, mapPMFreakAocGateVerdictToSeverity } from "./pmfreak-aoc-governed-action-gate-verdict";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:16:export type PMFreakAocGovernedActionGateFromGovernanceResponseInput = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:17:  response: PMFreakAocGovernanceResponse;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:18:  request?: PMFreakAocGovernanceRequest;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:19:  actionAttempt?: PMFreakAocAgentActionAttempt;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:20:  config?: Partial<PMFreakAocGovernedActionGateConfig>;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:25:// Pure, deterministic evaluation: maps an already-received AOC governance
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:28:// call AOC, does not execute the action and does not write back.
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:29:export function evaluatePMFreakAocGovernedActionGateFromGovernanceResponse(
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:30:  input: PMFreakAocGovernedActionGateFromGovernanceResponseInput,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:31:): PMFreakAocGovernedActionGateResult {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:32:  const config = createPMFreakAocGovernedActionGateConfig(input.config);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:42:  const verdict = hasMismatch ? "error" : mapPMFreakAocDecisionToGateVerdict(response.decision);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:43:  const severity = mapPMFreakAocGateVerdictToSeverity(verdict);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:46:    : createPMFreakAocGateFlagsFromVerdict(verdict);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:48:  const reasonCodes = createPMFreakAocGateReasonCodes({
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:49:    decision: response.decision,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:59:    ? createPMFreakAocGateSafeNextStep({ verdict })
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:60:    : createPMFreakAocGateSafeNextStep({
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:62:        decision: response.decision,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:69:  const claimSafety = evaluatePMFreakAocGovernedActionGateClaimSafety({ safeSummary: candidateSafeSummary, safeNextStep: candidateSafeNextStep });
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:77:  const trace = createPMFreakAocGovernedActionGateTrace({
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:79:    decision: response.decision,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:86:  const gateResultId = buildPMFreakAocGovernedActionGateResultId(response.responseId);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:90:    gateId: PMFREAK_AOC_GOVERNED_ACTION_GATE_ID,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:97:    agentId: request?.agentContext.agentId ?? actionAttempt?.agentId,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:98:    agentRole: request?.agentContext.agentRole ?? actionAttempt?.agentRole,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:107:    aocDecision: response.decision,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:119:    decisionReasonCodes: [...response.reasonCodes],
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-from-response.ts:131:    safeLabels: [...new Set([...response.safeLabels, ...PMFREAK_AOC_GOVERNED_ACTION_GATE_SAFE_LABELS])],
+scripts/check-dashboard-approval-mutation-runtime.mjs:4:import { mapMutationToApprovalDecisionType } from '../src/lib/dashboard/approval-mutations/approval-decision-builder.ts'
+scripts/check-dashboard-approval-mutation-runtime.mjs:10:const lifecycle = { id: 'task-lifecycle:env-1', envelopeId: 'env-1', actionId: 'a1', adapter: 'jira', status: 'approval_pending', envelope: { id: 'env-1', adapter: 'jira', actionId: 'a1', mode: 'ready', payload: { title: 'Finance security review' }, createdAt: '2026-01-01T00:00:00.000Z', executionStatus: 'ready', warnings: [] }, approvalRequest, approvalDecisions: [], retryCount: 0, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+scripts/check-dashboard-approval-mutation-runtime.mjs:11:const mutation = { requestId: 'req-1', envelopeId: 'env-1', decision: 'approve', actor: { id: 'fin-1', roles: ['finance_lead'], lanes: ['finance_lead'] } }
+scripts/check-dashboard-approval-mutation-runtime.mjs:13:assert.equal(validateApprovalMutationRequest({ ...mutation, decision: 'bad' }).valid, false)
+scripts/check-dashboard-approval-mutation-runtime.mjs:16:assert.equal(mapMutationToApprovalDecisionType('defer'), 'request_changes')
+scripts/check-dashboard-approval-mutation-runtime.mjs:18:assert.equal(applyApprovalMutation({ mutation: { ...mutation, decision: 'reject', comment: 'stop' }, approvalRequest, lifecycle, now: '2026-01-02T00:00:00.000Z' }).updatedLifecycle.status, 'rejected')
+scripts/check-dashboard-approval-mutation-runtime.mjs:19:assert.equal(applyApprovalMutation({ mutation: { ...mutation, decision: 'defer' }, approvalRequest, lifecycle, now: '2026-01-02T00:00:00.000Z' }).updatedLifecycle.status, 'changes_requested')
+scripts/check-quality-governance-agent.mjs:2:import { createQualityGovernanceAssessment } from '../src/lib/governance/quality/quality-governance-agent.ts';
+scripts/check-quality-governance-agent.mjs:27:assert.deepEqual(a1.interventionQueue, [...a1.interventionQueue].sort((x,y)=>y.urgencyScore-x.urgencyScore||x.priority-y.priority||x.recommendation.localeCompare(y.recommendation)));
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-redaction.ts:4:const BEARER_TOKEN_PATTERN = /\bBearer\s+\S+/gi;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-redaction.ts:6:const SECRET_LIKE_TOKEN_PATTERN = /\b[A-Za-z0-9_-]{24,}\b/g;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-redaction.ts:8:const SENSITIVE_KEY_PATTERN = /(secret|token|password|credential|api[_-]?key|email|authorization|bearer)/i;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-redaction.ts:12:    .replace(BEARER_TOKEN_PATTERN, `Bearer ${REDACTED_PLACEHOLDER}`)
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-redaction.ts:15:    .replace(SECRET_LIKE_TOKEN_PATTERN, REDACTED_PLACEHOLDER);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-redaction.ts:21:// `strict` both scrub email/token/secret/bearer-token/connection-string-like
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-redaction.ts:22:// strings and any value whose object key looks sensitive (email, token,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-remote-governance-redaction.ts:26:export function redactPMFreakAocRemoteGovernanceTransportValue(
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-no-mutation-guard.ts:1:import { PMFREAK_AOC_GOVERNED_ACTION_GATE_ID, PMFREAK_AOC_GOVERNED_ACTION_GATE_MUTATION_FORBIDDEN_OPERATIONS } from "./pmfreak-aoc-governed-action-gate-constants";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-no-mutation-guard.ts:2:import { PMFreakAocGovernanceClientError } from "./pmfreak-aoc-errors";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-no-mutation-guard.ts:4:export function isPMFreakAocGovernedActionGateForbiddenMutationOperation(operationName: string): boolean {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-no-mutation-guard.ts:5:  return (PMFREAK_AOC_GOVERNED_ACTION_GATE_MUTATION_FORBIDDEN_OPERATIONS as readonly string[]).includes(operationName);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-no-mutation-guard.ts:10:export function assertPMFreakAocGovernedActionGateDoesNotMutate(operationName: string): void {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-no-mutation-guard.ts:11:  if (isPMFreakAocGovernedActionGateForbiddenMutationOperation(operationName)) {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-no-mutation-guard.ts:12:    throw new PMFreakAocGovernanceClientError(
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-governed-action-gate-no-mutation-guard.ts:14:      `Operation "${operationName}" is forbidden for ${PMFREAK_AOC_GOVERNED_ACTION_GATE_ID}: PMFreak AOC Governed Action Gate v1 is gate-only and does not mutate PMFreak data.`,
+scripts/check-cost-governance-agent.mjs:2:import { createCostGovernanceAssessment } from '../src/lib/governance/cost/cost-governance-agent.ts';
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:1:import type { PMFreakAocGovernedActionGateResult } from "./pmfreak-aoc-governed-action-gate-result";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:2:import type { PMFreakAocGovernedActionGateVerdict } from "./pmfreak-aoc-governed-action-gate-types";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:3:import { assertNoPMFreakAocGateResultUIOverclaim } from "./pmfreak-aoc-gate-result-ui-claim-safety";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:4:import { mapPMFreakAocGateVerdictToUILabel } from "./pmfreak-aoc-gate-result-ui-labels";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:6:export type PMFreakAocGateResultBlockerEntry = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:13:export type PMFreakAocGateResultBlockerViewModel = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:16:  verdict: PMFreakAocGovernedActionGateVerdict;
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:19:  blockers: PMFreakAocGateResultBlockerEntry[];
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:24:const EVIDENCE_REASON_CODES = new Set(["aoc_requires_evidence"]);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:25:const APPROVAL_REASON_CODES = new Set(["aoc_requires_pm_approval", "aoc_requires_executive_approval"]);
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:31:function referencesForReasonCode(code: string, result: PMFreakAocGovernedActionGateResult): string[] {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:42:// `held`, which blocks nothing on the AOC side but is not yet safe to act
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:47:export function createPMFreakAocGateResultBlockerViewModel(result: PMFreakAocGovernedActionGateResult): PMFreakAocGateResultBlockerViewModel {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:50:  const blockers: PMFreakAocGateResultBlockerEntry[] = visible
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:59:  const candidate: PMFreakAocGateResultBlockerViewModel = {
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:63:    title: mapPMFreakAocGateVerdictToUILabel(result.verdict),
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-gate-result-ui-blocker-view-model.ts:70:  assertNoPMFreakAocGateResultUIOverclaim(candidate);
+scripts/check-package-exports.mjs:4:  { name: '@aoc/protocol', dir: 'src/aoc/protocol', entries: ['dist/index.js', 'dist/index.d.ts'] },
+scripts/check-package-exports.mjs:5:  { name: '@aoc-enterprise/runtime', dir: 'src/aoc/enterprise', entries: ['dist/index.js', 'dist/index.d.ts', 'dist/runtime/index.js', 'dist/runtime/index.d.ts'] }
+scripts/check-executive-decision-simulation-runtime.mjs:1:import { calculatePortfolioBaseline } from '../src/lib/portfolio/executive-decision-simulation/decision-impact-analyzer.ts'
+scripts/check-executive-decision-simulation-runtime.mjs:2:import { simulateExecutiveDecision } from '../src/lib/portfolio/executive-decision-simulation/decision-simulation-engine.ts'
+scripts/check-executive-decision-simulation-runtime.mjs:3:import { generateDecisionTradeoffs } from '../src/lib/portfolio/executive-decision-simulation/tradeoff-engine.ts'
+scripts/check-executive-decision-simulation-runtime.mjs:4:import { generateDecisionRecommendation } from '../src/lib/portfolio/executive-decision-simulation/recommendation-engine.ts'
+scripts/check-executive-decision-simulation-runtime.mjs:5:import { calculateDecisionConfidence } from '../src/lib/portfolio/executive-decision-simulation/decision-confidence-engine.ts'
+scripts/check-executive-decision-simulation-runtime.mjs:6:import { runExecutiveDecisionSimulation } from '../src/lib/portfolio/executive-decision-simulation/executive-decision-simulation-runtime.ts'
+scripts/check-executive-decision-simulation-runtime.mjs:49:  decision: {
+scripts/check-executive-decision-simulation-runtime.mjs:68:const projection = simulateExecutiveDecision(input)
+scripts/check-executive-decision-simulation-runtime.mjs:79:const tradeoffs = generateDecisionTradeoffs(input, projection)
+scripts/check-executive-decision-simulation-runtime.mjs:87:// Recommendation generated
+scripts/check-executive-decision-simulation-runtime.mjs:88:const { recommendation, rationale } = generateDecisionRecommendation(input, baseline, projection, tradeoffs)
+scripts/check-executive-decision-simulation-runtime.mjs:89:if (!['approve', 'approve_with_conditions', 'defer', 'reject', 'escalate'].includes(recommendation)) {
+scripts/check-executive-decision-simulation-runtime.mjs:90:  throw new Error(`invalid recommendation: ${recommendation}`)
+scripts/check-executive-decision-simulation-runtime.mjs:95:const confidence = calculateDecisionConfidence(input, baseline, projection, tradeoffs)
+scripts/check-executive-decision-simulation-runtime.mjs:99:const report = runExecutiveDecisionSimulation(input)
+scripts/check-executive-decision-simulation-runtime.mjs:100:if (!report || report.decisionId !== input.decision.id) throw new Error('runtime orchestration failed: decisionId mismatch')
+scripts/check-executive-decision-simulation-runtime.mjs:101:if (report.decisionType !== input.decision.type) throw new Error('runtime orchestration failed: decisionType mismatch')
+scripts/check-executive-decision-simulation-runtime.mjs:106:console.log('[ok] executive decision simulation runtime valid')
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:2:  PMFREAK_AOC_EVIDENCE_REQUIREMENT_HANDOFF_DISCLAIMERS,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:3:  PMFREAK_AOC_EVIDENCE_REQUIREMENT_HANDOFF_ID,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:4:  PMFREAK_AOC_EVIDENCE_REQUIREMENT_HANDOFF_SAFE_LABELS,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:5:} from "./pmfreak-aoc-evidence-requirement-handoff-constants";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:6:import { createPMFreakAocEvidenceRequirementHandoffConfig } from "./pmfreak-aoc-evidence-requirement-handoff-config";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:7:import type { PMFreakAocEvidenceRequirementHandoffConfig } from "./pmfreak-aoc-evidence-requirement-handoff-config";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:8:import { normalizePMFreakAocEvidenceRequirementHandoffContext } from "./pmfreak-aoc-evidence-requirement-handoff-context";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:9:import { extractPMFreakAocEvidenceRequirementReferences } from "./pmfreak-aoc-evidence-requirement-handoff-extractor";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:10:import { createPMFreakAocEvidenceRequirementHandoffSafeNextStep } from "./pmfreak-aoc-evidence-requirement-handoff-next-step";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:11:import { createPMFreakAocEvidenceRequirementChecklistViewModel } from "./pmfreak-aoc-evidence-requirement-handoff-checklist-view-model";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:12:import { createPMFreakAocEvidenceRequirementReviewPacket } from "./pmfreak-aoc-evidence-requirement-handoff-review-packet";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:14:  assertNoPMFreakAocEvidenceRequirementHandoffOverclaim,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:15:  evaluatePMFreakAocEvidenceRequirementHandoffClaimSafety,
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:16:} from "./pmfreak-aoc-evidence-requirement-handoff-claim-safety";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:17:import { buildPMFreakAocEvidenceRequirementHandoffId, resolvePMFreakAocEvidenceRequirementHandoffIdBasis } from "./pmfreak-aoc-evidence-requirement-handoff-package";
+src/features/pmfreak-integrations/aoc-governance-request-client/pmfreak-aoc-evidence-requirement-handoff-from-inbox-item.ts:18:import type { PMFreakAocEvidenceRequirementHandoffPackage } from "./pmfreak-aoc-evidence-requirement-handoff-package";

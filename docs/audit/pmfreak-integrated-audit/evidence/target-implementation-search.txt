@@ -1,0 +1,1213 @@
+### workspace
+.gitignore:23:# AOC workspace package build artifacts (rebuilt via `npm run build:aoc`)
+artifacts/operational-flow-runtime-gate-checklist.md:43:npm run seed:operational-flow -- <workspace-id> <user-id>
+artifacts/operational-flow-runtime-gate-checklist.md:44:npm run seed:operational-flow -- <workspace-id> <user-id>
+artifacts/operational-flow-runtime-gate-checklist.md:45:npm run seed:operational-flow -- <workspace-id> <user-id> --reset
+artifacts/operational-flow-runtime-gate-checklist.md:57:- [ ] Login succeeds as workspace owner
+artifacts/operational-flow-runtime-gate-checklist.md:76:- [ ] Owner creates evidence in wrong workspace → HTTP 403
+artifacts/operational-flow-runtime-gate-checklist.md:83:- [ ] Cross-workspace evidence read → returns 0 rows (RLS filters)
+artifacts/operational-flow-runtime-gate-checklist.md:84:- [ ] Cross-workspace evidence write → DB denial
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:45:Tracks 13 checklist items: workspace_created, demo_data_loaded, sample_projects_ready, sample_governance_ready, dashboard_ready, exports_ready, docs_ready, admin_ready, beta_users_defined, invitation_records_ready, safety_checks_passed, known_limitations_reviewed, support_path_defined.
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:54:Tracks workspace isolation, RLS, export safety, docs review, and support path definition.
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:57:Individual validation checks: workspace_isolation, rls_policies, export_safety, no_production_data, no_external_api_calls, no_communications_sent, demo_data_fictional_only.
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:69:Tracks remediation items: demo_data_fix, docs_fix, checklist_fix, export_safety_fix, rls_fix, workspace_scope_fix, ui_fix, test_fix, build_fix, known_limitation_documentation, support_process_fix, future_sprint_item.
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:110:- agent_beta_workspace_readiness
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:128:All tables have RLS enabled with workspace-scoped policies. No public access. No `USING (true)` policies.
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:144:- beta_workspace_readiness_recorded
+docs/agent-controlled-action-conversion-approval-bridge.md:70:| `workspaceId` | Workspace scope |
+docs/agent-controlled-action-conversion-approval-bridge.md:285:Policies allow read and write only to authenticated workspace members. No public access. No `using (true)` policies.
+docs/agent-controlled-action-conversion-approval-bridge.md:312:  workspaceId: "ws-123",
+docs/agent-controlled-action-conversion-approval-bridge.md:320:  workspaceId: "ws-123",
+docs/agent-controlled-action-conversion-approval-bridge.md:327:  workspaceId: "ws-123",
+docs/agent-controlled-action-conversion-approval-bridge.md:335:    workspaceId: "ws-123",
+docs/agent-controlled-action-conversion-approval-bridge.md:344:  workspaceId: "ws-123",
+docs/agent-controlled-action-conversion-production-validation.md:65:Called with three positional arguments `(workspaceId, actionDraftId, "converted")` instead of a single `{ workspaceId, actionDraftId, draftStatus }` object.
+docs/agent-controlled-action-conversion-production-validation.md:105:| RLS on all Supabase tables | Verified — migration enables RLS and defines workspace-member policies on all 4 tables |
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:59:Fields: `id`, `workspaceId`, `executionRequestId`, `actionConversionId`, `actionDraftId`, `reviewItemId`, `sourceResultId`, `sourceEvidenceId`, `status`, `readiness`, `executionMode`, `riskLevel`, `selectedToolKey`, `selectedAdapterKey`, `sideEffectMode`, `confirmationRequirement`, `confirmationStatus`, `approvalVerified`, `lockStatus`, `idempotencyStatus`, `dispatchGateId`, `latestDispatchAttemptId`, `adapterExecutionId`, `resultId`, `evidenceIds`, `blockingReasons`, `warnings`, `finalizationPayload`, `safeFinalizationPayload`.
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:71:Prevents duplicate dispatch. Keyed by `workspaceId:executionRequestId`. Acquired before dispatch, released on success or failure. Released on cancellation.
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:75:Ensures repeated dispatch requests do not produce duplicate adapter runs. Keyed by workspace + request + adapter + mode. If status is `completed`, returns existing finalization without re-dispatching.
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:115:- workspace_matches
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:190:- Workspace mismatch
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:225:All seven tables have Row Level Security enabled. Access is restricted to workspace members. No public access. No `true` policies.
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:248:  "workspaceId": "ws_abc",
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:272:  "workspaceId": "ws_abc"
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:292:  "workspaceId": "ws_abc"
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:312:  "workspaceId": "ws_abc",
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:324:  "workspaceId": "ws_abc",
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:9:workspace-level operational intelligence.
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:40:- Workspace learning summary and aggregate signal types
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:84:- `generateRiskCalibrationSignals` — workspace-scoped categorical risk signals
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:89:- `generateWorkspaceLearningSummary` — aggregate summary for workspace
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:92:- `buildExecutionLearningSummary` — full workspace summary for the summary API
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:98:Creates 12 tables with RLS enabled and workspace member policies on all tables.
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:99:Uses `exists (select 1 from workspace_members where ...)` — never `using (true)`.
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:121:10. `agent_execution_workspace_learning_summaries` — Workspace-level aggregate summaries
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:166:Aggregate signals use `aggregateScope: "workspace"`. Global scope is disabled.
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:185:- `execution_workspace_learning_summary_created`
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:212:| POST | `/api/agents/execution/learning/workspace-summary` | Generate workspace summary |
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:234:All API routes require authentication (`requireAuthenticatedUser`) and workspace
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:235:membership (`requireWorkspaceMember`). RLS policies on all 12 tables require workspace
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:236:membership via `exists (select 1 from workspace_members ...)`.
+docs/agent-controlled-execution-result-reconciliation-human-outcome-review.md:38:Creates 9 tables with RLS enabled and workspace member policies.
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:63:All routes require authentication (`requireAuthenticatedUser`) and workspace membership (`requireWorkspaceMember`). The `actorId` is always derived from the authenticated user identity, never from the request body.
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:107:15 tables under Supabase with RLS enabled. All policies use workspace_memberships checks (no `using (true)`). Migration: `20260809000000_agent_controlled_governance_policy_simulation_report_pmo_approval_pack.sql`.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:5:The Controlled PMO Governance Intelligence Dashboard surfaces privacy-safe, deterministic governance intelligence to PMO leaders. It converts workspace learning signals, governance feedback, risk calibration records, evidence quality records, adapter performance records, review routing feedback, and workspace learning summaries into actionable PMO-facing intelligence cards, a feedback review queue, policy change proposals, and exportable audit-ready governance reports.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:9:- Dashboard snapshot generation (deterministic workspace-level rollup)
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:10:- Governance insight cards (risk, evidence, adapter, routing, feedback, privacy health, volume, policy, workspace summary)
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:40:- Allow cross-workspace data access
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:43:It surfaces deterministic, privacy-safe, workspace-scoped governance intelligence for PMO leaders and records auditable policy proposals for future implementation only.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:60:- `agent_execution_workspace_learning_summaries`
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:77:A deterministic workspace-level rollup for a given period.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:80:- `id`, `workspaceId`, `periodStart`, `periodEnd`, `status`
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:94:Card types: `risk_calibration`, `evidence_quality`, `adapter_performance`, `review_routing`, `governance_feedback`, `privacy_health`, `learning_signal_volume`, `policy_proposal`, `workspace_summary`
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:153:- Workspace id and period
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:227:- No customer, project, or user identifiers are exposed beyond what workspace membership already permits.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:230:- Cross-workspace data access is not permitted.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:234:All dashboard tables have RLS enabled. Workspace members can read dashboard records in their workspace. Write access for PMO-specific operations (feedback queue review, policy proposals, exports) is enforced at the application layer if role helpers are not available in the current schema.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:294:  "workspaceId": "ws-123",
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:384:Workspace: ws-123
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:419:- Cross-workspace data access
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:452:- Export download does not stream large reports. For large workspaces, pagination may be needed.
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:3:Sprint #3 of the PMFreak governance sprint series. Bridges an approved implementation planning workspace to a future controlled policy version activation sprint.
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:11:- Creates dry-run execution requests from approved planning workspaces
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:45:| `agent_pmo_dry_run_execution_requests` | Top-level dry-run request, linked to planning workspace |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:89:All routes under `/api/agents/execution/dry-run-gate/`. All require authenticated user + workspace member.
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:97:| POST | `from-planning-workspace/` | Create from planning workspace |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:166:All 16 tables have RLS enabled. SELECT and INSERT/UPDATE policies are scoped to `workspace_memberships` — users can only access records for workspaces they are members of. No `using (true)` policies.
+docs/agent-controlled-policy-implementation-planning-workspace.md:1:# Controlled Policy Implementation Planning Workspace
+docs/agent-controlled-policy-implementation-planning-workspace.md:5:The Controlled Policy Implementation Planning Workspace converts a signed-off or PMO-approved approval pack into a controlled planning workspace for future dry-run preparation only. It provides a structured environment for PMO teams to plan, review, and gate-check the prerequisites needed before a dry-run of a policy change can be authorized.
+### pmo
+PM_LANGUAGE_SOFTENING.txt:9:- PMO
+README.md:93:## Sprint 9 PMO Copilot Core
+README.md:96:- Added `POST /api/copilot` for tenant-scoped PMO copilot responses.
+README.md:100:  - Free: basic rule-based PMO guidance only (OpenAI deep analysis blocked).
+artifacts/operational-flow-runtime-gate-checklist.md:79:- [ ] PM tries to accept sponsor/PMO recommendation via `record_operational_decision` RPC → DB denial
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:1:# PMO Beta Onboarding / Demo Data / Tenant Readiness
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:30:Top-level plan tracking readiness for a specific scope (internal_demo, controlled_beta, partner_beta, sales_demo, pmo_demo, full_beta_readiness).
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:48:Tracks readiness for beta user roles: beta_admin, pmo_director, project_manager, executive_viewer, delivery_lead, demo_viewer, support_admin. Uses fictional user labels only.
+docs/agent-controlled-action-conversion-approval-bridge.md:262:| `high` | `required_high_risk` | `pmo_lead` |
+docs/agent-controlled-action-conversion-approval-bridge.md:314:  ownerRole: "pmo_lead",
+docs/agent-controlled-action-conversion-approval-bridge.md:338:    message: "Approved by PMO lead after review",
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:1:# Agent-Controlled Governance Policy Simulation Report & PMO Approval Pack
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:3:Sprint 14 of the PMO Governance Intelligence layer. Bridges a ready-for-review policy change request to a PMO-approved implementation planning package.
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:7:This module generates governed, reviewable PMO packages from policy change backlog items. It produces reports, checklists, sign-off records, and implementation ticket drafts — all deterministically and in-memory, without applying policy or calling external services.
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:21:### AgentPmoSimulationReport
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:26:### AgentPmoPolicyImpactSummary
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:29:### AgentPmoPolicyDraftDiff
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:32:### AgentPmoApprovalChecklist
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:35:### AgentPmoRollbackReadinessChecklist
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:38:### AgentPmoSignOffPacket
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:41:### AgentPmoSignOffDecision
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:44:### AgentPmoApprovalPack
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:45:The top-level container for the full PMO approval package. Assembles the simulation report, impact summary, draft diff, approval checklist, rollback checklist, sign-off packet, and implementation ticket draft into a single reviewable artifact.
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:49:### AgentPmoApprovalPackArtifact
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:52:### AgentPmoImplementationTicketDraft
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:55:### AgentPmoApprovalPackExport
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:58:### AgentPmoApprovalPackEvent
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:107:15 tables under Supabase with RLS enabled. All policies use workspace_memberships checks (no `using (true)`). Migration: `20260809000000_agent_controlled_governance_policy_simulation_report_pmo_approval_pack.sql`.
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:111:All lifecycle events are emitted to `agent_pmo_approval_pack_events` with source type `agent_controlled_governance_policy_simulation_report_pmo_approval_pack`.
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:113:Event types: `pmo_approval_pack_created`, `pmo_approval_pack_assembling`, `pmo_approval_pack_assembled`, `pmo_simulation_report_created`, `pmo_simulation_report_section_created`, `pmo_impact_summary_created`, `pmo_policy_draft_diff_created`, `pmo_approval_checklist_created`, `pmo_approval_checklist_item_recorded`, `pmo_rollback_checklist_created`, `pmo_rollback_checklist_item_recorded`, `pmo_signoff_packet_created`, `pmo_signoff_decision_recorded`, `pmo_implementation_ticket_draft_created`, `pmo_approval_pack_export_created`, `pmo_approval_pack_archived`.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:1:# Controlled PMO Governance Intelligence Dashboard
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:5:The Controlled PMO Governance Intelligence Dashboard surfaces privacy-safe, deterministic governance intelligence to PMO leaders. It converts workspace learning signals, governance feedback, risk calibration records, evidence quality records, adapter performance records, review routing feedback, and workspace learning summaries into actionable PMO-facing intelligence cards, a feedback review queue, policy change proposals, and exportable audit-ready governance reports.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:16:- Policy change proposal creation and PMO review
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:24:The Controlled PMO Governance Intelligence Dashboard does **not**:
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:43:It surfaces deterministic, privacy-safe, workspace-scoped governance intelligence for PMO leaders and records auditable policy proposals for future implementation only.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:69:### PMO Command Center
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:71:The dashboard extends the PMO Command Center with a dedicated Governance Intelligence surface (`/command-center/governance-intelligence`) that focuses on signal trends and policy proposal management.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:92:PMO-facing presentation of a governance signal or trend.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:98:Actionability: `informational`, `review_recommended`, `proposal_recommended`, `pmo_attention_required`
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:132:Surfaces deterministic feedback from the learning layer for PMO review.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:136:PMO review actions are recorded. Feedback is never applied to production policy automatically.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:140:PMO-reviewed suggestion derived from governance feedback.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:146:**Approved for future implementation** means the PMO has acknowledged the proposal as a backlog candidate. It does **not** apply the policy change.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:176:1. PMO triggers snapshot generation for a period.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:191:6. PMO may update card status to `reviewed` or `archived`.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:196:2. PMO reviews queue items.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:203:1. PMO creates a proposal (manually or from a feedback item).
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:205:3. PMO reviews the proposal.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:212:1. PMO requests a governance report export.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:219:8. PMO may download the export.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:234:All dashboard tables have RLS enabled. Workspace members can read dashboard records in their workspace. Write access for PMO-specific operations (feedback queue review, policy proposals, exports) is enforced at the application layer if role helpers are not available in the current schema.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:275:- Provides a Feedback Queue tab for PMO review.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:276:- Provides a Policy Proposals tab with PMO review actions.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:362:  "ownerRole": "pmo_lead"
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:382:# PMO Governance Report
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:433:npm test -- tests/agent-controlled-pmo-governance-intelligence-dashboard.test.mjs
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:449:- RLS role granularity for PMO/admin-only operations is enforced at the application layer. Fine-grained database role helpers for PMO roles are not yet implemented.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:456:**PMO Governance Proposal Review & Controlled Policy Change Backlog**
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:458:Once PMFreak can surface governance intelligence and policy proposals to PMO leaders, the next layer should turn approved-for-future proposals into a controlled backlog of policy changes that can be reviewed, simulated, tested, and approved before any governance behavior changes.
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:45:| `agent_pmo_dry_run_execution_requests` | Top-level dry-run request, linked to planning workspace |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:46:| `agent_pmo_dry_run_preflight_validations` | Deterministic pre-flight check results |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:47:| `agent_pmo_dry_run_gate_approvals` | Gate approval records |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:48:| `agent_pmo_dry_run_gate_decisions` | Gate decision audit trail (append-only) |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:49:| `agent_pmo_dry_run_change_sets` | Simulated change sets |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:50:| `agent_pmo_dry_run_change_set_items` | Individual simulated changes |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:51:| `agent_pmo_simulated_policy_versions` | Simulated future policy version snapshots |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:52:| `agent_pmo_dry_run_simulation_executions` | Dry-run simulation execution records |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:53:| `agent_pmo_dry_run_simulated_impacts` | Simulated impact assessments per domain |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:54:| `agent_pmo_dry_run_evidence_packages` | Evidence package headers |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:55:| `agent_pmo_dry_run_evidence_sections` | Individual evidence sections |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:56:| `agent_pmo_dry_run_blockers` | Blockers preventing future activation |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:57:| `agent_pmo_dry_run_operator_reviews` | Operator reviews of dry-run results |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:58:| `agent_pmo_dry_run_decisions` | Final dry-run decisions (append-only) |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:59:| `agent_pmo_dry_run_exports` | Safe export records |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:60:| `agent_pmo_dry_run_events` | Observability event log (append-only) |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:124:  agent-pmo-dry-run-gate-types.ts        — All union types and record interfaces
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:125:  agent-pmo-dry-run-gate-validation.ts   — Validation, redaction, sanitization
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:126:  agent-pmo-dry-run-gate-registry.ts     — In-memory stores, CRUD
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:127:  agent-pmo-dry-run-gate-service.ts      — Business logic, orchestration
+### portfolio
+README.md:19:  - Enterprise: portfolio memory + enterprise-only permissions helpers
+README.md:89:- `GET /api/portfolio` — enterprise portfolio-memory listing.
+README.md:102:  - Enterprise: AI-powered copilot + broader portfolio-memory context.
+docs/agent-execution-request-runtime.md:65:`workspace`, `portfolio`, `project`, `pm`, `agent`, `tool_request`, `approval_request`, `memory_record`
+docs/agent-memory-context-layer.md:69:| `portfolio` | Applies to a portfolio or multi-project grouping |
+docs/agent-memory-context-layer.md:147:| `allowPortfolioMemory` | Whether portfolio-level memory is permitted |
+docs/agent-memory-context-layer.md:268:  "allowedScopeTypes": ["workspace", "portfolio", "project", "pm", "agent", "tool_request", "approval_request"],
+docs/agent-memory-context-layer.md:275:  "allowPortfolioMemory": true,
+docs/agent-observability-audit-trail.md:65:| `projectId` / `pmId` / `portfolioId` | Business scope |
+docs/agent-observability-audit-trail.md:126:`workspace`, `portfolio`, `project`, `pm`, `agent`, `tool_request`, `approval_request`, `memory_record`, `context_policy`, `report`
+docs/agent-observability-audit-trail.md:185:`getAgentTimeline` returns a unified sorted list of `AgentTimelineEntry` records from `agent_audit_events`. Entries are sorted newest first. Supported filters: `correlationId`, `agentId`, `agentType`, `projectId`, `pmId`, `portfolioId`, `scopeType`, `scopeId`, `limit`.
+docs/agent-tool-execution-adapter-layer.md:467:`workspace`, `portfolio`, `project`, `pm`, `agent`, `tool_request`, `approval_request`, `memory_record`
+docs/agent-tool-registry.md:92:| `portfolio_read` | Read-only access to portfolio/workspace-level data |
+docs/agent-tool-registry.md:100:| `reporting` | Executive or portfolio-level report generation |
+docs/api/api-inventory.md:58:- `//api/portfolio` — authenticated
+docs/architecture/CURRENT_STATE_EXECUTIVE_COMMAND_RUNTIME.md:12:- Weighted survivability impact, propagation severity, escalation saturation, portfolio instability, governance erosion.
+docs/architecture/CURRENT_STATE_EXECUTIVE_COMMAND_RUNTIME.md:15:- Added delivery/milestone/operational/recovery/portfolio survivability plus canStabilize.
+docs/architecture/CURRENT_STATE_EXECUTIVE_COMMAND_RUNTIME.md:17:## Portfolio cognition decisions
+docs/architecture/CURRENT_STATE_EXECUTIVE_COMMAND_RUNTIME.md:18:- Added portfolio instability and shared bottleneck synthesis.
+docs/architecture/command-center-foundation.md:21:| `command_center_type` | `company_pmo \| team_portfolio \| independent \| client_portfolio \| improvement_program`. `NULL` = not yet configured. |
+docs/architecture/command-center-foundation.md:61:workspace. Additional Command Centers (future consultant/client-portfolio use
+docs/architecture/customer-owned-organizational-memory-framework.md:68:| `pmo` | PMO governance users. | Portfolio-level risks, standards, governance. |
+docs/architecture/dashboard-action-ui-surface.md:79:| `portfolio_governance` | Portfolio Governance |
+docs/architecture/dashboard-api-runtime.md:7:The Dashboard API Runtime exposes the Track 8.1 `PortfolioExecutiveDashboardDTO` through a deterministic, tenant-safe API layer. It provides the backend contract, request validation, response shaping, error handling, and orchestration needed to serve the Portfolio Executive Dashboard DTO to PMFreak dashboard routes.
+docs/architecture/dashboard-api-runtime.md:29:  data: PortfolioExecutiveDashboardDTO | FallbackDTO
+docs/architecture/dashboard-api-runtime.md:54:| `portfolioId` | Optional; must be string if present |
+docs/architecture/dashboard-api-runtime.md:66:- `invalid_portfolio_id` — portfolioId present but not a string
+docs/architecture/dashboard-api-runtime.md:98:  portfolioHealthPanel: { score: 0, status: 'critical', label: 'Portfolio Health Unavailable', trend: 'Dashboard source data unavailable' },
+docs/architecture/dashboard-api-runtime.md:99:  executiveSummaryCard: { title: 'Portfolio Executive Summary', status: 'critical', ... },
+docs/architecture/dashboard-api-runtime.md:134:  portfolioId?: string
+docs/architecture/dashboard-api-runtime.md:152:GET /api/dashboard/portfolio
+docs/architecture/dashboard-api-runtime.md:160:The route is implemented at `src/app/api/dashboard/portfolio/route.ts` using the existing `getAuthUser()` auth utility. It intentionally does not accept a POST body or preloaded source data from external callers — source data hydration is a backend concern reserved for Track 8.5.
+docs/architecture/dashboard-api-runtime.md:189:from `src/lib/dashboard/runtime-integration/`. This produces the `PortfolioExecutiveDashboardDTO` that becomes `response.data` on the `ok` and `partial` paths.
+docs/architecture/dashboard-background-refresh-runtime.md:73:The runtime never calls portfolio aggregation or external APIs directly. All source generation is delegated to `DashboardSourceRefreshProvider` instances:
+docs/architecture/dashboard-background-refresh-runtime.md:102:Portfolio runtime recomputation (executive dashboard aggregation, PMO intervention, conflict arbitration, etc.) requires live project data and is expensive. Track 8.9 defines the worker mechanics first, without coupling to any specific data source.
+docs/architecture/dashboard-background-refresh-runtime.md:180:| 8.11 | External Task Adapter Runtime — real portfolio source providers |
+docs/architecture/dashboard-background-refresh-runtime.md:186:| — | Portfolio runtime snapshot generation adapters |
+docs/architecture/dashboard-consumption-runtime.md:7:The Dashboard Consumption Runtime provides the frontend consumption foundation for the PMFreak protected dashboard area. It connects protected routes to the Portfolio Executive Dashboard API created in Track 8.2, normalising raw API responses into stable `DashboardViewModel` contracts that future executive dashboard UI widgets can consume without coupling to the raw API response shape.
+docs/architecture/dashboard-consumption-runtime.md:29:loadPortfolioDashboardViewModel(options)
+docs/architecture/dashboard-consumption-runtime.md:31:         ├─► fetchPortfolioDashboard(options)          → raw API response
+docs/architecture/dashboard-consumption-runtime.md:39:`fetchPortfolioDashboard(options: DashboardFetchOptions)` calls `GET /api/dashboard/portfolio` using the browser or server `fetch` API.
+docs/architecture/dashboard-consumption-runtime.md:68:  portfolioRecommendation: string
+docs/architecture/dashboard-consumption-runtime.md:136:For client-side or server-to-server contexts, `loadPortfolioDashboardViewModel(options)` wraps the async fetch + runtime pipeline:
+docs/architecture/dashboard-consumption-runtime.md:140:const viewModel = await loadPortfolioDashboardViewModel({ baseUrl: 'https://app.pmfreak.com' })
+docs/architecture/dashboard-consumption-runtime.md:178:| **Track 8.5** | Dashboard persistence / source hydration — `resolveDashboardSourceData` connects to Supabase; `loadPortfolioDashboardViewModel` receives richer `ok` responses |
+docs/architecture/dashboard-consumption-runtime.md:179:| **Track 8.6** | Dashboard refresh / caching — `loadPortfolioDashboardViewModel` gains SWR or React Query integration; `AbortSignal` support already in `DashboardFetchOptions` |
+docs/architecture/dashboard-consumption-runtime.md:181:| Future | Client-side refresh — `loadPortfolioDashboardViewModel` called from a client hook on user interaction |
+docs/architecture/dashboard-runtime-integration.md:7:The Dashboard Runtime Integration layer bridges all completed portfolio executive orchestration runtimes (Track 7) into a unified dashboard-consumption layer. It transforms raw portfolio runtime outputs into dashboard-ready, UI-safe, deterministic DTOs consumable by PMFreak protected routes, API endpoints, executive cards, widgets, and portfolio panels.
+docs/architecture/dashboard-runtime-integration.md:15:All dashboard surfaces consume a single unified DTO: `PortfolioExecutiveDashboardDTO`. This object is assembled by composing six independent adapter outputs. Each adapter is a pure function — same input always produces the same output.
+docs/architecture/dashboard-runtime-integration.md:17:Severity and status normalization is centralised in adapter functions. No consumer needs to re-interpret raw portfolio severity strings.
+docs/architecture/dashboard-runtime-integration.md:25:| `adaptPortfolioHealthPanel` | `PortfolioExecutiveDashboardReport` | `PortfolioHealthPanelDTO` |
+docs/architecture/dashboard-runtime-integration.md:26:| `adaptExecutiveSummaryCard` | `PortfolioExecutiveDashboardReport` | `ExecutiveSummaryCardDTO` |
+docs/architecture/dashboard-runtime-integration.md:27:| `adaptRiskTable` | `PortfolioExecutiveDashboardReport` | `RiskTableRowDTO[]` (max 10) |
+docs/architecture/dashboard-runtime-integration.md:36:### Portfolio Risk Level → DashboardSeverity
+docs/architecture/dashboard-runtime-integration.md:38:| Portfolio Risk Level | Dashboard Severity |
+docs/architecture/dashboard-runtime-integration.md:45:### Portfolio Health Score → DashboardCardStatus
+docs/architecture/dashboard-runtime-integration.md:77:runDashboardRuntimeIntegration(input: DashboardRuntimeInput): PortfolioExecutiveDashboardDTO
+docs/architecture/dashboard-runtime-integration.md:87:The output `PortfolioExecutiveDashboardDTO` powers:
+docs/architecture/dashboard-runtime-integration.md:89:1. Portfolio health panel
+docs/architecture/dashboard-runtime-integration.md:105:  → passes PortfolioExecutiveDashboardDTO to page props
+docs/architecture/dashboard-runtime-integration.md:109:No component should call Track 7 runtimes directly. All portfolio data flows through this integration layer.
+docs/architecture/dashboard-runtime-integration.md:118:GET /api/dashboard/portfolio-executive
+docs/architecture/dashboard-runtime-integration.md:121:  → returns PortfolioExecutiveDashboardDTO as JSON response
+docs/architecture/dashboard-runtime-integration.md:131:- **Dashboard caching layer** — deterministic DTO output is cache-safe; same inputs always produce the same DTO for a given portfolio snapshot
+docs/architecture/dashboard-source-hydration-runtime.md:7:Snapshots follow `DashboardSourceSnapshot` with tenant/workspace/portfolio scope, source kind, payload, generation metadata, and schema/runtime versions.
+docs/architecture/data-export-sovereignty-architecture.md:22:| PMO | PMO profile, operating model, portfolio settings, governance cadence, templates | JSON, CSV, Markdown, PDF | Includes relationships to programs and projects. |
+docs/architecture/data-export-sovereignty-architecture.md:239:    "portfolio_settings": { "type": "object" },
+docs/architecture/executive-dashboard-aggregation-runtime.md:5:The Executive Dashboard Aggregation Runtime consolidates outputs from all Track 7 portfolio intelligence runtimes into one deterministic, executive-ready portfolio dashboard report. It provides a single PMO/executive command view across portfolio health, active conflicts, load balancing status, decision simulations, and PMO interventions.
+docs/architecture/executive-dashboard-aggregation-runtime.md:7:This runtime does not re-detect conflicts, re-run simulations, or create new interventions. It is a pure aggregation and prioritization layer that renders fragmented portfolio intelligence into a coherent executive signal.
+docs/architecture/executive-dashboard-aggregation-runtime.md:13:2. Generate health summary from portfolio-level health score.
+docs/architecture/executive-dashboard-aggregation-runtime.md:18:7. Aggregate and rank top portfolio risks across all sources.
+docs/architecture/executive-dashboard-aggregation-runtime.md:20:9. Return fully composed `PortfolioExecutiveDashboardReport`.
+docs/architecture/executive-dashboard-aggregation-runtime.md:24:`PortfolioDashboardInput` accepts:
+docs/architecture/executive-dashboard-aggregation-runtime.md:26:- `portfolio` (required): Core portfolio health metrics — health score, project counts, average project health.
+docs/architecture/executive-dashboard-aggregation-runtime.md:27:- `conflictReport` (optional): Output from Track 7.1 Portfolio Conflict Arbitration Runtime.
+docs/architecture/executive-dashboard-aggregation-runtime.md:28:- `loadBalancingReport` (optional): Output from Track 7.2 Portfolio Load Balancing Runtime.
+docs/architecture/executive-dashboard-aggregation-runtime.md:38:Maps portfolio health score to a risk level using threshold bands:
+docs/architecture/executive-dashboard-aggregation-runtime.md:52:Extracts balancing score, operational risk level, projected improvement, and top recommended actions from the load balancing report. Falls back to portfolio health score when no load report is provided.
+docs/architecture/executive-dashboard-aggregation-runtime.md:69:`generateTopPortfolioRisks()` draws from five sources:
+docs/architecture/executive-dashboard-aggregation-runtime.md:73:| Portfolio | `portfolioHealthScore < 65` |
+### command center
+PM_LANGUAGE_SOFTENING.txt:84:Command center:
+README.md:116:The first complete PMFreak cognitive-operational circuit is documented in [`docs/operational-evidence-decision-loop.md`](docs/operational-evidence-decision-loop.md). It covers the deterministic signal detector, PMFreak role-mapping authority checks, immutable evidence-linked decisions, Command Center integration, exact Project Assurance Summary v1 metrics, the idempotent demo seed, and the isolated Supabase DB/RLS verifier.
+artifacts/operational-flow-runtime-gate-checklist.md:68:- [ ] Screenshot saved: Command Center with evidence tab
+artifacts/operational-flow-runtime-gate-checklist.md:101:- [ ] Screenshot: Command Center evidence tab
+docs/agent-controlled-action-conversion-approval-bridge.md:305:No UI was added in this sprint. The backend, API, tests, and documentation are the complete deliverable. UI can be added in a future sprint under `/command-center/action-conversions` following existing command center patterns.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:69:### PMO Command Center
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:71:The dashboard extends the PMO Command Center with a dedicated Governance Intelligence surface (`/command-center/governance-intelligence`) that focuses on signal trends and policy proposal management.
+docs/agent-observability-audit-trail.md:118:- `pmo_command_center` — PMO command center actions
+docs/ai-native-mvp-plan.md:135:- Monolithic copilot-only positioning in dashboard redirect → dashboard should become a real command center.
+docs/architecture/command-center-foundation.md:1:# Command Center Foundation
+docs/architecture/command-center-foundation.md:8:- Each Command Center owns its intelligence.
+docs/architecture/command-center-foundation.md:9:- Every project belongs to a Command Center.
+docs/architecture/command-center-foundation.md:10:- PMO is one type of Command Center, not the universal container.
+docs/architecture/command-center-foundation.md:14:A Command Center is **not** a new table. It is the existing `workspaces` table
+docs/architecture/command-center-foundation.md:23:| `data_owner` | `auth.users` FK — the user accountable for the Command Center's data |
+docs/architecture/command-center-foundation.md:36:A user can belong to many Command Centers via the existing
+docs/architecture/command-center-foundation.md:40:- `getUserCommandCenters(userId)` — Command Centers the user belongs to that
+docs/architecture/command-center-foundation.md:43:  Command Center.
+docs/architecture/command-center-foundation.md:58:Command Center (`/create-command-center`, preferred; `/create-pmo`, legacy backward-compatible redirect; `src/lib/pmo/save-pmo-tenant.ts`) promotes this
+docs/architecture/command-center-foundation.md:61:workspace. Additional Command Centers (future consultant/client-portfolio use
+docs/architecture/command-center-foundation.md:70:- No project can exist without a Command Center (`projects.workspace_id` is
+docs/architecture/command-center-foundation.md:72:- Agents and memory only ever retrieve from the active Command Center — there
+docs/architecture/command-center-foundation.md:76:  onboarding flag) — no confidential Command Center data is stored there.
+docs/architecture/command-center-foundation.md:85:  entry point for a user with no Command Center: title, subtitle, a primary
+docs/architecture/command-center-foundation.md:86:  **Create Command Center** action, and a disabled **Create Project** action
+docs/architecture/command-center-foundation.md:91:  user-facing Command Center creation flow. `/create-pmo`
+docs/architecture/command-center-foundation.md:94:  Command Center type using the five official types from
+docs/architecture/command-center-foundation.md:95:  `COMMAND_CENTER_TYPES`. Product/UI language should say **Command Center**
+docs/architecture/command-center-foundation.md:103:  for the three agent idle-state strings (no Command Center / no project /
+docs/architecture/command-center-foundation.md:104:  active), wired into the dashboard and the per-project Command Center empty
+docs/architecture/command-center-foundation.md:109:"Command Center" was previously also the name of the per-project operational
+docs/architecture/command-center-foundation.md:117:"Command Center" now refers exclusively to the governance container described
+docs/architecture/dashboard-action-ui-surface.md:7:Track 8.10 exposes the Track 8.7 Dashboard Action Center Runtime as a read-only visual surface inside the executive dashboard. It transforms generated action intelligence into an executive operational command center without executing, mutating, or approving any actions.
+docs/architecture/governance-gate-failure-inventory-v2.md:46:| 12 | `tests/legacy-surface-demotion.test.mjs` | `navigation labels use lens semantics` | `src/features/runtime/capability-reveal/capability-reveal-selectors.ts`, `src/lib/workspace/navigation-hierarchy.ts` | Navigation output should include `Execution Lens` and `Executive Lens`, and avoid legacy `Command Center`. | Selectors pass through `NAVIGATION_HIERARCHY` labels; hierarchy currently uses `Delivery Status`, `Leadership View`, and `Project Controls`. | B. Broken implementation | Fix production labels or update contract to approved current label taxonomy after design review. |
+docs/audits/progressive-cognitive-reveal-audit-2026-05-25.md:8:- Command Center has evidence-aware states (`active`, `watching`, `needs-data`, `simulated`) and low-evidence constraints, but domain unlock logic is heuristic/UI-local instead of a shared progression engine.
+docs/conversational-brain-pipeline-reconciliation.md:57:Auth-gated (`getAuthUser`), sin LLM, sin persistencia. Consumido por el chat real del Command Center (`command-feed.tsx`, `command-center-layout.tsx`).
+docs/operational-command-center.md:1:# Operational Command Center
+docs/operational-command-center.md:7:The Operational Command Center transforms Project OS Snapshots into a prioritized, explainable, and traceable operational focus layer. It answers six critical operational questions:
+docs/operational-command-center.md:16:The Command Center does **not** create new reality — it prioritizes existing reality surfaced by the Project OS Snapshot.
+docs/operational-command-center.md:31:Command Center State
+docs/operational-command-center.md:47:                    → Command Center
+docs/operational-command-center.md:52:## Command Center Model
+docs/operational-command-center.md:81:| `command_center_id` | uuid | Parent command center |
+docs/operational-command-center.md:205:The Command Center recommends actions but **never executes them**.
+docs/operational-command-center.md:256:Command Center
+docs/operational-command-center.md:265:## Command Center Health
+docs/operational-command-center.md:287:| `OPERATIONAL_COMMAND_CENTER_GENERATED` | New Command Center created from snapshot |
+docs/operational-command-center.md:288:| `OPERATIONAL_COMMAND_CENTER_VALIDATED` | Command Center validated by operator |
+docs/operational-command-center.md:289:| `OPERATIONAL_COMMAND_CENTER_ARCHIVED` | Command Center soft-archived |
+docs/operational-command-center.md:305:| Rule 1 | Every Command Center must originate from a Project OS Snapshot |
+docs/operational-command-center.md:312:| Rule 8 | The Command Center does not execute actions |
+docs/operational-command-center.md:313:| Rule 9 | The Command Center does not modify source entities |
+docs/operational-command-center.md:394:### Generate Command Center
+docs/operational-command-center.md:425:### Command Center Health
+docs/operational-consequence-engine.md:179:Operational Command Center (layer 10)
+docs/operational-decision-engine.md:33:→ Commitment → Projection → Reality → Snapshot → Command Center
+docs/operational-flow-runtime-gate.md:217:- Screenshot of Command Center with evidence tab open
+docs/personal-portfolio-intelligence.md:3:EPIC 5 — Personal Portfolio Intelligence gives each owner a curated, ranked view of their projects and synthesizes a daily Personal Command Center.
+docs/personal-portfolio-intelligence.md:48:`generatePortfolioSnapshot()` orchestrates all five sprints in a single call: it computes ranking, attention allocation, neglect consequences, and command center payload before persisting the snapshot row. Sprints 2–5 are also exposed as standalone pure functions for independent use.
+docs/personal-portfolio-intelligence.md:143:| `generatePortfolioSnapshot(input)` | Full snapshot: health counts + ranking + attention + neglect + command center. Persists to DB. Emits `PERSONAL_PORTFOLIO_SNAPSHOT_GENERATED`. |
+docs/personal-portfolio-intelligence.md:222:### Sprint 5: Personal Command Center
+docs/personal-portfolio-intelligence.md:410:### Get today's command center focus
+docs/pm-capacity-snapshot-activation.md:288:- This slice does not include PMO Command Center aggregation.
+docs/pm-detail-intelligence.md:17:- Does not implement PMO Command Center.
+docs/pm-detail-intelligence.md:192:- Does not implement PMO Command Center.
+docs/pm-detail-intelligence.md:201:**PMO Command Center** — aggregate PM Operating Dossiers into an executive PMO operations view across all Project Managers in the workspace.
+docs/pm-performance-snapshot-activation.md:275:- PM Performance does not yet power PMO Command Center.
+docs/pm-performance-snapshot-activation.md:287:- PMO Command Center integration
+docs/pm-registry-foundation.md:224:- **PMO Command Center** (future): Aggregates PM assignments, profiles, and signals across the workspace for portfolio-level governance visibility.
+docs/pmo-command-center.md:1:# PMO Command Center
+docs/pmo-command-center.md:5:The PMO Command Center is a read-aggregation executive view for PMO leadership. It collects and aggregates PM Operating Dossiers across the entire workspace into a single unified view — no recalculation of capacity or performance occurs.
+docs/pmo-command-center.md:16:3. Aggregates the resulting dossiers into the PMO Command Center view sections.
+docs/pmo-executive-reporting-alerts.md:30:| PMO Command Center view | `@/lib/pmo-command-center` (`getPMOCommandCenter`) | Operational status, capacity, performance, evidence overviews, attention queues |
+docs/pmo-executive-reporting-alerts.md:82:| `pmo_status_critical` | critical | command center |
+docs/pmo-executive-reporting-alerts.md:83:| `pmo_capacity_pressure` | high | command center |
+docs/pmo-executive-reporting-alerts.md:84:| `pmo_performance_pressure` | high | command center |
+docs/pmo-executive-reporting-alerts.md:91:| `evidence_confidence_low` | medium | command center |
+docs/pmo-executive-reporting-alerts.md:92:| `missing_capacity_snapshot` | medium | command center |
+docs/pmo-executive-reporting-alerts.md:93:| `missing_performance_snapshot` | medium | command center |
+docs/pmo-governance-compliance.md:17:Command Center view and the per-PM Operating Dossiers — and turns them into a
+### recommendation
+README.md:98:- Copilot capabilities: next steps, risks, scope clarifications, RACI, meeting minutes, follow-up emails, escalation drafts, change-control recommendations, kickoff/closure checklists, and recovery plans.
+artifacts/operational-flow-runtime-gate-checklist.md:51:- [ ] No duplicate signals/risks/governance events confirmed (counts match `{signals:2, risksIssues:2, governanceEvents:2, recommendations:2}`)
+artifacts/operational-flow-runtime-gate-checklist.md:79:- [ ] PM tries to accept sponsor/PMO recommendation via `record_operational_decision` RPC → DB denial
+artifacts/operational-flow-runtime-gate-checklist.md:85:- [ ] `POST /api/recommended-actions/decision` on governed recommendation → HTTP 409
+artifacts/operational-flow-runtime-gate-checklist.md:91:- [ ] Governed recommendations do NOT appear in `GET /api/recommended-actions` legacy list
+artifacts/operational-flow-runtime-gate-checklist.md:92:- [ ] `POST /api/recommended-actions/decision` returns `governed_flow_required` (409) for governed recommendations
+artifacts/operational-flow-runtime-gate-checklist.md:102:- [ ] Screenshot: completed chain (signal + risk + governance + recommendation)
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:27:Summarises the policy impact previews for a change request: total simulations run, total affected items, net benefit/risk score, and overall recommendation.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:283:- No AI-generated recommendations are displayed.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:360:  "recommendation": "Consider increasing review frequency for high-risk action types.",
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:398:risk scoring mutation, or AI-generated recommendations.
+docs/agent-execution-results-evidence-layer.md:23:- `recommendation` — actionable recommendation
+docs/agent-execution-results-evidence-layer.md:87:- `long_lived` — extended retention (used for risk, governance, recommendation)
+docs/agent-memory-context-layer.md:83:| `risk` | Risk or exposure that may influence future recommendations |
+docs/agent-memory-context-layer.md:87:| `lesson_learned` | Retrospective learning that may inform future PMO recommendations |
+docs/agent-observability-audit-trail.md:76:An `AgentDecisionEventRecord` captures a decision, recommendation, classification, or proposed action:
+docs/agent-observability-audit-trail.md:149:- `agent_decision_events` — decision/recommendation records
+docs/agent-observability-audit-trail.md:243:  "decisionType": "recommendation",
+docs/agent-tool-execution-adapter-layer.md:52:`noop` | `simulation` | `draft_email` | `draft_task` | `draft_project_update` | `draft_report` | `recommendation` | `structured_summary` | `risk_analysis` | `governance_note`
+docs/agent-tool-execution-adapter-layer.md:74:| `risk_analysis_adapter` | `analyze_project_risk`, `draft_risk_note`, `prepare_risk_escalation` | `dry_run`, `draft_only` | `risk_analysis`, `recommendation` | `high_with_approval` |
+docs/agent-tool-execution-adapter-layer.md:174:  "recommendations": [],
+docs/agent-tool-execution-adapter-layer.md:510:- Additional adapter types: `governance_note`, `recommendation`
+docs/agent-tool-registry.md:96:| `recommendation` | Proposing actions without executing them |
+docs/agent-tool-registry.md:110:| `medium` | Drafts, recommendations, generated tasks not yet executed. |
+docs/agent-tool-registry.md:141:| `suggest_intervention` | recommendation | medium | draft_only | No |
+docs/agent-tool-registry.md:143:| `recommend_next_action` | recommendation | medium | draft_only | No |
+docs/architecture/CURRENT_STATE_AUTONOMOUS_INTERVENTION.md:6:- Safety gate decisions: classify as safe/human/executive/blocked/insufficient and force recommendation-only execution.
+docs/architecture/CURRENT_STATE_CROSS_DOMAIN_CORRELATION.md:43:- Add intervention recommendation ranking from fragility-recovery deltas.
+docs/architecture/CURRENT_STATE_INTERVENTION_LEARNING.md:12:- Future reinforcement-learning constraints: no autonomous reward loops, keep recommendation-only posture.
+docs/architecture/CURRENT_STATE_LIVE_FEDERATION_RUNTIME.md:40:| `survivability/connector-runtime-recovery.ts` | Recovery recommendations (isAutomated: false) |
+docs/architecture/CURRENT_STATE_PRODUCTION_RUNTIME.md:23:- `deployment/deployment-recovery.ts` — Recommendation-only recovery (isAutomated: false)
+docs/architecture/CURRENT_STATE_PRODUCTION_RUNTIME.md:47:- `migrations/migration-recovery.ts` — Recommendation-only migration recovery
+docs/architecture/CURRENT_STATE_PRODUCTION_RUNTIME.md:108:3. **Recommendation-only recovery** — Auto-recovery requires operator oversight. All recovery functions return recommendations with `isAutomated: false`.
+docs/architecture/CURRENT_STATE_PRODUCTION_RUNTIME.md:156:3. **No auto-recovery** — Recovery is recommendation-only. Automated remediation requires future work.
+docs/architecture/CURRENT_STATE_RUNTIME_HARDENING.md:26:- `runtime-recovery.ts` — recommendation-only recovery; isAutomated: false on all entries; no execSync/spawnSync/writeFileSync
+docs/architecture/CURRENT_STATE_RUNTIME_HARDENING.md:54:4. Recovery recommendations are human-facing only — isAutomated: false is explicit and checked by the validation script
+docs/architecture/autonomous-intervention-runtime.md:4:Deterministic recommendation-only intervention intelligence that sequences PM actions while blocking autonomous external execution.
+docs/architecture/autonomous-intervention-runtime.md:7:- recommendation-only execution modes
+docs/architecture/autonomous-intervention-runtime.md:25:No external execution path is exposed; engine only returns explainable recommendations, safety profiles, and fallback paths.
+docs/architecture/cost-governance-agent.md:32:Interventions are deterministic recommendations designed for fast operational actuation:
+docs/architecture/customer-owned-organizational-memory-framework.md:5:This document defines PMFreak's implementation-ready Customer-Owned Organizational Memory framework. Organizational memory includes project activity, decisions, risks, lessons learned, stakeholder interactions, AI-assisted recommendations, and governance events. The operating principle is that customer memory is a customer asset: PMFreak may process, secure, index, and present it only under customer-controlled authority.
+docs/architecture/customer-owned-organizational-memory-framework.md:13:3. **Derived memory remains customer-owned** when it is generated from customer data, including summaries, lessons, classifications, risk patterns, embeddings, vector metadata, AI recommendations, relationship graphs, and governance scores.
+docs/architecture/customer-owned-organizational-memory-framework.md:23:| Memory Ingestion Service | Converts activity, decisions, risks, lessons, stakeholder events, AI recommendations, and governance events into canonical memory records. | Validates tenant scope, source provenance, sensitivity, and retention policy before writing. |
+docs/architecture/customer-owned-organizational-memory-framework.md:36:| Creation | User activity, connector event, AI recommendation, governance event, import, bulk upload, or manual entry. | Tenant scope, provenance, creator identity, category, sensitivity, visibility, retention policy, and duplicate check. | `draft`, `active`, or `pending_review`. |
+docs/architecture/customer-owned-organizational-memory-framework.md:53:| AI Recommendation | AI summaries, predictions, remediation recommendations, confidence metadata. | Required for high-impact, automated, or externally visible use. | Same as linked source; minimum 1 year. |
+docs/architecture/customer-owned-organizational-memory-framework.md:127:4. **Escalation**: severe risk, strategic decision, legal/HR content, high-impact AI recommendation, or export of restricted content escalates to Memory Sovereignty Admin or Executive Viewer.
+docs/architecture/customer-owned-organizational-memory-framework.md:147:4. Deletion requires approval for restricted, governance, decision, risk, stakeholder, AI-recommendation, and bulk requests.
+docs/architecture/customer-owned-organizational-memory-framework.md:183:| AI recommendations | Source retention, minimum 1 year | Delete with source unless governance-approved independent record. |
+docs/architecture/customer-owned-organizational-memory-framework.md:631:1. Customer-owned memory records can be created for activity, decisions, risks, lessons, stakeholder interactions, AI recommendations, and governance events.
+docs/architecture/dashboard-consumption-runtime.md:68:  portfolioRecommendation: string
+docs/architecture/dashboard-runtime-integration.md:62:### Decision Recommendation → DashboardSeverity
+docs/architecture/deployment-multitenant-production-operations.md:19:3. **Recommendation-only recovery** — Recovery functions return recommendations with `isAutomated: false`. No automated deployment mutations.
+docs/architecture/deployment-multitenant-production-operations.md:145:A survivability score below 80% triggers a high-severity diagnostic. A score below 100% in production generates a recovery recommendation.
+docs/architecture/deployment-multitenant-production-operations.md:189:3. **No auto-recovery** — Recovery is recommendation-only. Automated remediation requires future implementation.
+docs/architecture/enterprise-ux-demo-readiness.md:162:  recommendations
+docs/architecture/executive-dashboard-aggregation-runtime.md:19:8. Generate executive recommendation bundle (decisions needed, attention areas, recommendation, summary).
+docs/architecture/executive-dashboard-aggregation-runtime.md:48:Aggregates conflict report data into counts, conflict type frequency ranking, and escalation counts. A conflict is classified as requiring executive escalation when its severity is `high` or `critical`, or when an `executiveRecommendation` is present.
+docs/architecture/executive-dashboard-aggregation-runtime.md:56:Categorizes decision simulation recommendations:
+docs/architecture/executive-dashboard-aggregation-runtime.md:85:## Executive recommendation model
+docs/architecture/executive-dashboard-aggregation-runtime.md:87:`generatePortfolioExecutiveRecommendation()` produces four outputs:
+docs/architecture/executive-dashboard-aggregation-runtime.md:115:### Portfolio recommendation
+docs/architecture/executive-dashboard-aggregation-runtime.md:125:Format: `"Portfolio health is [riskLevel] with [X] active projects, [Y] conflicts, [Z] PMO interventions, and [N] top risks requiring attention. Recommended action: [portfolioRecommendation]"`
+docs/architecture/executive-dashboard-aggregation-runtime.md:142:| `portfolioRecommendation` | string | Governance-level recommendation |
+docs/architecture/executive-decision-simulation-runtime.md:12:The Executive Decision Simulation Runtime allows PMFreak to evaluate a proposed executive decision against the active project portfolio before it is approved or executed. It produces a deterministic impact projection, a set of tradeoffs, a decision recommendation, and a confidence score — equivalent to a senior PMO decision briefing.
+docs/architecture/executive-decision-simulation-runtime.md:156:## Recommendation Logic
+docs/architecture/executive-decision-simulation-runtime.md:158:`generateDecisionRecommendation()` in `recommendation-engine.ts` applies a priority-ordered decision tree:
+docs/architecture/executive-decision-simulation-runtime.md:160:| Condition | Recommendation |
+docs/architecture/executive-decision-simulation-runtime.md:171:Each recommendation includes a generated rationale string referencing the specific delta values and tradeoff counts.
+docs/architecture/executive-decision-simulation-runtime.md:177:`calculateDecisionConfidence()` in `decision-confidence-engine.ts` returns a score from 0–100 representing how much structured information supports the recommendation.
+docs/architecture/executive-decision-simulation-runtime.md:211:4. generateDecisionRecommendation(input, baseline, projection, tradeoffs)
+docs/architecture/executive-decision-simulation-runtime.md:220:Decision "<title>" is recommended as <recommendation> because <rationale>.
+docs/architecture/guided-operational-activation-runtime.md:19:Guidance is generated from runtime state and milestone/score posture, producing contextual operational recommendations. Nudges prioritize continuity activation, unresolved risk review, stakeholder dependency review, and executive synthesis generation.
+docs/architecture/intervention-effectiveness-learning-engine.md:8:- Failure and drift signal detection to prevent stale recommendations.
+docs/architecture/intervention-efficacy-learning.md:37:When historical intervention memory is available, repeated attempts and failed attempts are accumulated for the same workspace+project+pattern+intervention type. Repeated stalled/failed loops increase fatigue and escalation recommendations.
+docs/architecture/live-oauth-secure-federation-runtime.md:38:The `ConnectorTokenState` type enforces `clientSideExposed: false` at the type level. Any code path that would expose a token client-side is a **critical governance violation** that must be immediately remediated and results in a mandatory token revocation recommendation.
+docs/architecture/live-oauth-secure-federation-runtime.md:84:- Generates recommendations with explicit `isAutomated: false` markers
+docs/architecture/live-oauth-secure-federation-runtime.md:179:- Included in recovery recommendations
+docs/architecture/persistent-conversational-memory.md:68:## Scalability recommendations
+docs/architecture/platform-events-invariants.md:7:Platform events are the evidence layer for PMFreak activity, recommendations, governance actions, and future organizational-memory sovereignty capabilities. They must preserve history without turning the event log into raw-content storage.
+docs/architecture/pmo-intervention-automation-runtime.md:95:| Recommendation | Intervention |
+### decision
+README.md:114:## Operational evidence-to-decision loop
+README.md:116:The first complete PMFreak cognitive-operational circuit is documented in [`docs/operational-evidence-decision-loop.md`](docs/operational-evidence-decision-loop.md). It covers the deterministic signal detector, PMFreak role-mapping authority checks, immutable evidence-linked decisions, Command Center integration, exact Project Assurance Summary v1 metrics, the idempotent demo seed, and the isolated Supabase DB/RLS verifier.
+THIRD_PARTY_NOTICES.md:12:Production/runtime and development dependencies are both included in the technical inventory. Review-required licenses, unknown metadata, custom licenses, and any future blocked licenses must be reviewed before commercial release or redistribution decisions. If a dependency requires reproduction of full license text, store deduplicated text under third_party_licenses/ with traceability back to the inventory.
+artifacts/operational-flow-runtime-gate-checklist.md:23:- [ ] Migrations applied — `20260611000000_operational_evidence_decision_loop` is last in `supabase migration list`
+artifacts/operational-flow-runtime-gate-checklist.md:64:- [ ] Decision registered as owner
+artifacts/operational-flow-runtime-gate-checklist.md:65:- [ ] Evidence freeze indicator appears on evidence item after decision
+artifacts/operational-flow-runtime-gate-checklist.md:79:- [ ] PM tries to accept sponsor/PMO recommendation via `record_operational_decision` RPC → DB denial
+artifacts/operational-flow-runtime-gate-checklist.md:80:- [ ] Direct `UPDATE` on `operational_decision_records` → DB denial (append-only)
+artifacts/operational-flow-runtime-gate-checklist.md:81:- [ ] Direct `UPDATE` on `decision_evidence_links` → DB denial (append-only)
+artifacts/operational-flow-runtime-gate-checklist.md:85:- [ ] `POST /api/recommended-actions/decision` on governed recommendation → HTTP 409
+artifacts/operational-flow-runtime-gate-checklist.md:92:- [ ] `POST /api/recommended-actions/decision` returns `governed_flow_required` (409) for governed recommendations
+artifacts/operational-flow-runtime-gate-checklist.md:93:- [ ] No governed decision possible without `operational_decision_record` + `decision_evidence_link`
+artifacts/operational-flow-runtime-gate-checklist.md:103:- [ ] Screenshot: decision record with authority basis
+artifacts/vault-smoke-test-report.json:62:    "decision_signal": 17
+artifacts/vault-smoke-test-report.json:83:        "decision_signal": 1
+artifacts/vault-smoke-test-report.json:97:        "decision_signal": 5,
+artifacts/vault-smoke-test-report.json:139:        "decision_signal": 5,
+artifacts/vault-smoke-test-report.json:152:        "decision_signal": 6,
+artifacts/vault-smoke-test-report.md:39:- Top signals: financial_impediment_signal(9), escalation_signal(7), blocker_signal(7), dependency_signal(7), decision_signal(5)
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:7:This module provides deterministic, non-destructive record-keeping for beta readiness planning. It records plans, demo data bundles, onboarding checklists, tenant validations, readiness gates, and decisions — all without calling external APIs, LLMs, or sending communications.
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:62:### BetaReadinessDecisionRecord
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:63:Records gate decisions: approve_for_controlled_beta, approve_with_warnings, reject, request_remediation, block, archive.
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:122:- agent_beta_readiness_decisions
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:157:- beta_readiness_decision_recorded
+docs/agent-controlled-action-conversion-approval-bridge.md:16:- Decision-to-execution linkage
+docs/agent-controlled-action-conversion-approval-bridge.md:59:- Review decisions (`agent_review_decisions`)
+docs/agent-controlled-action-conversion-approval-bridge.md:73:| `reviewDecisionId` | Source review decision |
+docs/agent-controlled-action-conversion-approval-bridge.md:95:- `review_decision_exists`
+docs/agent-controlled-action-conversion-approval-bridge.md:135:  - `reviewDecisionId`
+docs/agent-controlled-action-conversion-approval-bridge.md:204:2. Load action draft, review item, review decisions
+docs/agent-controlled-action-conversion-approval-bridge.md:250:- Review decision not found (informational — lineage may be incomplete)
+docs/agent-controlled-action-conversion-approval-bridge.md:397:    reviewDecisionId: "decision-001",
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:5:The Controlled Execution Finalization & Adapter Dispatch Gate is the final governed decision point before a safe adapter is invoked. It takes a governed execution request that has already passed through the Controlled Action Conversion & Approval Bridge, and determines whether that request is ready, approved, confirmed, locked, idempotent, and dispatchable.
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:67:The formal controlled decision point. Created after readiness passes. Records whether dispatch is allowed, what adapter and mode are selected, and whether confirmation is required.
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:6:outcomes, human review decisions, correction loops, and failed dispatch triage. It
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:8:adapter performance signals, review decision patterns, and review routing feedback for
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:22:- Does NOT store raw outcome payloads, free text summaries, decision notes, or identifiers.
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:39:- Review decision pattern and routing feedback types
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:76:- `extractLearningSignalsFromHumanOutcomeReview` — reads only: decisionType,
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:87:- `generateReviewDecisionPatterns` — human review decision outcome patterns
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:119:8. `agent_execution_review_decision_patterns` — Human review decision outcome patterns
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:183:- `execution_review_decision_pattern_created`
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:210:| POST | `/api/agents/execution/learning/review-patterns` | Generate review decision patterns |
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:224:  decision note text, failure description text, or correction note text in signals
+docs/agent-controlled-execution-result-reconciliation-human-outcome-review.md:119:- `POST /api/agents/execution/outcomes/[outcomeId]/decision` — Record decision
+docs/agent-controlled-execution-result-reconciliation-production-validation.md:50:| `src/app/api/agents/execution/outcomes/[outcomeId]/decision/route.ts` | PRESENT |
+docs/agent-controlled-execution-result-reconciliation-production-validation.md:81:| 5 | Can outcome be accepted automatically without human decision? | NO — PASS (`recordHumanOutcomeDecision` requires explicit `decisionType` from caller) |
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:39:A governance sign-off packet collecting all required sign-off metadata: signer, role, decision type, rationale, and optional conditions. Sign-off decision type for approvals is `approve_for_implementation_planning` (not "implement policy").
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:41:### AgentPmoSignOffDecision
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:42:An individual sign-off decision record. When decision type is `approve_for_implementation_planning` and an `approvalPackId` is present, the associated approval pack is automatically moved to `signed_off` status.
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:77:| POST | `/api/agents/execution/approval-pack/signoff-decisions` | Record a sign-off decision |
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:113:Event types: `pmo_approval_pack_created`, `pmo_approval_pack_assembling`, `pmo_approval_pack_assembled`, `pmo_simulation_report_created`, `pmo_simulation_report_section_created`, `pmo_impact_summary_created`, `pmo_policy_draft_diff_created`, `pmo_approval_checklist_created`, `pmo_approval_checklist_item_recorded`, `pmo_rollback_checklist_created`, `pmo_rollback_checklist_item_recorded`, `pmo_signoff_packet_created`, `pmo_signoff_decision_recorded`, `pmo_implementation_ticket_draft_created`, `pmo_approval_pack_export_created`, `pmo_approval_pack_archived`.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:58:- `agent_execution_review_decision_patterns`
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:67:Risk calibration and evidence quality signals originate from outcome reconciliation and human review decisions. The dashboard summarizes these patterns without re-exposing individual review records.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:126:Per-role aggregation of route effectiveness, review priority, and decision patterns.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:206:4. Decision: `approve_for_future_implementation`, `reject`, `archive`, or `request_more_review`.
+docs/agent-controlled-pmo-governance-intelligence-dashboard.md:375:  "reviewDecision": null
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:13:- Manages gate approval and gate decision recording
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:21:- Records dry-run decisions (pass for future activation planning only)
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:48:| `agent_pmo_dry_run_gate_decisions` | Gate decision audit trail (append-only) |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:58:| `agent_pmo_dry_run_decisions` | Final dry-run decisions (append-only) |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:70:  → gate_approved            (gate decision: approve_for_dry_run_only)
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:71:  → gate_rejected            (gate decision: reject)
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:72:  → changes_requested        (gate decision: request_changes)
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:74:  → dry_run_completed        (execution + decision: pass_for_future_activation_planning)
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:85:`preflight_summary`, `gate_summary`, `change_summary`, `simulation_summary`, `impact_summary`, `blocker_summary`, `operator_review_summary`, `decision_summary`, `export_summary`, `limitations`
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:100:| GET/POST | `gate-decisions/` | List / record gate decisions |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:112:| GET/POST | `decisions/` | List / record dry-run decisions |
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:173:`pmo_dry_run_request_created`, `pmo_dry_run_preflight_created`, `pmo_dry_run_preflight_completed`, `pmo_dry_run_gate_approval_created`, `pmo_dry_run_gate_decision_recorded`, `pmo_dry_run_change_set_created`, `pmo_simulated_policy_version_created`, `pmo_dry_run_execution_created`, `pmo_dry_run_execution_started`, `pmo_dry_run_execution_completed`, `pmo_dry_run_execution_failed`, `pmo_dry_run_simulated_impact_recorded`, `pmo_dry_run_evidence_package_created`, `pmo_dry_run_blocker_recorded`, `pmo_dry_run_operator_review_recorded`, `pmo_dry_run_decision_recorded`, `pmo_dry_run_export_created`, `pmo_dry_run_request_archived`
+docs/agent-controlled-policy-implementation-planning-workspace.md:82:### 11. AgentPmoImplementationPlanningDecisionRecord
+docs/agent-controlled-policy-implementation-planning-workspace.md:83:Append-only decision log. Decision types: approve_plan_for_dry_run_planning, request_changes, block_plan, waive_prerequisite, archive_planning_workspace.
+docs/agent-controlled-policy-implementation-planning-workspace.md:98:- `under_review` → `approved_for_dry_run_planning` (on approve decision)
+docs/agent-controlled-policy-implementation-planning-workspace.md:99:- `under_review` → `changes_requested` (on request_changes decision)
+docs/agent-controlled-policy-implementation-planning-workspace.md:100:- Any status → `blocked` (on block_plan decision)
+docs/agent-controlled-policy-implementation-planning-workspace.md:101:- Any status → `archived` (on archive decision)
+docs/agent-controlled-policy-implementation-planning-workspace.md:103:### Decision Effect on Workspace Status
+docs/agent-controlled-policy-implementation-planning-workspace.md:138:| GET/POST | /api/agents/execution/implementation-planning/decisions | List/record decisions |
+docs/agent-controlled-policy-version-activation-rollback-gate.md:5:This sprint implements the **Controlled Policy Version Activation & Rollback Gate** — the final governance checkpoint before a simulated policy version is promoted to become the active policy governing PMO decisions. It provides a fully auditable, human-approved lifecycle for both activation and rollback, with no external side effects.
+docs/agent-controlled-policy-version-activation-rollback-gate.md:11:1. **Activation Request** — Created from a passed dry-run result. Requires a `pass_for_future_activation_planning` dry-run decision.
+### dependency
+NOTICE:9:Third-party software, libraries, SDKs, APIs, trademarks, services, assets, and other materials remain subject to their respective ownership and license terms. Dependency evidence is tracked in artifacts/compliance/third-party-license-inventory.json and summarized in artifacts/compliance/third-party-license-summary.md. SaaS service terms, customer terms, and commercial legal terms are maintained outside this notice as applicable.
+THIRD_PARTY_NOTICES.md:12:Production/runtime and development dependencies are both included in the technical inventory. Review-required licenses, unknown metadata, custom licenses, and any future blocked licenses must be reviewed before commercial release or redistribution decisions. If a dependency requires reproduction of full license text, store deduplicated text under third_party_licenses/ with traceability back to the inventory.
+artifacts/compliance/third-party-license-inventory.json:29:      "dependencyPath": "node_modules/@alloc/quick-lru",
+artifacts/compliance/third-party-license-inventory.json:44:      "dependencyPath": "node_modules/@aoc-enterprise/runtime",
+artifacts/compliance/third-party-license-inventory.json:59:      "dependencyPath": "node_modules/@aoc/protocol",
+artifacts/compliance/third-party-license-inventory.json:74:      "dependencyPath": "node_modules/@babel/code-frame",
+artifacts/compliance/third-party-license-inventory.json:89:      "dependencyPath": "node_modules/@babel/compat-data",
+artifacts/compliance/third-party-license-inventory.json:104:      "dependencyPath": "node_modules/@babel/core",
+artifacts/compliance/third-party-license-inventory.json:119:      "dependencyPath": "node_modules/@babel/generator",
+artifacts/compliance/third-party-license-inventory.json:134:      "dependencyPath": "node_modules/@babel/helper-compilation-targets",
+artifacts/compliance/third-party-license-inventory.json:149:      "dependencyPath": "node_modules/@babel/helper-globals",
+artifacts/compliance/third-party-license-inventory.json:164:      "dependencyPath": "node_modules/@babel/helper-module-imports",
+artifacts/compliance/third-party-license-inventory.json:179:      "dependencyPath": "node_modules/@babel/helper-module-transforms",
+artifacts/compliance/third-party-license-inventory.json:194:      "dependencyPath": "node_modules/@babel/helper-string-parser",
+artifacts/compliance/third-party-license-inventory.json:209:      "dependencyPath": "node_modules/@babel/helper-validator-identifier",
+artifacts/compliance/third-party-license-inventory.json:224:      "dependencyPath": "node_modules/@babel/helper-validator-option",
+artifacts/compliance/third-party-license-inventory.json:239:      "dependencyPath": "node_modules/@babel/helpers",
+artifacts/compliance/third-party-license-inventory.json:254:      "dependencyPath": "node_modules/@babel/parser",
+artifacts/compliance/third-party-license-inventory.json:269:      "dependencyPath": "node_modules/@babel/runtime",
+artifacts/compliance/third-party-license-inventory.json:284:      "dependencyPath": "node_modules/@babel/template",
+artifacts/compliance/third-party-license-inventory.json:299:      "dependencyPath": "node_modules/@babel/traverse",
+artifacts/compliance/third-party-license-inventory.json:314:      "dependencyPath": "node_modules/@babel/types",
+artifacts/compliance/third-party-license-inventory.json:329:      "dependencyPath": "node_modules/@changesets/apply-release-plan",
+artifacts/compliance/third-party-license-inventory.json:344:      "dependencyPath": "node_modules/@changesets/apply-release-plan/node_modules/resolve-from",
+artifacts/compliance/third-party-license-inventory.json:359:      "dependencyPath": "node_modules/@changesets/apply-release-plan/node_modules/semver",
+artifacts/compliance/third-party-license-inventory.json:374:      "dependencyPath": "node_modules/@changesets/assemble-release-plan",
+artifacts/compliance/third-party-license-inventory.json:389:      "dependencyPath": "node_modules/@changesets/assemble-release-plan/node_modules/semver",
+artifacts/compliance/third-party-license-inventory.json:404:      "dependencyPath": "node_modules/@changesets/changelog-git",
+artifacts/compliance/third-party-license-inventory.json:419:      "dependencyPath": "node_modules/@changesets/cli",
+artifacts/compliance/third-party-license-inventory.json:434:      "dependencyPath": "node_modules/@changesets/cli/node_modules/resolve-from",
+artifacts/compliance/third-party-license-inventory.json:449:      "dependencyPath": "node_modules/@changesets/cli/node_modules/semver",
+artifacts/compliance/third-party-license-inventory.json:464:      "dependencyPath": "node_modules/@changesets/config",
+artifacts/compliance/third-party-license-inventory.json:479:      "dependencyPath": "node_modules/@changesets/errors",
+artifacts/compliance/third-party-license-inventory.json:494:      "dependencyPath": "node_modules/@changesets/get-dependents-graph",
+artifacts/compliance/third-party-license-inventory.json:509:      "dependencyPath": "node_modules/@changesets/get-dependents-graph/node_modules/semver",
+artifacts/compliance/third-party-license-inventory.json:524:      "dependencyPath": "node_modules/@changesets/get-release-plan",
+artifacts/compliance/third-party-license-inventory.json:539:      "dependencyPath": "node_modules/@changesets/get-version-range-type",
+artifacts/compliance/third-party-license-inventory.json:554:      "dependencyPath": "node_modules/@changesets/git",
+artifacts/compliance/third-party-license-inventory.json:569:      "dependencyPath": "node_modules/@changesets/logger",
+artifacts/compliance/third-party-license-inventory.json:584:      "dependencyPath": "node_modules/@changesets/parse",
+artifacts/compliance/third-party-license-inventory.json:599:      "dependencyPath": "node_modules/@changesets/pre",
+artifacts/compliance/third-party-license-inventory.json:614:      "dependencyPath": "node_modules/@changesets/read",
+artifacts/compliance/third-party-license-inventory.json:629:      "dependencyPath": "node_modules/@changesets/should-skip-package",
+artifacts/compliance/third-party-license-inventory.json:644:      "dependencyPath": "node_modules/@changesets/types",
+artifacts/compliance/third-party-license-inventory.json:659:      "dependencyPath": "node_modules/@changesets/write",
+artifacts/compliance/third-party-license-inventory.json:674:      "dependencyPath": "node_modules/@emnapi/core",
+artifacts/compliance/third-party-license-inventory.json:689:      "dependencyPath": "node_modules/@emnapi/runtime",
+artifacts/compliance/third-party-license-inventory.json:704:      "dependencyPath": "node_modules/@emnapi/wasi-threads",
+artifacts/compliance/third-party-license-inventory.json:719:      "dependencyPath": "node_modules/@esbuild/aix-ppc64",
+artifacts/compliance/third-party-license-inventory.json:734:      "dependencyPath": "node_modules/@esbuild/android-arm",
+artifacts/compliance/third-party-license-inventory.json:749:      "dependencyPath": "node_modules/@esbuild/android-arm64",
+artifacts/compliance/third-party-license-inventory.json:764:      "dependencyPath": "node_modules/@esbuild/android-x64",
+artifacts/compliance/third-party-license-inventory.json:779:      "dependencyPath": "node_modules/@esbuild/darwin-arm64",
+artifacts/compliance/third-party-license-inventory.json:794:      "dependencyPath": "node_modules/@esbuild/darwin-x64",
+artifacts/compliance/third-party-license-inventory.json:809:      "dependencyPath": "node_modules/@esbuild/freebsd-arm64",
+artifacts/compliance/third-party-license-inventory.json:824:      "dependencyPath": "node_modules/@esbuild/freebsd-x64",
+artifacts/compliance/third-party-license-inventory.json:839:      "dependencyPath": "node_modules/@esbuild/linux-arm",
+artifacts/compliance/third-party-license-inventory.json:854:      "dependencyPath": "node_modules/@esbuild/linux-arm64",
+artifacts/compliance/third-party-license-inventory.json:869:      "dependencyPath": "node_modules/@esbuild/linux-ia32",
+artifacts/compliance/third-party-license-inventory.json:884:      "dependencyPath": "node_modules/@esbuild/linux-loong64",
+artifacts/compliance/third-party-license-inventory.json:899:      "dependencyPath": "node_modules/@esbuild/linux-mips64el",
+artifacts/compliance/third-party-license-inventory.json:914:      "dependencyPath": "node_modules/@esbuild/linux-ppc64",
+artifacts/compliance/third-party-license-inventory.json:929:      "dependencyPath": "node_modules/@esbuild/linux-riscv64",
+artifacts/compliance/third-party-license-inventory.json:944:      "dependencyPath": "node_modules/@esbuild/linux-s390x",
+artifacts/compliance/third-party-license-inventory.json:959:      "dependencyPath": "node_modules/@esbuild/linux-x64",
+artifacts/compliance/third-party-license-inventory.json:974:      "dependencyPath": "node_modules/@esbuild/netbsd-arm64",
+artifacts/compliance/third-party-license-inventory.json:989:      "dependencyPath": "node_modules/@esbuild/netbsd-x64",
+artifacts/compliance/third-party-license-inventory.json:1004:      "dependencyPath": "node_modules/@esbuild/openbsd-arm64",
+artifacts/compliance/third-party-license-inventory.json:1019:      "dependencyPath": "node_modules/@esbuild/openbsd-x64",
+artifacts/compliance/third-party-license-inventory.json:1034:      "dependencyPath": "node_modules/@esbuild/openharmony-arm64",
+artifacts/compliance/third-party-license-inventory.json:1049:      "dependencyPath": "node_modules/@esbuild/sunos-x64",
+artifacts/compliance/third-party-license-inventory.json:1064:      "dependencyPath": "node_modules/@esbuild/win32-arm64",
+artifacts/compliance/third-party-license-inventory.json:1079:      "dependencyPath": "node_modules/@esbuild/win32-ia32",
+artifacts/compliance/third-party-license-inventory.json:1094:      "dependencyPath": "node_modules/@esbuild/win32-x64",
+artifacts/compliance/third-party-license-inventory.json:1109:      "dependencyPath": "node_modules/@eslint-community/eslint-utils",
+artifacts/compliance/third-party-license-inventory.json:1124:      "dependencyPath": "node_modules/@eslint-community/eslint-utils/node_modules/eslint-visitor-keys",
+artifacts/compliance/third-party-license-inventory.json:1139:      "dependencyPath": "node_modules/@eslint-community/regexpp",
+artifacts/compliance/third-party-license-inventory.json:1154:      "dependencyPath": "node_modules/@eslint/config-array",
+artifacts/compliance/third-party-license-inventory.json:1169:      "dependencyPath": "node_modules/@eslint/config-helpers",
+artifacts/compliance/third-party-license-inventory.json:1184:      "dependencyPath": "node_modules/@eslint/core",
+### milestone
+docs/agent-controlled-project-intelligence-handoff.md:21:- Risk/blocker/decision/milestone snapshot items
+docs/agent-controlled-project-intelligence-handoff.md:124:Captures the transferable project memory at handoff time in 15 categories: `project_summary`, `delivery_history`, `key_decisions`, `risks`, `blockers`, `dependencies`, `milestones`, `stakeholders`, `client_commitments`, `commercial_notes`, `technical_notes`, `governance_notes`, `open_questions`, `next_actions`, `lessons_learned`.
+docs/agent-controlled-project-intelligence-handoff.md:138:Captures individual items the incoming PM needs to know about. Types: `risk`, `blocker`, `open_decision`, `dependency`, `commitment`, `milestone`, `action_item`, `stakeholder_issue`, `commercial_item`, `technical_item`, `governance_item`.
+docs/agent-controlled-project-intelligence-handoff.md:140:Does not mutate live risks, blockers, decisions, tasks, or milestones. Handoff artifacts only.
+docs/agent-controlled-project-intelligence-handoff.md:182:Internal tracking record for post-handoff verification. 10 check types: `incoming_pm_acknowledged`, `critical_risks_reviewed`, `critical_blockers_reviewed`, `upcoming_milestones_reviewed`, `open_decisions_reviewed`, `stakeholder_context_reviewed`, `client_commitments_reviewed`, `first_status_update_completed`, `handoff_pack_reviewed`, `assignment_pointer_verified`.
+docs/agent-tool-execution-adapter-layer.md:72:| `draft_project_update_adapter` | `draft_project_update`, `prepare_status_update`, `draft_milestone_update` | `dry_run`, `draft_only` | `draft_project_update` | `high_with_approval` |
+docs/architecture/CURRENT_STATE_CRITICAL_PATH_INTELLIGENCE.md:26:- Survivability score blends milestone collapse risk, fragility, and temporal pressure.
+docs/architecture/CURRENT_STATE_CRITICAL_PATH_INTELLIGENCE.md:29:- Hidden dependency inference requires governance/milestone co-occurrence evidence.
+docs/architecture/CURRENT_STATE_EXECUTIVE_COMMAND_RUNTIME.md:15:- Added delivery/milestone/operational/recovery/portfolio survivability plus canStabilize.
+docs/architecture/critical-path-intelligence-runtime.md:9:- Milestone survivability and collapse likelihood modeling.
+docs/architecture/critical-path-intelligence-runtime.md:17:- Hidden dependency inference requires cross-signal co-occurrence (governance + milestone pressure).
+docs/architecture/customer-owned-organizational-memory-framework.md:48:| Project Activity | Status changes, milestones, task transitions, blockers, delivery signals. | Automated unless high impact. | Project life + 7 years. |
+docs/architecture/dashboard-task-lifecycle-runtime.md:13:Events capture lifecycle transitions and milestones (e.g., `envelope_created`, `approval_requested`, `execution_ready`) with timestamped metadata and actor context.
+docs/architecture/data-export-sovereignty-architecture.md:23:| Projects | Charters, status, lifecycle, milestones, dependencies, budget/resource summaries | JSON, CSV, Markdown, PDF | Includes project-level custom fields and governance state. |
+docs/architecture/data-export-sovereignty-architecture.md:265:    "milestones": { "type": "array", "items": { "type": "object" } },
+docs/architecture/enterprise-ux-demo-readiness.md:121:PMFreak tracks time-to-first-insight through structured milestones:
+docs/architecture/enterprise-ux-demo-readiness.md:123:| Milestone | Required for First Insight |
+docs/architecture/enterprise-ux-demo-readiness.md:133:milestones are met and generates an honest first-value narrative that includes
+docs/architecture/enterprise-ux-demo-readiness.md:216:├── first-value/                  # First-value milestone tracking
+docs/architecture/executive-decision-simulation-runtime.md:25:| `timeline_delay` | Defer a project milestone or delivery date |
+docs/architecture/executive-operational-command-runtime.md:16:Computes delivery, milestone, operational, recovery, and portfolio survivability with explicit can-stabilize signal.
+docs/architecture/guided-operational-activation-runtime.md:12:## Milestones
+docs/architecture/guided-operational-activation-runtime.md:13:Milestones are operational cognition transitions (for example first continuity retrieval, executive awareness activation, operational intelligence activation), each carrying replay-safe identity and progression impact semantics.
+docs/architecture/guided-operational-activation-runtime.md:19:Guidance is generated from runtime state and milestone/score posture, producing contextual operational recommendations. Nudges prioritize continuity activation, unresolved risk review, stakeholder dependency review, and executive synthesis generation.
+docs/architecture/operational-runtime-memory.md:106:- **timeline** — deadline approaching, milestone at risk, schedule drift, date conflict, delivery delay
+docs/architecture/persistent-conversational-memory.md:9:- **Project memory**: objective, phase, milestones, blockers, risks, commitments, dependencies, unresolved issues.
+docs/constitutional-context-engine-foundation.md:5:The Constitutional Context Engine selects relevant constitutional knowledge for a **specific operational context** — a decision, project, stakeholder, risk, milestone, task, escalation, meeting, outcome, or governance review.
+docs/constitutional-context-engine-foundation.md:37:| `milestone` | A project milestone and its delivery history |
+docs/constitutional-dashboard-foundation.md:86:Composes Operational Briefs into a dashboard focused on execution, milestones, dependencies, risks, blockers, and escalations.
+docs/constitutional-intelligence-foundation.md:93:| `delivery` | Delivery patterns and milestone completion |
+docs/conversational-brain-pipeline-reconciliation.md:19:| `context/missingContext.ts` (100 líneas) | `computeMissingContext()`: mapa `INTENT_CONTEXT_NEEDS` (intent → lista de `MissingContextItem` necesarios) contra `ProjectContextFacts`/metadata reales — **más granular que un solo "falta proyecto"**: distingue `stakeholder`, `requested_output`, `due_date`, `decision_owner`, `acceptance_status`, `billing_status`, `risk_evidence`, `blocked_milestone`, `last_communication`. |
+docs/execution-augmentation-layer.md:9:When a PM opens a task, risk, decision, milestone, blocker, escalation,
+docs/execution-augmentation-layer.md:46:| `milestone`   | Project milestone marker                             |
+docs/operational-brief-foundation.md:5:An Operational Brief is a deterministic, auditable, explainable transformation of a `ConstitutionalBrief` designed for **execution and delivery audiences** — project managers, delivery leads, engineers, and coordinators who need visibility into tasks, milestones, dependencies, risks, blockers, escalations, coordination, and delivery status.
+docs/operational-brief-foundation.md:20:| Prediction | No delivery forecasting, no milestone health forecasting |
+docs/operational-brief-foundation.md:58:Transforms the Constitutional Brief for **execution and delivery audiences**. Focused on tasks, milestones, dependencies, risks, blockers, escalations, coordination, and delivery records. Language is operational and count-based. No scoring. No forecasting. No recommendations.
+docs/operational-brief-foundation.md:69:> "This operational brief contains 5 execution records, 3 task records, 4 milestone records, 2 dependency records, 1 risk record, and 2 explicit contradictions supported by 18 evidence references."
+docs/operational-brief-foundation.md:86:### Milestone Overview
+docs/operational-brief-foundation.md:88:Includes only explicitly referenced milestone records from the constitutional brief. No milestone health inferred. No dates forecast. No delivery predicted.
+docs/operational-brief-foundation.md:155:- `milestoneCount` — records attributed to milestone facts
+docs/operational-brief-foundation.md:180:Forecasting requires assumptions about future behavior that cannot be derived from past records alone. Milestone dates, delivery timelines, and blocker resolution windows depend on team capacity, external dependencies, and organizational conditions that are not encoded in the constitutional brief. Operational Briefs do not forecast.
+docs/organizational-memory-foundation.md:3:PMFreak organizational memory is a sovereign operational memory layer built from explicit project execution history: platform events, decisions, outcomes, risks, tasks, milestones, dependencies, stakeholders, and recommendations.
+docs/organizational-memory-foundation.md:19:`organizational_memory_sources` records source type, source id, relationship type, and creation time. Supported source types are `platform_event`, `decision`, `outcome`, `risk`, `task`, `milestone`, `dependency`, `stakeholder`, and `recommendation`. The lineage enables an auditor to answer: “Why does this memory exist?”
+docs/organizational-pattern-foundation.md:115:- `milestone` — linked to a project milestone
+docs/organizational-pattern-foundation.md:162:Patterns can be sourced directly from platform events, memory entries, decisions, outcomes, risks, tasks, milestones, dependencies, or stakeholders — enabling full lineage reconstruction.
+docs/personal-pm-effectiveness-foundation.md:152:| `milestone` | A project milestone |
+docs/personal-pm-memory-foundation.md:166:- `milestone`
+docs/personal-pm-memory-foundation.md:179:| `execution_behavior` | Task and milestone execution patterns |
+docs/personal-pm-patterns-foundation.md:128:| `milestone` | Tracked as unresolved |
+docs/playbook-engine-materialization-design.md:251:- `type_specific jsonb not null default '{}'` — campos propios de cada subtipo (`probability/impact/mitigation/escalationRecommended` para risk; `blocking/linkedMilestoneId/...` para issue; `dependencyType/externalParty/...` para dependency; `decisionOwner/options/recommendedOption/deadline/consequenceIfNotDecided` para decision)
+docs/portfolio-brief-foundation.md:67:execution audiences. Focuses on tasks, milestones, dependencies, risks,
+docs/portfolio-brief-foundation.md:171:Includes only explicitly referenced delivery records, outcome records, milestone
+docs/productization/saas/09-product-packaging.md:9:| **B2C — Free** | Individual | Per account | 1 seat, small upload cap, no AI | Core project CRUD, milestones, RAID | None |
+docs/productization/saas/15-independent-review-errata.md:31:1. The sellable core is real: projects (server-action insert, workspace-scoped — `src/app/(protected)/projects/actions.ts:38-39`), programs (guarded POST → real insert — `src/app/api/programs/route.ts:34-76`, `src/lib/programs/program-repository.ts:24-25`), execution tasks (project-access-guarded), critical path (computed from `execution_tasks`, `execution_task_dependencies`, `project_milestones` — `src/lib/critical-path/repository.ts:49-58`), upload/vault, Stripe billing.
+docs/project-constitutional-decision-governance.md:143:`objective` · `constraint` · `amendment` · `risk` · `issue` · `milestone` · `deliverable` · `constitution_version`
+docs/project-constitutional-decision-governance.md:275://          relatedAmendments, relatedDeliverables, relatedMilestones,
+docs/release/data-recovery-readiness.md:81:  milestones, risks, decisions, evidence (+ storage objects), members,
+docs/release/hosted-rls-role-matrix.md:71:executing)*, `milestones` *(same caveat)*, `dependencies` *(same caveat)*,
+docs/release/hosted-rls-role-matrix.md:77:Note: the brief's generic resource names (`tasks`, `milestones`,
+docs/release/migration-inventory.md:72:| 60 | `20260605090000_milestones_schedule_foundation.sql` | 20260605090000 | milestones schedule foundation | project_milestones | yes | no |
+docs/security/route-middleware-server-guard-boundary.md:96:10. **Milestone/execution-task *mutations* were gated on `"read"` permission
+docs/security/route-middleware-server-guard-boundary.md:97:    instead of `"write"`.** `createProjectMilestone`, `updateProjectMilestone`,
+docs/security/route-middleware-server-guard-boundary.md:98:    `completeProjectMilestone`, `cancelProjectMilestone`
+docs/security/route-middleware-server-guard-boundary.md:99:    (`src/lib/schedule/milestones.ts`), `updateExecutionTaskSchedule`
+docs/security/route-middleware-server-guard-boundary.md:106:    view-only project member could create/modify/complete/cancel milestones
+scripts/check-cost-governance-agent.mjs:18:const input={baseline:{approvedBudget:100000,approvedContingency:10000,plannedDurationDays:100,plannedPercentComplete:50,plannedSpendToDate:55000,authorizedChangeBudget:5000},snapshot:{actualSpendToDate:64000,projectedTotalSpend:128000,percentComplete:52,elapsedDays:55,remainingWorkConfidence:62,historicalExecutionVariance:14,unauthorizedExpansionAmount:6000,scopeCompletionRatio:0.51,costConsumptionRatio:0.64,plannedBurnRatePerDay:1000,actualBurnRatePerDay:1280,previousBurnVariance:200,burnVarianceHistory:[40,-10,35,-5],marginTargetPercent:28,currentMarginPercent:16},procurement:{poLatencyDays:13,vendorDependencyTimingRisk:74,blockedPurchasingSequenceCount:2,downstreamScheduleFinancialCouplingRisk:68,delayedVendorRelease:true,approvalLag:true,hardwareShipmentDelay:false,dependencyInvoiceBlockage:true},billing:{milestoneCompletion:78,acceptanceDependenciesCleared:46,documentationCompleteness:62,invoiceGatingBlockers:2,budgetWindowDaysRemaining:8,collectionDelayDays:19}};
+scripts/check-critical-path-intelligence.mjs:16:for (const fn of ["retrieveCriticalPathIntelligence(","retrieveDependencyGraph(","retrieveCriticalExecutionChains(","retrieveMilestoneSurvivability(","retrieveTemporalPressureClusters(","retrieveExecutionFragility(","retrieveHiddenDependencies(","retrieveBottleneckAnalysis(","retrieveExecutionInstability(","retrieveDependencyPropagation(","retrieveCriticalPathNarratives("]) if (!manager.includes(fn)) throw new Error(`missing_api:${fn}`);
+scripts/check-db-schema-contract.mjs:62:  project_milestones: extractDeclaredColumns("PROJECT_MILESTONE_SELECTABLE_COLUMNS"),
+scripts/smoke-test-vault-digestion.mjs:48:    patterns: [/\bslip(?:ping|ped)?\b/i, /\bdelay(?:ed|ing)?\b/i, /\bbehind schedule\b/i, /\blate delivery\b/i, /\boverrun\b/i, /\bmissed (?:deadline|milestone)\b/i],
+scripts/smoke-test-vault-digestion.mjs:106:    rationale: 'Timeline reference without a specific date or milestone anchor',
+scripts/smoke-test-vault-digestion.mjs:741:    content: `Technical planning milestone.
+scripts/smoke-test-vault-digestion.mjs:820:SLA for this milestone: session completion activates the 30-day support window.
+scripts/smoke-test-vault-digestion.mjs:1110:    content: `Infrastructure completion milestone.
+scripts/smoke-test-vault-digestion.mjs:1229:Risk of missing the sprint 2 milestone deliverable due date of April 21.
+src/app/(protected)/founder-circle/page.tsx:97:          <h2 className="mb-3 text-lg font-medium text-slate-100">Your onboarding milestones</h2>
+src/app/(protected)/input-hub/page.tsx:12:  { mode: "delivery_signal", title: "Delivery Signal", prompt: "Where is coordination breaking down?", placeholder: "Blockers, milestone risk, dependencies, confidence changes..." },
+src/app/(protected)/projects/actions.ts:31:    deliveryContext: { problemStatement: description ?? "", mainDeliverable: name, externalDependencies: "", contractualMilestones: "", scopeType: "discovery" },
+src/app/(protected)/upload/page.tsx:201:    regex: /\b(timeline|deadline|milestone|go-live|delivery date|schedule)\b/i,
+src/app/(protected)/upload/page.tsx:202:    message: "Timeline and milestone dates are missing or unclear.",
+src/app/(protected)/upload/page.tsx:362:      ? "What are the exact target milestone dates and final delivery deadline?"
+### schedule health
+tests/schedule-foundation.test.mjs:241:// ── Schedule Health ───────────────────────────────────────────────────────────
+tests/schedule-foundation.test.mjs:385:// ── Schedule Health: Hardening (H8.5) ─────────────────────────────────────────
+### critical path
+docs/architecture/CURRENT_STATE_PREDICTIVE_INTELLIGENCE.md:14:- Recommended next prompt: Prompt 3.1 — Critical Path Intelligence Runtime
+docs/architecture/CURRENT_STATE_RUNTIME_HARDENING.md:67:- `ready` requires 100% critical path satisfaction
+docs/architecture/critical-path-intelligence-runtime.md:1:# Critical Path Intelligence Runtime
+docs/architecture/executive-operational-command-runtime.md:7:Synthesizes continuity, correlation, predictive, critical path, intervention, and learning signals into executive priorities.
+docs/architecture/operational-runtime-memory.md:222:6. Stakeholder signals (if critical path)
+docs/productization/saas/01-executive-verdict.md:9:PMFreak is **not one repository — it is two, entangled.** Repository A is a real, sellable B2C/small-team PM/PMO product: workspaces, projects, programs, portfolio, critical path, RAID, execution tasks, an AI chat surface wired to real inference, Stripe billing with unusually well-hardened webhook/authorization boundaries, and an RLS-isolated multi-tenant Postgres schema that has caught and fixed a real cross-tenant bug. Repository B, layered on top of and mixed into the same `src/lib` and `docs/architecture` trees, is a much larger body of "constitutional / sovereign / governance / digital-twin / predictive-intelligence" scaffolding that uses the vocabulary of production maturity while being, on inspection, functionally inert: hardcoded topology data, in-memory-only agent execution with `externalSideEffectsEnabled: false`, and self-authored tests that assert on source-code text rather than executing it. **The single highest-value action in this audit is not a feature gap — it is separating A from B before anyone prices, sells, or diligences this product**, because B actively misrepresents capability in a way that would fail investor or enterprise-buyer diligence if presented undifferentiated from A.
+docs/productization/saas/11-roadmap.md:10:- **Critical path:** F-04/F-05 → onboard first real external workspace. F-01 → allowed to onboard any external user at all, paid or not.
+docs/productization/saas/11-roadmap.md:24:- **Critical path:** Legal (F-01, already done in A) → OAuth/deletion (F-08/F-09) → analytics (F-10) → pentest (F-18) → public launch. Support console (F-16) can proceed in parallel once a second human joins support.
+docs/productization/saas/11-roadmap.md:38:- **Critical path:** External AOC provider availability → port/adapter implementation against the real contract → SSO/SCIM → first enterprise contract.
+docs/productization/saas/15-independent-review-errata.md:31:1. The sellable core is real: projects (server-action insert, workspace-scoped — `src/app/(protected)/projects/actions.ts:38-39`), programs (guarded POST → real insert — `src/app/api/programs/route.ts:34-76`, `src/lib/programs/program-repository.ts:24-25`), execution tasks (project-access-guarded), critical path (computed from `execution_tasks`, `execution_task_dependencies`, `project_milestones` — `src/lib/critical-path/repository.ts:49-58`), upload/vault, Stripe billing.
+docs/productization/saas/15-independent-review-errata.md:94:- It does **not** technically block a pilot — none of the inert modules sit on the pilot's critical path.
+docs/release/migration-inventory.md:73:| 61 | `20260605100000_critical_path_schedule_variance.sql` | 20260605100000 | critical path schedule variance | (alters existing objects) | yes | no |
+docs/release/residual-risk-register.md:26:| RR-LOGGER-ADOPTION | Legacy `console.*` call sites (~200) don't yet route through the redacting logger | L | M | L | Redaction utility + logger shipped and used by new/critical paths; sweep confirmed no current call site logs secrets; adopt incrementally | Repo owner | Rolling | No |
+docs/release/scaffolding-register.md:31:| Projects / Programs / Execution tasks / Critical path | `src/app/(protected)/projects`, `src/lib/programs`, `src/lib/execution-tasks`, `src/lib/critical-path` | Founder | All users | Low | Pilot core |
+scripts/check-dashboard-api-runtime.mjs:98:    recommendationRationale: 'Reallocation reduces critical path risk by 22%.',
+scripts/check-dashboard-api-runtime.mjs:100:    executiveSummary: 'Approve platform reallocation to unblock apollo critical path.',
+scripts/check-dashboard-runtime-integration.mjs:166:    recommendationRationale: 'Reallocation reduces critical path risk by 22%.',
+scripts/check-dashboard-runtime-integration.mjs:168:    executiveSummary: 'Approve platform reallocation to unblock apollo critical path.',
+scripts/check-executive-dashboard-aggregation-runtime.mjs:79:      recommendationRationale: 'Reallocation reduces critical path risk by 22%.',
+scripts/check-executive-dashboard-aggregation-runtime.mjs:81:      executiveSummary: 'Approve platform reallocation to unblock apollo critical path.',
+scripts/check-executive-decision-simulation-runtime.mjs:53:    description: 'Reallocate one senior engineer from billing-migration to platform-revamp to unblock the critical path dependency.',
+src/app/(protected)/projects/page.tsx:22:    metrics: [{ label: "Alert Load", value: "Moderate" }, { label: "Critical Paths", value: "4" }, { label: "Escalation", value: "+12%" }],
+src/app/(protected)/upload/page.tsx:377:      ? "Which third-party systems or client-provided APIs are critical path dependencies?"
+src/app/api/copilot/route.ts:448:- Be dependency-aware: mention critical path or inter-team dependency when relevant.
+src/components/pmfreak/activation/getting-started-flow.tsx:78:    critical: "Critical path risks",
+src/components/pmfreak/interactive-demo.tsx:180:            <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/10 p-3 text-xs text-amber-50">High-confidence suggestion: protect the critical path and rebalance team workload.</div>
+src/components/pmfreak/operational-shell.tsx:1773:            {/* Critical Path Panel */}
+src/components/pmfreak/operational-shell.tsx:1776:                <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-violet-200/80">Critical Path</p>
+src/components/pmfreak/operational-shell.tsx:1796:                      <span>Critical Paths</span>
+src/components/pmfreak/operational-shell.tsx:1837:                        <span className="rounded-sm border border-violet-400/25 bg-violet-400/[0.08] px-1.5 py-0.5 text-[8px] font-medium text-violet-300">Multiple Critical Paths</span>
+src/components/pmfreak/operational-shell.tsx:1889:                  {/* Critical Paths */}
+src/components/pmfreak/operational-shell.tsx:1894:                        <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500">Critical Paths</p>
+src/components/pmfreak/operational-shell.tsx:1967:                <p className="mt-2 text-[10px] text-slate-600">Run computation to see critical path analysis.</p>
+src/lib/constitutional-learning/recommendation-engine.ts:85:      "Define escalation triggers and timeboxes at project start. Require proactive escalation before blockers become critical path issues.",
+src/lib/critical-path/materialize-critical-path.ts:65:          throw new Error(`Failed to materialize critical path task ${taskId}: ${error.message}`);
+src/lib/critical-path/repository.ts:61:    return { ok: false, error: "Failed to load critical path data." };
+src/lib/db/database-contract.ts:648:  // Critical path fields (added H9)
+src/lib/executive-synthesis.ts:84:  // Delivery risk: elevated when blockers, at-risk confidence, or critical path facts
+src/lib/operational-memory/organizational-digital-twin/organizational-digital-twin-state.ts:10:  return { state, pressure, governanceErosion, pmOverload, criticalPathFragility, evidence: context.evidence, confidence: 0.75, uncertainty: ["pressure scores are bounded snapshots"], causalityRationale: ["aggregated pressure and governance erosion drive state"], survivabilityRationale: ["critical path fragility constrains recoverability"], governanceBoundaries: context.governanceBoundaries };
+src/lib/operational-memory/realtime-telemetry/realtime-telemetry-topology.ts:2:export const buildTopologyDriftTelemetry=(d:OperationalTelemetryDelta[]):TopologyDriftSignal=>({domain:"topology",driftScore:d.filter(x=>x.metric.includes("dependency")||x.metric.includes("bottleneck")).reduce((a,b)=>a+Math.abs(b.delta),0),trend:"stable",bottleneckShifts:d.filter(x=>x.metric.includes("dependency")&&x.material).map(x=>x.metric),fragilityShift:d.reduce((a,b)=>a+Math.max(0,b.delta),0),evidence:["dependency pressure"],confidence:0.72,uncertainty:["tag-based topology"],causalityRationale:["dependency drift shifts topology"],significanceRationale:["critical path awareness"],governanceBoundaries:["workspace graph only"]});
+src/lib/operational-memory/runtime-memory-diagnostics.ts:50:          ? "active blocker on operational critical path"
+src/lib/pmo/team-roles.ts:252:  timeline: { label: "Timeline", description: "Schedule, milestones, and critical path analysis" },
+src/lib/portfolio/conflict-arbitration/arbitration-engine.ts:29:        strategy(conflict.id, 'resequence', 'Timeline Resequencing', 'Sequence conflicting windows to remove same-week delivery compression.', ['Shift lower-priority milestone out of overlap window', 'Lock a single critical path owner for handoff timing'], 'Lowers collision risk and protects near-term deadlines.', false),
+src/lib/portfolio/executive-decision-simulation/tradeoff-engine.ts:147:      title: 'Critical path focus vs. deprioritized project delivery risk',
+src/lib/portfolio/load-balancing/redistribution-engine.ts:15:      title: 'Reassign shared engineering capacity to critical path project',
+src/lib/portfolio/load-balancing/redistribution-engine.ts:16:      description: `Move one shared resource from ${lowPriorityProject.projectId} to ${criticalProject.projectId} for critical path stabilization.`,
+src/lib/runtime-hardening/startup-assertions.ts:29:  fileAssertion("critical_path_validation", "critical path intelligence validation script exists", "critical_path_intelligence", "scripts/check-critical-path-intelligence.mjs"),
+src/lib/security/privileged-access-registry.ts:445:    purpose: "resolveCanonicalWorkspace reads workspace_memberships and workspaces for a caller-supplied userId to pick the user's active workspace. Both tables have policies that already permit this exact read for an authenticated user reading their own rows (users_can_read_own_workspace_memberships, 20260515100000_rls_governance_fixes.sql) — service role is used for convenience/consistency since this function is called from many contexts (pages, server actions, background jobs) with varying session availability, not because RLS blocks the read for the common case. Documented as a SWAP candidate for the request-scoped call sites; the background-job call sites (e.g. inside 'use server' actions invoked from client forms) may still need it. Not swapped in this pass — this function is on the critical path for workspace resolution across the whole app and warrants a dedicated regression pass before narrowing.",
+src/lib/workspace/validation-consistency.ts:11:  governance: ["unblock now", "immediate action", "asap", "critical path", "delivery risk"],
+supabase/migrations/20260605080000_execution_task_dependencies.sql:4:-- blockers, and execution flow.  No scheduling, Gantt, or critical path.
+supabase/migrations/20260605090000_milestones_schedule_foundation.sql:4:-- No automatic scheduling, Gantt, or critical path.
+supabase/migrations/20260605090000_milestones_schedule_foundation.sql:5:-- Data foundation for H9 Critical Path.
+supabase/migrations/20260605100000_critical_path_schedule_variance.sql:2:-- H9: Critical Path & Schedule Variance Engine
+supabase/migrations/20260605100000_critical_path_schedule_variance.sql:18:-- Indexes for critical path queries
+tests/critical-path-intelligence.test.mjs:8:test("critical path runtime exposes deterministic engine assembly", () => {
+tests/critical-path-intelligence.test.mjs:14:test("critical path manager exposes required API surface", () => {
+tests/critical-path.test.mjs:216:// ── Critical path computation ─────────────────────────────────────────────────
+tests/critical-path.test.mjs:387:test("operational shell has Critical Path Panel", () => {
+tests/critical-path.test.mjs:388:  assert.match(shell, /critical-path-panel|Critical Path/);
+tests/critical-path.test.mjs:407:test("shell shows scheduleConfidence from critical path", () => {
+tests/critical-path.test.mjs:426:test("shell has Compute button for critical path materialization", () => {
+tests/critical-path.test.mjs:496:// ── H9.1: Compute critical path ───────────────────────────────────────────────
+tests/critical-path.test.mjs:633:test("shell shows Multiple Critical Paths badge", () => {
+tests/critical-path.test.mjs:634:  assert.match(shell, /Multiple Critical Paths/);
+tests/critical-path.test.mjs:641:test("shell shows Critical Paths section", () => {
+tests/critical-path.test.mjs:642:  assert.match(shell, /Critical Paths/);
+tests/executive-decision-simulation-runtime.test.mjs:113:      description: 'Move resource to unblock critical path',
+tests/executive-decision-simulation-runtime.test.mjs:407:      description: 'Reallocate senior engineer to unblock critical path',
+tests/portfolio-intelligence.test.mjs:80:test("risk: critical path density factor included", () => {
+tests/schedule-foundation.test.mjs:381:test("shell does not mention Gantt (H9 adds Critical Path panel)", () => {
+### founder
+PM_LANGUAGE_SOFTENING.txt:10:- founders running projects
+docs/api/api-inventory.md:26:- `//api/early-access/founder-actions` — authenticated
+docs/founder-program/00-architecture-decision-record.md:1:# ADR — PMFreak Founder Circle Program (Sprint 01)
+docs/founder-program/00-architecture-decision-record.md:3:Status: **Accepted** (this sprint). Owner: Founder.
+docs/founder-program/00-architecture-decision-record.md:4:Scope: closed, invite-only, human-approved founder program on top of the
+docs/founder-program/00-architecture-decision-record.md:15:founder participants — without changing that launch state.
+docs/founder-program/00-architecture-decision-record.md:20:Founder Circle without distortion:
+docs/founder-program/00-architecture-decision-record.md:33:- **Capability gating exists**: non-founder users resolve to the curated
+docs/founder-program/00-architecture-decision-record.md:40:- **Operator identity** = founder/internal, resolved server-side from email
+docs/founder-program/00-architecture-decision-record.md:41:  domain/allowlist only (`isFounderOrInternalUser`, `src/lib/auth.ts`) — never
+docs/founder-program/00-architecture-decision-record.md:53:1. **New, self-contained domain** under `src/lib/founder-program/**`,
+docs/founder-program/00-architecture-decision-record.md:54:   `src/app/api/founder-program/**`, `src/app/(protected)/founder-circle/**`
+docs/founder-program/00-architecture-decision-record.md:55:   (participant) and `src/app/(protected)/founder-program/**` (operator UI).
+docs/founder-program/00-architecture-decision-record.md:56:   Founder Circle logic never leaks into core project/workspace domain code.
+docs/founder-program/00-architecture-decision-record.md:59:2. **New `founder_*` tables** (see 04-data-model.md) instead of overloading
+docs/founder-program/00-architecture-decision-record.md:69:     participant remains a non-founder account on the free plan, which
+docs/founder-program/00-architecture-decision-record.md:74:   - Operator authorization: `isFounderOrInternalUser` (founder-internal
+docs/founder-program/00-architecture-decision-record.md:78:   - Audit: `founder_membership_transitions` (append-only, primary evidence)
+docs/founder-program/00-architecture-decision-record.md:84:   `security definer` RPC (`founder_program_transition`) that locks the
+docs/founder-program/00-architecture-decision-record.md:87:6. **Analytics are first-party rows** in `founder_program_events` with a
+docs/founder-program/00-architecture-decision-record.md:97:  "Founder Program logic must not become hidden core-domain coupling."
+docs/founder-program/01-program-charter.md:1:# Founder Circle Program Charter
+docs/founder-program/01-program-charter.md:3:Working product name: **PMFreak Founder Circle** (configurable via
+docs/founder-program/01-program-charter.md:4:`FOUNDER_PROGRAM_DEFAULT_DISPLAY_NAME` in `src/lib/founder-program/config.ts`
+docs/founder-program/01-program-charter.md:5:and the `display_name` column of `founder_program_settings` — the label is
+docs/founder-program/01-program-charter.md:16:small group of real founder participants, producing auditable evidence of:
+docs/founder-program/01-program-charter.md:42:Participants are **"Founder Circle participants"**: early design partners in
+docs/founder-program/01-program-charter.md:43:a closed pilot. They are **not** legal founders, cofounders, equity holders,
+docs/founder-program/01-program-charter.md:64:| Founder Program operator | Founder/internal user (`isFounderOrInternalUser`) | Invitations, review, activation, pause/revoke, triage, decisions |
+docs/founder-program/02-participant-archetypes.md:1:# Founder Circle — Participant Archetypes and Intake Data
+docs/founder-program/02-participant-archetypes.md:5:Canonical archetype keys (enforced by the `founder_invitations.archetype` /
+docs/founder-program/02-participant-archetypes.md:6:`founder_participants.archetype` check constraints and
+docs/founder-program/02-participant-archetypes.md:7:`FOUNDER_ARCHETYPES` in `src/lib/founder-program/lifecycle.ts`):
+docs/founder-program/02-participant-archetypes.md:17:| `founder_operator` | Founder/operator managing multiple workstreams |
+docs/founder-program/02-participant-archetypes.md:27:Collected in `founder_applications` (see 04-data-model.md). All input is
+docs/founder-program/02-participant-archetypes.md:28:validated server-side (`src/lib/founder-program/applications.ts`) with
+docs/founder-program/02-participant-archetypes.md:58:`founder_program_events` never stores name, email, LinkedIn URL, free-text
+docs/founder-program/02-participant-archetypes.md:61:`src/lib/founder-program/analytics.ts`; regression-tested).
+docs/founder-program/03-lifecycle-state-machine.md:1:# Founder Circle — Lifecycle State Machine
+docs/founder-program/03-lifecycle-state-machine.md:3:Canonical implementation: `src/lib/founder-program/lifecycle.ts` (pure,
+docs/founder-program/03-lifecycle-state-machine.md:6:`src/lib/founder-program/transitions.ts`, which calls the
+docs/founder-program/03-lifecycle-state-machine.md:7:`founder_program_transition` SQL function (capacity- and race-safe) and
+docs/founder-program/03-lifecycle-state-machine.md:8:records an append-only row in `founder_membership_transitions` plus a
+docs/founder-program/03-lifecycle-state-machine.md:9:`founder_program_transition` security event.
+docs/founder-program/03-lifecycle-state-machine.md:34:"Grants program access" means: the participant's Founder Circle status page
+docs/founder-program/03-lifecycle-state-machine.md:83:`src/lib/founder-program/checkpoints.ts` — page views alone never count):
+docs/founder-program/03-lifecycle-state-machine.md:93:- `founder_membership_transitions` — append-only, one row per applied
+docs/founder-program/03-lifecycle-state-machine.md:97:- `logSecurityEvent("founder_program_transition", …)` — secondary channel
+docs/founder-program/03-lifecycle-state-machine.md:99:- Operator route denials emit `founder_program_denied`.
+docs/founder-program/04-data-model.md:1:# Founder Circle — Data Model
+docs/founder-program/04-data-model.md:3:Migration: `supabase/migrations/20260828000000_founder_program.sql`.
+docs/founder-program/04-data-model.md:18:### `founder_program_settings` (singleton)
+docs/founder-program/04-data-model.md:28:**RLS**: service-role only (operator surface reads it through founder-gated
+docs/founder-program/04-data-model.md:31:### `founder_invitations`
+docs/founder-program/04-data-model.md:40:routes; operators via founder-gated routes. `token_hash` is never returned by
+docs/founder-program/04-data-model.md:43:### `founder_participants`
+docs/founder-program/04-data-model.md:56:### `founder_applications`
+docs/founder-program/04-data-model.md:66:### `founder_membership_transitions`
+docs/founder-program/04-data-model.md:69:`created_at`. Written only by the `founder_program_transition` SQL function.
+docs/founder-program/04-data-model.md:73:### `founder_onboarding_checkpoints`
+docs/founder-program/04-data-model.md:78:### `founder_program_events`
+docs/founder-program/04-data-model.md:82:`src/lib/founder-program/analytics.ts` before insert). No email, no tokens,
+docs/founder-program/04-data-model.md:86:### `founder_feedback`
+docs/founder-program/04-data-model.md:96:### `founder_discovery_sessions`
+### invite
+docs/agent-pmo-governance-proposal-review-controlled-policy-change-backlog.md:22:- Send emails, Slack messages, or calendar invites
+docs/api/api-inventory.md:27:- `//api/early-access/invites` — authenticated
+docs/founder-program/00-architecture-decision-record.md:4:Scope: closed, invite-only, human-approved founder program on top of the
+docs/founder-program/00-architecture-decision-record.md:24:| Early-access invites + trials | `src/lib/early-access.ts`, `early_access_invites`/`trial_licenses` | Couples invite → immediate workspace + 90-day trial on accept. No application, no human review step, no lifecycle beyond accept/revoke. Changing its semantics would destabilize a hardened, tested flow. |
+docs/founder-program/00-architecture-decision-record.md:25:| Workspace member invites | `src/lib/workspace-team.ts`, `workspace_invitations` | Seat invites into an *existing* workspace with a role; not a program admission funnel. |
+docs/founder-program/00-architecture-decision-record.md:26:| PMO team invites | `pmo_team_invites` | Record-only onboarding placeholders; no tokens or acceptance. |
+docs/founder-program/00-architecture-decision-record.md:60:   `early_access_invites`: the admission funnel (nominate → invite → apply →
+docs/founder-program/00-architecture-decision-record.md:64:   - Token construction: same primitive as `src/lib/security/invite-tokens.ts`
+docs/founder-program/00-architecture-decision-record.md:95:- *Extend `early_access_invites` with program columns* — rejected: mixes two
+docs/founder-program/01-program-charter.md:31:Closed by default · invite-only · human-approved admission · least privilege ·
+docs/founder-program/01-program-charter.md:56:| Invite-only mode | enabled |
+docs/founder-program/01-program-charter.md:63:| Participant | Invited, admitted individual | Own application, own state, own feedback, agreement acceptance |
+docs/founder-program/03-lifecycle-state-machine.md:16:| `invited` | Invitation issued (token active) | No | No |
+docs/founder-program/03-lifecycle-state-machine.md:17:| `invite_viewed` | Invitation opened at least once | No | No |
+docs/founder-program/03-lifecycle-state-machine.md:46:| nominated | invited | O | – | Invitation issued/sent |
+docs/founder-program/03-lifecycle-state-machine.md:48:| invited | invite_viewed | S | – | First authenticated open of the invite |
+docs/founder-program/03-lifecycle-state-machine.md:49:| invited, invite_viewed | applied | P | – | Application submitted (invite-bound) |
+docs/founder-program/03-lifecycle-state-machine.md:50:| invited, invite_viewed | revoked | O / S | ✔ | Operator revoke, or system `invitation_expired` |
+docs/founder-program/03-lifecycle-state-machine.md:75:- `invited`/`invite_viewed` → `approved` (skipping application).
+docs/founder-program/04-data-model.md:9:**Why new entities?** See the ADR (00): the existing `early_access_invites`
+docs/founder-program/04-data-model.md:11:trial activation; seat invites) and are hardened, tested flows — overloading
+docs/founder-program/04-data-model.md:21:`invite_only`, `applications_enabled`, `max_approved_participants` (default
+docs/founder-program/05-authorization-model.md:14:| **Internal system actor** | Server-side code paths (`actor_type = 'system'`) | Fixed-reason automatic transitions only (invite viewed, expiry, agreement version change, activation-criteria promotion) |
+docs/founder-program/06-invitation-and-admission.md:5:Same primitive as the hardened workspace-invite system
+docs/founder-program/06-invitation-and-admission.md:6:(`src/lib/security/invite-tokens.ts` rationale):
+docs/founder-program/06-invitation-and-admission.md:10:  inside the invite link returned to the operator / sent by email.
+docs/founder-program/06-invitation-and-admission.md:46:**manual invite link** for the operator to deliver out-of-band (early-access
+docs/founder-program/06-invitation-and-admission.md:51:1. Participant opens `/founder-circle/invite/[token]` (authenticated;
+docs/founder-program/06-invitation-and-admission.md:56:3. First authenticated open marks `invite_viewed` (system transition +
+docs/founder-program/07-onboarding-and-activation.md:14:| `invite_opened` | Invitation landing page / API on first authenticated open (email-matched only) | server |
+docs/founder-program/10-operations-runbook.md:35:- Create: console → "Invite a participant" (email + archetype + optional
+docs/founder-program/10-operations-runbook.md:37:- If the email provider is unconfigured, the console shows the invite link
+docs/founder-program/10-operations-runbook.md:38:  ONCE — copy it and deliver manually. Never paste invite links into logs,
+docs/founder-program/10-operations-runbook.md:74:re-invite the same person after expiry, use resend while the invitation
+docs/founder-program/11-security-review.md:13:| Token entropy | 24 CSPRNG bytes (192 bits), base64url — same primitive as the hardened workspace-invite system | `invitations.ts`; `tests/founder-program-invitations.test.ts` |
+docs/founder-program/11-security-review.md:14:| Token hashing | Unsalted sha256 at rest (safe at 192-bit entropy; documented rationale mirrors `invite-tokens.ts`); plaintext returned exactly once; length pinned in SQL | migration check `char_length(token_hash) = 64`; migration test |
+docs/founder-program/11-security-review.md:21:| Application spoofing | Invite-bound + email-bound (invitation email must equal the authenticated account email); one participant per invitation and per account (unique constraints) | application tests |
+docs/founder-program/11-security-review.md:28:| Email-link leakage | Invite links returned once, never persisted; log-call scanner bans token/link identifiers in log arguments | `tests/founder-program-security.test.ts` |
+docs/founder-program/12-program-decision-gate.md:35:| Invitation → application conversion (funnel) | ≥ 50% suggests the invite pitch and audience match |
+docs/founder-program/15-implementation-evidence.md:20:| UI | `/founder-circle`, `/founder-circle/invite/[token]`, `/founder-program` |
+docs/productization/saas/02-current-state-architecture.md:34:│   │   │                             accept-invite, onboarding/workspace-setup, upload
+docs/productization/saas/03-saas-readiness-scorecard.md:9:| B2B readiness | 2/5 | Workspace/role/invite model is genuinely mature (`workspace-access.ts`, hashed invite tokens, owner-safety rules) — best-in-class for this stage. Blocked by: no SSO/MFA, no owner-transfer flow, one known unfixed RLS policy bug (`governance_delegations` references non-existent table), no support/admin console beyond founder-only tooling. |
+docs/productization/saas/03-saas-readiness-scorecard.md:22:| Supportability | 1/5 | Founder-only early-access dashboard is real (invite/trial management) but there is no general customer/org lookup, no impersonation, no ticketing, no billing-credit tooling. Fine for founder-led pilot; not for scaled support. |
+docs/productization/saas/04-critical-findings.md:123:**Acceptance criteria:** Signup → first workspace → first project → first AI interaction → first invite funnel is visible in a dashboard outside the founder-only early-access page.
+docs/productization/saas/04-critical-findings.md:188:**Description:** The only admin surface is a founder/internal-only early-access dashboard (invite/trial management). No customer/org lookup, no impersonation, no billing-credit tooling, no suspension/restoration workflow exists.
+docs/productization/saas/05-multitenancy-and-auth.md:32:| Invitations | Real, hashed tokens, atomic single-use claim, email-match enforced | `src/lib/workspace-team.ts`, `supabase/migrations/20260820000000_workspace_invite_token_hashing.sql` |
+docs/productization/saas/05-multitenancy-and-auth.md:47:| Workspace member (`viewer`) | Assigned workspace | Read-only | No mutation, no billing, no invite |
+docs/productization/saas/05-multitenancy-and-auth.md:48:| Workspace member (`pm`) | Assigned workspace | Create/edit projects, tasks, RAID; invite at ≤ own level | Cannot manage billing or org-level settings |
+docs/productization/saas/05-multitenancy-and-auth.md:50:| Consultant | Cross-workspace (external) | Scoped read/limited-write per engagement | Needs a distinct invite type not yet modeled — **gap** |
+docs/productization/saas/06-billing-and-entitlements.md:32:2. **Capability mapping:** `PLAN_CAPABILITIES` in `src/lib/feature-gates.ts:16-86` maps `free`/`pro`/`pmo` to concrete capabilities (AI analysis, exports, upload limits, PMO workspaces, seat limits, team-member invites).
+docs/productization/saas/06-billing-and-entitlements.md:46:| PMO workspaces / team invites | `PLAN_CAPABILITIES.pmo_workspaces`, `pmo_team_members` | N/A | `requirePMOAccess()`, `canInviteTeamMembers()` |
+docs/productization/saas/06-billing-and-entitlements.md:59:| Seats | PMFreak | Real: enforced at invite time via `requireSeatAvailability()`. |
+docs/productization/saas/08-security-and-reliability.md:24:| Tenant enumeration | Not independently re-audited; invite/signup error messages are generic per prior hardening docs | — | Carried from prior work |
+docs/productization/saas/08-security-and-reliability.md:28:| Encryption | TLS via platform (Vercel); at-rest encryption via Supabase/Postgres defaults; no PMFreak-specific field-level encryption found for sensitive data beyond hashed invite tokens | — | Not flagged as a gap for current data sensitivity, revisit if handling regulated data types |
+docs/productization/saas/09-product-packaging.md:13:| **B2B — Team** | Small team | Per seat | Existing `pro`-tier shape, multi-seat | Team invites, shared workspace | None |
+docs/productization/saas/10-launch-gates.md:13:## Private beta B2C (small cohort, invite-only, real external users, no payment required or manual invoicing)
+docs/productization/saas/12-first-30-actions.md:32:| 25 | Integrate basic product analytics for the activation funnel (F-10) | App-wide instrumentation | Vendor selection | Eng | L | Low | Signup→first-project→first-AI-interaction→first-invite funnel visible outside founder dashboard | Before public launch |
+docs/productization/saas/15-independent-review-errata.md:24:- **Strengths:** genuine factual repository inspection with file:line evidence throughout; strong SaaS shell analysis (auth, workspaces, invites, roles); correct AOC ownership direction (consume externally, do not self-implement); accurate multi-tenancy and billing findings, independently re-verified.
+docs/productization/saas/15-independent-review-errata.md:102:- **Limited activation telemetry exists**: `src/lib/first-user-telemetry.ts` defines a real, DB-backed funnel (`first_user_telemetry_events`) covering onboarding started/completed, invite activation, first workspace loaded, first copilot interaction, first operational-memory write, first follow-up created — surfaced in the founder early-access dashboard.
+docs/productization/saas/15-independent-review-errata.md:111:- **Founder Invite / Free**
+docs/productization/saas/15-independent-review-errata.md:249:| Supportability | 1 | 2 | Founder tooling more real than credited: trial extend/revoke, invite ops, telemetry view — adequate ≤5 partners |
+docs/productization/saas/15-independent-review-errata.md:311:See ERR-07: Founder Invite/Free · Pro Individual · Team/PMO · Enterprise later. Consultant/Agency/Consulting-Firm as marketing aliases at most. No new plan architecture before willingness-to-pay is validated.
+docs/release/beta-release-closure-summary.md:73:security closure, identity/invite-token closure, critical-flow validation,
+docs/release/beta-release-closure-summary.md:91:**Identity / invite tokens (C)**
+docs/release/beta-release-closure-summary.md:93:  (`20260820000000_workspace_invite_token_hashing.sql`): `token_hash`
+docs/release/beta-release-closure-summary.md:95:  `token` column dropped**, legacy pending invites revoked (policy decision:
+docs/release/beta-release-closure-summary.md:98:* `src/lib/security/invite-tokens.ts` (shared primitives, env-clamped
+docs/release/beta-release-closure-summary.md:99:  `INVITE_TOKEN_TTL_HOURS`); `inviteWorkspaceMember` now returns the
+docs/release/beta-release-closure-summary.md:101:  `resolveValidWorkspaceInvite` looks up by hash. Acceptance remains a
+docs/release/beta-release-closure-summary.md:104:* New: `tests/workspace-invite-token-hashing.test.mjs` (13 tests: hash-only
+docs/release/beta-release-closure-summary.md:180:* Plaintext invite bearer tokens (known Perilla 3/7 debt) — **closed** (see
+docs/release/beta-release-closure-summary.md:199:(create/invite/accept/role-limit/last-owner/tenant isolation — Perillas 3/4
+docs/release/beta-release-closure-summary.md:200:suites + hashed-invite suites), project (tenant-scoped CRUD + body-id
+docs/release/beta-release-gate-results.md:143:`workspace-invite-token-hashing`, `ai-runtime-guardrails`,
+docs/release/data-recovery-readiness.md:28:  (`20260820000000_workspace_invite_token_hashing.sql`), with legacy pending
+docs/release/data-recovery-readiness.md:29:  invites revoked first; that data loss is the security objective, and the
+docs/release/data-recovery-readiness.md:53:* Rollback for the invite-token migration specifically: **not applicable
+### agent
+AGENTS.md:1:<!-- BEGIN:nextjs-agent-rules -->
+AGENTS.md:5:<!-- END:nextjs-agent-rules -->
+CLAUDE.md:1:@AGENTS.md
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:79:All routes under `/api/agents/execution/beta-readiness/`:
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:108:18 tables created in migration `20260815000000_agent_beta_onboarding_demo_data_tenant_readiness.sql`:
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:109:- agent_beta_readiness_plans
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:110:- agent_beta_workspace_readiness
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:111:- agent_demo_data_bundles
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:112:- agent_demo_project_scenarios
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:113:- agent_demo_governance_scenarios
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:114:- agent_demo_handoff_scenarios
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:115:- agent_beta_onboarding_checklists
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:116:- agent_beta_onboarding_checklist_items
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:117:- agent_beta_user_readiness
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:118:- agent_beta_invitation_readiness
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:119:- agent_beta_admin_readiness
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:120:- agent_tenant_readiness_validations
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:121:- agent_beta_readiness_gates
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:122:- agent_beta_readiness_decisions
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:123:- agent_beta_readiness_blockers
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:124:- agent_beta_readiness_remediation_items
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:125:- agent_beta_readiness_exports
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:126:- agent_beta_readiness_events
+docs/agent-beta-onboarding-demo-data-tenant-readiness.md:140:Source type: `agent_beta_onboarding_demo_data_tenant_readiness`
+docs/agent-controlled-action-conversion-approval-bridge.md:1:# Agent Controlled Action Conversion & Approval Bridge
+docs/agent-controlled-action-conversion-approval-bridge.md:5:The Controlled Action Conversion & Approval Bridge is the formal gateway from a human-approved action draft to a governed execution request. It ensures that no agent-initiated action bypasses human review, preflight safety validation, or approval requirements before an execution request is created.
+docs/agent-controlled-action-conversion-approval-bridge.md:41:## 4. Relationship to Agent Execution Request Runtime
+docs/agent-controlled-action-conversion-approval-bridge.md:45:## 5. Relationship to Agent Tool Execution Adapter Layer
+docs/agent-controlled-action-conversion-approval-bridge.md:49:## 6. Relationship to Agent Execution Results & Evidence Layer
+docs/agent-controlled-action-conversion-approval-bridge.md:51:The Results & Evidence Layer normalizes agent output. This layer reads source result and evidence linkage from action drafts and review items for lineage preservation. It does not create new results.
+docs/agent-controlled-action-conversion-approval-bridge.md:57:- Action drafts (`agent_review_action_drafts`)
+docs/agent-controlled-action-conversion-approval-bridge.md:58:- Review items (`agent_review_items`)
+docs/agent-controlled-action-conversion-approval-bridge.md:59:- Review decisions (`agent_review_decisions`)
+docs/agent-controlled-action-conversion-approval-bridge.md:65:An `AgentActionConversionRecord` captures:
+docs/agent-controlled-action-conversion-approval-bridge.md:88:An `AgentActionConversionPreflightRecord` records the result of a deterministic safety check before execution request creation.
+docs/agent-controlled-action-conversion-approval-bridge.md:113:An `AgentActionApprovalBridgeRecord` links the conversion to the approval governance model.
+docs/agent-controlled-action-conversion-approval-bridge.md:128:When all checks pass and approval requirements are satisfied, the service creates a governed execution request via the Agent Execution Request Runtime. The execution request includes:
+docs/agent-controlled-action-conversion-approval-bridge.md:280:- `agent_action_conversions`
+docs/agent-controlled-action-conversion-approval-bridge.md:281:- `agent_action_conversion_preflights`
+docs/agent-controlled-action-conversion-approval-bridge.md:282:- `agent_action_approval_bridges`
+docs/agent-controlled-action-conversion-approval-bridge.md:283:- `agent_action_conversion_events`
+docs/agent-controlled-action-conversion-approval-bridge.md:291:| `POST` | `/api/agents/execution/action-conversions` | Create raw conversion |
+docs/agent-controlled-action-conversion-approval-bridge.md:292:| `GET` | `/api/agents/execution/action-conversions` | List conversions with filters |
+docs/agent-controlled-action-conversion-approval-bridge.md:293:| `GET` | `/api/agents/execution/action-conversions/[conversionId]` | Get conversion detail |
+docs/agent-controlled-action-conversion-approval-bridge.md:294:| `POST` | `/api/agents/execution/action-conversions/from-action-draft` | Create conversion from action draft |
+docs/agent-controlled-action-conversion-approval-bridge.md:295:| `POST` | `/api/agents/execution/action-conversions/[conversionId]/preflight` | Run preflight |
+docs/agent-controlled-action-conversion-approval-bridge.md:296:| `POST` | `/api/agents/execution/action-conversions/[conversionId]/approval-bridge` | Evaluate approval bridge |
+docs/agent-controlled-action-conversion-approval-bridge.md:297:| `POST` | `/api/agents/execution/action-conversions/[conversionId]/approval-satisfied` | Mark approval satisfied |
+docs/agent-controlled-action-conversion-approval-bridge.md:298:| `POST` | `/api/agents/execution/action-conversions/[conversionId]/execution-request` | Create execution request |
+docs/agent-controlled-action-conversion-approval-bridge.md:299:| `POST` | `/api/agents/execution/action-conversions/[conversionId]/cancel` | Cancel conversion |
+docs/agent-controlled-action-conversion-approval-bridge.md:300:| `GET` | `/api/agents/execution/action-conversions/[conversionId]/events` | List conversion events |
+docs/agent-controlled-action-conversion-approval-bridge.md:301:| `GET` | `/api/agents/execution/action-conversions/summary` | Get conversion summary |
+docs/agent-controlled-action-conversion-approval-bridge.md:411:Tests live in `tests/agent-controlled-action-conversion-approval-bridge.test.mjs`.
+docs/agent-controlled-action-conversion-approval-bridge.md:416:node --experimental-strip-types --test tests/agent-controlled-action-conversion-approval-bridge.test.mjs
+docs/agent-controlled-action-conversion-approval-bridge.md:422:npm test -- tests/agent-controlled-action-conversion-approval-bridge.test.mjs
+docs/agent-controlled-action-conversion-approval-bridge.md:444:1. **Supabase dependency for execution requests**: The `createExecutionRequestFromActionDraft` function calls the Agent Execution Request Runtime which requires a Supabase connection. In test environments without Supabase, the execution request creation is attempted and gracefully falls back. The conversion record is still updated to `execution_request_created` status with `executionRequestCreationStatus: "failed"` to document the intent.
+docs/agent-controlled-action-conversion-approval-bridge.md:446:2. **Audit events are best-effort**: Calls to `recordAgentAuditEvent` are wrapped in try/catch. Audit failures do not block conversion operations.
+docs/agent-controlled-action-conversion-production-validation.md:1:# Agent Controlled Action Conversion & Approval Bridge — Production Validation Report
+docs/agent-controlled-action-conversion-production-validation.md:20:**Layer-specific tests:** 112 tests in `tests/agent-controlled-action-conversion-approval-bridge.test.mjs` — all pass
+docs/agent-controlled-action-conversion-production-validation.md:43:- `src/lib/agents/agent-action-conversion-service.ts` — semantic fix in `createExecutionRequestFromActionDraft`
+docs/agent-controlled-action-conversion-production-validation.md:53:All 10 API route files under `src/app/api/agents/execution/action-conversions/` called `denyResponse(err, ROUTE, method)` with three positional arguments. The actual signature is `denyResponse(input: DenyInput)` — a single object argument.
+docs/agent-controlled-action-conversion-production-validation.md:57:### 2. Incorrect `AgentReviewItemRecord` field names
+docs/agent-controlled-action-conversion-production-validation.md:59:`agent-action-conversion-service.ts` referenced `reviewItem.status` (non-existent) instead of `reviewItem.itemStatus`, and `reviewItem.assignedRole` (non-existent) instead of `reviewItem.assignedTo`.
+docs/agent-controlled-action-conversion-production-validation.md:63:### 3. Incorrect `updateAgentReviewActionDraftStatus` call signature
+docs/agent-controlled-action-conversion-production-validation.md:74:- `src/lib/agents/agent-action-conversion-types.ts`
+docs/agent-controlled-action-conversion-production-validation.md:75:- `src/lib/agents/agent-action-conversion-validation.ts`
+docs/agent-controlled-action-conversion-production-validation.md:76:- `src/lib/agents/agent-action-conversion-registry.ts`
+docs/agent-controlled-action-conversion-production-validation.md:77:- `src/lib/agents/agent-action-conversion-service.ts`
+docs/agent-controlled-action-conversion-production-validation.md:78:- `supabase/migrations/20260803000000_agent_controlled_action_conversion_approval_bridge.sql`
+docs/agent-controlled-action-conversion-production-validation.md:79:- `tests/agent-controlled-action-conversion-approval-bridge.test.mjs`
+docs/agent-controlled-action-conversion-production-validation.md:80:- `docs/agent-controlled-action-conversion-approval-bridge.md`
+docs/agent-controlled-action-conversion-production-validation.md:81:- All API routes under `src/app/api/agents/execution/action-conversions/`
+docs/agent-controlled-action-conversion-production-validation.md:84:- `src/lib/agents/agent-observability-types.ts`
+docs/agent-controlled-action-conversion-production-validation.md:85:- `src/lib/agents/index.ts`
+docs/agent-controlled-action-conversion-production-validation.md:89:- `src/lib/agents/agent-action-conversion-service.ts` (field name corrections + semantic fix)
+docs/agent-controlled-action-conversion-production-validation.md:90:- All 10 API route files under `src/app/api/agents/execution/action-conversions/` (denyResponse signature fix)
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:38:### Agent Execution Request Runtime
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:41:### Agent Tool Execution Adapter Layer
+docs/agent-controlled-execution-finalization-adapter-dispatch-gate.md:44:### Agent Execution Results & Evidence Layer
+### AOC
+.changeset/README.md:1:# Changesets for PMFreak AOC packages
+.github/CODEOWNERS:17:/src/aoc/ @vicvalch
+.github/workflows/aoc-packages-publish.yml:1:name: Publish AOC Packages
+.github/workflows/aoc-packages-publish.yml:5:      - 'aoc-v*'
+.github/workflows/aoc-packages-publish.yml:21:      - name: Publish @aoc-enterprise/runtime
+.github/workflows/aoc-packages-publish.yml:22:        working-directory: src/aoc/enterprise
+.github/workflows/aoc-packages-publish.yml:26:      - name: Publish @aoc/protocol
+.github/workflows/aoc-packages-publish.yml:27:        working-directory: src/aoc/protocol
+.github/workflows/aoc-packages-version-check.yml:1:name: AOC Package Version Check
+.github/workflows/aoc-packages-version-check.yml:5:      - 'src/aoc/**'
+.github/workflows/aoc-packages-version-check.yml:15:      - name: Check @aoc-enterprise/runtime version bumped
+.github/workflows/aoc-packages-version-check.yml:17:          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- src/aoc/enterprise/ | wc -l)
+.github/workflows/aoc-packages-version-check.yml:19:            echo "No changes in src/aoc/enterprise/ — skipping version check."
+.github/workflows/aoc-packages-version-check.yml:22:          BASE_VERSION=$(git show origin/${{ github.base_ref }}:src/aoc/enterprise/package.json | node -e "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).version))")
+.github/workflows/aoc-packages-version-check.yml:23:          CURRENT_VERSION=$(node -e "console.log(require('./src/aoc/enterprise/package.json').version)")
+.github/workflows/aoc-packages-version-check.yml:25:            echo "ERROR: src/aoc/enterprise changed but version not bumped (still $CURRENT_VERSION)"
+.github/workflows/aoc-packages-version-check.yml:26:            echo "Bump the version in src/aoc/enterprise/package.json before merging."
+.github/workflows/aoc-packages-version-check.yml:31:      - name: Check @aoc/protocol version bumped
+.github/workflows/aoc-packages-version-check.yml:33:          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- src/aoc/protocol/ | wc -l)
+.github/workflows/aoc-packages-version-check.yml:35:            echo "No changes in src/aoc/protocol/ — skipping version check."
+.github/workflows/aoc-packages-version-check.yml:38:          BASE_VERSION=$(git show origin/${{ github.base_ref }}:src/aoc/protocol/package.json | node -e "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).version))")
+.github/workflows/aoc-packages-version-check.yml:39:          CURRENT_VERSION=$(node -e "console.log(require('./src/aoc/protocol/package.json').version)")
+.github/workflows/aoc-packages-version-check.yml:41:            echo "ERROR: src/aoc/protocol changed but version not bumped (still $CURRENT_VERSION)"
+.github/workflows/aoc-packages-version-check.yml:42:            echo "Bump the version in src/aoc/protocol/package.json before merging."
+.github/workflows/ci-governance.yml:18:      - name: Build AOC packages
+.github/workflows/ci-governance.yml:19:        run: npm run build:aoc
+.gitignore:23:# AOC workspace package build artifacts (rebuilt via `npm run build:aoc`)
+.gitignore:24:/src/aoc/protocol/dist/
+.gitignore:25:/src/aoc/enterprise/dist/
+artifacts/compliance/sbom.cdx.json:65:      "name": "@aoc-enterprise/runtime",
+artifacts/compliance/sbom.cdx.json:67:      "purl": "pkg:npm/%40aoc-enterprise%2Fruntime@0.1.0",
+artifacts/compliance/sbom.cdx.json:89:      "name": "@aoc/protocol",
+artifacts/compliance/sbom.cdx.json:91:      "purl": "pkg:npm/%40aoc%2Fprotocol@0.1.0",
+artifacts/compliance/third-party-license-inventory.json:37:      "name": "@aoc-enterprise/runtime",
+artifacts/compliance/third-party-license-inventory.json:44:      "dependencyPath": "node_modules/@aoc-enterprise/runtime",
+artifacts/compliance/third-party-license-inventory.json:52:      "name": "@aoc/protocol",
+artifacts/compliance/third-party-license-inventory.json:59:      "dependencyPath": "node_modules/@aoc/protocol",
+docs/agent-memory-context-layer.md:49:- AOC Agent Passport integration
+docs/architecture/CURRENT_STATE_OPERATIONAL_MEMORY.md:43:| `npm run lint:aoc-boundaries` | PASS |
+docs/architecture/aoc-ecosystem-packaging-foundation-track2-2.1.md:1:# AOC Ecosystem Packaging + Registry Foundation (Track 2 / Prompt 2.1)
+docs/architecture/aoc-ecosystem-packaging-foundation-track2-2.1.md:5:- `pmfreak` (application): Next.js app that consumes internal file-linked AOC packages.
+docs/architecture/aoc-ecosystem-packaging-foundation-track2-2.1.md:6:- `@aoc/protocol` (`src/aoc/protocol`): protocol contracts, actor model, and protocol ports.
+docs/architecture/aoc-ecosystem-packaging-foundation-track2-2.1.md:7:- `@aoc-enterprise/runtime` (`src/aoc/enterprise`): governance runtime orchestration and execution grant logic.
+docs/architecture/aoc-ecosystem-packaging-foundation-track2-2.1.md:12:- `@aoc/protocol`: has package scope, version, exports, files, repository, publishConfig.
+docs/architecture/aoc-ecosystem-packaging-foundation-track2-2.1.md:13:- `@aoc-enterprise/runtime`: has package scope, version, exports, files, repository, publishConfig.
+docs/architecture/aoc-ecosystem-packaging-foundation-track2-2.1.md:16:- Added `main`, `module`, `types`, `sideEffects` to both AOC package manifests.
+docs/architecture/aoc-ecosystem-packaging-foundation-track2-2.1.md:32:- `src/aoc/protocol/contracts/capability-claims.ts` still imports runtime adapter registry (`../../runtime/adapters`), which is a protocol-to-runtime dependency inversion.
+docs/architecture/aoc-ecosystem-packaging-foundation-track2-2.1.md:52:- app-specific adapters binding to AOC ports
+docs/architecture/aoc-ecosystem-packaging-foundation-track2-2.1.md:58:  - `@aoc/protocol`: `.`, `./contracts`, `./contracts/*`
+docs/architecture/aoc-ecosystem-packaging-foundation-track2-2.1.md:59:  - `@aoc-enterprise/runtime`: `.`, `./runtime`, `./runtime/*`
+docs/architecture/aoc-ecosystem-packaging-foundation-track2-2.1.md:70:- `npm run check:aoc-packages` -> required publishability metadata checks.
+docs/architecture/aoc-ecosystem-packaging-foundation-track2-2.1.md:71:- `npm run check:aoc-deps` -> dependency-direction guardrails.
+docs/architecture/aoc-ecosystem-packaging-foundation-track2-2.1.md:72:- `npm run check:aoc-boundaries` -> combined boundary/manifest/dependency checks.
+docs/architecture/aoc-ecosystem-packaging-foundation-track2-2.1.md:82:- Runtime and SDK concerns still co-located in `@aoc-enterprise/runtime`.
+docs/architecture/aoc-integration.md:1:# PMFreak ↔ AOC Integration Boundary
+docs/architecture/aoc-integration.md:5:PMFreak now consumes AOC surfaces through package names:
+docs/architecture/aoc-integration.md:6:- `@aoc/protocol/contracts`
+docs/architecture/aoc-integration.md:7:- `@aoc-enterprise/runtime`
+docs/architecture/aoc-integration.md:9:These package names are currently linked locally via `file:` dependencies (`src/aoc/protocol` and `src/aoc/enterprise`) so PMFreak behaves as a **vertical consumer** while we keep migration-safe compatibility wrappers.
+docs/architecture/aoc-integration.md:14:  - `"@aoc/protocol": "file:src/aoc/protocol"`
+docs/architecture/aoc-integration.md:15:  - `"@aoc-enterprise/runtime": "file:src/aoc/enterprise"`
+docs/architecture/aoc-integration.md:17:- Product code is still required to consume AOC through `src/lib/aoc/*`.
+docs/architecture/aoc-integration.md:27:### AOC Protocol owns
+docs/architecture/aoc-integration.md:30:### AOC Enterprise owns
+docs/architecture/aoc-integration.md:36:- `src/lib/aoc/protocol/types.ts` – thin bridge to `@aoc/protocol/contracts`
+docs/architecture/aoc-integration.md:37:- `src/lib/aoc/enterprise/runtime.ts` – thin runtime wrapper over `@aoc-enterprise/runtime`
+docs/architecture/aoc-integration.md:38:- `src/lib/aoc/compatibility/*` – temporary payload adapters
+docs/architecture/aoc-integration.md:44:- `src/app/api/billing/create-checkout-session/route.ts` now calls `enforceRuntimeAuthorization` from `src/lib/aoc/enterprise/runtime`.
+docs/architecture/aoc-integration.md:56:- `src/lib/aoc/compatibility/legacy-policy-map.ts`
+docs/architecture/aoc-integration.md:57:- `src/lib/aoc/compatibility/legacy-audit-map.ts`
+docs/architecture/aoc-integration.md:58:- `src/lib/aoc/compatibility/legacy-delegation-map.ts`
+docs/architecture/aoc-integration.md:62:1. `Policy` + `Agent` shapes are still local compatibility types in `src/lib/aoc/protocol/types.ts`.
+docs/architecture/aoc-integration.md:64:3. `@aoc-enterprise/runtime` currently wraps existing governance implementation; future step is replacing internals with upstream enterprise package sources.
+docs/architecture/aoc-integration.md:68:1. Continue route-by-route migration to `src/lib/aoc/enterprise/runtime`.
+docs/architecture/aoc-integration.md:78:3. git/tag or registry-published `@aoc/*` packages
+docs/architecture/aoc-integration.md:89:- `src/aoc/enterprise/runtime/index.ts`
+docs/architecture/aoc-integration.md:92:Enforced by: `npm run lint:aoc-boundaries` (also run inside `npm run lint`).
+docs/architecture/aoc-integration.md:98:2. Replace legacy runtime imports with `@/lib/aoc/enterprise/runtime`.
+docs/architecture/aoc-integration.md:105:- `import { enforceRuntimeAuthorization } from "@/lib/aoc/enterprise/runtime";`
+### Supabase
+.github/CODEOWNERS:14:/supabase/migrations/ @vicvalch
+README.md:29:NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+README.md:30:NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+README.md:32:SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+README.md:58:State previously persisted in local JSON files now lives in Supabase Postgres with tenant-scoped RLS.
+README.md:63:npx supabase db push
+README.md:67:- `supabase/migrations/20260428120000_p0_state_tables.sql`
+README.md:105:## Supabase Auth Redirect URLs
+README.md:107:For password reset to work in all environments, add these URL patterns in **Supabase Dashboard → Authentication → URL Configuration → Redirect URLs**:
+README.md:116:The first complete PMFreak cognitive-operational circuit is documented in [`docs/operational-evidence-decision-loop.md`](docs/operational-evidence-decision-loop.md). It covers the deterministic signal detector, PMFreak role-mapping authority checks, immutable evidence-linked decisions, Command Center integration, exact Project Assurance Summary v1 metrics, the idempotent demo seed, and the isolated Supabase DB/RLS verifier.
+artifacts/compliance/sbom.cdx.json:3857:      "name": "@supabase/auth-helpers-nextjs",
+artifacts/compliance/sbom.cdx.json:3859:      "purl": "pkg:npm/%40supabase%2Fauth-helpers-nextjs@0.15.0",
+artifacts/compliance/sbom.cdx.json:3881:      "name": "@supabase/auth-js",
+artifacts/compliance/sbom.cdx.json:3883:      "purl": "pkg:npm/%40supabase%2Fauth-js@2.104.1",
+artifacts/compliance/sbom.cdx.json:3905:      "name": "@supabase/functions-js",
+artifacts/compliance/sbom.cdx.json:3907:      "purl": "pkg:npm/%40supabase%2Ffunctions-js@2.104.1",
+artifacts/compliance/sbom.cdx.json:3929:      "name": "@supabase/phoenix",
+artifacts/compliance/sbom.cdx.json:3931:      "purl": "pkg:npm/%40supabase%2Fphoenix@0.4.0",
+artifacts/compliance/sbom.cdx.json:3953:      "name": "@supabase/postgrest-js",
+artifacts/compliance/sbom.cdx.json:3955:      "purl": "pkg:npm/%40supabase%2Fpostgrest-js@2.104.1",
+artifacts/compliance/sbom.cdx.json:3977:      "name": "@supabase/realtime-js",
+artifacts/compliance/sbom.cdx.json:3979:      "purl": "pkg:npm/%40supabase%2Frealtime-js@2.104.1",
+artifacts/compliance/sbom.cdx.json:4001:      "name": "@supabase/ssr",
+artifacts/compliance/sbom.cdx.json:4003:      "purl": "pkg:npm/%40supabase%2Fssr@0.10.2",
+artifacts/compliance/sbom.cdx.json:4025:      "name": "@supabase/storage-js",
+artifacts/compliance/sbom.cdx.json:4027:      "purl": "pkg:npm/%40supabase%2Fstorage-js@2.104.1",
+artifacts/compliance/sbom.cdx.json:4049:      "name": "@supabase/supabase-js",
+artifacts/compliance/sbom.cdx.json:4051:      "purl": "pkg:npm/%40supabase%2Fsupabase-js@2.104.1",
+artifacts/compliance/third-party-license-inventory.json:2407:      "name": "@supabase/auth-helpers-nextjs",
+artifacts/compliance/third-party-license-inventory.json:2414:      "dependencyPath": "node_modules/@supabase/auth-helpers-nextjs",
+artifacts/compliance/third-party-license-inventory.json:2422:      "name": "@supabase/auth-js",
+artifacts/compliance/third-party-license-inventory.json:2429:      "dependencyPath": "node_modules/@supabase/auth-js",
+artifacts/compliance/third-party-license-inventory.json:2437:      "name": "@supabase/functions-js",
+artifacts/compliance/third-party-license-inventory.json:2444:      "dependencyPath": "node_modules/@supabase/functions-js",
+artifacts/compliance/third-party-license-inventory.json:2452:      "name": "@supabase/phoenix",
+artifacts/compliance/third-party-license-inventory.json:2459:      "dependencyPath": "node_modules/@supabase/phoenix",
+artifacts/compliance/third-party-license-inventory.json:2467:      "name": "@supabase/postgrest-js",
+artifacts/compliance/third-party-license-inventory.json:2474:      "dependencyPath": "node_modules/@supabase/postgrest-js",
+artifacts/compliance/third-party-license-inventory.json:2482:      "name": "@supabase/realtime-js",
+artifacts/compliance/third-party-license-inventory.json:2489:      "dependencyPath": "node_modules/@supabase/realtime-js",
+artifacts/compliance/third-party-license-inventory.json:2497:      "name": "@supabase/ssr",
+artifacts/compliance/third-party-license-inventory.json:2504:      "dependencyPath": "node_modules/@supabase/ssr",
+artifacts/compliance/third-party-license-inventory.json:2512:      "name": "@supabase/storage-js",
+artifacts/compliance/third-party-license-inventory.json:2519:      "dependencyPath": "node_modules/@supabase/storage-js",
+artifacts/compliance/third-party-license-inventory.json:2527:      "name": "@supabase/supabase-js",
+artifacts/compliance/third-party-license-inventory.json:2534:      "dependencyPath": "node_modules/@supabase/supabase-js",
+artifacts/operational-flow-runtime-gate-checklist.md:14:**Environment:** (local Supabase / remote branch project)  
+artifacts/operational-flow-runtime-gate-checklist.md:15:**Supabase project ref:** (never write production here)  
+artifacts/operational-flow-runtime-gate-checklist.md:22:- [ ] Isolated Supabase project created (not production, not shared staging)
+artifacts/operational-flow-runtime-gate-checklist.md:23:- [ ] Migrations applied — `20260611000000_operational_evidence_decision_loop` is last in `supabase migration list`
+### auth
+.github/CODEOWNERS:15:/src/lib/auth/ @vicvalch
+.github/pull_request_template/ip-compliance.md:3:- [ ] The code is original or authorized for contribution.
+.github/workflows/aoc-packages-publish.yml:25:          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+.github/workflows/aoc-packages-publish.yml:30:          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+CONTRIBUTING.md:3:PMFreak is a private proprietary repository. Unsolicited external contributions are not accepted. Any contribution requires prior authorization from OnChainFest LLC or its designated repository owner.
+CONTRIBUTING.md:5:Contributors must have the right to provide their work, must not copy confidential third-party code, must not include code from prior employers without authorization, and must not add secrets, customer data, personal data, or assets without documented provenance. New dependencies require license and supply-chain review before merge.
+COPYRIGHT:8:No permission is granted to use, copy, modify, distribute, sublicense, publish, sell, or create derivative works from the proprietary portions of this repository without prior written authorization from OnChainFest LLC.
+PM_LANGUAGE_SOFTENING.txt:70:- src/ui-core/auth/auth-shell.tsx
+README.md:9:- Added authenticated `/billing` page with Stripe checkout + customer portal actions.
+README.md:53:- [http://localhost:3000/billing](http://localhost:3000/billing) (authenticated)
+README.md:103:- Data isolation principle: copilot only reads memory for the authenticated user's `companyId` and rejects tenant mismatch in request payloads.
+README.md:105:## Supabase Auth Redirect URLs
+README.md:107:For password reset to work in all environments, add these URL patterns in **Supabase Dashboard → Authentication → URL Configuration → Redirect URLs**:
+README.md:112:The forgot-password flow sends users to `${NEXT_PUBLIC_SITE_URL}/auth/reset-password`, so `NEXT_PUBLIC_SITE_URL` must match your deployed origin in production.
+README.md:116:The first complete PMFreak cognitive-operational circuit is documented in [`docs/operational-evidence-decision-loop.md`](docs/operational-evidence-decision-loop.md). It covers the deterministic signal detector, PMFreak role-mapping authority checks, immutable evidence-linked decisions, Command Center integration, exact Project Assurance Summary v1 metrics, the idempotent demo seed, and the isolated Supabase DB/RLS verifier.
+README.md:122:Access to this source repository does not imply permission to use or distribute the software. Third-party dependencies retain their respective licenses and notices. Contributions should not be submitted unless authorized by OnChainFest LLC and reviewed for ownership, security, provenance, and license compatibility. Legal and commercial terms for the PMFreak service are maintained in the applicable business or legal documents.
+artifacts/compliance/sbom.cdx.json:3857:      "name": "@supabase/auth-helpers-nextjs",
+artifacts/compliance/sbom.cdx.json:3859:      "purl": "pkg:npm/%40supabase%2Fauth-helpers-nextjs@0.15.0",
+artifacts/compliance/sbom.cdx.json:3881:      "name": "@supabase/auth-js",
+artifacts/compliance/sbom.cdx.json:3883:      "purl": "pkg:npm/%40supabase%2Fauth-js@2.104.1",
+artifacts/compliance/third-party-license-inventory.json:2407:      "name": "@supabase/auth-helpers-nextjs",
+artifacts/compliance/third-party-license-inventory.json:2414:      "dependencyPath": "node_modules/@supabase/auth-helpers-nextjs",
+artifacts/compliance/third-party-license-inventory.json:2422:      "name": "@supabase/auth-js",
+artifacts/compliance/third-party-license-inventory.json:2429:      "dependencyPath": "node_modules/@supabase/auth-js",
+artifacts/operational-flow-runtime-gate-checklist.md:55:## Smoke test (authenticated browser)
+artifacts/operational-flow-runtime-gate-checklist.md:74:- [ ] Unauthenticated `GET /api/operational-flow` → HTTP 401
+artifacts/operational-flow-runtime-gate-checklist.md:77:- [ ] Authenticated user direct INSERT into `operational_signals` → DB denial
+artifacts/operational-flow-runtime-gate-checklist.md:78:- [ ] Authenticated user direct INSERT into `governance_events` → DB denial
+artifacts/operational-flow-runtime-gate-checklist.md:103:- [ ] Screenshot: decision record with authority basis
+docs/agent-controlled-action-conversion-approval-bridge.md:285:Policies allow read and write only to authenticated workspace members. No public access. No `using (true)` policies.
+docs/agent-controlled-execution-learning-signals-governance-feedback-loop.md:234:All API routes require authentication (`requireAuthenticatedUser`) and workspace
+docs/agent-controlled-execution-result-reconciliation-human-outcome-review.md:103:`password`, `secret`, `token`, `apiKey`, `api_key`, `authorization`, `stripe_secret`,
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:63:All routes require authentication (`requireAuthenticatedUser`) and workspace membership (`requireWorkspaceMember`). The `actorId` is always derived from the authenticated user identity, never from the request body.
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:97:`password`, `secret`, `token`, `apiKey`, `api_key`, `authorization`, `private_key`, `credential`, `client_secret`, `refresh_token`, `access_token`, `session_cookie`, `cookie`, `raw_payload`, `payload`, `outcomePayload`, `safeOutcomePayload`, `intendedSummary`, `actualSummary`, `rationale_from_learning`, `failureMessage`, `correctionReason`, `customer`, `client`, `project_name`, `email`, `phone`, `address`
+docs/agent-controlled-governance-policy-simulation-report-pmo-approval-pack.md:100:Exports are checked for sensitive content before generation. Export creation fails if the content contains any blocked patterns including: password, secret, token, apiKey, api_key, authorization, private_key, credential, raw_payload, outcomePayload, failureMessage, correctionReason, actualSummary, intendedSummary.
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:89:All routes under `/api/agents/execution/dry-run-gate/`. All require authenticated user + workspace member.
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:155:- Credential patterns: `password`, `secret`, `token`, `api_key`, `authorization`, `private_key`, `credential`, `client_secret`, `refresh_token`, `access_token`, `session_cookie`
+docs/agent-controlled-policy-implementation-gate-dry-run-change-executor.md:191:- Authorize Activation
+docs/agent-controlled-policy-implementation-planning-workspace.md:5:The Controlled Policy Implementation Planning Workspace converts a signed-off or PMO-approved approval pack into a controlled planning workspace for future dry-run preparation only. It provides a structured environment for PMO teams to plan, review, and gate-check the prerequisites needed before a dry-run of a policy change can be authorized.
+docs/agent-controlled-policy-implementation-planning-workspace.md:27:- Authorize implementation — only authorizes dry-run planning
+docs/agent-controlled-policy-implementation-planning-workspace.md:114:All routes require authentication and workspace membership.
+docs/agent-controlled-policy-implementation-planning-workspace.md:164:      and wm.user_id = auth.uid()
+docs/agent-controlled-policy-version-activation-rollback-gate.md:113:- Foreign keys to: `workspaces`, `auth.users`, dry-run tables, planning tables
+docs/agent-controlled-project-intelligence-handoff.md:242:- Payload redaction blocks: `password`, `secret`, `token`, `apiKey`, `api_key`, `authorization`, `private_key`, `credential`, `client_secret`, `refresh_token`, `access_token`, `session_cookie`, `cookie`, `raw_payload`, `payload`, `outcomePayload`, `safeOutcomePayload`, `intendedSummary`, `actualSummary`, `rationale_from_learning`, `failureMessage`, `correctionReason`, `unredacted_email`, `unredacted_phone`, `private_address`, `personal_identifier`
+docs/agent-controlled-project-intelligence-handoff.md:306:All routes require `requireAuthenticatedUser()` and `requireWorkspaceMember(workspaceId)`.
+docs/agent-execution-request-runtime.md:82:- Redacted keys: `password`, `secret`, `token`, `apiKey`, `api_key`, `authorization`, `stripe_secret`, `private_key`, `credential`, `client_secret`, `refresh_token`, `access_token`, `session_cookie`, `cookie`
+docs/agent-execution-request-runtime.md:96:| Method | Path | Auth | Description |
+docs/agent-execution-results-evidence-layer.md:217:- `safeResultPayload` and `safeEvidencePayload` automatically redact keys matching: `password`, `secret`, `token`, `apiKey`, `api_key`, `authorization`, `stripe_secret`, `private_key`, `credential`, `client_secret`, `refresh_token`, `access_token`, `session_cookie`, `cookie`
+docs/agent-execution-results-evidence-layer.md:240:All routes require `requireAuthenticatedUser` + `requireWorkspaceMember`. Responses: `{ ok: true, data: { ... } }` or `{ ok: false, error: { code, message } }`.
+docs/agent-human-review-action-inbox.md:56:- `escalate` — escalate to higher authority
+docs/agent-human-review-action-inbox.md:73:All routes require workspace membership. Actor ID always comes from authenticated user, never from request body.
+docs/agent-human-review-action-inbox.md:113:- Payload redaction: `password`, `secret`, `token`, `apiKey`, `api_key`, `authorization`, `stripe_secret`, `private_key`, `credential`, `client_secret`, `refresh_token`, `access_token`, `session_cookie`, `cookie`
+docs/agent-memory-context-layer.md:30:- Memory access authorization helper
+docs/agent-memory-context-layer.md:345:5. **actorId from request body is not validated against session.** Current route convention does not expose the authenticated user ID from server-authorization helpers in all lifecycle routes. The `actorId` is taken from the authenticated user session where available.
+docs/agent-observability-audit-trail.md:5:The Agent Observability & Audit Trail layer gives PMFreak a unified, governed timeline of agent behavior. Every meaningful agent action leaves an audit footprint that is attributable, scoped, timestamped, risk-classified, safely payloaded, queryable, exportable, and safe to show to authorized PMO and governance users.
+docs/agent-observability-audit-trail.md:103:| `denied` | Blocked by policy or authorization |
+docs/agent-observability-audit-trail.md:137:password, secret, token, apiKey, api_key, authorization,
+docs/agent-observability-audit-trail.md:168:| Method | Route | Auth | Purpose |
+docs/agent-observability-audit-trail.md:344:Pre-existing typecheck failures in `auth-shell.tsx`, `auth-button.tsx`, `auth-field.tsx`, and `program-builder-ui.test.ts` remain. Before adding more product scope, PMFreak should achieve fully clean `npm run typecheck`, `npm test`, and `npm run build`.
+docs/agent-permission-approval-layer.md:5:The Agent Permission & Approval Layer governs how AI agents request and receive authorization to use tools that require human oversight. It provides a full audit trail, approval lifecycle management, and a clean service API for integrating approval workflows into agent pipelines.
+docs/agent-permission-approval-layer.md:13:- **Authorization state query** — a single call returns the current authorization state for any agent+tool pair
+docs/agent-permission-approval-layer.md:103:- `AgentToolAuthorizationState` — current state of a tool authorization
+docs/agent-permission-approval-layer.md:107:- `AgentToolAuthorizationResult` — returned by `getAgentToolAuthorizationState`
+docs/agent-permission-approval-layer.md:124:`password`, `secret`, `token`, `apiKey`, `api_key`, `authorization`, `stripe_secret`, `private_key`
+docs/agent-permission-approval-layer.md:159:#### `requestAgentToolAuthorization(input: CreateAgentToolRequestInput)`
+docs/agent-permission-approval-layer.md:161:Submits a new tool authorization request. Validates input, checks tool eligibility (with `allowApprovalRequiredTools: true`), enforces approval policy, creates the request record, and emits a `request_created` event.
+docs/agent-permission-approval-layer.md:171:#### `getAgentToolAuthorizationState(workspaceId, agentId, toolKey)`
+docs/agent-permission-approval-layer.md:173:Returns the current `AgentToolAuthorizationResult` for an agent+tool pair. Inspects all requests for the pair and resolves to one of: `authorized`, `pending`, `rejected`, `revoked`, `not_requested`, `expired`.
+docs/agent-permission-approval-layer.md:189:| Method | Path | Auth | Description |
+docs/agent-permission-approval-layer.md:191:| `POST` | `/api/agents/tool-requests` | member | Submit a new tool authorization request |
+docs/agent-permission-approval-layer.md:220:  "decidedBy": "optional — defaults to authenticated user id",
+docs/agent-permission-approval-layer.md:231:  requestAgentToolAuthorization,
+docs/agent-permission-approval-layer.md:233:  getAgentToolAuthorizationState,
+docs/agent-permission-approval-layer.md:238:// 1. Agent requests authorization
+docs/agent-permission-approval-layer.md:239:const result = await requestAgentToolAuthorization({
+### project
+PM_LANGUAGE_SOFTENING.txt:10:- founders running projects
+PM_LANGUAGE_SOFTENING.txt:42:- project visibility
+PM_LANGUAGE_SOFTENING.txt:43:- project health
+PM_LANGUAGE_SOFTENING.txt:44:- project support
+PM_LANGUAGE_SOFTENING.txt:46:- project recovery
+PM_LANGUAGE_SOFTENING.txt:87:→ “Project Health Overview”
+PM_LANGUAGE_SOFTENING.txt:90:→ “Live Project Activity”
+README.md:3:PMFreak AI is a Next.js app for uploading scope documents (PDF, DOCX, TXT), extracting text, and generating project analysis outputs for delivery teams.
+README.md:95:- Added protected `/copilot` page with chat interface, methodology selector (default Hybrid), project-context selector, prompt chips, session message history, and loading/empty/error states.
+README.md:97:- Added `GET /api/copilot/context` to load current-tenant project context options.
+README.md:116:The first complete PMFreak cognitive-operational circuit is documented in [`docs/operational-evidence-decision-loop.md`](docs/operational-evidence-decision-loop.md). It covers the deterministic signal detector, PMFreak role-mapping authority checks, immutable evidence-linked decisions, Command Center integration, exact Project Assurance Summary v1 metrics, the idempotent demo seed, and the isolated Supabase DB/RLS verifier.
+artifacts/compliance/sbom.cdx.json:4793:      "name": "@typescript-eslint/project-service",
+artifacts/compliance/sbom.cdx.json:4795:      "purl": "pkg:npm/%40typescript-eslint%2Fproject-service@8.59.0",
+artifacts/compliance/third-party-license-inventory.json:2992:      "name": "@typescript-eslint/project-service",
+artifacts/compliance/third-party-license-inventory.json:2999:      "dependencyPath": "node_modules/@typescript-eslint/project-service",
+artifacts/operational-flow-runtime-gate-checklist.md:14:**Environment:** (local Supabase / remote branch project)  
+artifacts/operational-flow-runtime-gate-checklist.md:15:**Supabase project ref:** (never write production here)  
+artifacts/operational-flow-runtime-gate-checklist.md:22:- [ ] Isolated Supabase project created (not production, not shared staging)
+artifacts/operational-flow-runtime-gate-checklist.md:26:- [ ] Next.js app running locally (`npm run dev`) against the isolated project
+artifacts/operational-flow-runtime-gate-checklist.md:48:- [ ] First run: `disposition: "created"`, `projectDisposition: "created"` or `"reused"`
+artifacts/operational-flow-runtime-gate-checklist.md:49:- [ ] Second run: `disposition: "reused"`, **same `projectId`** as first run
+artifacts/operational-flow-runtime-gate-checklist.md:58:- [ ] `/command-center?projectId=<demo-project-id>` loads — **Evidence tab is first**
+artifacts/operational-flow-runtime-gate-checklist.md:67:- [ ] Project Assurance Summary v1 opens and shows correct counts
+artifacts/operational-flow-runtime-gate-checklist.md:105:- [ ] Screenshot: Project Assurance Summary v1
+artifacts/vault-smoke-test-report.json:7:    "datasetDescription": "LATAM Enterprise PM — 5 projects across 51 operational artifacts"
+artifacts/vault-smoke-test-report.json:14:    "projectCount": 5
+artifacts/vault-smoke-test-report.json:64:  "projectStats": {
+artifacts/vault-smoke-test-report.json:169:        "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:176:        "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:183:        "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:190:        "projectId": "proj-ice-9298",
+artifacts/vault-smoke-test-report.json:197:        "projectId": "proj-ice-9298",
+artifacts/vault-smoke-test-report.json:204:        "projectId": "proj-gch-15992",
+artifacts/vault-smoke-test-report.json:211:        "projectId": "proj-gch-15992",
+artifacts/vault-smoke-test-report.json:218:        "projectId": "proj-gch-15992",
+artifacts/vault-smoke-test-report.json:225:        "projectId": "proj-hsa-15576",
+artifacts/vault-smoke-test-report.json:232:        "projectId": "proj-hsa-15576",
+artifacts/vault-smoke-test-report.json:239:        "projectId": "proj-hsa-15576",
+artifacts/vault-smoke-test-report.json:246:        "projectId": "proj-hsa-15576",
+artifacts/vault-smoke-test-report.json:253:        "projectId": "proj-hsa-15576",
+artifacts/vault-smoke-test-report.json:260:        "projectId": "proj-muc-13098",
+artifacts/vault-smoke-test-report.json:267:        "projectId": "proj-muc-13098",
+artifacts/vault-smoke-test-report.json:274:        "projectId": "proj-muc-13098",
+artifacts/vault-smoke-test-report.json:281:        "projectId": "proj-muc-13098",
+artifacts/vault-smoke-test-report.json:288:        "projectId": "proj-muc-13098",
+artifacts/vault-smoke-test-report.json:308:      "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:317:      "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:326:      "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:335:      "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:344:      "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:353:      "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:362:      "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:371:      "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:380:      "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:389:      "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:398:      "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:407:      "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:416:      "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:425:      "projectId": "proj-mep-14156",
+artifacts/vault-smoke-test-report.json:434:      "projectId": "proj-ice-9298",
+artifacts/vault-smoke-test-report.json:443:      "projectId": "proj-ice-9298",
+artifacts/vault-smoke-test-report.json:452:      "projectId": "proj-ice-9298",
+artifacts/vault-smoke-test-report.json:461:      "projectId": "proj-ice-9298",
+artifacts/vault-smoke-test-report.json:470:      "projectId": "proj-ice-9298",
+artifacts/vault-smoke-test-report.json:479:      "projectId": "proj-ice-9298",

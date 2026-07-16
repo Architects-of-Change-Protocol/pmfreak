@@ -1,0 +1,201 @@
+$ npm run lint
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> pmfreak@0.1.0 lint
+> npm run lint:aoc-boundaries && eslint
+
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> pmfreak@0.1.0 lint:aoc-boundaries
+> node scripts/lint-aoc-boundaries.mjs
+
+AOC boundary lint passed: no forbidden product/API/SDK/test imports of legacy governance runtime.
+
+/workspace/pmfreak/scripts/check-dashboard-manual-task-push-runtime.mjs
+   2:41  warning  'filterEligibleManualPushProjections' is defined but never used  @typescript-eslint/no-unused-vars
+   3:10  warning  'buildManualPushEnvelope' is defined but never used              @typescript-eslint/no-unused-vars
+   5:10  warning  'buildManualTaskPushReport' is defined but never used            @typescript-eslint/no-unused-vars
+  54:9   warning  'eligibilities' is assigned a value but never used               @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/scripts/check-dashboard-real-adapter-connectors-runtime.mjs
+  5:65   warning  'createAsanaDashboardConnector' is assigned a value but never used    @typescript-eslint/no-unused-vars
+  5:96   warning  'createWebhookDashboardConnector' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  5:129  warning  'createAteneaDashboardConnector' is assigned a value but never used   @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/scripts/smoke-test-vault-digestion.mjs
+  1425:11   warning  'content' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  1513:44   warning  'artifacts' is defined but never used         @typescript-eslint/no-unused-vars
+  1514:9    warning  'now' is assigned a value but never used      @typescript-eslint/no-unused-vars
+  2080:45   warning  '_tk' is defined but never used               @typescript-eslint/no-unused-vars
+  2080:62   warning  '_tw' is defined but never used               @typescript-eslint/no-unused-vars
+  2080:76   warning  '_ws' is defined but never used               @typescript-eslint/no-unused-vars
+  2080:94   warning  '_wid' is defined but never used              @typescript-eslint/no-unused-vars
+  2080:111  warning  '_pid' is defined but never used              @typescript-eslint/no-unused-vars
+  2332:73   warning  'learnedPatterns' is defined but never used   @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/src/aoc/enterprise/runtime/delegated-capabilities.ts
+  5:15  warning  'PolicyDecision' is defined but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/src/aoc/enterprise/runtime/execution-grants.ts
+  5:55  warning  'hashCapabilityClaim' is defined but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/src/aoc/enterprise/runtime/external-authority-adapter.ts
+  11:25  warning  '_input' is defined but never used         @typescript-eslint/no-unused-vars
+  12:30  warning  '_input' is defined but never used         @typescript-eslint/no-unused-vars
+  13:29  warning  '_input' is defined but never used         @typescript-eslint/no-unused-vars
+  14:31  warning  '_input' is defined but never used         @typescript-eslint/no-unused-vars
+  15:30  warning  '_input' is defined but never used         @typescript-eslint/no-unused-vars
+  16:34  warning  '_input' is defined but never used         @typescript-eslint/no-unused-vars
+  17:36  warning  '_input' is defined but never used         @typescript-eslint/no-unused-vars
+  18:35  warning  '_input' is defined but never used         @typescript-eslint/no-unused-vars
+  19:33  warning  '_input' is defined but never used         @typescript-eslint/no-unused-vars
+  20:31  warning  '_input' is defined but never used         @typescript-eslint/no-unused-vars
+  21:37  warning  '_input' is defined but never used         @typescript-eslint/no-unused-vars
+  22:29  warning  '_input' is defined but never used         @typescript-eslint/no-unused-vars
+  23:27  warning  '_input' is defined but never used         @typescript-eslint/no-unused-vars
+  24:25  warning  '_input' is defined but never used         @typescript-eslint/no-unused-vars
+  25:36  warning  '_workspaceId' is defined but never used   @typescript-eslint/no-unused-vars
+  26:30  warning  '_workspaceId' is defined but never used   @typescript-eslint/no-unused-vars
+  26:52  warning  '_allowedRoles' is defined but never used  @typescript-eslint/no-unused-vars
+  27:30  warning  '_projectId' is defined but never used     @typescript-eslint/no-unused-vars
+  28:34  warning  '_projectId' is defined but never used     @typescript-eslint/no-unused-vars
+  28:54  warning  '_permission' is defined but never used    @typescript-eslint/no-unused-vars
+  29:37  warning  '_workspaceId' is defined but never used   @typescript-eslint/no-unused-vars
+  29:59  warning  '_permission' is defined but never used    @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/src/app/(protected)/pm-performance/page.tsx
+  123:10  warning  'capacityLabel' is defined but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/src/app/(protected)/pm-registry/[pmId]/page.tsx
+  635:27  warning  'dossier' is defined but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/src/app/api/agents/execution/action-conversions/[conversionId]/events/route.ts
+  13:19  warning  '_user' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/src/app/api/agents/execution/action-conversions/[conversionId]/route.ts
+  13:19  warning  '_user' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/src/app/api/agents/execution/action-conversions/summary/route.ts
+  10:19  warning  '_user' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+... [truncated for Sprint 0 evidence hygiene] ...
+  150:3  warning  'ALLOWED_PERSONAL_SOURCE_TYPES' is defined but never used        @typescript-eslint/no-unused-vars
+  151:3  warning  'ALLOWED_ORGANIZATIONAL_SOURCE_TYPES' is defined but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/nutrient-operational-bridge-contract.test.mjs
+  71:3  warning  'buildNutrientMemoryMapping' is assigned a value but never used               @typescript-eslint/no-unused-vars
+  96:3  warning  'classifyNutrientOperationalSignalPublic' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  97:3  warning  'detectNutrientRecurrencePublic' is assigned a value but never used           @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/operational-brief.test.mjs
+   50:10  warning  'makeContradiction' is defined but never used  @typescript-eslint/no-unused-vars
+   65:10  warning  'makeTimelineEntry' is defined but never used  @typescript-eslint/no-unused-vars
+  190:9   warning  'brief' is assigned a value but never used     @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/operational-consequence-engine.test.ts
+  65:41  warning  'focusType' is defined but never used              @typescript-eslint/no-unused-vars
+  65:52  warning  'severity' is defined but never used               @typescript-eslint/no-unused-vars
+  65:62  warning  'escalationProbability' is defined but never used  @typescript-eslint/no-unused-vars
+  65:85  warning  'impactScore' is defined but never used            @typescript-eslint/no-unused-vars
+  73:45  warning  'focusItemId' is defined but never used            @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/operational-decision-engine.test.ts
+  128:10  warning  'uuid' is defined but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/personal-pm-effectiveness.test.ts
+   13:7   warning  'STATUSES' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  156:54  warning  'actorId' is defined but never used            @typescript-eslint/no-unused-vars
+  166:53  warning  'actorId' is defined but never used            @typescript-eslint/no-unused-vars
+  176:55  warning  'actorId' is defined but never used            @typescript-eslint/no-unused-vars
+  187:52  warning  'actorId' is defined but never used            @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/playbook-engine-conversation-decision-support-candidate-handler.test.mjs
+   9:3  warning  'identifyDecisionTradeoffs' is defined but never used   @typescript-eslint/no-unused-vars
+  10:3  warning  'identifyDecisionRisks' is defined but never used       @typescript-eslint/no-unused-vars
+  11:3  warning  'identifyEvidenceNeeds' is defined but never used       @typescript-eslint/no-unused-vars
+  12:3  warning  'buildDecisionStatement' is defined but never used      @typescript-eslint/no-unused-vars
+  13:3  warning  'estimateDecisionConfidence' is defined but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/playbook-engine-conversation-decision-support-shadow-controlled-replay.test.mjs
+  39:3  warning  'runDecisionSupportShadowStorageFakeAdapterEvaluation' is defined but never used        @typescript-eslint/no-unused-vars
+  40:3  warning  'summarizeDecisionSupportShadowStorageFakeAdapterEvaluation' is defined but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/playbook-engine-conversation-decision-support-shadow-mode-prep.test.mjs
+  77:10  warning  'fixtureCase' is defined but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/pm-performance-snapshot-activation.test.mjs
+  318:19  warning  'pm2' is assigned a value but never used                     @typescript-eslint/no-unused-vars
+  712:10  warning  'deriveConfidenceRecommendations' is defined but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/pm-registry.test.mjs
+  36:9   warning  'PM_ROLES' is assigned a value but never used              @typescript-eslint/no-unused-vars
+  37:9   warning  'PM_EXPERIENCE_LEVELS' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  45:12  warning  'persistFailed' is defined but never used                  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/pmo-governance-compliance-engine.test.mjs
+  247:9   warning  'evidence' is assigned a value but never used           @typescript-eslint/no-unused-vars
+  395:11  warning  'activeAssignments' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/portfolio-brief.test.mjs
+  15:10  warning  'makeConstitutionalBrief' is defined but never used  @typescript-eslint/no-unused-vars
+  50:10  warning  'makeContradiction' is defined but never used        @typescript-eslint/no-unused-vars
+  65:10  warning  'makeTimelineEntry' is defined but never used        @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/program-hierarchy.test.mjs
+  670:49  warning  'actorId' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/project-constitution-amendment-governance.test.mjs
+  13:7  warning  'stateMachine' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  14:7  warning  'types' is assigned a value but never used         @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/project-constitution-lifecycle.test.mjs
+  8:7  warning  'stateMachine' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  9:7  warning  'types' is assigned a value but never used         @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/project-constitutional-decision-governance.test.mjs
+  11:7  warning  'types' is assigned a value but never used         @typescript-eslint/no-unused-vars
+  13:7  warning  'stateMachine' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  16:7  warning  'explanation' is assigned a value but never used   @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/project-operating-system.test.ts
+  59:44  warning  'activeRecommendations' is defined but never used  @typescript-eslint/no-unused-vars
+  77:97  warning  'snapshotId' is defined but never used             @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/recommendation-effectiveness-engine.test.ts
+  17:7  warning  'effectivenessEng' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  18:7  warning  'adaptationEng' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  19:7  warning  'benchmarkEng' is assigned a value but never used      @typescript-eslint/no-unused-vars
+  20:7  warning  'rankingEng' is assigned a value but never used        @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/schedule-foundation.test.mjs
+  11:7  warning  'repositoryTs' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/sovereign-recommendation-engine.test.ts
+  17:7  warning  'generationEng' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  18:7  warning  'confidenceEng' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  19:7  warning  'applicability' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  20:7  warning  'justification' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/stripe-webhook-test-helpers.ts
+  88:44  warning  '_opts' is defined but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/vault-digestive-system-contract.test.mjs
+   9:7  warning  'entityFile' is assigned a value but never used       @typescript-eslint/no-unused-vars
+  10:7  warning  'nutrientFile' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  11:7  warning  'scoringFile' is assigned a value but never used      @typescript-eslint/no-unused-vars
+  12:7  warning  'decayFile' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  13:7  warning  'residueFile' is assigned a value but never used      @typescript-eslint/no-unused-vars
+  14:7  warning  'lineageFile' is assigned a value but never used      @typescript-eslint/no-unused-vars
+  35:9  warning  'extractEntities' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/vault-learned-patterns-contract.test.mjs
+  105:7  warning  'smokeModule' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/workspace/pmfreak/tests/vault-smoke-test-digestion.test.mjs
+  24:3  warning  'runDigestivePipeline' is assigned a value but never used       @typescript-eslint/no-unused-vars
+  25:3  warning  'extractNutrientCandidates' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+✖ 610 problems (0 errors, 610 warnings)
+  0 errors and 2 warnings potentially fixable with the `--fix` option.
+
+exit:0 duration:137s
