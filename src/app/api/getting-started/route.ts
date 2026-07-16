@@ -4,6 +4,7 @@ import { denyFromAccessError } from "@/lib/security/deny-response";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { saveOperationalMemory, type OperationalDomain } from "@/lib/operational-memory";
 import { ensureUserWorkspace } from "@/lib/workspaces";
+import { ensureDefaultPmo } from "@/lib/pmos/pmo-service";
 
 type TemplateInput = { domain: OperationalDomain; title: string; text: string };
 
@@ -30,9 +31,10 @@ export async function POST(request: Request) {
     ? "Seeded scenario with governance drift, PM overload, and escalation pressure."
     : `Sponsor: ${body.form.sponsor || "TBD"} | PM: ${body.form.pm || "TBD"} | Timeline: ${body.form.timeline || "TBD"}`;
 
+  const defaultPmo = await ensureDefaultPmo(workspaceId, user.id, body.form.companyName);
   const { data: project, error: projectError } = await supabase
     .from("projects")
-    .insert({ user_id: user.id, workspace_id: workspaceId, name: projectName, description })
+    .insert({ user_id: user.id, workspace_id: workspaceId, pmo_id: defaultPmo.id, name: projectName, description })
     .select("id")
     .single<{ id: string }>();
 

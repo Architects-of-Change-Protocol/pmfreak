@@ -45,7 +45,7 @@ test("pilot profile hides every curated href even at maximum unlock", () => {
 test("pilot profile keeps the real product surface visible", () => {
   const state = computeCapabilityRevealState(MAX_REVEAL_INPUT);
   const hrefs = computeNavigationRail(state, "pilot").map((item) => item.href);
-  for (const required of ["/workspace", "/dashboard", "/command-center", "/projects", "/upload", "/operational-memory", "/follow-up-dashboard"]) {
+  for (const required of ["/workspaces", "/pmos", "/chat", "/dashboard", "/command-center", "/projects", "/upload", "/operational-memory", "/follow-up-dashboard"]) {
     assert.ok(hrefs.includes(required), `pilot navigation lost a real surface: ${required}`);
   }
 });

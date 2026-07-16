@@ -120,6 +120,35 @@ export async function savePmoTenant(tenant: PmoTenant): Promise<PmoTenantSaveRes
       });
     }
 
+    // Materialize the PMO as a first-class entity (Workspace → PMO → Project
+    // hierarchy). The governance JSON above stays the source of tenant
+    // config; the pmos row is what navigation, project assignment, and the
+    // PMO chat scope hang off. Idempotent: skip when the workspace already
+    // has a PMO (re-running the wizard must not spawn duplicates).
+    const { data: existingPmo } = await supabaseClient
+      .from("pmos")
+      .select("id")
+      .eq("workspace_id", resolution.workspaceId)
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+
+    if (!existingPmo?.id) {
+      const { error: pmoInsertError } = await supabaseClient.from("pmos").insert({
+        workspace_id: resolution.workspaceId,
+        name: tenant.identity.pmoName,
+        pmo_type: commandCenterType,
+        created_by_user_id: user.id,
+      });
+      if (pmoInsertError) {
+        emit("warn", "pmo.create.pmo_entity_warn", {
+          correlationId,
+          userId,
+          workspaceId,
+          error: pmoInsertError.message,
+        });
+      }
+    }
+
     emit("info", "pmo.create.persisted", {
       correlationId,
       userId,

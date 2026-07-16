@@ -5,6 +5,7 @@ import { requireAuthUser } from "@/lib/auth";
 import { canCreateMoreProjects } from "@/lib/feature-gates";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ensureUserWorkspace } from "@/lib/workspaces";
+import { ensureDefaultPmo, getPmoById } from "@/lib/pmos/pmo-service";
 import { generateAndPersistOperationalGovernanceBrief } from "@/lib/projects/first-insight";
 
 export async function createProjectAction(formData: FormData) {
@@ -26,6 +27,22 @@ export async function createProjectAction(formData: FormData) {
 
   const ensured = await ensureUserWorkspace(user.id);
 
+  // Every project belongs to a PMO (Workspace → PMO → Project). Honor an
+  // explicit selection from the form; otherwise attach to the workspace's
+  // default PMO, creating it when this is the first project ever.
+  const requestedPmoId = String(formData.get("pmoId") ?? "").trim();
+  let pmoId: string;
+  if (requestedPmoId) {
+    const requestedPmo = await getPmoById(ensured.workspaceId, requestedPmoId);
+    if (!requestedPmo) {
+      redirect("/projects?error=Selected+PMO+was+not+found");
+    }
+    pmoId = requestedPmo.id;
+  } else {
+    const defaultPmo = await ensureDefaultPmo(ensured.workspaceId, user.id);
+    pmoId = defaultPmo.id;
+  }
+
   const onboardingPayload = {
     identity: { projectName: name, clientOrganization: "", projectType: "other", contractCode: "", pmAssigned: user.email ?? user.id, technicalLead: "", targetDeliveryDate: "" },
     deliveryContext: { problemStatement: description ?? "", mainDeliverable: name, externalDependencies: "", contractualMilestones: "", scopeType: "discovery" },
@@ -36,7 +53,7 @@ export async function createProjectAction(formData: FormData) {
 
   const { data, error } = await supabase
     .from("projects")
-    .insert({ user_id: user.id, workspace_id: ensured.workspaceId, name, description, onboarding_payload: onboardingPayload })
+    .insert({ user_id: user.id, workspace_id: ensured.workspaceId, pmo_id: pmoId, name, description, onboarding_payload: onboardingPayload })
     .select("id")
     .single<{ id: string }>();
 
@@ -58,5 +75,6 @@ export async function createProjectAction(formData: FormData) {
     briefGeneration = "&briefGeneration=failed";
   }
 
-  redirect(`/command-center?projectId=${data.id}${briefGeneration}`);
+  // Projects open on their Overview (the chat is one view among many).
+  redirect(`/projects/${data.id}${briefGeneration ? `?${briefGeneration.slice(1)}` : ""}`);
 }

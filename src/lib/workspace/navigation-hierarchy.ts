@@ -9,19 +9,23 @@ export type NavigationNode = {
 };
 
 export const NAVIGATION_HIERARCHY: NavigationNode[] = [
-  { label: "Workspace", href: "/workspace", tier: "primary", visibleByDefault: true },
+  // Workspace block (Change 8): the workspace is the root of the
+  // Workspace → PMO → Project hierarchy.
+  { label: "Workspace Chat", href: "/chat", tier: "primary", visibleByDefault: true },
   { label: "Create Center", href: "/create-command-center", tier: "primary", visibleByDefault: true },
-  { label: "Create Project", href: "/projects/new", tier: "primary", visibleByDefault: true },
+  { label: "New Project", href: "/projects/new", tier: "primary", visibleByDefault: true },
 
   { label: "Summary", href: "/dashboard", tier: "lens", visibleByDefault: true },
   { label: "Execution", href: "/command-center", tier: "lens", visibleByDefault: true },
   { label: "Executive", href: "/executive", tier: "lens", visibleByDefault: true },
   { label: "Portfolio", href: "/portfolio", tier: "lens", visibleByDefault: true },
 
+  { label: "Workspaces", href: "/workspaces", tier: "utility", visibleByDefault: true },
+  { label: "PMOs", href: "/pmos", tier: "utility", visibleByDefault: true },
   { label: "Projects", href: "/projects", tier: "utility", visibleByDefault: true },
   { label: "Programs", href: "/programs", tier: "utility", visibleByDefault: true },
   { label: "Upload", href: "/upload", tier: "utility", visibleByDefault: true },
-  { label: "Settings", href: "/team", tier: "utility", visibleByDefault: true },
+  { label: "Members", href: "/team", tier: "utility", visibleByDefault: true },
 
   { label: "Operational Memory", href: "/operational-memory", tier: "advanced", visibleByDefault: false, requiresCapability: "memory" },
   { label: "Stakeholders", href: "/stakeholder-intel", tier: "advanced", visibleByDefault: false, requiresCapability: "stakeholders" },

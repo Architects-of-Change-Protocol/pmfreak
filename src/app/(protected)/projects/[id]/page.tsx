@@ -6,6 +6,7 @@ import { evaluateCapabilityAccess } from "@/lib/security/capability-flow";
 import { resolveCanonicalProject } from "@/lib/projects/canonical-project-resolver";
 import { redirect } from "next/navigation";
 import { ProjectPMAssignment } from "@/components/pmfreak/ProjectPMAssignment";
+import { ProjectTabNav } from "./project-tab-nav";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -16,11 +17,15 @@ export default async function ProjectDetailPage({ params }: Props) {
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, workspace_id, name, description, status")
+    .select("id, workspace_id, pmo_id, name, description, status, methodology, icon, color")
     .eq("id", id)
     .maybeSingle();
 
   if (!project) notFound();
+
+  const { data: pmo } = project.pmo_id
+    ? await supabase.from("pmos").select("id, name, icon").eq("id", project.pmo_id).maybeSingle()
+    : { data: null };
 
   const canonicalProject = await resolveCanonicalProject(project.workspace_id, id);
   if (canonicalProject.status === "invalid" && canonicalProject.projectId) {
@@ -39,9 +44,27 @@ export default async function ProjectDetailPage({ params }: Props) {
   return (
     <main className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-xl md:p-10 space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
+        {pmo ? (
+          <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">
+            <Link href="/pmos" className="hover:text-cyan-100">PMOs</Link>
+            {" / "}
+            <Link href={`/pmos/${pmo.id}`} className="hover:text-cyan-100">{pmo.icon ? `${pmo.icon} ` : ""}{pmo.name}</Link>
+            {" / "}
+            {project.name}
+          </p>
+        ) : null}
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+          {project.icon ? <span className="mr-2">{project.icon}</span> : null}
+          {project.name}
+        </h1>
         <p className="mt-2 text-sm text-slate-300">{project.description ?? "No description provided."}</p>
-        <p className="mt-2 text-xs uppercase tracking-wide text-slate-400">Status: {project.status}</p>
+        <p className="mt-2 text-xs uppercase tracking-wide text-slate-400">
+          Status: {project.status}
+          {project.methodology ? ` · Methodology: ${project.methodology}` : ""}
+        </p>
+        <div className="mt-4">
+          <ProjectTabNav projectId={project.id} active="overview" />
+        </div>
       </div>
 
       <section className="rounded-2xl border border-white/10 bg-white/20 p-5 space-y-4">

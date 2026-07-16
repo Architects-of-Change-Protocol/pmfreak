@@ -7,8 +7,11 @@ const selectors = readFileSync('src/features/runtime/capability-reveal/capabilit
 const shell = readFileSync('src/components/pmfreak/operational-shell.tsx', 'utf8');
 const drawer = readFileSync('src/components/pmfreak/navigation/advanced-drawer.tsx', 'utf8');
 
-test('workspace appears as primary visible node', () => {
-  assert.match(hierarchy, /label: "Workspace"[\s\S]*tier: "primary"[\s\S]*visibleByDefault: true/);
+test('workspace chat appears as primary visible node', () => {
+  // Workspace → PMO → Project sprint: the workspace-level chat is the
+  // primary workspace entry; the workspace list lives in utilities.
+  assert.match(hierarchy, /label: "Workspace Chat"[\s\S]*tier: "primary"[\s\S]*visibleByDefault: true/);
+  assert.match(hierarchy, /label: "Workspaces"[\s\S]*tier: "utility"/);
 });
 
 test('lens group contains only required defaults', () => {
@@ -16,7 +19,7 @@ test('lens group contains only required defaults', () => {
 });
 
 test('utility group contains only required defaults', () => {
-  for (const util of ['Projects', 'Upload', 'Settings']) assert.match(hierarchy, new RegExp(`label: "${util}"[\\s\\S]*tier: "utility"`));
+  for (const util of ['Workspaces', 'PMOs', 'Projects', 'Programs', 'Upload', 'Members']) assert.match(hierarchy, new RegExp(`label: "${util}"[\\s\\S]*tier: "utility"`));
 });
 
 test('advanced surfaces are hidden by default', () => {
@@ -40,5 +43,5 @@ test('operational shell renders grouped hierarchy', () => {
 });
 
 test('workspace remains canonical active default', () => {
-  assert.match(shell, /href="\/workspace"/);
+  assert.match(shell, /href="\/workspaces"/);
 });

@@ -80,9 +80,20 @@ export async function resolveOnboardingState(
     }
   }
 
-  // Check PMO governance (schema v2 required)
-  const pmoResult = await loadPmoTenant(workspaceId);
-  if (!pmoResult.found) return "needs_pmo_setup";
+  // Check PMO existence: either a first-class pmos row (Workspace → PMO →
+  // Project hierarchy) or the legacy governance tenant (schema v2) counts —
+  // existing accounts predate the pmos table backfill running.
+  const { data: pmoRows } = await supabase
+    .from("pmos")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .eq("status", "active")
+    .limit(1);
+
+  if (!pmoRows || pmoRows.length === 0) {
+    const pmoResult = await loadPmoTenant(workspaceId);
+    if (!pmoResult.found) return "needs_pmo_setup";
+  }
 
   // Check project existence
   const { data: projects } = await supabase

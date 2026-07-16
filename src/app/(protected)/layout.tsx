@@ -1,6 +1,6 @@
 import { isFounderOrInternalUser, requireAuthUser } from "@/lib/auth";
 import { assertRuntimeAuthContinuity } from "@/lib/auth/runtime-auth-continuity";
-import { resolveCanonicalWorkspace } from "@/lib/workspaces/canonical-workspace-resolver";
+import { resolvePreferredWorkspace } from "@/lib/workspaces/preferred-workspace";
 import { OperationalShell } from "@/components/pmfreak/operational-shell";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
@@ -24,7 +24,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   }
 
   const user = await requireAuthUser();
-  let resolvedWorkspace = await resolveCanonicalWorkspace(user.id);
+  let resolvedWorkspace = await resolvePreferredWorkspace(user.id);
   console.log("[protected-layout] workspace resolution status:", resolvedWorkspace.status, "workspaceId:", resolvedWorkspace.workspaceId ?? "(none)");
 
   if (!resolvedWorkspace.workspaceId) {
