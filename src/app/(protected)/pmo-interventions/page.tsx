@@ -13,26 +13,26 @@ import type {
 // ─── Style maps ───────────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<string, string> = {
-  proposed:    "bg-blue-500/20 text-blue-300 border-blue-500/30",
-  approved:    "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  in_progress: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  completed:   "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
-  rejected:    "bg-red-600/20 text-red-300 border-red-600/30",
-  dismissed:   "bg-zinc-600/20 text-zinc-400 border-zinc-600/30",
-  cancelled:   "bg-zinc-600/20 text-zinc-400 border-zinc-600/30",
+  proposed:    "bg-blue-500/20 text-blue-700 border-blue-500/30",
+  approved:    "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  in_progress: "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  completed:   "bg-zinc-500/20 text-zinc-700 border-zinc-500/30",
+  rejected:    "bg-red-600/20 text-red-700 border-red-600/30",
+  dismissed:   "bg-zinc-600/20 text-zinc-600 border-zinc-600/30",
+  cancelled:   "bg-zinc-600/20 text-zinc-600 border-zinc-600/30",
 };
 
 const PRIORITY_STYLES: Record<string, string> = {
-  critical: "bg-red-600/20 text-red-300 border-red-600/30",
-  high:     "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  medium:   "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  low:      "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
+  critical: "bg-red-600/20 text-red-700 border-red-600/30",
+  high:     "bg-orange-500/20 text-orange-700 border-orange-500/30",
+  medium:   "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  low:      "bg-zinc-500/20 text-zinc-700 border-zinc-500/30",
 };
 
 // ─── Shared components ────────────────────────────────────────────────────────
 
 function Badge({ value, styles }: { value: string; styles: Record<string, string> }) {
-  const cls = styles[value] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30";
+  const cls = styles[value] ?? "bg-zinc-500/20 text-zinc-700 border-zinc-500/30";
   return (
     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>
       {value.replace(/_/g, " ")}
@@ -42,9 +42,9 @@ function Badge({ value, styles }: { value: string; styles: Record<string, string
 
 function SummaryCard({ label, value, highlight, sub }: { label: string; value: string | number; highlight?: string; sub?: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-      <p className="text-xs text-zinc-400">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${highlight ?? "text-white"}`}>{value}</p>
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <p className="text-xs text-zinc-600">{label}</p>
+      <p className={`mt-1 text-2xl font-semibold ${highlight ?? "text-slate-900"}`}>{value}</p>
       {sub && <p className="mt-0.5 text-xs text-zinc-500">{sub}</p>}
     </div>
   );
@@ -76,7 +76,7 @@ function ActionCard({
   const isTerminal   = ["completed", "rejected", "dismissed", "cancelled"].includes(action.status);
 
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5">
+    <div className="rounded-xl border border-slate-200 bg-white">
       <button
         className="w-full text-left p-4 flex items-start justify-between gap-4"
         onClick={onToggle}
@@ -85,44 +85,44 @@ function ActionCard({
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <Badge value={action.priority} styles={PRIORITY_STYLES} />
             <Badge value={action.status} styles={STATUS_STYLES} />
-            <span className="text-xs text-zinc-400">{action.actionType.replace(/_/g, " ")}</span>
+            <span className="text-xs text-zinc-600">{action.actionType.replace(/_/g, " ")}</span>
           </div>
-          <p className="text-sm font-medium text-white truncate">{action.actionTitle}</p>
-          <p className="text-xs text-zinc-400 mt-0.5 line-clamp-2">{action.actionDescription}</p>
+          <p className="text-sm font-medium text-slate-900 truncate">{action.actionTitle}</p>
+          <p className="text-xs text-zinc-600 mt-0.5 line-clamp-2">{action.actionDescription}</p>
         </div>
         <span className="text-zinc-500 text-xs shrink-0 mt-1">{expanded ? "▲" : "▼"}</span>
       </button>
 
       {expanded && (
-        <div className="border-t border-white/10 p-4 space-y-4">
+        <div className="border-t border-slate-200 p-4 space-y-4">
           <div className="grid grid-cols-2 gap-3 text-xs">
-            {action.pmId && <div><span className="text-zinc-500">PM ID</span><p className="text-white font-mono">{action.pmId}</p></div>}
-            {action.projectId && <div><span className="text-zinc-500">Project ID</span><p className="text-white font-mono">{action.projectId}</p></div>}
-            {action.targetName && <div><span className="text-zinc-500">Target</span><p className="text-white">{action.targetName}</p></div>}
-            <div><span className="text-zinc-500">Source</span><p className="text-white">{action.sourceType}</p></div>
-            {action.sourceViolationId && <div><span className="text-zinc-500">Violation</span><p className="text-white font-mono">{action.sourceViolationId}</p></div>}
-            <div><span className="text-zinc-500">Approval</span><p className="text-white">{action.approvalStatus}</p></div>
-            <div><span className="text-zinc-500">Created</span><p className="text-white">{new Date(action.createdAt).toLocaleString()}</p></div>
+            {action.pmId && <div><span className="text-zinc-500">PM ID</span><p className="text-slate-900 font-mono">{action.pmId}</p></div>}
+            {action.projectId && <div><span className="text-zinc-500">Project ID</span><p className="text-slate-900 font-mono">{action.projectId}</p></div>}
+            {action.targetName && <div><span className="text-zinc-500">Target</span><p className="text-slate-900">{action.targetName}</p></div>}
+            <div><span className="text-zinc-500">Source</span><p className="text-slate-900">{action.sourceType}</p></div>
+            {action.sourceViolationId && <div><span className="text-zinc-500">Violation</span><p className="text-slate-900 font-mono">{action.sourceViolationId}</p></div>}
+            <div><span className="text-zinc-500">Approval</span><p className="text-slate-900">{action.approvalStatus}</p></div>
+            <div><span className="text-zinc-500">Created</span><p className="text-slate-900">{new Date(action.createdAt).toLocaleString()}</p></div>
           </div>
 
           {action.recommendation && (
             <div>
               <p className="text-xs text-zinc-500 mb-1">Recommendation</p>
-              <p className="text-sm text-zinc-200">{action.recommendation}</p>
+              <p className="text-sm text-zinc-800">{action.recommendation}</p>
             </div>
           )}
 
           {action.decisionReason && (
             <div>
               <p className="text-xs text-zinc-500 mb-1">Decision Reason</p>
-              <p className="text-sm text-zinc-200">{action.decisionReason}</p>
+              <p className="text-sm text-zinc-800">{action.decisionReason}</p>
             </div>
           )}
 
           {action.completionNotes && (
             <div>
               <p className="text-xs text-zinc-500 mb-1">Completion Notes</p>
-              <p className="text-sm text-zinc-200">{action.completionNotes}</p>
+              <p className="text-sm text-zinc-800">{action.completionNotes}</p>
             </div>
           )}
 
@@ -133,14 +133,14 @@ function ActionCard({
                 placeholder="Reason / notes (optional)"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-white/20"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-white/20"
               />
               <div className="flex flex-wrap gap-2">
                 {canApprove && (
                   <button
                     disabled={loading}
                     onClick={() => { onStatusChange(action.id, "approved", reason); setReason(""); }}
-                    className="rounded-lg bg-emerald-600/20 border border-emerald-500/30 px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-600/30 disabled:opacity-50"
+                    className="rounded-lg bg-emerald-600/20 border border-emerald-500/30 px-3 py-1.5 text-xs text-emerald-700 hover:bg-emerald-600/30 disabled:opacity-50"
                   >
                     Approve
                   </button>
@@ -149,7 +149,7 @@ function ActionCard({
                   <button
                     disabled={loading}
                     onClick={() => { onStatusChange(action.id, "rejected", reason); setReason(""); }}
-                    className="rounded-lg bg-red-600/20 border border-red-500/30 px-3 py-1.5 text-xs text-red-300 hover:bg-red-600/30 disabled:opacity-50"
+                    className="rounded-lg bg-red-600/20 border border-red-500/30 px-3 py-1.5 text-xs text-red-700 hover:bg-red-600/30 disabled:opacity-50"
                   >
                     Reject
                   </button>
@@ -158,7 +158,7 @@ function ActionCard({
                   <button
                     disabled={loading}
                     onClick={() => { onStatusChange(action.id, "dismissed", reason); setReason(""); }}
-                    className="rounded-lg bg-zinc-600/20 border border-zinc-500/30 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-600/30 disabled:opacity-50"
+                    className="rounded-lg bg-zinc-600/20 border border-zinc-500/30 px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-600/30 disabled:opacity-50"
                   >
                     Dismiss
                   </button>
@@ -167,7 +167,7 @@ function ActionCard({
                   <button
                     disabled={loading}
                     onClick={() => { onStatusChange(action.id, "in_progress", reason); setReason(""); }}
-                    className="rounded-lg bg-amber-600/20 border border-amber-500/30 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-600/30 disabled:opacity-50"
+                    className="rounded-lg bg-amber-600/20 border border-amber-500/30 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-600/30 disabled:opacity-50"
                   >
                     Start
                   </button>
@@ -176,7 +176,7 @@ function ActionCard({
                   <button
                     disabled={loading}
                     onClick={() => { onStatusChange(action.id, "completed", reason); setReason(""); }}
-                    className="rounded-lg bg-zinc-500/20 border border-zinc-400/30 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-500/30 disabled:opacity-50"
+                    className="rounded-lg bg-zinc-500/20 border border-zinc-400/30 px-3 py-1.5 text-xs text-zinc-800 hover:bg-zinc-500/30 disabled:opacity-50"
                   >
                     Complete
                   </button>
@@ -185,7 +185,7 @@ function ActionCard({
                   <button
                     disabled={loading}
                     onClick={() => { onStatusChange(action.id, "cancelled", reason); setReason(""); }}
-                    className="rounded-lg bg-zinc-700/20 border border-zinc-600/30 px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-700/30 disabled:opacity-50"
+                    className="rounded-lg bg-zinc-700/20 border border-zinc-600/30 px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-700/30 disabled:opacity-50"
                   >
                     Cancel
                   </button>
@@ -309,32 +309,32 @@ export default function PMOInterventionsPage() {
   const STATUS_GROUPS: PMOInterventionStatus[] = ["proposed", "approved", "in_progress", "completed", "dismissed", "rejected", "cancelled"];
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white p-6 max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-zinc-950 text-slate-900 p-6 max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">PMO Intervention Center</h1>
-          <p className="mt-1 text-sm text-zinc-400">
+          <h1 className="text-2xl font-bold text-slate-900">PMO Intervention Center</h1>
+          <p className="mt-1 text-sm text-zinc-600">
             Human-governed action queue derived from PMO governance violations. All actions require explicit human approval before execution.
           </p>
-          <div className="mt-3 flex flex-wrap gap-3 text-xs text-zinc-400">
-            <Link href="/pmo-governance-compliance" className="hover:text-white">Governance Compliance</Link>
+          <div className="mt-3 flex flex-wrap gap-3 text-xs text-zinc-600">
+            <Link href="/pmo-governance-compliance" className="hover:text-slate-900">Governance Compliance</Link>
             <span>·</span>
-            <Link href="/pm-registry" className="hover:text-white">PM Registry</Link>
+            <Link href="/pm-registry" className="hover:text-slate-900">PM Registry</Link>
           </div>
         </div>
         <div className="flex gap-3 shrink-0">
           <button
             onClick={fetchActions}
             disabled={loading}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300 hover:bg-white/10 disabled:opacity-50"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-zinc-700 hover:bg-slate-50 disabled:opacity-50"
           >
             Refresh
           </button>
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="rounded-xl border border-blue-500/30 bg-blue-600/20 px-4 py-2 text-sm text-blue-300 hover:bg-blue-600/30 disabled:opacity-50"
+            className="rounded-xl border border-blue-500/30 bg-blue-600/20 px-4 py-2 text-sm text-blue-700 hover:bg-blue-600/30 disabled:opacity-50"
           >
             {generating ? "Generating..." : "Generate Actions"}
           </button>
@@ -343,16 +343,16 @@ export default function PMOInterventionsPage() {
 
       {/* Error banner */}
       {error && (
-        <div className="rounded-xl border border-red-500/30 bg-red-600/10 px-4 py-3 text-sm text-red-300">
+        <div className="rounded-xl border border-red-500/30 bg-red-600/10 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {/* Generation result banner */}
       {generateResult && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-600/10 px-4 py-3 text-sm text-emerald-300 space-y-1">
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-600/10 px-4 py-3 text-sm text-emerald-700 space-y-1">
           <p className="font-medium">Actions generated from governance snapshot</p>
-          <div className="flex flex-wrap gap-4 text-xs text-emerald-200">
+          <div className="flex flex-wrap gap-4 text-xs text-emerald-800">
             <span>Created: {generateResult.created_actions.length}</span>
             <span>Skipped duplicates: {generateResult.skipped_duplicates}</span>
             <span>Existing open: {generateResult.existing_open_actions}</span>
@@ -363,12 +363,12 @@ export default function PMOInterventionsPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <SummaryCard label="Proposed" value={byStatus("proposed")} highlight="text-blue-300" />
-        <SummaryCard label="Approved" value={byStatus("approved")} highlight="text-emerald-300" />
-        <SummaryCard label="In Progress" value={byStatus("in_progress")} highlight="text-amber-300" />
+        <SummaryCard label="Proposed" value={byStatus("proposed")} highlight="text-blue-700" />
+        <SummaryCard label="Approved" value={byStatus("approved")} highlight="text-emerald-700" />
+        <SummaryCard label="In Progress" value={byStatus("in_progress")} highlight="text-amber-700" />
         <SummaryCard label="Completed" value={byStatus("completed")} />
-        <SummaryCard label="Critical" value={byPriority("critical")} highlight="text-red-300" />
-        <SummaryCard label="High Priority" value={byPriority("high")} highlight="text-orange-300" />
+        <SummaryCard label="Critical" value={byPriority("critical")} highlight="text-red-700" />
+        <SummaryCard label="High Priority" value={byPriority("high")} highlight="text-orange-700" />
         <SummaryCard label="Pending Approval" value={actions.filter((a) => a.approvalStatus === "pending" && a.status === "proposed").length} />
         <SummaryCard label="Dismissed / Rejected" value={byStatus("dismissed") + byStatus("rejected")} />
       </div>
@@ -378,7 +378,7 @@ export default function PMOInterventionsPage() {
         <select
           value={filterStatus}
           onChange={(e) => applyFilterStatus(e.target.value)}
-          className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 focus:outline-none"
+          className="rounded-lg border border-slate-200 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-700 focus:outline-none"
         >
           <option value="">All Statuses</option>
           {(["proposed","approved","in_progress","completed","dismissed","rejected","cancelled"] as PMOInterventionStatus[]).map((s) => (
@@ -388,7 +388,7 @@ export default function PMOInterventionsPage() {
         <select
           value={filterPriority}
           onChange={(e) => applyFilterPriority(e.target.value)}
-          className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 focus:outline-none"
+          className="rounded-lg border border-slate-200 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-700 focus:outline-none"
         >
           <option value="">All Priorities</option>
           {(["critical","high","medium","low"] as PMOInterventionPriority[]).map((p) => (
@@ -398,7 +398,7 @@ export default function PMOInterventionsPage() {
         <select
           value={filterActionType}
           onChange={(e) => applyFilterActionType(e.target.value)}
-          className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 focus:outline-none"
+          className="rounded-lg border border-slate-200 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-700 focus:outline-none"
         >
           <option value="">All Action Types</option>
           {([
@@ -416,8 +416,8 @@ export default function PMOInterventionsPage() {
       {loading ? (
         <div className="text-sm text-zinc-500 text-center py-12">Loading actions...</div>
       ) : actions.length === 0 ? (
-        <div className="rounded-xl border border-white/10 bg-white/5 p-12 text-center">
-          <p className="text-zinc-400 text-sm">No intervention actions found.</p>
+        <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
+          <p className="text-zinc-600 text-sm">No intervention actions found.</p>
           <p className="text-zinc-500 text-xs mt-2">Use &ldquo;Generate Actions&rdquo; to derive actions from governance violations.</p>
         </div>
       ) : (
@@ -429,7 +429,7 @@ export default function PMOInterventionsPage() {
               <section key={statusGroup}>
                 <div className="mb-3 flex items-center gap-3">
                   <Badge value={statusGroup} styles={STATUS_STYLES} />
-                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-zinc-300">{groupActions.length}</span>
+                  <span className="rounded-full bg-slate-50 px-2 py-0.5 text-xs text-zinc-700">{groupActions.length}</span>
                 </div>
                 <div className="space-y-3">
                   {groupActions.map((action) => (

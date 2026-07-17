@@ -35,8 +35,8 @@ export function ProjectTabNav({ projectId, active }: { projectId: string; active
             href={tab.href}
             className={`rounded-xl border px-3.5 py-2 text-sm transition ${
               isActive
-                ? "border-cyan-300/50 bg-cyan-400/10 text-cyan-100"
-                : "border-white/10 bg-white/[0.02] text-slate-300 hover:border-white/25"
+                ? "border-cyan-300/50 bg-cyan-400/10 text-cyan-900"
+                : "border-slate-200 bg-white text-slate-700 hover:border-slate-200"
             }`}
           >
             {tab.label}

@@ -45,7 +45,7 @@ export default async function CommandCenterPage({
   if ((projects ?? []).length === 0) {
     return (
       <div className="space-y-4">
-        <WorkspaceContextBanner lens="Command Center" variant="light" />
+        <WorkspaceContextBanner lens="Command Center" />
         <CommandCenterEmptyState activateAction={activateContextAction} errorMessage={params.error} />
       </div>
     );
@@ -57,7 +57,7 @@ export default async function CommandCenterPage({
   if (resolution.invalidId) {
     return (
       <div className="space-y-4">
-        <WorkspaceContextBanner lens="Command Center" variant="light" />
+        <WorkspaceContextBanner lens="Command Center" />
         <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-6">
           <p className="text-sm font-semibold text-amber-900">Project not found in this workspace</p>
           <p className="mt-1 text-xs text-amber-700/80">
@@ -85,7 +85,7 @@ export default async function CommandCenterPage({
 
   return (
     <div className="space-y-4">
-      <WorkspaceContextBanner lens="Command Center" variant="light" />
+      <WorkspaceContextBanner lens="Command Center" />
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/80 px-4 py-3">
         <p className="text-xs text-slate-600">
           Operating across <span className="font-semibold text-slate-900">{pmoPortfolio.length}</span> PMO{pmoPortfolio.length === 1 ? "" : "s"} ·{" "}

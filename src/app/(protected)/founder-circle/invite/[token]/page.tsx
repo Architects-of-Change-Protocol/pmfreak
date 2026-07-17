@@ -20,8 +20,8 @@ export default async function FounderInvitePage({ params }: { params: Promise<{ 
   const shell = (children: React.ReactNode) => (
     <div className="mx-auto max-w-2xl space-y-6 p-4 sm:p-6">
       <header className="space-y-2">
-        <p className="text-xs uppercase tracking-widest text-cyan-300">{programName}</p>
-        <h1 className="text-2xl font-semibold text-slate-100">Invitation</h1>
+        <p className="text-xs uppercase tracking-widest text-cyan-700">{programName}</p>
+        <h1 className="text-2xl font-semibold text-slate-900">Invitation</h1>
       </header>
       {children}
     </div>
@@ -29,9 +29,9 @@ export default async function FounderInvitePage({ params }: { params: Promise<{ 
 
   if (!resolved || resolved.status === "revoked" || resolved.status === "expired") {
     return shell(
-      <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-6">
-        <p className="text-slate-200">This invitation link is invalid or has expired.</p>
-        <p className="mt-2 text-sm text-slate-400">
+      <div className="rounded-2xl border border-slate-700 bg-slate-50 p-6">
+        <p className="text-slate-800">This invitation link is invalid or has expired.</p>
+        <p className="mt-2 text-sm text-slate-600">
           If you believe this is a mistake, reply to the invitation email and we can issue a fresh link.
         </p>
       </div>,
@@ -42,7 +42,7 @@ export default async function FounderInvitePage({ params }: { params: Promise<{ 
   if (!emailMatches) {
     return shell(
       <div className="rounded-2xl border border-amber-400/40 bg-amber-400/10 p-6">
-        <p className="text-amber-100">This invitation was issued to a different email address.</p>
+        <p className="text-amber-900">This invitation was issued to a different email address.</p>
         <p className="mt-2 text-sm text-amber-200/80">
           Sign in with the account that received the invitation, or reply to the invitation email to have it reissued.
         </p>
@@ -57,9 +57,9 @@ export default async function FounderInvitePage({ params }: { params: Promise<{ 
 
   if (resolved.status === "applied") {
     return shell(
-      <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-6">
-        <p className="text-slate-200">An application was already submitted for this invitation.</p>
-        <a href="/founder-circle" className="mt-3 inline-block rounded-full border border-cyan-300/50 px-4 py-2 text-sm text-cyan-200">
+      <div className="rounded-2xl border border-slate-700 bg-slate-50 p-6">
+        <p className="text-slate-800">An application was already submitted for this invitation.</p>
+        <a href="/founder-circle" className="mt-3 inline-block rounded-full border border-cyan-300/50 px-4 py-2 text-sm text-cyan-800">
           View your program status
         </a>
       </div>,
@@ -70,9 +70,9 @@ export default async function FounderInvitePage({ params }: { params: Promise<{ 
 
   return shell(
     <>
-      <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-6 space-y-3">
-        <h2 className="text-lg font-medium text-slate-100">What this is — honestly</h2>
-        <ul className="list-disc space-y-1 pl-5 text-sm text-slate-300">
+      <section className="rounded-2xl border border-slate-700 bg-slate-50 p-6 space-y-3">
+        <h2 className="text-lg font-medium text-slate-900">What this is — honestly</h2>
+        <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
           <li>A small, <strong>closed pilot</strong> of PMFreak with a hard participant cap. Admission is reviewed by a human.</li>
           <li>The product is <strong>early</strong>: surfaces will change, some capabilities are intentionally hidden, and things may break.</li>
           <li>We ask for <strong>structured feedback</strong> in exchange for early access. Participation is free; there is no payment step.</li>
@@ -83,12 +83,12 @@ export default async function FounderInvitePage({ params }: { params: Promise<{ 
           <p className="text-xs text-slate-500">Questions? Contact {config.settings.supportContact}.</p>
         ) : null}
       </section>
-      <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-6">
-        <h2 className="mb-4 text-lg font-medium text-slate-100">Application</h2>
+      <section className="rounded-2xl border border-slate-700 bg-slate-50 p-6">
+        <h2 className="mb-4 text-lg font-medium text-slate-900">Application</h2>
         {applicationsOpen ? (
           <FounderApplicationForm token={token} />
         ) : (
-          <p className="text-sm text-slate-300">
+          <p className="text-sm text-slate-700">
             Applications are currently closed. Your invitation remains valid until{" "}
             {new Date(resolved.expiresAt).toLocaleDateString()} — we will let you know when the application window opens.
           </p>

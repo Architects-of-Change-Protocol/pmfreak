@@ -52,11 +52,11 @@ type PerformanceSnapshot = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  excellent: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  strong:    "bg-teal-500/20 text-teal-300 border-teal-500/30",
-  stable:    "bg-sky-500/20 text-sky-300 border-sky-500/30",
-  warning:   "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  critical:  "bg-red-500/20 text-red-300 border-red-500/30",
+  excellent: "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  strong:    "bg-teal-500/20 text-teal-700 border-teal-500/30",
+  stable:    "bg-sky-500/20 text-sky-700 border-sky-500/30",
+  warning:   "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  critical:  "bg-red-500/20 text-red-700 border-red-500/30",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -68,31 +68,31 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const CONFIDENCE_STYLES: Record<string, string> = {
-  high:     "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  medium:   "bg-sky-500/20 text-sky-300 border-sky-500/30",
-  low:      "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  very_low: "bg-red-500/20 text-red-300 border-red-500/30",
+  high:     "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  medium:   "bg-sky-500/20 text-sky-700 border-sky-500/30",
+  low:      "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  very_low: "bg-red-500/20 text-red-700 border-red-500/30",
 };
 
 const RISK_STYLES: Record<string, string> = {
-  low:      "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  medium:   "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  high:     "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  critical: "bg-red-500/20 text-red-300 border-red-500/30",
+  low:      "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  medium:   "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  high:     "bg-orange-500/20 text-orange-700 border-orange-500/30",
+  critical: "bg-red-500/20 text-red-700 border-red-500/30",
 };
 
 const CAPACITY_STATUS_STYLES: Record<string, string> = {
-  underutilized: "bg-sky-500/20 text-sky-300 border-sky-500/30",
-  healthy:       "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  near_capacity: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  at_capacity:   "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  overloaded:    "bg-red-500/20 text-red-300 border-red-500/30",
-  busy:          "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  critical:      "bg-red-500/20 text-red-300 border-red-500/30",
+  underutilized: "bg-sky-500/20 text-sky-700 border-sky-500/30",
+  healthy:       "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  near_capacity: "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  at_capacity:   "bg-orange-500/20 text-orange-700 border-orange-500/30",
+  overloaded:    "bg-red-500/20 text-red-700 border-red-500/30",
+  busy:          "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  critical:      "bg-red-500/20 text-red-700 border-red-500/30",
 };
 
 function StatusBadge({ value, styles, labels }: { value: string; styles: Record<string, string>; labels?: Record<string, string> }) {
-  const cls = styles[value] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30";
+  const cls = styles[value] ?? "bg-zinc-500/20 text-zinc-700 border-zinc-500/30";
   const label = labels?.[value] ?? value.replace(/_/g, " ");
   return (
     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>
@@ -103,9 +103,9 @@ function StatusBadge({ value, styles, labels }: { value: string; styles: Record<
 
 function SummaryCard({ label, value, highlight }: { label: string; value: string | number; highlight?: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-      <p className="text-xs text-zinc-400">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${highlight ?? "text-white"}`}>{value}</p>
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <p className="text-xs text-zinc-600">{label}</p>
+      <p className={`mt-1 text-2xl font-semibold ${highlight ?? "text-slate-900"}`}>{value}</p>
     </div>
   );
 }
@@ -210,8 +210,8 @@ export default function PMPerformancePage() {
         {/* Header */}
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-white">PM Performance</h1>
-            <p className="mt-1 text-sm text-zinc-400">
+            <h1 className="text-2xl font-semibold text-slate-900">PM Performance</h1>
+            <p className="mt-1 text-sm text-zinc-600">
               Execution performance visibility across Project Managers.
             </p>
           </div>
@@ -219,14 +219,14 @@ export default function PMPerformancePage() {
             <button
               onClick={fetchSnapshots}
               disabled={loading}
-              className="rounded-xl border border-white/10 px-4 py-2 text-sm text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-zinc-700 hover:bg-white disabled:opacity-50"
             >
               Refresh
             </button>
             <button
               onClick={handleGenerate}
               disabled={generating || loading}
-              className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+              className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-indigo-500 disabled:opacity-50"
             >
               {generating ? "Generating…" : "Generate snapshots"}
             </button>
@@ -234,7 +234,7 @@ export default function PMPerformancePage() {
         </div>
 
         {error && (
-          <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600">
             {error}
           </div>
         )}
@@ -242,12 +242,12 @@ export default function PMPerformancePage() {
         {/* At-risk banner */}
         {alertPMs.length > 0 && (
           <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
-            <p className="text-sm font-medium text-red-300">
+            <p className="text-sm font-medium text-red-700">
               {alertPMs.length === 1
                 ? `1 PM requires PMO attention.`
                 : `${alertPMs.length} PMs require PMO attention.`}
             </p>
-            <p className="mt-1 text-xs text-red-400">
+            <p className="mt-1 text-xs text-red-600">
               {alertPMs.map((s) => s.snapshot_payload?.pm_name ?? s.pm_id).join(", ")}
             </p>
           </div>
@@ -257,14 +257,14 @@ export default function PMPerformancePage() {
         {snapshots.length > 0 && (
           <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
             <SummaryCard label="Total PMs" value={snapshots.length} />
-            <SummaryCard label="Excellent" value={excellentCount} highlight="text-emerald-300" />
-            <SummaryCard label="Strong" value={strongCount} highlight="text-teal-300" />
-            <SummaryCard label="Stable" value={stableCount} highlight="text-sky-300" />
-            <SummaryCard label="Warning" value={warningCount} highlight="text-amber-300" />
-            <SummaryCard label="Critical" value={criticalCount} highlight="text-red-300" />
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="text-xs text-zinc-400">Avg score</p>
-              <p className="mt-1 text-2xl font-semibold text-white">{avgScore}</p>
+            <SummaryCard label="Excellent" value={excellentCount} highlight="text-emerald-700" />
+            <SummaryCard label="Strong" value={strongCount} highlight="text-teal-700" />
+            <SummaryCard label="Stable" value={stableCount} highlight="text-sky-700" />
+            <SummaryCard label="Warning" value={warningCount} highlight="text-amber-700" />
+            <SummaryCard label="Critical" value={criticalCount} highlight="text-red-700" />
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-xs text-zinc-600">Avg score</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">{avgScore}</p>
             </div>
           </div>
         )}
@@ -278,12 +278,12 @@ export default function PMPerformancePage() {
 
         {/* Empty state */}
         {!loading && snapshots.length === 0 && (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 py-20 text-center">
-            <p className="text-sm text-zinc-400">No PM performance snapshots have been generated yet.</p>
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 py-20 text-center">
+            <p className="text-sm text-zinc-600">No PM performance snapshots have been generated yet.</p>
             <button
               onClick={handleGenerate}
               disabled={generating}
-              className="mt-4 rounded-xl bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+              className="mt-4 rounded-xl bg-indigo-600 px-5 py-2 text-sm font-medium text-slate-900 hover:bg-indigo-500 disabled:opacity-50"
             >
               {generating ? "Generating…" : "Generate snapshots"}
             </button>
@@ -292,20 +292,20 @@ export default function PMPerformancePage() {
 
         {/* Performance table */}
         {!loading && snapshots.length > 0 && (
-          <div className="overflow-x-auto rounded-2xl border border-white/10">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-white/10 bg-white/5 text-left">
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Project Manager</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Email</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Assigned</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Overall score</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Status</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Risk</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Evidence</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Capacity</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Recommendation</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Generated</th>
+                <tr className="border-b border-slate-200 bg-white text-left">
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Project Manager</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Email</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Assigned</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Overall score</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Status</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Risk</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Evidence</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Capacity</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Recommendation</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Generated</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -321,16 +321,16 @@ export default function PMPerformancePage() {
                     ?? null;
 
                   return (
-                    <tr key={s.id} className={`hover:bg-white/5 ${alertCls}`}>
-                      <td className="px-4 py-3 font-medium text-white">
+                    <tr key={s.id} className={`hover:bg-white ${alertCls}`}>
+                      <td className="px-4 py-3 font-medium text-slate-900">
                         <Link href={`/pm-registry/${s.pm_id}`} className="hover:underline">
                           {s.snapshot_payload?.pm_name ?? s.pm_id}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-zinc-400">{s.snapshot_payload?.pm_email ?? "—"}</td>
-                      <td className="px-4 py-3 text-zinc-300">{s.snapshot_payload?.assigned_project_count ?? "—"}</td>
+                      <td className="px-4 py-3 text-zinc-600">{s.snapshot_payload?.pm_email ?? "—"}</td>
+                      <td className="px-4 py-3 text-zinc-700">{s.snapshot_payload?.assigned_project_count ?? "—"}</td>
                       <td className="px-4 py-3">
-                        <span className={`font-semibold ${isAlert ? "text-red-300" : "text-white"}`}>
+                        <span className={`font-semibold ${isAlert ? "text-red-700" : "text-slate-900"}`}>
                           {Number(s.overall_score).toFixed(1)}
                         </span>
                       </td>
@@ -348,7 +348,7 @@ export default function PMPerformancePage() {
                         {s.snapshot_payload?.evidence_confidence ? (
                           <span
                             title={`${s.snapshot_payload.evidence_confidence.available_source_count}/${s.snapshot_payload.evidence_confidence.total_source_count} sources · ${s.snapshot_payload.evidence_confidence.score_interpretation.replace(/_/g, " ")}`}
-                            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${CONFIDENCE_STYLES[s.snapshot_payload.evidence_confidence.confidence_level] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30"}`}
+                            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${CONFIDENCE_STYLES[s.snapshot_payload.evidence_confidence.confidence_level] ?? "bg-zinc-500/20 text-zinc-700 border-zinc-500/30"}`}
                           >
                             {s.snapshot_payload.evidence_confidence.confidence_level.replace(/_/g, " ")}
                           </span>
@@ -363,7 +363,7 @@ export default function PMPerformancePage() {
                           <span className="text-xs text-zinc-500">No snapshot</span>
                         )}
                       </td>
-                      <td className="max-w-xs px-4 py-3 text-xs text-zinc-400 leading-relaxed">
+                      <td className="max-w-xs px-4 py-3 text-xs text-zinc-600 leading-relaxed">
                         {primaryRecommendation(s)}
                       </td>
                       <td className="px-4 py-3 text-xs text-zinc-500">

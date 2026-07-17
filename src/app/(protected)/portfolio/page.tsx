@@ -15,14 +15,14 @@ type PortfolioProject = {
 
 const complexityBadge = (complexity: PortfolioProject["complexity"]) => {
   if (complexity === "High") {
-    return "bg-rose-300/20 text-rose-100 border-rose-300/40";
+    return "bg-rose-300/20 text-rose-900 border-rose-300/40";
   }
 
   if (complexity === "Medium") {
-    return "bg-amber-300/20 text-amber-100 border-amber-300/40";
+    return "bg-amber-300/20 text-amber-900 border-amber-300/40";
   }
 
-  return "bg-emerald-300/20 text-emerald-100 border-emerald-300/40";
+  return "bg-emerald-300/20 text-emerald-900 border-emerald-300/40";
 };
 
 export default function PortfolioPage() {
@@ -71,17 +71,17 @@ export default function PortfolioPage() {
   }, [projects, search]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-6 py-16 text-white">
-      <main className="mx-auto w-full max-w-5xl space-y-6 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-xl md:p-10">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-6 py-16 text-slate-900">
+      <main className="mx-auto w-full max-w-5xl space-y-6 rounded-3xl border border-slate-200 bg-white p-8 shadow-2xl backdrop-blur-xl md:p-10">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.28em] text-cyan-300">Portfolio</p>
+            <p className="text-xs uppercase tracking-[0.28em] text-cyan-700">Portfolio</p>
             <h1 className="text-3xl font-semibold tracking-tight">Portfolio</h1>
-            <p className="mt-2 text-sm text-slate-300">Project history, risk, and complexity.</p>
+            <p className="mt-2 text-sm text-slate-700">Project history, risk, and complexity.</p>
           </div>
           <Link
             href="/upload"
-            className="inline-flex h-10 items-center justify-center rounded-full border border-cyan-300/60 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/10"
+            className="inline-flex h-10 items-center justify-center rounded-full border border-cyan-300/60 px-5 text-sm font-semibold text-cyan-900 transition hover:bg-cyan-300/10"
           >
             Back to Upload
           </Link>
@@ -89,7 +89,7 @@ export default function PortfolioPage() {
         <WorkspaceContextBanner lens="Portfolio" />
 
         <section className="space-y-3">
-          <label htmlFor="quick-search" className="text-sm text-slate-200">
+          <label htmlFor="quick-search" className="text-sm text-slate-800">
             Quick search
           </label>
           <input
@@ -97,29 +97,29 @@ export default function PortfolioPage() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search project name or source file"
-            className="w-full rounded-xl border border-white/10 bg-white/20 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400 focus:ring focus:ring-cyan-300/60"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-600 focus:ring focus:ring-cyan-300/60"
           />
         </section>
 
-        {isLoading ? <p className="text-sm text-slate-300">Loading portfolio...</p> : null}
-        {error ? <p className="text-sm text-rose-200">{error}</p> : null}
+        {isLoading ? <p className="text-sm text-slate-700">Loading portfolio...</p> : null}
+        {error ? <p className="text-sm text-rose-800">{error}</p> : null}
 
         {!isLoading && !error ? (
           <section className="space-y-3">
             {filteredProjects.length === 0 ? (
-              <p className="rounded-xl border border-white/10 bg-white/20 px-4 py-3 text-sm text-slate-300">
+              <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
                 No analyzed projects found.
               </p>
             ) : (
               filteredProjects.map((project) => (
-                <article key={project.id} className="rounded-2xl border border-white/15 bg-white/45 p-5">
+                <article key={project.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="text-lg font-semibold text-white">{project.projectName}</h2>
+                    <h2 className="text-lg font-semibold text-slate-900">{project.projectName}</h2>
                     <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${complexityBadge(project.complexity)}`}>
                       {project.complexity}
                     </span>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-300">
+                  <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-700">
                     <p>Upload date: {new Date(project.uploadDate).toLocaleString()}</p>
                     <p>Risk count: {project.riskCount}</p>
                   </div>

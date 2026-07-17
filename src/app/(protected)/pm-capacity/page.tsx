@@ -35,21 +35,21 @@ type CapacitySnapshot = {
 };
 
 const CAPACITY_STATUS_STYLES: Record<string, string> = {
-  underutilized: "bg-sky-500/20 text-sky-300 border-sky-500/30",
-  healthy:       "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  near_capacity: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  at_capacity:   "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  overloaded:    "bg-red-500/20 text-red-300 border-red-500/30",
-  busy:          "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  critical:      "bg-red-500/20 text-red-300 border-red-500/30",
+  underutilized: "bg-sky-500/20 text-sky-700 border-sky-500/30",
+  healthy:       "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  near_capacity: "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  at_capacity:   "bg-orange-500/20 text-orange-700 border-orange-500/30",
+  overloaded:    "bg-red-500/20 text-red-700 border-red-500/30",
+  busy:          "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  critical:      "bg-red-500/20 text-red-700 border-red-500/30",
 };
 
 const RISK_STYLES: Record<string, string> = {
-  none:     "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
-  low:      "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  medium:   "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  high:     "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  critical: "bg-red-500/20 text-red-300 border-red-500/30",
+  none:     "bg-zinc-500/20 text-zinc-700 border-zinc-500/30",
+  low:      "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  medium:   "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  high:     "bg-orange-500/20 text-orange-700 border-orange-500/30",
+  critical: "bg-red-500/20 text-red-700 border-red-500/30",
 };
 
 const ALERT_ROW: Record<string, string> = {
@@ -59,7 +59,7 @@ const ALERT_ROW: Record<string, string> = {
 };
 
 function StatusBadge({ value, styles }: { value: string; styles: Record<string, string> }) {
-  const cls = styles[value] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30";
+  const cls = styles[value] ?? "bg-zinc-500/20 text-zinc-700 border-zinc-500/30";
   return (
     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>
       {value.replace(/_/g, " ")}
@@ -69,9 +69,9 @@ function StatusBadge({ value, styles }: { value: string; styles: Record<string, 
 
 function SummaryCard({ label, value, highlight }: { label: string; value: number; highlight?: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-      <p className="text-xs text-zinc-400">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${highlight ?? "text-white"}`}>{value}</p>
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <p className="text-xs text-zinc-600">{label}</p>
+      <p className={`mt-1 text-2xl font-semibold ${highlight ?? "text-slate-900"}`}>{value}</p>
     </div>
   );
 }
@@ -159,11 +159,11 @@ export default function PMCapacityPage() {
         {/* Header */}
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-white">PM Capacity</h1>
-            <p className="mt-1 text-sm text-zinc-400">
+            <h1 className="text-2xl font-semibold text-slate-900">PM Capacity</h1>
+            <p className="mt-1 text-sm text-zinc-600">
               Operational load and capacity visibility across project managers.
             </p>
-            <p className="mt-1 text-xs text-zinc-600">
+            <p className="mt-1 text-xs text-zinc-400">
               Snapshots regenerate automatically after assignment and profile changes.
             </p>
           </div>
@@ -171,14 +171,14 @@ export default function PMCapacityPage() {
             <button
               onClick={fetchSnapshots}
               disabled={loading}
-              className="rounded-xl border border-white/10 px-4 py-2 text-sm text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-zinc-700 hover:bg-white disabled:opacity-50"
             >
               Refresh
             </button>
             <button
               onClick={handleGenerate}
               disabled={generating || loading}
-              className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+              className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-indigo-500 disabled:opacity-50"
             >
               {generating ? "Generating…" : "Generate snapshots"}
             </button>
@@ -186,7 +186,7 @@ export default function PMCapacityPage() {
         </div>
 
         {error && (
-          <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600">
             {error}
           </div>
         )}
@@ -194,12 +194,12 @@ export default function PMCapacityPage() {
         {/* Capacity alert banner */}
         {alertPMs.length > 0 && (
           <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
-            <p className="text-sm font-medium text-red-300">
+            <p className="text-sm font-medium text-red-700">
               {alertPMs.length === 1
                 ? `1 PM is at or exceeding configured capacity.`
                 : `${alertPMs.length} PMs are at or exceeding configured capacity.`}
             </p>
-            <p className="mt-1 text-xs text-red-400">
+            <p className="mt-1 text-xs text-red-600">
               {alertPMs.map((s) => s.snapshot_payload?.pm_name ?? s.pm_id).join(", ")}
             </p>
           </div>
@@ -209,14 +209,14 @@ export default function PMCapacityPage() {
         {snapshots.length > 0 && (
           <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
             <SummaryCard label="Total PMs" value={snapshots.length} />
-            <SummaryCard label="Underutilized" value={underutilizedCount} highlight="text-sky-300" />
-            <SummaryCard label="Healthy" value={healthyCount} highlight="text-emerald-300" />
-            <SummaryCard label="Near capacity" value={nearCapacityCount} highlight="text-amber-300" />
-            <SummaryCard label="At capacity" value={atCapacityCount} highlight="text-orange-300" />
-            <SummaryCard label="Overloaded" value={overloadedCount} highlight="text-red-300" />
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="text-xs text-zinc-400">Avg utilization</p>
-              <p className="mt-1 text-2xl font-semibold text-white">{avgUtil.toFixed(1)}%</p>
+            <SummaryCard label="Underutilized" value={underutilizedCount} highlight="text-sky-700" />
+            <SummaryCard label="Healthy" value={healthyCount} highlight="text-emerald-700" />
+            <SummaryCard label="Near capacity" value={nearCapacityCount} highlight="text-amber-700" />
+            <SummaryCard label="At capacity" value={atCapacityCount} highlight="text-orange-700" />
+            <SummaryCard label="Overloaded" value={overloadedCount} highlight="text-red-700" />
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-xs text-zinc-600">Avg utilization</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">{avgUtil.toFixed(1)}%</p>
             </div>
           </div>
         )}
@@ -230,12 +230,12 @@ export default function PMCapacityPage() {
 
         {/* Empty state */}
         {!loading && snapshots.length === 0 && (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 py-20 text-center">
-            <p className="text-sm text-zinc-400">No PM capacity snapshots have been generated yet.</p>
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 py-20 text-center">
+            <p className="text-sm text-zinc-600">No PM capacity snapshots have been generated yet.</p>
             <button
               onClick={handleGenerate}
               disabled={generating}
-              className="mt-4 rounded-xl bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+              className="mt-4 rounded-xl bg-indigo-600 px-5 py-2 text-sm font-medium text-slate-900 hover:bg-indigo-500 disabled:opacity-50"
             >
               {generating ? "Generating…" : "Generate snapshots"}
             </button>
@@ -244,20 +244,20 @@ export default function PMCapacityPage() {
 
         {/* Capacity table */}
         {!loading && snapshots.length > 0 && (
-          <div className="overflow-x-auto rounded-2xl border border-white/10">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-white/10 bg-white/5 text-left">
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Project Manager</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Email</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Limit</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Counted</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Observer</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Utilization</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Capacity status</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Overload risk</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Recommendation</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-400">Last generated</th>
+                <tr className="border-b border-slate-200 bg-white text-left">
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Project Manager</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Email</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Limit</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Counted</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Observer</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Utilization</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Capacity status</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Overload risk</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Recommendation</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-600">Last generated</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -275,24 +275,24 @@ export default function PMCapacityPage() {
                   const alertCls       = ALERT_ROW[capacityStatus] ?? "";
 
                   return (
-                    <tr key={s.id} className={`hover:bg-white/5 ${alertCls}`}>
-                      <td className="px-4 py-3 font-medium text-white">
+                    <tr key={s.id} className={`hover:bg-white ${alertCls}`}>
+                      <td className="px-4 py-3 font-medium text-slate-900">
                         <Link href={`/pm-registry/${s.pm_id}`} className="hover:underline">
                           {s.snapshot_payload?.pm_name ?? s.pm_id}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-zinc-400">{s.snapshot_payload?.pm_email ?? "—"}</td>
-                      <td className="px-4 py-3 text-zinc-300">{limit}</td>
-                      <td className="px-4 py-3 text-zinc-300">{countedCount}</td>
-                      <td className="px-4 py-3 text-zinc-300">{observerCount}</td>
-                      <td className="px-4 py-3 text-zinc-300">{utilization}</td>
+                      <td className="px-4 py-3 text-zinc-600">{s.snapshot_payload?.pm_email ?? "—"}</td>
+                      <td className="px-4 py-3 text-zinc-700">{limit}</td>
+                      <td className="px-4 py-3 text-zinc-700">{countedCount}</td>
+                      <td className="px-4 py-3 text-zinc-700">{observerCount}</td>
+                      <td className="px-4 py-3 text-zinc-700">{utilization}</td>
                       <td className="px-4 py-3">
                         <StatusBadge value={capacityStatus} styles={CAPACITY_STATUS_STYLES} />
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge value={overloadRisk} styles={RISK_STYLES} />
                       </td>
-                      <td className="max-w-xs px-4 py-3 text-xs text-zinc-400 leading-relaxed">{recommendation}</td>
+                      <td className="max-w-xs px-4 py-3 text-xs text-zinc-600 leading-relaxed">{recommendation}</td>
                       <td className="px-4 py-3 text-xs text-zinc-500">
                         <span title={new Date(s.generated_at).toLocaleString()}>
                           {timeAgo(s.generated_at)}

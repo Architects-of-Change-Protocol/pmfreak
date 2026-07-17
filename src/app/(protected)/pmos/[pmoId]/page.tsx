@@ -39,21 +39,21 @@ export default async function PmoOverviewPage({ params }: Props) {
 
   return (
     <main className="space-y-5">
-      <header className="rounded-3xl border border-white/10 bg-white/[0.03] p-6" style={{ borderTopColor: pmo.color ?? undefined, borderTopWidth: pmo.color ? 3 : undefined }}>
+      <header className="rounded-3xl border border-slate-200 bg-white p-6" style={{ borderTopColor: pmo.color ?? undefined, borderTopWidth: pmo.color ? 3 : undefined }}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200">
-              <Link href="/pmos" className="hover:text-cyan-100">PMOs</Link> / {pmo.name}
+            <p className="text-xs uppercase tracking-[0.24em] text-cyan-800">
+              <Link href="/pmos" className="hover:text-cyan-900">PMOs</Link> / {pmo.name}
             </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
               <span className="mr-2">{pmo.icon ?? "🏛️"}</span>
               {pmo.name}
             </h1>
-            {pmo.description ? <p className="mt-2 max-w-3xl text-sm text-slate-300">{pmo.description}</p> : null}
+            {pmo.description ? <p className="mt-2 max-w-3xl text-sm text-slate-700">{pmo.description}</p> : null}
           </div>
           <Link
             href={`/projects/new?pmoId=${pmo.id}`}
-            className="rounded-xl border border-cyan-200/45 bg-cyan-400/[0.1] px-4 py-2.5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.16]"
+            className="rounded-xl border border-cyan-200/45 bg-cyan-400/[0.1] px-4 py-2.5 text-sm font-semibold text-cyan-900 transition hover:bg-cyan-400/[0.16]"
           >
             New Project
           </Link>
@@ -65,22 +65,22 @@ export default async function PmoOverviewPage({ params }: Props) {
 
       <section className="grid gap-3 sm:grid-cols-3">
         {[
-          { label: "Active projects", value: active, tone: "text-emerald-200" },
-          { label: "Completed", value: completed, tone: "text-cyan-200" },
-          { label: "Archived", value: archived, tone: "text-zinc-300" },
+          { label: "Active projects", value: active, tone: "text-emerald-800" },
+          { label: "Completed", value: completed, tone: "text-cyan-800" },
+          { label: "Archived", value: archived, tone: "text-zinc-700" },
         ].map((stat) => (
-          <div key={stat.label} className="rounded-2xl border border-white/10 bg-black/25 p-4">
+          <div key={stat.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">{stat.label}</p>
             <p className={`mt-1 text-lg font-semibold ${stat.tone}`}>{stat.value}</p>
           </div>
         ))}
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-        <h2 className="text-lg font-semibold text-white">Portfolio</h2>
+      <section className="rounded-3xl border border-slate-200 bg-white p-5">
+        <h2 className="text-lg font-semibold text-slate-900">Portfolio</h2>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {projects.length === 0 ? (
-            <p className="text-sm text-slate-400 md:col-span-2">
+            <p className="text-sm text-slate-600 md:col-span-2">
               No projects in this PMO yet. Create the first one to activate its portfolio.
             </p>
           ) : (
@@ -88,14 +88,14 @@ export default async function PmoOverviewPage({ params }: Props) {
               <Link
                 key={project.id}
                 href={`/projects/${project.id}`}
-                className="group rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-cyan-200/35"
+                className="group rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-cyan-200/35"
                 style={{ borderLeftColor: project.color ?? undefined, borderLeftWidth: project.color ? 3 : undefined }}
               >
-                <h3 className="text-base font-semibold text-cyan-100 group-hover:text-cyan-50">
+                <h3 className="text-base font-semibold text-cyan-900 group-hover:text-cyan-950">
                   {project.icon ? <span className="mr-2">{project.icon}</span> : null}
                   {project.name}
                 </h3>
-                <p className="mt-1 line-clamp-2 text-sm text-zinc-300">{project.description ?? "No description."}</p>
+                <p className="mt-1 line-clamp-2 text-sm text-zinc-700">{project.description ?? "No description."}</p>
                 <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-zinc-500">{project.status}</p>
               </Link>
             ))

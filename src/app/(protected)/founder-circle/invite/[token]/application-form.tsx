@@ -25,8 +25,8 @@ const AVAILABILITY_OPTIONS = [
 ];
 
 const inputClass =
-  "w-full rounded-lg border border-slate-600 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none";
-const labelClass = "block text-sm font-medium text-slate-200 mb-1";
+  "w-full rounded-lg border border-slate-600 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none";
+const labelClass = "block text-sm font-medium text-slate-800 mb-1";
 
 export function FounderApplicationForm({ token }: { token: string }) {
   const router = useRouter();
@@ -76,7 +76,7 @@ export function FounderApplicationForm({ token }: { token: string }) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4" aria-label="Founder Circle application">
-      <p className="text-sm text-slate-400">{ARCHETYPE_HINT}</p>
+      <p className="text-sm text-slate-600">{ARCHETYPE_HINT}</p>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="fullName" className={labelClass}>Full name *</label>
@@ -145,19 +145,19 @@ export function FounderApplicationForm({ token }: { token: string }) {
           <input id="timezone" name="timezone" maxLength={60} className={inputClass} placeholder="e.g. Europe/Madrid" />
         </div>
       </div>
-      <label className="flex items-start gap-2 text-sm text-slate-200">
+      <label className="flex items-start gap-2 text-sm text-slate-800">
         <input type="checkbox" name="consentContact" required className="mt-1" />
         <span>
           I agree to be contacted about my participation and to provide structured feedback during the pilot. *
         </span>
       </label>
       {error ? (
-        <p role="alert" className="rounded-lg border border-rose-400/40 bg-rose-400/10 px-3 py-2 text-sm text-rose-200">{error}</p>
+        <p role="alert" className="rounded-lg border border-rose-400/40 bg-rose-400/10 px-3 py-2 text-sm text-rose-800">{error}</p>
       ) : null}
       <button
         type="submit"
         disabled={submitting}
-        className="rounded-full bg-cyan-300 px-5 py-2.5 text-sm font-semibold text-slate-950 disabled:opacity-60"
+        className="rounded-full bg-cyan-300 px-5 py-2.5 text-sm font-semibold text-slate-50 disabled:opacity-60"
       >
         {submitting ? "Submitting…" : "Submit application"}
       </button>

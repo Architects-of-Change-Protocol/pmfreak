@@ -9,7 +9,7 @@ import { runDashboardActionCenter } from "@/lib/dashboard/action-center";
 import { ExecutiveDashboardActionCenter } from "@/components/dashboard/action-center";
 import { WorkspaceContextBanner } from "@/components/pmfreak/workspace/workspace-context-banner";
 import { CommandCenterContextBanner } from "@/components/pmfreak/workspace/command-center-context-banner";
-import { resolveCanonicalWorkspace } from "@/lib/workspaces/canonical-workspace-resolver";
+import { resolvePreferredWorkspace } from "@/lib/workspaces/preferred-workspace";
 import { getCommandCenterById } from "@/lib/workspaces";
 import { agentIdleCopy } from "@/lib/command-center/agent-idle-copy";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
@@ -34,7 +34,7 @@ export default async function DashboardPage({
   const withProjectScope = (href: string) =>
     currentProjectId ? `${href}?projectId=${currentProjectId}` : href;
 
-  const workspaceResolution = user ? await resolveCanonicalWorkspace(user.id) : null;
+  const workspaceResolution = user ? await resolvePreferredWorkspace(user.id) : null;
   const commandCenter = workspaceResolution?.workspaceId
     ? await getCommandCenterById(workspaceResolution.workspaceId)
     : null;
@@ -77,7 +77,6 @@ export default async function DashboardPage({
             name={commandCenter.name}
             commandCenterType={commandCenter.commandCenterType}
             ownerType={commandCenter.ownerType}
-            variant="dark"
           />
         ) : (
           <WorkspaceContextBanner lens="Summary" />
@@ -85,11 +84,11 @@ export default async function DashboardPage({
         {idleCopy && (
           <p className="text-xs text-slate-500">{idleCopy}</p>
         )}
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">Summary</p>
-          <p className="mt-2 text-sm text-slate-200">Capture signal, preserve memory, execute next action.</p>
+        <section className="rounded-3xl border border-slate-200 bg-white p-5">
+          <p className="text-xs uppercase tracking-[0.2em] text-cyan-700">Summary</p>
+          <p className="mt-2 text-sm text-slate-800">Capture signal, preserve memory, execute next action.</p>
           {currentProjectId ? (
-            <p className="mt-2 text-sm text-cyan-200">Project scope is active. Every module now keeps context for {currentProjectId}.</p>
+            <p className="mt-2 text-sm text-cyan-800">Project scope is active. Every module now keeps context for {currentProjectId}.</p>
           ) : null}
         </section>
         <section className="grid gap-4 md:grid-cols-2">
@@ -99,58 +98,58 @@ export default async function DashboardPage({
             ["Follow-up", "Convert guidance into accountable actions and close execution loops.", "/follow-up-dashboard"],
             ["Project Brief", "Focus the team on the highest instability before it turns into executive fire drills.", "/command-center"],
           ].map(([title, text, href]) => (
-            <Link key={title} href={withProjectScope(href as string)} className="rounded-2xl border border-white/10 bg-white/20 p-4 hover:border-cyan-300/40">
+            <Link key={title} href={withProjectScope(href as string)} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 hover:border-cyan-300/40">
               <h3 className="font-semibold">{title}</h3>
-              <p className="mt-2 text-sm text-slate-300">{text}</p>
+              <p className="mt-2 text-sm text-slate-700">{text}</p>
             </Link>
           ))}
         </section>
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">{presentation.snapshotHeading}</p>
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3">
+          <p className="text-xs uppercase tracking-[0.2em] text-cyan-700">{presentation.snapshotHeading}</p>
           {presentation.fallbackNotice && (
-            <p className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-xs text-yellow-200" data-testid="dashboard-fallback-notice">
+            <p className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-xs text-yellow-800" data-testid="dashboard-fallback-notice">
               {presentation.fallbackNotice}
             </p>
           )}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 text-center">
-              <p className="text-2xl font-bold text-cyan-200">{dashboardViewModel.healthScore}</p>
-              <p className="mt-1 text-xs text-slate-400">Health Score</p>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
+              <p className="text-2xl font-bold text-cyan-800">{dashboardViewModel.healthScore}</p>
+              <p className="mt-1 text-xs text-slate-600">Health Score</p>
               {dashboardViewModel.healthLabel && (
-                <p className="mt-1 text-xs text-cyan-300">{dashboardViewModel.healthLabel}</p>
+                <p className="mt-1 text-xs text-cyan-700">{dashboardViewModel.healthLabel}</p>
               )}
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 text-center">
-              <p className="text-2xl font-bold text-cyan-200">{dashboardViewModel.risksCount}</p>
-              <p className="mt-1 text-xs text-slate-400">Risks</p>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
+              <p className="text-2xl font-bold text-cyan-800">{dashboardViewModel.risksCount}</p>
+              <p className="mt-1 text-xs text-slate-600">Risks</p>
               {dashboardViewModel.criticalRisksCount > 0 && (
-                <p className="mt-1 text-xs text-red-400">{dashboardViewModel.criticalRisksCount} critical</p>
+                <p className="mt-1 text-xs text-red-600">{dashboardViewModel.criticalRisksCount} critical</p>
               )}
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 text-center">
-              <p className="text-2xl font-bold text-cyan-200">{dashboardViewModel.decisionsCount}</p>
-              <p className="mt-1 text-xs text-slate-400">Decisions</p>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
+              <p className="text-2xl font-bold text-cyan-800">{dashboardViewModel.decisionsCount}</p>
+              <p className="mt-1 text-xs text-slate-600">Decisions</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 text-center">
-              <p className="text-2xl font-bold text-cyan-200">{dashboardViewModel.interventionsCount}</p>
-              <p className="mt-1 text-xs text-slate-400">Interventions</p>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
+              <p className="text-2xl font-bold text-cyan-800">{dashboardViewModel.interventionsCount}</p>
+              <p className="mt-1 text-xs text-slate-600">Interventions</p>
             </div>
           </div>
           {dashboardViewModel.executiveSummary && (
-            <p className="text-sm text-slate-200">{dashboardViewModel.executiveSummary}</p>
+            <p className="text-sm text-slate-800">{dashboardViewModel.executiveSummary}</p>
           )}
           {dashboardViewModel.portfolioRecommendation && (
-            <p className="text-sm text-cyan-100 border-l-2 border-cyan-400 pl-3">{dashboardViewModel.portfolioRecommendation}</p>
+            <p className="text-sm text-cyan-900 border-l-2 border-cyan-400 pl-3">{dashboardViewModel.portfolioRecommendation}</p>
           )}
           {dashboardViewModel.warnings.length > 0 && (
             <ul className="space-y-1">
               {dashboardViewModel.warnings.map((w, i) => (
-                <li key={i} className="text-xs text-yellow-300">{w}</li>
+                <li key={i} className="text-xs text-yellow-700">{w}</li>
               ))}
             </ul>
           )}
           {dashboardViewModel.alertsCount > 0 && (
-            <p className="text-xs text-slate-400">{dashboardViewModel.alertsCount} alert{dashboardViewModel.alertsCount !== 1 ? "s" : ""} active</p>
+            <p className="text-xs text-slate-600">{dashboardViewModel.alertsCount} alert{dashboardViewModel.alertsCount !== 1 ? "s" : ""} active</p>
           )}
         </section>
         <ExecutiveDashboardActionCenter report={actionCenterReport} />

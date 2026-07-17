@@ -38,8 +38,8 @@ export default function ProgramLayout({
   if (loading) {
     return (
       <div className="space-y-5">
-        <div className="h-32 animate-pulse rounded-2xl border border-white/10 bg-white/[0.01]" />
-        <div className="h-64 animate-pulse rounded-2xl border border-white/10 bg-white/[0.01]" />
+        <div className="h-32 animate-pulse rounded-2xl border border-slate-200 bg-white" />
+        <div className="h-64 animate-pulse rounded-2xl border border-slate-200 bg-white" />
       </div>
     );
   }

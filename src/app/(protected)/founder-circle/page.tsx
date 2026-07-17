@@ -44,10 +44,10 @@ export default async function FounderCirclePage() {
   if (!participant) {
     return (
       <div className="mx-auto max-w-2xl space-y-4 p-4 sm:p-6">
-        <h1 className="text-2xl font-semibold text-slate-100">{programName}</h1>
-        <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-6">
-          <p className="text-slate-200">This account is not part of the {programName}.</p>
-          <p className="mt-2 text-sm text-slate-400">
+        <h1 className="text-2xl font-semibold text-slate-900">{programName}</h1>
+        <div className="rounded-2xl border border-slate-700 bg-slate-50 p-6">
+          <p className="text-slate-800">This account is not part of the {programName}.</p>
+          <p className="mt-2 text-sm text-slate-600">
             The program is a small, invite-only closed pilot. If you received an invitation email, open the link it contains
             with this account.
           </p>
@@ -67,25 +67,25 @@ export default async function FounderCirclePage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-4 sm:p-6">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-widest text-cyan-300">{programName}</p>
-        <h1 className="text-2xl font-semibold text-slate-100">{copy.title}</h1>
-        <p className="text-sm text-slate-400">
+        <p className="text-xs uppercase tracking-widest text-cyan-700">{programName}</p>
+        <h1 className="text-2xl font-semibold text-slate-900">{copy.title}</h1>
+        <p className="text-sm text-slate-600">
           Early-access pilot participant status. This is a closed pilot: the product is early and functionality may change.
         </p>
       </header>
 
-      <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-6 space-y-3">
-        <p className="text-slate-200">{copy.body}</p>
+      <section className="rounded-2xl border border-slate-700 bg-slate-50 p-6 space-y-3">
+        <p className="text-slate-800">{copy.body}</p>
         {showAgreementCta ? (
-          <a href="/pilot-agreement" className="inline-block rounded-full bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950">
+          <a href="/pilot-agreement" className="inline-block rounded-full bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-50">
             Review &amp; accept the pilot agreement
           </a>
         ) : null}
         <dl className="grid grid-cols-2 gap-2 text-sm">
           <dt className="text-slate-500">Program status</dt>
-          <dd className="text-slate-200">{state.replaceAll("_", " ")}</dd>
+          <dd className="text-slate-800">{state.replaceAll("_", " ")}</dd>
           <dt className="text-slate-500">Agreement version accepted</dt>
-          <dd className="text-slate-200">{participant.agreement_version_accepted ?? "none yet"}</dd>
+          <dd className="text-slate-800">{participant.agreement_version_accepted ?? "none yet"}</dd>
         </dl>
         {config.settings.supportContact ? (
           <p className="text-xs text-slate-500">Program support: {config.settings.supportContact}</p>
@@ -93,9 +93,9 @@ export default async function FounderCirclePage() {
       </section>
 
       {checkpoints.length > 0 ? (
-        <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-6">
-          <h2 className="mb-3 text-lg font-medium text-slate-100">Your onboarding milestones</h2>
-          <ul className="space-y-1 text-sm text-slate-300">
+        <section className="rounded-2xl border border-slate-700 bg-slate-50 p-6">
+          <h2 className="mb-3 text-lg font-medium text-slate-900">Your onboarding milestones</h2>
+          <ul className="space-y-1 text-sm text-slate-700">
             {checkpoints.map((c) => (
               <li key={c.checkpoint} className="flex justify-between gap-2">
                 <span>{c.checkpoint.replaceAll("_", " ")}</span>
@@ -107,12 +107,12 @@ export default async function FounderCirclePage() {
       ) : null}
 
       {config.flags.feedbackEnabled && grantsProgramAccess(state) ? (
-        <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-6 space-y-4">
-          <h2 className="text-lg font-medium text-slate-100">Structured feedback</h2>
+        <section className="rounded-2xl border border-slate-700 bg-slate-50 p-6 space-y-4">
+          <h2 className="text-lg font-medium text-slate-900">Structured feedback</h2>
           <FounderFeedbackForm />
           {feedback.length > 0 ? (
             <div>
-              <h3 className="mb-2 text-sm font-medium text-slate-400">Your submissions</h3>
+              <h3 className="mb-2 text-sm font-medium text-slate-600">Your submissions</h3>
               <ul className="space-y-2 text-sm">
                 {feedback.map((f) => (
                   <li key={String(f.id)} className="rounded-lg border border-slate-700/60 p-3">
@@ -120,7 +120,7 @@ export default async function FounderCirclePage() {
                       <span>{String(f.feedback_type).replaceAll("_", " ")} · {String(f.severity)}</span>
                       <span>status: {String(f.status)}</span>
                     </div>
-                    <p className="mt-1 text-slate-300">{String(f.body)}</p>
+                    <p className="mt-1 text-slate-700">{String(f.body)}</p>
                   </li>
                 ))}
               </ul>

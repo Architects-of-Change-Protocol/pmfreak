@@ -29,11 +29,11 @@ export default async function PmoSettingsPage({ params }: Props) {
 
   return (
     <main className="space-y-5">
-      <header className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-        <p className="text-xs uppercase tracking-[0.24em] text-cyan-200">
-          <Link href="/pmos" className="hover:text-cyan-100">PMOs</Link> / <Link href={`/pmos/${pmo.id}`} className="hover:text-cyan-100">{pmo.name}</Link> / Settings
+      <header className="rounded-3xl border border-slate-200 bg-white p-6">
+        <p className="text-xs uppercase tracking-[0.24em] text-cyan-800">
+          <Link href="/pmos" className="hover:text-cyan-900">PMOs</Link> / <Link href={`/pmos/${pmo.id}`} className="hover:text-cyan-900">{pmo.name}</Link> / Settings
         </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
           <span className="mr-2">{pmo.icon ?? "🏛️"}</span>
           {pmo.name} — Settings
         </h1>
@@ -44,13 +44,13 @@ export default async function PmoSettingsPage({ params }: Props) {
 
       <PmoAdminClient initialPmos={thisPmo} />
 
-      <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-        <h2 className="text-lg font-semibold text-white">Administration</h2>
-        <p className="mt-1 text-sm text-slate-400">Members, agents, and templates are managed at workspace level and apply to this PMO.</p>
+      <section className="rounded-3xl border border-slate-200 bg-white p-5">
+        <h2 className="text-lg font-semibold text-slate-900">Administration</h2>
+        <p className="mt-1 text-sm text-slate-600">Members, agents, and templates are managed at workspace level and apply to this PMO.</p>
         <div className="mt-3 flex flex-wrap gap-2 text-sm">
-          <Link href="/team" className="rounded-xl border border-white/15 px-3.5 py-2 text-slate-200 hover:border-cyan-300/40">Invite members</Link>
-          <Link href="/trust/agents" className="rounded-xl border border-white/15 px-3.5 py-2 text-slate-200 hover:border-cyan-300/40">Manage agents</Link>
-          <Link href="/operational-memory" className="rounded-xl border border-white/15 px-3.5 py-2 text-slate-200 hover:border-cyan-300/40">Manage templates & knowledge</Link>
+          <Link href="/team" className="rounded-xl border border-slate-200 px-3.5 py-2 text-slate-800 hover:border-cyan-300/40">Invite members</Link>
+          <Link href="/trust/agents" className="rounded-xl border border-slate-200 px-3.5 py-2 text-slate-800 hover:border-cyan-300/40">Manage agents</Link>
+          <Link href="/operational-memory" className="rounded-xl border border-slate-200 px-3.5 py-2 text-slate-800 hover:border-cyan-300/40">Manage templates & knowledge</Link>
         </div>
       </section>
     </main>

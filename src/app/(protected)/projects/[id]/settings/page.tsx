@@ -33,11 +33,11 @@ export default async function ProjectSettingsPage({ params }: Props) {
 
   return (
     <main className="space-y-5">
-      <header className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-        <p className="text-xs uppercase tracking-[0.24em] text-cyan-200">
-          <Link href={`/projects/${project.id}`} className="hover:text-cyan-100">{project.name}</Link> / Settings
+      <header className="rounded-3xl border border-slate-200 bg-white p-6">
+        <p className="text-xs uppercase tracking-[0.24em] text-cyan-800">
+          <Link href={`/projects/${project.id}`} className="hover:text-cyan-900">{project.name}</Link> / Settings
         </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
           {project.icon ? <span className="mr-2">{project.icon}</span> : null}
           {project.name} — Settings
         </h1>

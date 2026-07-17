@@ -55,7 +55,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       const shellMarker = currentPath.startsWith("/workspace/setup") ? "pmfreak-light-workspace-setup" : "pmfreak-light-command-center";
       return <div data-shell={shellMarker} className="min-h-screen bg-[#FCFBF9] px-3 py-4 md:px-5 md:py-6">{children}</div>;
     }
-    return <div className="min-h-screen bg-slate-950 text-slate-100"><main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-10">{children}</main></div>;
+    return <div className="min-h-screen bg-[#FCFBF9] text-slate-900"><main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-10">{children}</main></div>;
   }
 
   const headersList = await headers();

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 const inputClass =
-  "w-full rounded-lg border border-slate-600 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none";
+  "w-full rounded-lg border border-slate-600 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none";
 
 const FEEDBACK_TYPES = [
   { value: "onboarding_friction", label: "Onboarding friction" },
@@ -70,15 +70,15 @@ export function FounderFeedbackForm() {
         <input name="productArea" maxLength={120} className={inputClass} placeholder="Product area (optional)" aria-label="Product area" />
       </div>
       <textarea name="body" required maxLength={4000} rows={3} className={inputClass} placeholder="What happened, and what did you expect?" aria-label="Feedback" />
-      <label className="flex items-center gap-2 text-sm text-slate-300">
+      <label className="flex items-center gap-2 text-sm text-slate-700">
         <input type="checkbox" name="allowContact" defaultChecked /> You may contact me about this feedback.
       </label>
       {message ? (
-        <p role={message.tone === "error" ? "alert" : "status"} className={message.tone === "error" ? "text-sm text-rose-300" : "text-sm text-emerald-300"}>
+        <p role={message.tone === "error" ? "alert" : "status"} className={message.tone === "error" ? "text-sm text-rose-700" : "text-sm text-emerald-700"}>
           {message.text}
         </p>
       ) : null}
-      <button type="submit" disabled={submitting} className="rounded-full bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-60">
+      <button type="submit" disabled={submitting} className="rounded-full bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-50 disabled:opacity-60">
         {submitting ? "Sending…" : "Send feedback"}
       </button>
     </form>
@@ -110,20 +110,20 @@ export function FounderWithdrawButton() {
 
   if (!confirming) {
     return (
-      <button onClick={() => setConfirming(true)} className="text-sm text-slate-400 underline underline-offset-4">
+      <button onClick={() => setConfirming(true)} className="text-sm text-slate-600 underline underline-offset-4">
         Withdraw from the program
       </button>
     );
   }
   return (
     <div className="space-y-2 rounded-xl border border-rose-400/40 bg-rose-400/5 p-3">
-      <p className="text-sm text-rose-200">Withdrawing ends your participation. This cannot be undone from the product.</p>
-      {error ? <p role="alert" className="text-sm text-rose-300">{error}</p> : null}
+      <p className="text-sm text-rose-800">Withdrawing ends your participation. This cannot be undone from the product.</p>
+      {error ? <p role="alert" className="text-sm text-rose-700">{error}</p> : null}
       <div className="flex gap-2">
-        <button onClick={withdraw} disabled={submitting} className="rounded-full bg-rose-400 px-4 py-1.5 text-sm font-semibold text-slate-950 disabled:opacity-60">
+        <button onClick={withdraw} disabled={submitting} className="rounded-full bg-rose-400 px-4 py-1.5 text-sm font-semibold text-slate-50 disabled:opacity-60">
           {submitting ? "Withdrawing…" : "Confirm withdrawal"}
         </button>
-        <button onClick={() => setConfirming(false)} className="rounded-full border border-slate-600 px-4 py-1.5 text-sm text-slate-300">
+        <button onClick={() => setConfirming(false)} className="rounded-full border border-slate-600 px-4 py-1.5 text-sm text-slate-700">
           Keep participating
         </button>
       </div>

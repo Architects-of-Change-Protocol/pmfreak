@@ -39,10 +39,10 @@ const ALLOWED_MIME_TYPES = new Set([
 const ACCEPTED_EXTENSIONS = ".pdf,.docx,.xlsx,.pptx,.txt";
 
 const statusTone: Record<EvidenceStatus, string> = {
-  uploaded: "border-slate-400/30 bg-slate-400/10 text-slate-100",
-  processing: "border-amber-300/30 bg-amber-300/10 text-amber-100",
-  processed: "border-emerald-300/30 bg-emerald-300/10 text-emerald-100",
-  failed: "border-rose-300/30 bg-rose-300/10 text-rose-100",
+  uploaded: "border-slate-400/30 bg-slate-400/10 text-slate-900",
+  processing: "border-amber-300/30 bg-amber-300/10 text-amber-900",
+  processed: "border-emerald-300/30 bg-emerald-300/10 text-emerald-900",
+  failed: "border-rose-300/30 bg-rose-300/10 text-rose-900",
 };
 
 const formatUploadDate = (value: string) =>
@@ -187,40 +187,40 @@ export default function ProjectEvidencePage() {
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-3xl border border-cyan-300/20 bg-slate-950/80 p-6 shadow-[0_24px_80px_-55px_rgba(34,211,238,0.55)]">
+      <section className="overflow-hidden rounded-3xl border border-cyan-300/20 bg-[#FCFBF9]/80 p-6 shadow-[0_24px_80px_-55px_rgba(34,211,238,0.55)]">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/80">Project Evidence</p>
-            <h1 className="mt-2 text-3xl font-semibold text-white">Evidence Vault</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+            <h1 className="mt-2 text-3xl font-semibold text-slate-900">Evidence Vault</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
               Upload source artifacts that anchor project intelligence to real documents. Evidence is linked to the active project and remains available after refresh.
             </p>
           </div>
-          <Link href={uploadHref} className="rounded-full border border-cyan-300/40 px-4 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-300/10">
+          <Link href={uploadHref} className="rounded-full border border-cyan-300/40 px-4 py-2 text-sm font-medium text-cyan-900 transition hover:bg-cyan-300/10">
             Open Upload Documents
           </Link>
         </div>
       </section>
 
       {!projectId ? (
-        <section className="rounded-2xl border border-amber-300/30 bg-amber-300/10 p-5 text-sm text-amber-100">
+        <section className="rounded-2xl border border-amber-300/30 bg-amber-300/10 p-5 text-sm text-amber-900">
           Select a project from the Operational Shell before using the Project Evidence vault.
         </section>
       ) : null}
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.5fr)]">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-          <h2 className="text-lg font-semibold text-white">Upload Documents</h2>
-          <p className="mt-2 text-sm text-slate-400">Supported: PDF, DOCX, XLSX, PPTX, TXT.</p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 className="text-lg font-semibold text-slate-900">Upload Documents</h2>
+          <p className="mt-2 text-sm text-slate-600">Supported: PDF, DOCX, XLSX, PPTX, TXT.</p>
           <label className="mt-5 block rounded-2xl border border-dashed border-cyan-300/30 bg-cyan-300/[0.04] p-5 text-center transition hover:border-cyan-200/60">
-            <span className="block text-sm font-medium text-cyan-100">Choose evidence files</span>
+            <span className="block text-sm font-medium text-cyan-900">Choose evidence files</span>
             <span className="mt-1 block text-xs text-slate-500">Multiple files are supported.</span>
             <input type="file" multiple accept={ACCEPTED_EXTENSIONS} onChange={handleFileSelection} className="sr-only" />
           </label>
           {selectedFiles.length > 0 ? (
-            <ul className="mt-4 space-y-2 text-sm text-slate-300">
+            <ul className="mt-4 space-y-2 text-sm text-slate-700">
               {selectedFiles.map((file) => (
-                <li key={`${file.name}-${file.lastModified}`} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                <li key={`${file.name}-${file.lastModified}`} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
                   {file.name}
                 </li>
               ))}
@@ -230,29 +230,29 @@ export default function ProjectEvidencePage() {
             type="button"
             onClick={handleUpload}
             disabled={!projectId || isUploading || selectedFiles.length === 0}
-            className="mt-5 inline-flex h-10 items-center justify-center rounded-full bg-cyan-300 px-5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-300"
+            className="mt-5 inline-flex h-10 items-center justify-center rounded-full bg-cyan-300 px-5 text-sm font-semibold text-slate-50 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-700"
           >
             {isUploading ? "Uploading..." : "Upload Documents"}
           </button>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-white">View Evidence</h2>
-              <p className="mt-1 text-sm text-slate-400">Evidence list for the active project.</p>
+              <h2 className="text-lg font-semibold text-slate-900">View Evidence</h2>
+              <p className="mt-1 text-sm text-slate-600">Evidence list for the active project.</p>
             </div>
-            <button type="button" onClick={() => void loadEvidence()} disabled={!projectId || isLoading} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-slate-300 transition hover:border-white/20 hover:text-white disabled:opacity-50">
+            <button type="button" onClick={() => void loadEvidence()} disabled={!projectId || isLoading} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-700 transition hover:border-slate-200 hover:text-slate-900 disabled:opacity-50">
               Refresh
             </button>
           </div>
 
-          {message ? <p className="mt-4 rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100">{message}</p> : null}
-          {error ? <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">{error}</p> : null}
+          {message ? <p className="mt-4 rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-900">{message}</p> : null}
+          {error ? <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-900">{error}</p> : null}
 
-          <div className="mt-5 overflow-x-auto rounded-2xl border border-white/10">
+          <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
             <table className="min-w-full divide-y divide-white/10 text-left text-sm">
-              <thead className="bg-white/[0.03] text-xs uppercase tracking-[0.2em] text-slate-500">
+              <thead className="bg-white text-xs uppercase tracking-[0.2em] text-slate-500">
                 <tr>
                   <th className="px-4 py-3 font-medium">File Name</th>
                   <th className="px-4 py-3 font-medium">Type</th>
@@ -262,21 +262,21 @@ export default function ProjectEvidencePage() {
                   <th className="px-4 py-3 font-medium">Delete Evidence</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10 text-slate-300">
+              <tbody className="divide-y divide-white/10 text-slate-700">
                 {isLoading ? (
                   <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">Loading evidence...</td></tr>
                 ) : evidence.length === 0 ? (
                   <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No project evidence uploaded yet.</td></tr>
                 ) : (
                   evidence.map((item) => (
-                    <tr key={item.id} className="bg-slate-950/20">
-                      <td className="max-w-xs truncate px-4 py-3 font-medium text-slate-100">{item.file_name}</td>
+                    <tr key={item.id} className="bg-[#FCFBF9]/20">
+                      <td className="max-w-xs truncate px-4 py-3 font-medium text-slate-900">{item.file_name}</td>
                       <td className="px-4 py-3">{item.file_type}</td>
                       <td className="px-4 py-3">{formatUploadDate(item.uploaded_at)}</td>
                       <td className="px-4 py-3">
                         <span className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${statusTone[item.status]}`}>{item.status}</span>
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-400">
+                      <td className="px-4 py-3 text-xs text-slate-600">
                         {item.extraction ? (
                           <div className="space-y-1">
                             <p><span className="text-slate-500">Extracted:</span> {item.extraction.word_count.toLocaleString()} words</p>
@@ -288,7 +288,7 @@ export default function ProjectEvidencePage() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <button type="button" onClick={() => void handleDelete(item)} disabled={deletingId === item.id} className="rounded-full border border-rose-300/30 px-3 py-1.5 text-xs text-rose-100 transition hover:bg-rose-300/10 disabled:opacity-50">
+                        <button type="button" onClick={() => void handleDelete(item)} disabled={deletingId === item.id} className="rounded-full border border-rose-300/30 px-3 py-1.5 text-xs text-rose-900 transition hover:bg-rose-300/10 disabled:opacity-50">
                           {deletingId === item.id ? "Deleting..." : "Delete Evidence"}
                         </button>
                       </td>

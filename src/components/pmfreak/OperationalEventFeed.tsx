@@ -14,9 +14,9 @@ export type OperationalEvent = {
 
 const SEVERITY_STYLES: Record<EventSeverity, { dot: string; module: string }> = {
   info:     { dot: "bg-slate-400",  module: "text-slate-500"  },
-  warning:  { dot: "bg-amber-400",  module: "text-amber-400"  },
-  alert:    { dot: "bg-orange-400", module: "text-orange-400" },
-  critical: { dot: "bg-red-400",    module: "text-red-400"    },
+  warning:  { dot: "bg-amber-400",  module: "text-amber-600"  },
+  alert:    { dot: "bg-orange-400", module: "text-orange-600" },
+  critical: { dot: "bg-red-400",    module: "text-red-600"    },
 };
 
 const DEMO_EVENTS: OperationalEvent[] = [
@@ -45,15 +45,15 @@ export function OperationalEventFeed({
         return (
           <div
             key={event.id}
-            className="flex items-start gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-2.5 py-2 transition-colors hover:border-white/[0.12] hover:bg-white/[0.04]"
+            className="flex items-start gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2 transition-colors hover:border-slate-200 hover:bg-white"
           >
             <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${s.dot} motion-safe:animate-pulse`} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[11px] leading-snug text-slate-300">{event.message}</p>
+              <p className="truncate text-[11px] leading-snug text-slate-700">{event.message}</p>
               <div className="mt-0.5 flex items-center gap-1.5">
                 <span className={`text-[10px] font-medium ${s.module}`}>{event.module}</span>
-                <span className="text-[10px] text-zinc-700">·</span>
-                <span className="text-[10px] text-zinc-600">{event.ageLabel}</span>
+                <span className="text-[10px] text-zinc-300">·</span>
+                <span className="text-[10px] text-zinc-400">{event.ageLabel}</span>
               </div>
             </div>
           </div>
@@ -62,7 +62,7 @@ export function OperationalEventFeed({
       {overflow > 0 && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full py-1 text-center text-[10px] uppercase tracking-[0.12em] text-zinc-700 transition-colors hover:text-zinc-500"
+          className="w-full py-1 text-center text-[10px] uppercase tracking-[0.12em] text-zinc-300 transition-colors hover:text-zinc-500"
         >
           {expanded ? "Collapse" : `+${overflow} more signals`}
         </button>

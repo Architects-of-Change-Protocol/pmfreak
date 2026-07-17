@@ -58,7 +58,7 @@ function deriveEvents(traces: ValidationTrace[]): TimelineEvent[] {
 }
 
 const LEVEL_STYLES: Record<TimelineEvent["level"], string> = {
-  info: "text-slate-600",
+  info: "text-slate-400",
   signal: "text-slate-500",
   milestone: "text-violet-400/70",
 };
@@ -77,12 +77,12 @@ export function ValidationTimeline({ traces }: Props) {
   const events = deriveEvents(traces);
 
   return (
-    <details className="rounded-2xl border border-white/[0.06] bg-white/[0.01] p-3 text-xs">
-      <summary className="cursor-pointer select-none text-[9px] uppercase tracking-[0.28em] text-zinc-600">
+    <details className="rounded-2xl border border-slate-200 bg-white p-3 text-xs">
+      <summary className="cursor-pointer select-none text-[9px] uppercase tracking-[0.28em] text-zinc-400">
         Session Timeline
       </summary>
       {events.length === 0 ? (
-        <p className="mt-2 text-[11px] text-zinc-700">No runtime events yet</p>
+        <p className="mt-2 text-[11px] text-zinc-300">No runtime events yet</p>
       ) : (
         <ol className="mt-3 space-y-2">
           {events.map((event) => (
