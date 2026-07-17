@@ -99,13 +99,22 @@ export async function duplicateProject(workspaceId: string, projectId: string, c
   const source = await getProjectInWorkspace(workspaceId, projectId);
   if (!source) throw new Error("Project not found.");
 
+  // Duplicating is a new project assignment, same as an explicit move — so it
+  // must obey the same archived-PMO rule as updateProject rather than
+  // silently copying source.pmo_id into an archived container.
+  let targetPmoId = source.pmo_id;
+  if (targetPmoId) {
+    const pmo = await getPmoById(workspaceId, targetPmoId);
+    if (!pmo || pmo.status === "archived") targetPmoId = null;
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("projects")
     .insert({
       user_id: createdByUserId,
       workspace_id: workspaceId,
-      pmo_id: source.pmo_id,
+      pmo_id: targetPmoId,
       name: `${source.name} (copy)`,
       description: source.description,
       methodology: source.methodology,

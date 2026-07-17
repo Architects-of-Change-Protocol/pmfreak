@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { requireAuthUser } from "@/lib/auth";
 import { canCreateMoreProjects } from "@/lib/feature-gates";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { ensureUserWorkspace } from "@/lib/workspaces";
+import { resolveWriteWorkspace } from "@/lib/workspaces/resolve-write-workspace";
 import { ensureDefaultPmo, getPmoById } from "@/lib/pmos/pmo-service";
 import { generateAndPersistOperationalGovernanceBrief } from "@/lib/projects/first-insight";
 
@@ -25,7 +25,7 @@ export async function createProjectAction(formData: FormData) {
     redirect(`/projects?error=${encodeURIComponent("upgrade_required")}&feature=${encodeURIComponent(projectAccess.feature)}&requiredPlan=${projectAccess.requiredPlan}`);
   }
 
-  const ensured = await ensureUserWorkspace(user.id);
+  const ensured = await resolveWriteWorkspace(user.id);
 
   // Every project belongs to a PMO (Workspace → PMO → Project). Honor an
   // explicit selection from the form; otherwise attach to the workspace's

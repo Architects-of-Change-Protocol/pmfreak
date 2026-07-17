@@ -1,10 +1,9 @@
 import { isFounderOrInternalUser, requireAuthUser } from "@/lib/auth";
 import { assertRuntimeAuthContinuity } from "@/lib/auth/runtime-auth-continuity";
-import { resolvePreferredWorkspace } from "@/lib/workspaces/preferred-workspace";
+import { resolveWriteWorkspace } from "@/lib/workspaces/resolve-write-workspace";
 import { OperationalShell } from "@/components/pmfreak/operational-shell";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
-import { ensureUserWorkspace } from "@/lib/workspaces";
 import { resolvePostAuthDestination } from "@/lib/auth/resolve-post-auth-destination";
 import { isSafeContinuationRoute } from "@/lib/auth/validate-continuation-route";
 import { headers } from "next/headers";
@@ -24,19 +23,20 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   }
 
   const user = await requireAuthUser();
-  let resolvedWorkspace = await resolvePreferredWorkspace(user.id);
-  console.log("[protected-layout] workspace resolution status:", resolvedWorkspace.status, "workspaceId:", resolvedWorkspace.workspaceId ?? "(none)");
-
-  if (!resolvedWorkspace.workspaceId) {
-    const ensured = await ensureUserWorkspace(user.id);
-    resolvedWorkspace = { workspaceId: ensured.workspaceId, role: ensured.role, status: "resolved", recovered: true, issues: [] };
-    console.log("[protected-layout] workspace bootstrapped:", ensured.workspaceId);
-  }
+  const resolvedWorkspace = await resolveWriteWorkspace(user.id);
+  console.log("[protected-layout] workspace resolution: workspaceId:", resolvedWorkspace.workspaceId, "bootstrapped:", resolvedWorkspace.bootstrapped);
 
   // Canonical onboarding state — single source of truth for all routing decisions.
   // Trial gating, PMO check, project check, and internal-user bypass all live
   // exclusively inside resolveOnboardingState(). No local gates here.
-  const onboardingState = await resolveOnboardingState(user, resolvedWorkspace.workspaceId, { isRecovered: resolvedWorkspace.recovered });
+  //
+  // isRecovered is scoped to resolvedWorkspace.bootstrapped ONLY — a
+  // workspace freshly bootstrapped in this request has no trial history yet.
+  // It must never be driven by "the preferred-workspace cookie didn't match
+  // a real membership, so we fell back to another one" — a client fully
+  // controls that cookie and could hold it stale/tampered forever to skip
+  // the trial gate indefinitely.
+  const onboardingState = await resolveOnboardingState(user, resolvedWorkspace.workspaceId, { isRecovered: resolvedWorkspace.bootstrapped });
   console.log("[protected-layout] onboarding state:", onboardingState);
 
   if (onboardingState === "trial_blocked") {
