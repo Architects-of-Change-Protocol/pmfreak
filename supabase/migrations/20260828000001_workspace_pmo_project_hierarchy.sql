@@ -96,17 +96,7 @@ create index if not exists projects_workspace_pmo_idx
 -- Scope shape is enforced by CHECK constraint:
 --   workspace scope → pmo_id NULL,      project_id NULL
 --   pmo scope       → pmo_id NOT NULL,  project_id NULL
---   project scope   → project_id NOT NULL, pmo_id NULL
---
--- pmo_id must stay NULL for project scope (not "optional denormalization")
--- because the scope-unique index below keys on (workspace_id, context_type,
--- pmo_id, project_id): if a project-scoped row were ever allowed to carry a
--- non-null pmo_id, a writer that set it would produce a second "active"
--- conversation for the same project — silently fragmenting that project's
--- thread — since it would no longer collide with the pmo_id-less row on the
--- unique index. The one real writer (getOrCreateConversation) already never
--- sets pmo_id for project scope; this constraint makes that invariant hold
--- at the schema level regardless of any future caller.
+--   project scope   → project_id NOT NULL (pmo_id optional denormalization)
 --
 -- The AI layer must never join conversations across scopes: each row is a
 -- fully isolated context (its own history, its own memory feed).
@@ -132,7 +122,7 @@ create table if not exists context_conversations (
   constraint context_conversations_scope_shape check (
     (context_type = 'workspace' and pmo_id is null and project_id is null)
     or (context_type = 'pmo' and pmo_id is not null and project_id is null)
-    or (context_type = 'project' and project_id is not null and pmo_id is null)
+    or (context_type = 'project' and project_id is not null)
   )
 );
 
@@ -337,24 +327,3 @@ $$ language plpgsql;
 create trigger context_conversations_same_workspace
   before insert or update of pmo_id, project_id, workspace_id on context_conversations
   for each row execute function enforce_context_conversation_same_workspace();
-
--- context_messages.workspace_id is caller-supplied (appendMessage takes it as
--- a plain parameter) with no FK back to its own conversation's workspace_id —
--- the same class of gap as projects.pmo_id/context_conversations.pmo_id
--- above. The application layer already derives it correctly before calling
--- appendMessage, so the sanctioned API surface is safe; this trigger closes
--- the same gap at the database layer for direct calls, matching the other
--- two triggers in this migration.
-create or replace function enforce_context_message_same_workspace() returns trigger as $$
-begin
-  if (select workspace_id from context_conversations where id = new.conversation_id) is distinct from new.workspace_id then
-    raise exception 'context_messages.workspace_id must match its conversation''s workspace (message workspace %, conversation %)', new.workspace_id, new.conversation_id
-      using errcode = '23514';
-  end if;
-  return new;
-end;
-$$ language plpgsql;
-
-create trigger context_messages_same_workspace
-  before insert or update of conversation_id, workspace_id on context_messages
-  for each row execute function enforce_context_message_same_workspace();

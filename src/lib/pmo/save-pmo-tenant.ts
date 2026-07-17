@@ -2,6 +2,7 @@
 
 import { getAuthUser } from "@/lib/auth";
 import { resolveWriteWorkspace } from "@/lib/workspaces/resolve-write-workspace";
+import { requireWorkspaceRole as requireWorkspaceMinimumRole } from "@/lib/workspace-access";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import type { PmoTenant } from "./pmo-tenant-types";
 import { validatePmoTenantPayload } from "./pmo-tenant-validate";
@@ -58,6 +59,21 @@ export async function savePmoTenant(tenant: PmoTenant): Promise<PmoTenantSaveRes
       return { status: "fatal_failure", error: "No active workspace found for this account.", failureClass: "no_workspace", correlationId };
     }
     workspaceId = resolution.workspaceId;
+
+    // resolveWriteWorkspace now honors the caller's preferred (switched-to)
+    // workspace, not just their own oldest membership — so this can target
+    // any workspace the user belongs to, including one where they're only a
+    // viewer/pm-below-manager member. The writes below use a service-role
+    // client (bypassing RLS), so this check is the only gate standing
+    // between a low-privilege member and reconfiguring a workspace/PMO they
+    // don't manage; matches the "workspace managers can manage pmos" RLS
+    // policy's own role floor.
+    try {
+      await requireWorkspaceMinimumRole(resolution.workspaceId, "pm");
+    } catch {
+      emit("error", "pmo.create.failed", { correlationId, userId, workspaceId, failureClass: "insufficient_role" });
+      return { status: "fatal_failure", error: "You do not have permission to configure this workspace.", failureClass: "insufficient_role", correlationId };
+    }
 
     supabaseClient = createSupabaseServiceRoleClient({
       routeId: "pmo/save-pmo-tenant",
@@ -125,10 +141,17 @@ export async function savePmoTenant(tenant: PmoTenant): Promise<PmoTenantSaveRes
     // config; the pmos row is what navigation, project assignment, and the
     // PMO chat scope hang off. Idempotent: skip when the workspace already
     // has a PMO (re-running the wizard must not spawn duplicates).
+    // A workspace can hold many PMOs (a fully supported product feature), so
+    // this must pick the same canonical default the rest of the system
+    // agrees on — oldest active — not an arbitrary unordered row, or
+    // re-running the wizard could rename a portfolio PMO the user never
+    // touched. Matches listPmos()/ensureDefaultPmo's own selection.
     const { data: existingPmo } = await supabaseClient
       .from("pmos")
       .select("id")
       .eq("workspace_id", resolution.workspaceId)
+      .eq("status", "active")
+      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle<{ id: string }>();
 

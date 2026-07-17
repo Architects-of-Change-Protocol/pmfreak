@@ -21,6 +21,7 @@ const savePmoTenant = fs.readFileSync("src/lib/pmo/save-pmo-tenant.ts", "utf8");
 const projectAdminService = fs.readFileSync("src/lib/projects/project-admin-service.ts", "utf8");
 const migration = fs.readFileSync("supabase/migrations/20260828000001_workspace_pmo_project_hierarchy.sql", "utf8");
 const ensureDefaultPmoMigration = fs.readFileSync("supabase/migrations/20260828000002_ensure_default_pmo_advisory_lock.sql", "utf8");
+const integrityMigration = fs.readFileSync("supabase/migrations/20260828000003_context_conversation_workspace_integrity.sql", "utf8");
 const resolveWriteWorkspace = fs.readFileSync("src/lib/workspaces/resolve-write-workspace.ts", "utf8");
 const pmoService = fs.readFileSync("src/lib/pmos/pmo-service.ts", "utf8");
 const saveProjectOnboarding = fs.readFileSync("src/lib/projects/save-project-onboarding.ts", "utf8");
@@ -115,13 +116,26 @@ test("duplicateProject falls back to unassigned rather than copying an archived 
 // row for the same project on the unique index — producing a second "active"
 // conversation and silently fragmenting that project's chat thread. The one
 // real writer (getOrCreateConversation) never sets it, so this was a latent
-// schema landmine rather than a live bug; closed by tightening the CHECK
-// constraint to match what the real writer already does. ───────────────────
+// schema landmine rather than a live bug.
+//
+// First fix attempt (superseded): tightened the CHECK constraint by editing
+// it directly inside 20260828000001. A second review round (PR #527) caught
+// that this is wrong — 20260828000001 already merged to main, so any
+// database that already ran it has that filename recorded as applied;
+// editing its SQL content afterward is a no-op there (migration runners
+// check the filename, never diff content), so the fix would silently never
+// reach an already-upgraded database. Moved to a real follow-up migration
+// (20260828000003) instead, which actually executes on those databases. ───
 
-test("context_conversations CHECK constraint requires pmo_id to be null for project-scoped rows (no denormalization escape hatch)", () => {
+test("context_conversations CHECK constraint requires pmo_id to be null for project-scoped rows (no denormalization escape hatch), shipped as a follow-up migration rather than editing the already-merged 20260828000001", () => {
   assert.ok(
-    /context_type = 'project' and project_id is not null and pmo_id is null/.test(migration),
+    /context_type = 'project' and project_id is not null and pmo_id is null/.test(integrityMigration),
     "project scope must forbid a non-null pmo_id, closing the scope-unique-index fragmentation risk"
+  );
+  assert.ok(/drop constraint if exists context_conversations_scope_shape/.test(integrityMigration), "must idempotently drop the original constraint before re-adding the tightened one");
+  assert.ok(
+    /context_type = 'project' and project_id is not null\)$/m.test(migration) || /or \(context_type = 'project' and project_id is not null\)/.test(migration),
+    "20260828000001 itself (already merged) must be left with its original, untightened constraint — the fix lives in the follow-up migration instead"
   );
 });
 
@@ -130,12 +144,14 @@ test("context_conversations CHECK constraint requires pmo_id to be null for proj
 // conversation_id's real workspace_id — the same class of gap as
 // projects.pmo_id / context_conversations.pmo_id, which already got
 // BEFORE INSERT/UPDATE triggers in the validation sprint. This table was
-// missed. Closed with the same trigger pattern. ─────────────────────────────
+// missed. Also moved to 20260828000003 for the same already-merged-file
+// reason as the CHECK constraint above. ─────────────────────────────────────
 
-test("a trigger enforces context_messages.workspace_id matches its conversation's own workspace", () => {
-  assert.ok(migration.includes("enforce_context_message_same_workspace"));
-  assert.ok(/create trigger context_messages_same_workspace/.test(migration));
-  assert.ok(/before insert or update of conversation_id, workspace_id on context_messages/.test(migration));
+test("a trigger enforces context_messages.workspace_id matches its conversation's own workspace, shipped as a follow-up migration", () => {
+  assert.ok(integrityMigration.includes("enforce_context_message_same_workspace"));
+  assert.ok(/create trigger context_messages_same_workspace/.test(integrityMigration));
+  assert.ok(/before insert or update of conversation_id, workspace_id on context_messages/.test(integrityMigration));
+  assert.ok(!migration.includes("enforce_context_message_same_workspace"), "20260828000001 itself (already merged) must not carry this trigger — it would never execute on an already-upgraded database");
 });
 
 // ─── Finding (architecturally significant — user approved the fix):
@@ -219,4 +235,39 @@ test("getting-started is a self-contained onboarding path that marks onboarding 
   assert.ok(/onboarding_completed:\s*true/.test(gettingStarted), "getting-started must independently mark onboarding complete, confirming it's a complete path, not a partial stub");
   assert.ok(/onboarding_completed:\s*true/.test(savePmoTenant), "the full wizard also independently marks onboarding complete, matching the same pattern");
   assert.ok(onboardingState.includes('.from("pmos")'), "the DB-level check accepting any active pmos row is the intended secondary source of truth for these two independent complete-onboarding paths");
+});
+
+// ─── Finding (PR #527 review): resolveWriteWorkspace's whole point is to
+// honor the caller's SWITCHED-TO workspace, not just their oldest
+// membership — but savePmoTenant performs service-role writes (bypassing
+// RLS) to workspace_governance/workspaces/pmos with no check on the
+// caller's ROLE in that resolved workspace. Before resolveWriteWorkspace,
+// this was implicitly bounded because oldest-membership is typically also
+// the account's own bootstrap workspace (role=owner by construction); after
+// it, a viewer/pm-below-manager member who merely switches to any workspace
+// they belong to could reconfigure it. Closed with the same
+// requireWorkspaceMinimumRole floor already used by the PMO mutation API
+// routes ("workspace managers can manage pmos" — owner/admin/pm). ─────────
+
+test("savePmoTenant requires at least a pm-level workspace role before performing any service-role write, not just membership", () => {
+  assert.ok(savePmoTenant.includes("requireWorkspaceMinimumRole"), "must import/use the same role-floor helper as the PMO mutation API routes");
+  const fnBody = savePmoTenant.slice(savePmoTenant.indexOf("export async function savePmoTenant"));
+  const roleCheckIdx = fnBody.indexOf('requireWorkspaceMinimumRole(resolution.workspaceId, "pm")');
+  const serviceClientIdx = fnBody.indexOf("createSupabaseServiceRoleClient({");
+  assert.ok(roleCheckIdx > -1, "must call requireWorkspaceMinimumRole with at least the pm floor");
+  assert.ok(serviceClientIdx > -1 && roleCheckIdx < serviceClientIdx, "the role check must run before the service-role client (and its writes) is ever created");
+});
+
+// ─── Finding (PR #527 review): the stale-PMO-name fix (previous round) read
+// existingPmo via .limit(1) with no status filter or ordering — for a
+// workspace with multiple PMOs (a fully supported feature), this picks
+// whichever row Postgres happens to return and renames IT, potentially
+// corrupting an unrelated portfolio PMO's label instead of the intended
+// default. Fixed to match the same canonical-default selection used
+// elsewhere (listPmos()/ensure_default_pmo): oldest active. ────────────────
+
+test("savePmoTenant's existing-PMO lookup deterministically selects the oldest active PMO, not an arbitrary unordered row", () => {
+  const lookup = savePmoTenant.slice(savePmoTenant.indexOf('.from("pmos")\n      .select("id")'), savePmoTenant.indexOf('maybeSingle<{ id: string }>()') + 30);
+  assert.ok(/\.eq\("status", "active"\)/.test(lookup), "must filter to active PMOs only");
+  assert.ok(/\.order\("created_at", \{ ascending: true \}\)/.test(lookup), "must order deterministically (oldest first) before limiting to one row");
 });
