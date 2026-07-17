@@ -21,16 +21,16 @@ import type { ProjectSaveResult } from "@/lib/projects/save-project-onboarding";
 // ─── Styles ────────────────────────────────────────────────────────────────────
 
 const inputCls =
-  "block w-full rounded-xl border border-white/[0.12] bg-black/40 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-600 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400/60";
+  "block w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400/60";
 const labelCls =
   "flex flex-col gap-1.5 text-[11px] uppercase tracking-[0.15em] text-zinc-500";
 const chip = (active: boolean) =>
   `cursor-pointer rounded-xl border px-4 py-3 text-left text-sm transition-all ${
     active
-      ? "border-cyan-400/40 bg-cyan-400/[0.08] text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.08)]"
-      : "border-white/[0.07] bg-white/[0.02] text-zinc-400 hover:border-white/[0.15] hover:text-zinc-200"
+      ? "border-cyan-400/40 bg-cyan-400/[0.08] text-cyan-900 shadow-[0_0_16px_rgba(34,211,238,0.08)]"
+      : "border-slate-200 bg-white text-zinc-600 hover:border-slate-200 hover:text-zinc-800"
   }`;
-const sectionLabel = "mb-4 text-[10px] uppercase tracking-[0.3em] text-zinc-600";
+const sectionLabel = "mb-4 text-[10px] uppercase tracking-[0.3em] text-zinc-400";
 
 // ─── Steps ─────────────────────────────────────────────────────────────────────
 
@@ -133,7 +133,7 @@ function StepIdentity({
   return (
     <div className="space-y-7">
       <div className="mb-7">
-        <h2 className="text-2xl font-semibold tracking-tight text-white">Project identity</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Project identity</h2>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-500">
           This becomes the identity layer PMFreak uses to anchor all governance reasoning, reporting, and intelligence synthesis.
         </p>
@@ -141,7 +141,7 @@ function StepIdentity({
 
       <div className="grid gap-5 sm:grid-cols-2">
         <label className={labelCls}>
-          Project Name <span className="text-pink-400 normal-case">*</span>
+          Project Name <span className="text-pink-600 normal-case">*</span>
           <input
             className={inputCls}
             placeholder="ERP Phase 2 Rollout"
@@ -150,7 +150,7 @@ function StepIdentity({
           />
         </label>
         <label className={labelCls}>
-          Client / Organization <span className="text-pink-400 normal-case">*</span>
+          Client / Organization <span className="text-pink-600 normal-case">*</span>
           <input
             className={inputCls}
             placeholder="Acme Corporation"
@@ -168,7 +168,7 @@ function StepIdentity({
           />
         </label>
         <label className={labelCls}>
-          PM Assigned <span className="text-pink-400 normal-case">*</span>
+          PM Assigned <span className="text-pink-600 normal-case">*</span>
           <input
             className={inputCls}
             placeholder="Jane Smith"
@@ -197,7 +197,7 @@ function StepIdentity({
       </div>
 
       <div>
-        <p className={sectionLabel}>Project Type <span className="text-pink-400 normal-case font-normal">*</span></p>
+        <p className={sectionLabel}>Project Type <span className="text-pink-600 normal-case font-normal">*</span></p>
         <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
           {PROJECT_TYPES.map((t) => (
             <button
@@ -207,7 +207,7 @@ function StepIdentity({
               className={chip(data.projectType === t.value)}
             >
               <span className="block font-semibold">{t.label}</span>
-              <span className="mt-0.5 block text-[11px] text-zinc-600">{t.desc}</span>
+              <span className="mt-0.5 block text-[11px] text-zinc-400">{t.desc}</span>
             </button>
           ))}
         </div>
@@ -228,14 +228,14 @@ function StepDeliveryContext({
   return (
     <div className="space-y-7">
       <div className="mb-7">
-        <h2 className="text-2xl font-semibold tracking-tight text-white">Delivery context</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Delivery context</h2>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-500">
           Define the delivery landscape. This seeds the project brain with the constraints and commitments it will reason from.
         </p>
       </div>
 
       <label className={labelCls}>
-        What problem does this project solve? <span className="text-pink-400 normal-case">*</span>
+        What problem does this project solve? <span className="text-pink-600 normal-case">*</span>
         <textarea
           className={`${inputCls} resize-none`}
           rows={3}
@@ -246,7 +246,7 @@ function StepDeliveryContext({
       </label>
 
       <label className={labelCls}>
-        Main deliverable <span className="text-pink-400 normal-case">*</span>
+        Main deliverable <span className="text-pink-600 normal-case">*</span>
         <textarea
           className={`${inputCls} resize-none`}
           rows={2}
@@ -279,7 +279,7 @@ function StepDeliveryContext({
       </label>
 
       <div>
-        <p className={sectionLabel}>Scope type <span className="text-pink-400 normal-case font-normal">*</span></p>
+        <p className={sectionLabel}>Scope type <span className="text-pink-600 normal-case font-normal">*</span></p>
         <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
           {SCOPE_TYPES.map((s) => (
             <button
@@ -289,7 +289,7 @@ function StepDeliveryContext({
               className={chip(data.scopeType === s.value)}
             >
               <span className="block font-semibold">{s.label}</span>
-              <span className="mt-0.5 block text-[11px] text-zinc-600">{s.desc}</span>
+              <span className="mt-0.5 block text-[11px] text-zinc-400">{s.desc}</span>
             </button>
           ))}
         </div>
@@ -307,7 +307,7 @@ const GOVERNANCE_ITEMS = [
     desc: "Risks, Assumptions, Issues, Decisions — pre-structured and ready for population.",
     icon: "⚑",
     color: "border-amber-300/30 bg-amber-400/[0.05]",
-    tag: "border-amber-300/40 bg-amber-300/10 text-amber-200",
+    tag: "border-amber-300/40 bg-amber-300/10 text-amber-800",
   },
   {
     key: "stakeholdersInitialized" as keyof GovernanceSkeleton,
@@ -315,7 +315,7 @@ const GOVERNANCE_ITEMS = [
     desc: "Influence matrix, communication preferences, and escalation paths scaffolded.",
     icon: "◎",
     color: "border-violet-300/30 bg-violet-400/[0.05]",
-    tag: "border-violet-300/40 bg-violet-300/10 text-violet-200",
+    tag: "border-violet-300/40 bg-violet-300/10 text-violet-800",
   },
   {
     key: "deliveryCadenceInitialized" as keyof GovernanceSkeleton,
@@ -323,7 +323,7 @@ const GOVERNANCE_ITEMS = [
     desc: "Sprint, milestone, and checkpoint rhythm aligned to your governance profile.",
     icon: "◈",
     color: "border-cyan-300/30 bg-cyan-400/[0.05]",
-    tag: "border-cyan-300/40 bg-cyan-300/10 text-cyan-200",
+    tag: "border-cyan-300/40 bg-cyan-300/10 text-cyan-800",
   },
   {
     key: "reportingStructureInitialized" as keyof GovernanceSkeleton,
@@ -331,7 +331,7 @@ const GOVERNANCE_ITEMS = [
     desc: "Status report templates and executive summary cadence initialized.",
     icon: "▤",
     color: "border-emerald-300/30 bg-emerald-400/[0.05]",
-    tag: "border-emerald-300/40 bg-emerald-300/10 text-emerald-200",
+    tag: "border-emerald-300/40 bg-emerald-300/10 text-emerald-800",
   },
   {
     key: "escalationMapInitialized" as keyof GovernanceSkeleton,
@@ -339,7 +339,7 @@ const GOVERNANCE_ITEMS = [
     desc: "Decision authority, escalation thresholds, and sponsor chain defined.",
     icon: "▲",
     color: "border-fuchsia-300/30 bg-fuchsia-400/[0.05]",
-    tag: "border-fuchsia-300/40 bg-fuchsia-300/10 text-fuchsia-200",
+    tag: "border-fuchsia-300/40 bg-fuchsia-300/10 text-fuchsia-800",
   },
   {
     key: "healthBaselineInitialized" as keyof GovernanceSkeleton,
@@ -347,7 +347,7 @@ const GOVERNANCE_ITEMS = [
     desc: "Initial confidence score, delivery risk tier, and RAG status zeroed in.",
     icon: "◉",
     color: "border-slate-300/30 bg-slate-400/[0.05]",
-    tag: "border-slate-300/40 bg-slate-300/10 text-slate-200",
+    tag: "border-slate-300/40 bg-slate-300/10 text-slate-800",
   },
 ];
 
@@ -355,16 +355,16 @@ function StepGovernanceSkeleton({ projectName }: { projectName: string }) {
   return (
     <div className="space-y-7">
       <div className="mb-7">
-        <h2 className="text-2xl font-semibold tracking-tight text-white">Build governance skeleton</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Build governance skeleton</h2>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-500">
           PMFreak automatically prepares the foundational governance structures for{" "}
-          <span className="text-cyan-200">{projectName || "this project"}</span>. These activate on brain initialization.
+          <span className="text-cyan-800">{projectName || "this project"}</span>. These activate on brain initialization.
         </p>
       </div>
 
       <div className="rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.03] px-5 py-4">
         <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-300/60">AOC Protocol</p>
-        <p className="mt-1.5 text-sm leading-relaxed text-zinc-400">
+        <p className="mt-1.5 text-sm leading-relaxed text-zinc-600">
           All governance structures are pre-wired to the AOC reasoning engine. Once activated, agents will populate, monitor, and evolve each structure in real time.
         </p>
       </div>
@@ -379,7 +379,7 @@ function StepGovernanceSkeleton({ projectName }: { projectName: string }) {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-base">{item.icon}</span>
-                  <span className="text-sm font-semibold text-slate-100">{item.label}</span>
+                  <span className="text-sm font-semibold text-slate-900">{item.label}</span>
                 </div>
                 <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">{item.desc}</p>
               </div>
@@ -408,7 +408,7 @@ function StepIntelligenceDiscovery({
   return (
     <div className="space-y-7">
       <div className="mb-7">
-        <h2 className="text-2xl font-semibold tracking-tight text-white">Intelligence discovery</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Intelligence discovery</h2>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-500">
           Surface early unknowns and pending blockers. The project brain uses this to calibrate its risk baseline and prioritize its first signals.
         </p>
@@ -439,8 +439,8 @@ function StepIntelligenceDiscovery({
               onClick={() => onToggleReqs(opt.value)}
               className={`rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${
                 data.requirementsDefined === opt.value
-                  ? "border-indigo-300/50 bg-indigo-400/15 text-indigo-100"
-                  : "border-white/[0.08] bg-white/[0.02] text-zinc-500 hover:border-white/[0.18] hover:text-zinc-200"
+                  ? "border-indigo-300/50 bg-indigo-400/15 text-indigo-900"
+                  : "border-slate-200 bg-white text-zinc-500 hover:border-slate-200 hover:text-zinc-800"
               }`}
             >
               {opt.label}
@@ -537,7 +537,7 @@ function StepBrainActivation({
   return (
     <div className="space-y-6">
       <div className="mb-7">
-        <h2 className="text-2xl font-semibold tracking-tight text-white">Activate Project Brain</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Activate Project Brain</h2>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-500">
           Review your project configuration. Once activated, PMFreak initializes the full intelligence layer for this initiative.
         </p>
@@ -545,14 +545,14 @@ function StepBrainActivation({
 
       {!contextReady && (
         <div className="rounded-2xl border border-amber-300/25 bg-amber-400/[0.05] p-4">
-          <p className="text-sm text-amber-200">
+          <p className="text-sm text-amber-800">
             Project Brain activation requires minimum context — complete Steps 1 and 2 before activating.
           </p>
         </div>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-white/[0.07] bg-black/30 p-5">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
           <p className="mb-3 text-[10px] uppercase tracking-[0.24em] text-indigo-300/60">Project Identity</p>
           <dl className="space-y-2">
             {[
@@ -564,16 +564,16 @@ function StepBrainActivation({
               ...(identity.contractCode ? [["Contract", identity.contractCode] as [string, string]] : []),
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between gap-4">
-                <dt className="text-[10px] uppercase tracking-[0.14em] text-zinc-600 shrink-0">{k}</dt>
-                <dd className="text-xs text-slate-200 text-right">{v || "—"}</dd>
+                <dt className="text-[10px] uppercase tracking-[0.14em] text-zinc-400 shrink-0">{k}</dt>
+                <dd className="text-xs text-slate-800 text-right">{v || "—"}</dd>
               </div>
             ))}
           </dl>
         </div>
 
-        <div className="rounded-2xl border border-white/[0.07] bg-black/30 p-5">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
           <p className="mb-3 text-[10px] uppercase tracking-[0.24em] text-indigo-300/60">Delivery Context</p>
-          <p className="text-xs leading-relaxed text-slate-300 line-clamp-3">
+          <p className="text-xs leading-relaxed text-slate-700 line-clamp-3">
             {delivery.problemStatement || "—"}
           </p>
           {delivery.scopeType && (
@@ -584,7 +584,7 @@ function StepBrainActivation({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-white/[0.07] bg-black/30 p-5">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
         <p className="mb-4 text-[10px] uppercase tracking-[0.24em] text-cyan-300/60">
           Brain initializing with
         </p>
@@ -593,8 +593,8 @@ function StepBrainActivation({
             <div key={c.label} className="flex items-start gap-2.5">
               <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)]" />
               <div>
-                <p className="text-xs font-semibold text-slate-200">{c.label}</p>
-                <p className="text-[10px] text-zinc-600">{c.desc}</p>
+                <p className="text-xs font-semibold text-slate-800">{c.label}</p>
+                <p className="text-[10px] text-zinc-400">{c.desc}</p>
               </div>
             </div>
           ))}
@@ -604,7 +604,7 @@ function StepBrainActivation({
       {discovery.unknowns && (
         <div className="rounded-2xl border border-amber-300/20 bg-amber-400/[0.03] p-5">
           <p className="mb-2 text-[10px] uppercase tracking-[0.24em] text-amber-300/60">Discovery Signals</p>
-          <p className="text-xs leading-relaxed text-zinc-400 line-clamp-3">{discovery.unknowns}</p>
+          <p className="text-xs leading-relaxed text-zinc-600 line-clamp-3">{discovery.unknowns}</p>
         </div>
       )}
 
@@ -616,9 +616,9 @@ function StepBrainActivation({
           className="rounded-2xl border border-red-400/35 bg-red-950/40 p-5 space-y-3"
         >
           <div className="flex items-start gap-3">
-            <span className="mt-0.5 text-red-400 text-base shrink-0">✕</span>
+            <span className="mt-0.5 text-red-600 text-base shrink-0">✕</span>
             <div className="space-y-1 flex-1">
-              <p className="text-sm font-semibold text-red-200">Project Brain activation failed</p>
+              <p className="text-sm font-semibold text-red-800">Project Brain activation failed</p>
               <p className="text-sm text-red-300/80 leading-relaxed">
                 {saveError === "upgrade_required"
                   ? "Your current plan does not support additional projects. Please upgrade to continue."
@@ -627,7 +627,7 @@ function StepBrainActivation({
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap pt-1">
-            <span className="rounded-full border border-red-400/30 bg-red-400/10 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.16em] text-red-300">
+            <span className="rounded-full border border-red-400/30 bg-red-400/10 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.16em] text-red-700">
               {saveFailureClass === "fatal_failure" ? "Fatal" : "Recoverable"}
             </span>
             {saveFailureDetail && (
@@ -635,13 +635,13 @@ function StepBrainActivation({
                 {saveFailureDetail}
               </span>
             )}
-            <span className="text-[10px] text-zinc-600">Your draft has been preserved.</span>
+            <span className="text-[10px] text-zinc-400">Your draft has been preserved.</span>
           </div>
           {saveFailureClass === "recoverable_failure" ? (
             <button
               type="button"
               onClick={onRetry}
-              className="w-full rounded-xl border border-red-300/30 bg-red-400/[0.08] px-4 py-2.5 text-sm font-semibold text-red-200 transition hover:bg-red-400/[0.14]"
+              className="w-full rounded-xl border border-red-300/30 bg-red-400/[0.08] px-4 py-2.5 text-sm font-semibold text-red-800 transition hover:bg-red-400/[0.14]"
             >
               Retry
             </button>
@@ -650,14 +650,14 @@ function StepBrainActivation({
               <button
                 type="button"
                 onClick={onFixConfig}
-                className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-semibold text-zinc-300 transition hover:border-white/20"
+                className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:border-slate-200"
               >
                 Return to edit
               </button>
               {saveError === "upgrade_required" && (
                 <a
                   href="/billing"
-                  className="flex-1 rounded-xl border border-amber-300/30 bg-amber-400/[0.08] px-4 py-2.5 text-sm font-semibold text-amber-200 text-center transition hover:bg-amber-400/[0.14]"
+                  className="flex-1 rounded-xl border border-amber-300/30 bg-amber-400/[0.08] px-4 py-2.5 text-sm font-semibold text-amber-800 text-center transition hover:bg-amber-400/[0.14]"
                 >
                   Upgrade plan
                 </a>
@@ -671,11 +671,11 @@ function StepBrainActivation({
         type="button"
         onClick={onActivate}
         disabled={activating || !contextReady || !!saveError}
-        className="relative w-full overflow-hidden rounded-2xl border border-cyan-300/30 bg-gradient-to-r from-cyan-950/60 via-indigo-950/60 to-cyan-950/60 px-6 py-5 text-base font-semibold text-white shadow-[0_0_40px_rgba(34,211,238,0.12)] transition-all hover:shadow-[0_0_60px_rgba(34,211,238,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
+        className="relative w-full overflow-hidden rounded-2xl border border-cyan-300/30 bg-gradient-to-r from-cyan-950/60 via-indigo-950/60 to-cyan-950/60 px-6 py-5 text-base font-semibold text-slate-900 shadow-[0_0_40px_rgba(34,211,238,0.12)] transition-all hover:shadow-[0_0_60px_rgba(34,211,238,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {activating ? (
           <span className="flex items-center justify-center gap-2.5">
-            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-cyan-400" />
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-cyan-400" />
             Initializing Project Intelligence…
           </span>
         ) : (
@@ -874,19 +874,19 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
                 disabled={!isDone}
                 className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs transition-colors ${
                   isCurrent
-                    ? "border border-cyan-300/40 bg-cyan-400/[0.1] text-cyan-100"
+                    ? "border border-cyan-300/40 bg-cyan-400/[0.1] text-cyan-900"
                     : isDone
-                    ? "cursor-pointer border border-white/10 bg-white/[0.03] text-zinc-400 hover:text-slate-200"
-                    : "cursor-default border border-white/[0.04] text-zinc-700"
+                    ? "cursor-pointer border border-slate-200 bg-white text-zinc-600 hover:text-slate-800"
+                    : "cursor-default border border-slate-200 text-zinc-300"
                 }`}
               >
                 <span
                   className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
                     isCurrent
-                      ? "bg-cyan-400/25 text-cyan-100"
+                      ? "bg-cyan-400/25 text-cyan-900"
                       : isDone
-                      ? "bg-white/10 text-zinc-300"
-                      : "bg-white/[0.04] text-zinc-700"
+                      ? "bg-slate-50 text-zinc-700"
+                      : "bg-white text-zinc-300"
                   }`}
                 >
                   {isDone ? "✓" : s.id}
@@ -896,7 +896,7 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
               </button>
               {i < STEPS.length - 1 && (
                 <span
-                  className={`h-px w-3 shrink-0 ${s.id < step ? "bg-cyan-400/25" : "bg-white/[0.05]"}`}
+                  className={`h-px w-3 shrink-0 ${s.id < step ? "bg-cyan-400/25" : "bg-white"}`}
                 />
               )}
             </div>
@@ -905,7 +905,7 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
       </div>
 
       {/* Content */}
-      <div className="rounded-2xl border border-white/[0.07] bg-slate-950/50 p-6 md:p-8">
+      <div className="rounded-2xl border border-slate-200 bg-[#FCFBF9]/50 p-6 md:p-8">
         {renderStep()}
       </div>
 
@@ -914,7 +914,7 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
         <div className="rounded-xl border border-red-400/25 bg-red-400/[0.05] p-4">
           <ul className="space-y-1">
             {errors.map((e) => (
-              <li key={e} className="text-sm text-red-300">{e}</li>
+              <li key={e} className="text-sm text-red-700">{e}</li>
             ))}
           </ul>
         </div>
@@ -927,14 +927,14 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
             type="button"
             onClick={handleBack}
             disabled={step === 1}
-            className="rounded-xl border border-white/10 px-5 py-2.5 text-sm text-zinc-400 transition hover:border-white/20 hover:text-slate-200 disabled:cursor-default disabled:opacity-30"
+            className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm text-zinc-600 transition hover:border-slate-200 hover:text-slate-800 disabled:cursor-default disabled:opacity-30"
           >
             Back
           </button>
           <button
             type="button"
             onClick={handleNext}
-            className="rounded-xl border border-cyan-200/30 bg-cyan-400/[0.1] px-6 py-2.5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.18]"
+            className="rounded-xl border border-cyan-200/30 bg-cyan-400/[0.1] px-6 py-2.5 text-sm font-semibold text-cyan-900 transition hover:bg-cyan-400/[0.18]"
           >
             Continue →
           </button>
@@ -946,7 +946,7 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
             type="button"
             onClick={handleBack}
             disabled={activating}
-            className="rounded-xl border border-white/10 px-5 py-2.5 text-sm text-zinc-400 transition hover:border-white/20 hover:text-slate-200 disabled:opacity-30"
+            className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm text-zinc-600 transition hover:border-slate-200 hover:text-slate-800 disabled:opacity-30"
           >
             Back
           </button>

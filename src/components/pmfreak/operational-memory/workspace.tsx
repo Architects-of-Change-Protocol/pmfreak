@@ -37,10 +37,10 @@ export function OperationalMemoryWorkspace() {
   };
 
   return <div className="space-y-4">
-    <div className="flex flex-wrap gap-2">{MEMORY_TYPES.map((d) => <button key={d} onClick={() => setMemoryType(d)} className={`rounded-full border px-3 py-1 text-xs ${d === memoryType ? "border-cyan-300/70 bg-cyan-300/15" : "border-white/20"}`}>{d.replaceAll("_", " ")}</button>)}</div>
-    <section className="rounded-2xl border border-white/10 bg-white/20 p-4">
+    <div className="flex flex-wrap gap-2">{MEMORY_TYPES.map((d) => <button key={d} onClick={() => setMemoryType(d)} className={`rounded-full border px-3 py-1 text-xs ${d === memoryType ? "border-cyan-300/70 bg-cyan-300/15" : "border-slate-200"}`}>{d.replaceAll("_", " ")}</button>)}</div>
+    <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
       <p className="text-sm font-semibold">Operational memory capture</p>
-      <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste operational updates, risks, decisions, blockers, dependencies, and open questions." className="mt-2 min-h-28 w-full rounded-xl border border-white/15 bg-white/40 p-3 text-sm" />
+      <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste operational updates, risks, decisions, blockers, dependencies, and open questions." className="mt-2 min-h-28 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm" />
       <button onClick={() => void save()} className="mt-2 rounded-lg border border-cyan-300/40 px-3 py-2 text-sm">Capture memory</button>
     </section>
     <OperationalMemoryTable records={data?.records ?? []} />

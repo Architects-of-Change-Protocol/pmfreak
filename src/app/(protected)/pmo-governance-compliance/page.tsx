@@ -12,25 +12,25 @@ import type {
 // ─── Style maps ───────────────────────────────────────────────────────────────
 
 const COMPLIANCE_STATUS_STYLES: Record<string, string> = {
-  excellent:     "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  compliant:     "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  watch:         "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  non_compliant: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  critical:      "bg-red-600/20 text-red-300 border-red-600/30",
+  excellent:     "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  compliant:     "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  watch:         "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  non_compliant: "bg-orange-500/20 text-orange-700 border-orange-500/30",
+  critical:      "bg-red-600/20 text-red-700 border-red-600/30",
 };
 
 const RISK_STYLES: Record<string, string> = {
-  low:      "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  medium:   "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  high:     "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  critical: "bg-red-600/20 text-red-300 border-red-600/30",
+  low:      "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  medium:   "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  high:     "bg-orange-500/20 text-orange-700 border-orange-500/30",
+  critical: "bg-red-600/20 text-red-700 border-red-600/30",
 };
 
 const SEVERITY_STYLES: Record<string, string> = {
-  critical: "bg-red-600/20 text-red-300 border-red-600/30",
-  high:     "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  medium:   "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  low:      "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
+  critical: "bg-red-600/20 text-red-700 border-red-600/30",
+  high:     "bg-orange-500/20 text-orange-700 border-orange-500/30",
+  medium:   "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  low:      "bg-zinc-500/20 text-zinc-700 border-zinc-500/30",
 };
 
 const DOMAIN_LABELS: Record<string, string> = {
@@ -46,7 +46,7 @@ const DOMAIN_LABELS: Record<string, string> = {
 // ─── Shared components ────────────────────────────────────────────────────────
 
 function StatusBadge({ value, styles }: { value: string; styles: Record<string, string> }) {
-  const cls = styles[value] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30";
+  const cls = styles[value] ?? "bg-zinc-500/20 text-zinc-700 border-zinc-500/30";
   return (
     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>
       {value.replace(/_/g, " ")}
@@ -56,9 +56,9 @@ function StatusBadge({ value, styles }: { value: string; styles: Record<string, 
 
 function SummaryCard({ label, value, highlight, sub }: { label: string; value: string | number; highlight?: string; sub?: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-      <p className="text-xs text-zinc-400">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${highlight ?? "text-white"}`}>{value}</p>
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <p className="text-xs text-zinc-600">{label}</p>
+      <p className={`mt-1 text-2xl font-semibold ${highlight ?? "text-slate-900"}`}>{value}</p>
       {sub && <p className="mt-0.5 text-xs text-zinc-500">{sub}</p>}
     </div>
   );
@@ -67,9 +67,9 @@ function SummaryCard({ label, value, highlight, sub }: { label: string; value: s
 function SectionHeader({ title, count }: { title: string; count?: number }) {
   return (
     <div className="mb-4 flex items-center justify-between">
-      <h2 className="text-base font-semibold text-white">{title}</h2>
+      <h2 className="text-base font-semibold text-slate-900">{title}</h2>
       {count !== undefined && (
-        <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-medium text-zinc-300">{count}</span>
+        <span className="rounded-full bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-zinc-700">{count}</span>
       )}
     </div>
   );
@@ -80,17 +80,17 @@ function SectionHeader({ title, count }: { title: string; count?: number }) {
 function DomainCard({ name, assessment }: { name: string; assessment: DomainAssessment }) {
   const topRec = assessment.recommendations[0]?.message ?? null;
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-white">{DOMAIN_LABELS[name] ?? name}</p>
-        <span className="text-lg font-semibold text-white">{assessment.score.toFixed(0)}</span>
+        <p className="text-sm font-medium text-slate-900">{DOMAIN_LABELS[name] ?? name}</p>
+        <span className="text-lg font-semibold text-slate-900">{assessment.score.toFixed(0)}</span>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <StatusBadge value={assessment.status} styles={COMPLIANCE_STATUS_STYLES} />
         <StatusBadge value={assessment.risk} styles={RISK_STYLES} />
         <span className="text-xs text-zinc-500">{assessment.violations_count} violation(s)</span>
       </div>
-      {topRec && <p className="mt-2 text-xs text-zinc-400 leading-relaxed">{topRec}</p>}
+      {topRec && <p className="mt-2 text-xs text-zinc-600 leading-relaxed">{topRec}</p>}
     </div>
   );
 }
@@ -156,21 +156,21 @@ export default function PMOGovernanceCompliancePage() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-white">PMO Governance Compliance</h1>
-            <p className="mt-1 text-sm text-zinc-400">
+            <h1 className="text-2xl font-semibold text-slate-900">PMO Governance Compliance</h1>
+            <p className="mt-1 text-sm text-zinc-600">
               PMO operating discipline snapshot — profile, assignment hygiene, capacity, performance, evidence, and intervention readiness.
             </p>
             <div className="mt-2 flex gap-3 text-xs text-zinc-500">
-              <Link href="/pmo-command-center" className="hover:text-zinc-300 hover:underline">PMO Command Center</Link>
-              <Link href="/pm-registry" className="hover:text-zinc-300 hover:underline">PM Registry</Link>
-              <Link href="/pm-capacity" className="hover:text-zinc-300 hover:underline">Capacity</Link>
-              <Link href="/pm-performance" className="hover:text-zinc-300 hover:underline">Performance</Link>
+              <Link href="/pmo-command-center" className="hover:text-zinc-700 hover:underline">PMO Command Center</Link>
+              <Link href="/pm-registry" className="hover:text-zinc-700 hover:underline">PM Registry</Link>
+              <Link href="/pm-capacity" className="hover:text-zinc-700 hover:underline">Capacity</Link>
+              <Link href="/pm-performance" className="hover:text-zinc-700 hover:underline">Performance</Link>
             </div>
           </div>
           <button
             onClick={generateSnapshot}
             disabled={generating || loading}
-            className="rounded-xl border border-indigo-500/40 bg-indigo-500/20 px-4 py-2 text-sm text-indigo-200 hover:bg-indigo-500/30 disabled:opacity-50"
+            className="rounded-xl border border-indigo-500/40 bg-indigo-500/20 px-4 py-2 text-sm text-indigo-800 hover:bg-indigo-500/30 disabled:opacity-50"
           >
             {generating ? "Generating…" : "Generate Snapshot"}
           </button>
@@ -178,7 +178,7 @@ export default function PMOGovernanceCompliancePage() {
 
         {/* Error */}
         {error && (
-          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600">{error}</div>
         )}
 
         {/* Loading */}
@@ -190,9 +190,9 @@ export default function PMOGovernanceCompliancePage() {
 
         {/* Empty state */}
         {!loading && !error && !data && (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 py-20 text-center">
-            <p className="text-sm text-zinc-400">No governance compliance data available.</p>
-            <p className="mt-1 text-xs text-zinc-600">Register Project Managers and generate snapshots to assess operating discipline.</p>
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 py-20 text-center">
+            <p className="text-sm text-zinc-600">No governance compliance data available.</p>
+            <p className="mt-1 text-xs text-zinc-400">Register Project Managers and generate snapshots to assess operating discipline.</p>
           </div>
         )}
 
@@ -200,7 +200,7 @@ export default function PMOGovernanceCompliancePage() {
           <>
             {/* Risk banner */}
             {(data.compliance_risk === "critical" || data.compliance_risk === "high" || data.summary.critical_override_triggered) && (
-              <div className={`rounded-xl border px-4 py-3 ${RISK_STYLES[data.compliance_risk] ?? "border-white/10 bg-white/5"}`}>
+              <div className={`rounded-xl border px-4 py-3 ${RISK_STYLES[data.compliance_risk] ?? "border-slate-200 bg-white"}`}>
                 <p className="text-sm font-medium">
                   {data.summary.critical_override_triggered
                     ? "Critical governance override triggered."
@@ -221,17 +221,17 @@ export default function PMOGovernanceCompliancePage() {
             <div>
               <SectionHeader title="Executive Compliance" />
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-                <SummaryCard label="Compliance Score" value={data.compliance_score.toFixed(1)} highlight="text-indigo-300" />
-                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs text-zinc-400">Status</p>
+                <SummaryCard label="Compliance Score" value={data.compliance_score.toFixed(1)} highlight="text-indigo-700" />
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs text-zinc-600">Status</p>
                   <div className="mt-2"><StatusBadge value={data.compliance_status} styles={COMPLIANCE_STATUS_STYLES} /></div>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs text-zinc-400">Risk</p>
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs text-zinc-600">Risk</p>
                   <div className="mt-2"><StatusBadge value={data.compliance_risk} styles={RISK_STYLES} /></div>
                 </div>
-                <SummaryCard label="Total Violations" value={data.summary.total_violations} highlight={data.summary.total_violations > 0 ? "text-amber-300" : "text-white"} />
-                <SummaryCard label="Critical Violations" value={data.summary.critical_violations} highlight={data.summary.critical_violations > 0 ? "text-red-300" : "text-white"} />
+                <SummaryCard label="Total Violations" value={data.summary.total_violations} highlight={data.summary.total_violations > 0 ? "text-amber-700" : "text-slate-900"} />
+                <SummaryCard label="Critical Violations" value={data.summary.critical_violations} highlight={data.summary.critical_violations > 0 ? "text-red-700" : "text-slate-900"} />
                 <SummaryCard label="Active PMs Evaluated" value={data.summary.active_pms_evaluated} />
                 <SummaryCard label="Evidence Readiness" value={data.assessments.evidence_readiness.score.toFixed(0)} />
                 <SummaryCard label="Last Generated" value={new Date(data.generated_at).toLocaleDateString()} sub={new Date(data.generated_at).toLocaleTimeString()} />
@@ -252,36 +252,36 @@ export default function PMOGovernanceCompliancePage() {
             <div>
               <SectionHeader title="Violations" count={data.violations.length} />
               {data.violations.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-white/10 py-10 text-center">
+                <div className="rounded-xl border border-dashed border-slate-200 py-10 text-center">
                   <p className="text-sm text-zinc-500">No governance violations detected.</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-2xl border border-white/10">
+                <div className="overflow-x-auto rounded-2xl border border-slate-200">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-white/10 bg-white/5 text-left">
-                        <th className="px-4 py-3 text-xs font-medium text-zinc-400">Severity</th>
-                        <th className="px-4 py-3 text-xs font-medium text-zinc-400">Domain</th>
-                        <th className="px-4 py-3 text-xs font-medium text-zinc-400">Type</th>
-                        <th className="px-4 py-3 text-xs font-medium text-zinc-400">PM / Project</th>
-                        <th className="px-4 py-3 text-xs font-medium text-zinc-400">Message</th>
-                        <th className="px-4 py-3 text-xs font-medium text-zinc-400">Recommendation</th>
-                        <th className="px-4 py-3 text-xs font-medium text-zinc-400">Detected</th>
+                      <tr className="border-b border-slate-200 bg-white text-left">
+                        <th className="px-4 py-3 text-xs font-medium text-zinc-600">Severity</th>
+                        <th className="px-4 py-3 text-xs font-medium text-zinc-600">Domain</th>
+                        <th className="px-4 py-3 text-xs font-medium text-zinc-600">Type</th>
+                        <th className="px-4 py-3 text-xs font-medium text-zinc-600">PM / Project</th>
+                        <th className="px-4 py-3 text-xs font-medium text-zinc-600">Message</th>
+                        <th className="px-4 py-3 text-xs font-medium text-zinc-600">Recommendation</th>
+                        <th className="px-4 py-3 text-xs font-medium text-zinc-600">Detected</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
                       {data.violations.slice(0, 100).map((v: GovernanceViolation) => (
-                        <tr key={v.violation_id} className="hover:bg-white/5">
+                        <tr key={v.violation_id} className="hover:bg-white">
                           <td className="px-4 py-3"><StatusBadge value={v.severity} styles={SEVERITY_STYLES} /></td>
-                          <td className="px-4 py-3 text-xs text-zinc-400">{DOMAIN_LABELS[v.domain] ?? v.domain}</td>
+                          <td className="px-4 py-3 text-xs text-zinc-600">{DOMAIN_LABELS[v.domain] ?? v.domain}</td>
                           <td className="px-4 py-3 text-xs text-zinc-500">{v.violation_type.replace(/_/g, " ").toLowerCase()}</td>
-                          <td className="px-4 py-3 text-xs text-zinc-300">
+                          <td className="px-4 py-3 text-xs text-zinc-700">
                             {v.pm_id ? (
                               <Link href={`/pm-registry/${v.pm_id}`} className="hover:underline">{v.pm_name ?? v.pm_id}</Link>
                             ) : v.project_name ?? v.project_id ?? "—"}
                           </td>
-                          <td className="max-w-xs px-4 py-3 text-xs text-zinc-300 leading-relaxed">{v.message}</td>
-                          <td className="max-w-xs px-4 py-3 text-xs text-zinc-400 leading-relaxed">{v.recommendation}</td>
+                          <td className="max-w-xs px-4 py-3 text-xs text-zinc-700 leading-relaxed">{v.message}</td>
+                          <td className="max-w-xs px-4 py-3 text-xs text-zinc-600 leading-relaxed">{v.recommendation}</td>
                           <td className="px-4 py-3 text-xs text-zinc-500 whitespace-nowrap">{new Date(v.detected_at).toLocaleDateString()}</td>
                         </tr>
                       ))}
@@ -295,22 +295,22 @@ export default function PMOGovernanceCompliancePage() {
             {data.recommendations.length > 0 && (
               <div>
                 <SectionHeader title="Recommendations" count={data.recommendations.length} />
-                <div className="overflow-x-auto rounded-2xl border border-white/10">
+                <div className="overflow-x-auto rounded-2xl border border-slate-200">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-white/10 bg-white/5 text-left">
-                        <th className="px-4 py-3 text-xs font-medium text-zinc-400">Severity</th>
-                        <th className="px-4 py-3 text-xs font-medium text-zinc-400">Domain</th>
-                        <th className="px-4 py-3 text-xs font-medium text-zinc-400">Recommendation</th>
-                        <th className="px-4 py-3 text-xs font-medium text-zinc-400">Source</th>
+                      <tr className="border-b border-slate-200 bg-white text-left">
+                        <th className="px-4 py-3 text-xs font-medium text-zinc-600">Severity</th>
+                        <th className="px-4 py-3 text-xs font-medium text-zinc-600">Domain</th>
+                        <th className="px-4 py-3 text-xs font-medium text-zinc-600">Recommendation</th>
+                        <th className="px-4 py-3 text-xs font-medium text-zinc-600">Source</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
                       {data.recommendations.slice(0, 60).map((rec: GovernanceRecommendation, i: number) => (
-                        <tr key={i} className="hover:bg-white/5">
+                        <tr key={i} className="hover:bg-white">
                           <td className="px-4 py-3"><StatusBadge value={rec.severity} styles={SEVERITY_STYLES} /></td>
-                          <td className="px-4 py-3 text-xs text-zinc-400">{DOMAIN_LABELS[rec.domain] ?? rec.domain}</td>
-                          <td className="max-w-md px-4 py-3 text-xs text-zinc-300 leading-relaxed">{rec.message}</td>
+                          <td className="px-4 py-3 text-xs text-zinc-600">{DOMAIN_LABELS[rec.domain] ?? rec.domain}</td>
+                          <td className="max-w-md px-4 py-3 text-xs text-zinc-700 leading-relaxed">{rec.message}</td>
                           <td className="px-4 py-3 text-xs text-zinc-500">{rec.source}</td>
                         </tr>
                       ))}
@@ -325,7 +325,7 @@ export default function PMOGovernanceCompliancePage() {
               <SectionHeader title="Evidence Summary" />
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
                 <SummaryCard label="Total PMs" value={data.evidence.counts.total_pms} />
-                <SummaryCard label="Active PMs" value={data.evidence.counts.active_pms} highlight="text-emerald-300" />
+                <SummaryCard label="Active PMs" value={data.evidence.counts.active_pms} highlight="text-emerald-700" />
                 <SummaryCard label="Dossiers" value={data.evidence.counts.pm_dossiers_evaluated} />
                 <SummaryCard label="Capacity Snapshots" value={data.evidence.counts.capacity_snapshots_present} />
                 <SummaryCard label="Performance Snapshots" value={data.evidence.counts.performance_snapshots_present} />
@@ -334,7 +334,7 @@ export default function PMOGovernanceCompliancePage() {
               </div>
             </div>
 
-            <p className="text-xs text-zinc-600">
+            <p className="text-xs text-zinc-400">
               Generated at {new Date(data.generated_at).toLocaleString()} — Read-only aggregation. No recalculation performed.
             </p>
           </>

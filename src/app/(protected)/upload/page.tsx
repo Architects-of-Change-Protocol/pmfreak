@@ -475,15 +475,15 @@ type AnalysisCardProps = {
 
 function AnalysisCard({ title, items, accent, description }: AnalysisCardProps) {
   return (
-    <article className="relative overflow-hidden rounded-2xl border border-white/15 bg-white/45 p-5 shadow-[0_8px_30px_rgba(15,23,42,0.35)] backdrop-blur">
+    <article className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-[0_8px_30px_rgba(15,23,42,0.35)] backdrop-blur">
       <div className={`absolute inset-x-0 top-0 h-1 ${accent}`} />
-      <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-100">{title}</h3>
-      {description ? <p className="mt-2 text-sm text-slate-300">{description}</p> : null}
+      <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-900">{title}</h3>
+      {description ? <p className="mt-2 text-sm text-slate-700">{description}</p> : null}
       {items && items.length > 0 ? (
-        <ul className="mt-3 space-y-2 text-sm text-slate-200">
+        <ul className="mt-3 space-y-2 text-sm text-slate-800">
           {items.map((item) => (
             <li key={item} className="flex gap-2">
-              <span className="mt-1 text-cyan-200">•</span>
+              <span className="mt-1 text-cyan-800">•</span>
               <span>{item}</span>
             </li>
           ))}
@@ -849,35 +849,35 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-6 py-16 text-white">
-      <main className="mx-auto w-full max-w-6xl space-y-8 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-xl md:p-12">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-6 py-16 text-slate-900">
+      <main className="mx-auto w-full max-w-6xl space-y-8 rounded-3xl border border-slate-200 bg-white p-8 shadow-2xl backdrop-blur-xl md:p-12">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs uppercase tracking-[0.28em] text-cyan-300">PMFreak AI • Sprint 6</p>
+            <p className="text-xs uppercase tracking-[0.28em] text-cyan-700">PMFreak AI • Sprint 6</p>
             <Link
               href="/portfolio"
-              className="inline-flex h-9 items-center justify-center rounded-full border border-cyan-300/60 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100 transition hover:bg-cyan-300/10"
+              className="inline-flex h-9 items-center justify-center rounded-full border border-cyan-300/60 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-900 transition hover:bg-cyan-300/10"
             >
               View Portfolio
             </Link>
           </div>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Document Intake & Scope Analyzer</h1>
-          <p className="text-sm text-slate-300 md:text-base">
+          <p className="text-sm text-slate-700 md:text-base">
             Upload PDF, DOCX, XLSX, PPTX, or TXT files, preview extraction output, then run AI-powered scope analysis.
           </p>
           {billingState ? (
-            <p className="text-xs text-slate-400">
-              Plan: <span className="font-semibold text-cyan-200">{billingState.subscription.plan}</span>
+            <p className="text-xs text-slate-600">
+              Plan: <span className="font-semibold text-cyan-800">{billingState.subscription.plan}</span>
               {billingState.limits.uploadLimit !== null
                 ? ` • Uploads this month: ${billingState.usage.uploadCount}/${billingState.limits.uploadLimit}`
                 : " • Unlimited uploads"}
             </p>
           ) : null}
-          {billingError ? <p className="text-xs text-rose-200">{billingError}</p> : null}
+          {billingError ? <p className="text-xs text-rose-800">{billingError}</p> : null}
         </div>
 
         <section className="space-y-3">
-          <label htmlFor="project-name" className="text-sm font-medium text-slate-200">
+          <label htmlFor="project-name" className="text-sm font-medium text-slate-800">
             Project Name
           </label>
           <input
@@ -886,7 +886,7 @@ export default function UploadPage() {
             value={projectName}
             onChange={(event) => setProjectName(event.target.value)}
             placeholder="Acme Vendor Contract Review"
-            className="w-full rounded-xl border border-white/10 bg-white/20 px-4 py-3 text-sm text-white outline-none ring-cyan-300/50 placeholder:text-slate-400 focus:ring"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none ring-cyan-300/50 placeholder:text-slate-600 focus:ring"
           />
         </section>
 
@@ -898,12 +898,12 @@ export default function UploadPage() {
             className={`rounded-2xl border-2 border-dashed p-8 text-center transition ${
               isDragging
                 ? "border-cyan-300 bg-cyan-300/10"
-                : "border-white/20 bg-white/40 hover:border-cyan-200/60"
+                : "border-slate-200 bg-slate-50 hover:border-cyan-200/60"
             }`}
           >
             <p className="text-base font-medium">Drag & drop documents here</p>
-            <p className="mt-1 text-sm text-slate-300">or select from your device</p>
-            <label className="mt-5 inline-flex cursor-pointer rounded-full border border-cyan-300/60 px-5 py-2 text-sm font-medium text-cyan-200 transition hover:bg-cyan-300/10">
+            <p className="mt-1 text-sm text-slate-700">or select from your device</p>
+            <label className="mt-5 inline-flex cursor-pointer rounded-full border border-cyan-300/60 px-5 py-2 text-sm font-medium text-cyan-800 transition hover:bg-cyan-300/10">
               Choose Files
               <input
                 type="file"
@@ -913,11 +913,11 @@ export default function UploadPage() {
                 className="sr-only"
               />
             </label>
-            <p className="mt-4 text-xs text-slate-400">Accepted: PDF, DOCX, XLSX, PPTX, TXT • Max 10 MB per file</p>
+            <p className="mt-4 text-xs text-slate-600">Accepted: PDF, DOCX, XLSX, PPTX, TXT • Max 10 MB per file</p>
           </div>
 
           {validationErrors.length > 0 ? (
-            <ul className="space-y-1 rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
+            <ul className="space-y-1 rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-800">
               {validationErrors.map((error) => (
                 <li key={error}>• {error}</li>
               ))}
@@ -925,13 +925,13 @@ export default function UploadPage() {
           ) : null}
 
           {selectedFiles.length > 0 ? (
-            <div className="rounded-xl border border-white/10 bg-white/20 px-4 py-3">
-              <h2 className="text-sm font-medium text-slate-200">Selected Files ({selectedFiles.length})</h2>
-              <ul className="mt-2 space-y-2 text-sm text-slate-300">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <h2 className="text-sm font-medium text-slate-800">Selected Files ({selectedFiles.length})</h2>
+              <ul className="mt-2 space-y-2 text-sm text-slate-700">
                 {selectedFiles.map((file) => (
                   <li key={`${file.name}-${file.lastModified}`} className="flex items-center justify-between gap-3">
                     <span className="truncate">{file.name}</span>
-                    <span className="text-xs text-slate-400">{formatFileSize(file.size)}</span>
+                    <span className="text-xs text-slate-600">{formatFileSize(file.size)}</span>
                   </li>
                 ))}
               </ul>
@@ -942,13 +942,13 @@ export default function UploadPage() {
             type="button"
             onClick={handleUpload}
             disabled={!canUpload || (billingState ? billingState.limits.uploadLimit !== null && billingState.usage.uploadCount >= billingState.limits.uploadLimit : false)}
-            className="inline-flex h-11 items-center justify-center rounded-full bg-cyan-300 px-6 text-sm font-semibold text-slate-900 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-slate-500"
+            className="inline-flex h-11 items-center justify-center rounded-full bg-cyan-300 px-6 text-sm font-semibold text-slate-100 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-slate-500"
           >
             {isUploading ? "Uploading..." : "Upload Documents"}
           </button>
 
           {uploadError ? (
-            <p className="rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
+            <p className="rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-800">
               {uploadError}
             </p>
           ) : null}
@@ -956,8 +956,8 @@ export default function UploadPage() {
 
         {uploadResult ? (
           <section className="space-y-4 rounded-2xl border border-emerald-300/30 bg-emerald-300/10 p-5">
-            <h2 className="text-lg font-semibold text-emerald-100">Extracted Preview</h2>
-            <p className="text-sm text-emerald-50">
+            <h2 className="text-lg font-semibold text-emerald-900">Extracted Preview</h2>
+            <p className="text-sm text-emerald-950">
               Project: <span className="font-medium">{uploadResult.projectName}</span>
             </p>
             <p className="text-sm text-emerald-100/90">
@@ -966,10 +966,10 @@ export default function UploadPage() {
             <p className="text-xs text-emerald-100/80">Project memory updated. Next recommended action: Run AI Analysis or ask Copilot for a mitigation plan.</p>
             <div className="space-y-4">
               {uploadResult.files.map((file) => (
-                <article key={file.fileName} className="rounded-xl border border-white/20 bg-white/20 p-4">
-                  <h3 className="text-sm font-semibold text-white">{file.fileName}</h3>
-                  <p className="mt-1 text-xs text-slate-300">{file.contentType}</p>
-                  <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap rounded-lg bg-white/80 p-3 text-xs text-slate-200">
+                <article key={file.fileName} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <h3 className="text-sm font-semibold text-slate-900">{file.fileName}</h3>
+                  <p className="mt-1 text-xs text-slate-700">{file.contentType}</p>
+                  <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-800">
                     {file.extractedText || "No readable text was extracted from this file."}
                   </pre>
                 </article>
@@ -981,12 +981,12 @@ export default function UploadPage() {
         {uploadResult ? (
           <section className="space-y-3 rounded-2xl border border-violet-300/30 bg-violet-400/10 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-violet-100">Sprint 5 AI Analysis</h2>
+              <h2 className="text-lg font-semibold text-violet-900">Sprint 5 AI Analysis</h2>
               <button
                 type="button"
                 onClick={handleRunAiAnalysis}
                 disabled={isAiAnalyzing || !uploadResult}
-                className="inline-flex h-10 items-center justify-center rounded-full bg-violet-300 px-5 text-sm font-semibold text-slate-900 transition hover:bg-violet-200 disabled:cursor-not-allowed disabled:bg-slate-500"
+                className="inline-flex h-10 items-center justify-center rounded-full bg-violet-300 px-5 text-sm font-semibold text-slate-100 transition hover:bg-violet-200 disabled:cursor-not-allowed disabled:bg-slate-500"
               >
                 {isAiAnalyzing ? "Running AI Analysis..." : "Run AI Analysis"}
               </button>
@@ -995,12 +995,12 @@ export default function UploadPage() {
               Generate structured analysis with executive summary, risks, dependencies, and next steps.
             </p>
             {aiError ? (
-              <div className="space-y-2 rounded-xl border border-amber-300/40 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
+              <div className="space-y-2 rounded-xl border border-amber-300/40 bg-amber-300/10 px-4 py-3 text-sm text-amber-900">
                 <p>{aiError}</p>
                 {showAiUpgradeCta ? (
                   <a
                     href="/pricing"
-                    className="inline-flex h-9 items-center justify-center rounded-full bg-amber-200 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-slate-900 transition hover:bg-amber-100"
+                    className="inline-flex h-9 items-center justify-center rounded-full bg-amber-200 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-slate-100 transition hover:bg-amber-100"
                   >
                     Upgrade
                   </a>
@@ -1013,13 +1013,13 @@ export default function UploadPage() {
         {displayAnalysisResult ? (
           <section className="space-y-5 rounded-2xl border border-cyan-300/30 bg-cyan-500/5 p-5 md:p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold text-cyan-100">AI Scope Output</h2>
+              <h2 className="text-xl font-semibold text-cyan-900">AI Scope Output</h2>
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={downloadRequirementMatrix}
                   disabled={!billingState?.limits.canExportReports}
-                  className="inline-flex h-9 items-center justify-center rounded-full border border-cyan-200/70 bg-cyan-300/15 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100 transition hover:bg-cyan-300/25 disabled:cursor-not-allowed disabled:border-slate-500 disabled:text-slate-500"
+                  className="inline-flex h-9 items-center justify-center rounded-full border border-cyan-200/70 bg-cyan-300/15 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-900 transition hover:bg-cyan-300/25 disabled:cursor-not-allowed disabled:border-slate-500 disabled:text-slate-500"
                 >
                   Download Matrix (.xlsx)
                 </button>
@@ -1027,32 +1027,32 @@ export default function UploadPage() {
                   type="button"
                   onClick={downloadExecutiveSummary}
                   disabled={!billingState?.limits.canExportReports}
-                  className="inline-flex h-9 items-center justify-center rounded-full border border-violet-200/70 bg-violet-300/15 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-violet-100 transition hover:bg-violet-300/25 disabled:cursor-not-allowed disabled:border-slate-500 disabled:text-slate-500"
+                  className="inline-flex h-9 items-center justify-center rounded-full border border-violet-200/70 bg-violet-300/15 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-violet-900 transition hover:bg-violet-300/25 disabled:cursor-not-allowed disabled:border-slate-500 disabled:text-slate-500"
                 >
                   Download Executive PDF
                 </button>
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
                     displayAnalysisResult.complexityLevel === "High"
-                      ? "bg-rose-300/20 text-rose-100"
+                      ? "bg-rose-300/20 text-rose-900"
                       : displayAnalysisResult.complexityLevel === "Medium"
-                        ? "bg-amber-300/20 text-amber-100"
-                        : "bg-emerald-300/20 text-emerald-100"
+                        ? "bg-amber-300/20 text-amber-900"
+                        : "bg-emerald-300/20 text-emerald-900"
                   }`}
                 >
                   Complexity: {displayAnalysisResult.complexityLevel}
                 </span>
-                <span className="rounded-full bg-indigo-300/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-100">
+                <span className="rounded-full bg-indigo-300/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-900">
                   {aiAnalysisResult ? "AI Model" : "Fallback: Rule-Based"}
                 </span>
               </div>
             </div>
             {!billingState?.limits.canExportReports ? (
-              <p className="text-xs text-amber-100">Report exports require a Pro or Enterprise plan.</p>
+              <p className="text-xs text-amber-900">Report exports require a Pro or Enterprise plan.</p>
             ) : null}
 
             {exportError ? (
-              <p className="rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
+              <p className="rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-800">
                 {exportError}
               </p>
             ) : null}

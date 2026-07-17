@@ -51,11 +51,11 @@ export default async function PmoReportsPage({ params }: Props) {
 
   return (
     <main className="space-y-5">
-      <header className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-        <p className="text-xs uppercase tracking-[0.24em] text-cyan-200">
-          <Link href="/pmos" className="hover:text-cyan-100">PMOs</Link> / <Link href={`/pmos/${pmo.id}`} className="hover:text-cyan-100">{pmo.name}</Link> / Reports
+      <header className="rounded-3xl border border-slate-200 bg-white p-6">
+        <p className="text-xs uppercase tracking-[0.24em] text-cyan-800">
+          <Link href="/pmos" className="hover:text-cyan-900">PMOs</Link> / <Link href={`/pmos/${pmo.id}`} className="hover:text-cyan-900">{pmo.name}</Link> / Reports
         </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
           <span className="mr-2">{pmo.icon ?? "🏛️"}</span>
           {pmo.name} — Reports
         </h1>
@@ -66,26 +66,26 @@ export default async function PmoReportsPage({ params }: Props) {
 
       <section className="grid gap-3 sm:grid-cols-4">
         {[
-          { label: "Projects", value: projects.length, tone: "text-cyan-200" },
-          { label: "Active", value: projects.filter((p) => p.status === "active").length, tone: "text-emerald-200" },
-          { label: "Open risks", value: openRisks, tone: "text-amber-200" },
-          { label: "Open issues", value: openIssues, tone: "text-rose-200" },
+          { label: "Projects", value: projects.length, tone: "text-cyan-800" },
+          { label: "Active", value: projects.filter((p) => p.status === "active").length, tone: "text-emerald-800" },
+          { label: "Open risks", value: openRisks, tone: "text-amber-800" },
+          { label: "Open issues", value: openIssues, tone: "text-rose-800" },
         ].map((stat) => (
-          <div key={stat.label} className="rounded-2xl border border-white/10 bg-black/25 p-4">
+          <div key={stat.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">{stat.label}</p>
             <p className={`mt-1 text-lg font-semibold ${stat.tone}`}>{stat.value}</p>
           </div>
         ))}
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-        <h2 className="text-lg font-semibold text-white">Executive reporting</h2>
-        <p className="mt-1 text-sm text-slate-400">
+      <section className="rounded-3xl border border-slate-200 bg-white p-5">
+        <h2 className="text-lg font-semibold text-slate-900">Executive reporting</h2>
+        <p className="mt-1 text-sm text-slate-600">
           Full executive report generation lives in the workspace reporting suite; ask this PMO&apos;s chat for a scoped summary at any time.
         </p>
         <div className="mt-3 flex flex-wrap gap-2 text-sm">
-          <Link href={`/pmos/${pmo.id}/chat`} className="rounded-xl border border-cyan-200/45 bg-cyan-400/[0.1] px-3.5 py-2 font-semibold text-cyan-100 hover:bg-cyan-400/[0.16]">Generate scoped report in PMO chat</Link>
-          <Link href="/pmo-executive-reporting" className="rounded-xl border border-white/15 px-3.5 py-2 text-slate-200 hover:border-cyan-300/40">Workspace executive reporting</Link>
+          <Link href={`/pmos/${pmo.id}/chat`} className="rounded-xl border border-cyan-200/45 bg-cyan-400/[0.1] px-3.5 py-2 font-semibold text-cyan-900 hover:bg-cyan-400/[0.16]">Generate scoped report in PMO chat</Link>
+          <Link href="/pmo-executive-reporting" className="rounded-xl border border-slate-200 px-3.5 py-2 text-slate-800 hover:border-cyan-300/40">Workspace executive reporting</Link>
         </div>
       </section>
     </main>

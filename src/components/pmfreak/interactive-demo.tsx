@@ -73,7 +73,7 @@ const commentaryLibrary: Record<EventType, string> = {
 };
 
 const clamp = (n: number) => Math.max(0, Math.min(100, n));
-const controlButtonClass = "rounded-full border border-white/20 px-3 py-1.5";
+const controlButtonClass = "rounded-full border border-slate-200 px-3 py-1.5";
 const scriptButtonClass = "rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1.5 text-xs";
 
 export function InteractiveDemoExperience() {
@@ -130,16 +130,16 @@ export function InteractiveDemoExperience() {
     : "Project baseline loaded. PMFreak is tracking project health and stakeholder alignment.";
 
   return (
-    <main className="min-h-screen bg-[#090c13] px-5 py-8 text-white md:px-10">
+    <main className="min-h-screen bg-[#090c13] px-5 py-8 text-slate-900 md:px-10">
       <div className="mx-auto max-w-7xl space-y-5">
         <section className="rounded-3xl border border-cyan-300/20 bg-gradient-to-br from-[#121926] via-[#111525] to-white p-6 shadow-[0_0_80px_rgba(34,211,238,0.1)]">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">PMFreak interactive demo</p>
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-700">PMFreak interactive demo</p>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-3xl font-black tracking-tight md:text-5xl">A realistic week in a PM&apos;s world</h1>
             <div className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em]">live demo</div>
           </div>
-          <p className="mt-4 max-w-4xl text-sm text-white/75">Live project heartbeat, multi-project instability simulation, explainable interventions, and recovery telemetry for PM teams.</p>
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/20 p-3 text-sm text-cyan-100">
+          <p className="mt-4 max-w-4xl text-sm text-slate-900/75">Live project heartbeat, multi-project instability simulation, explainable interventions, and recovery telemetry for PM teams.</p>
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-cyan-900">
             <span className="mr-2 inline-block size-2 animate-pulse rounded-full bg-cyan-300" />
             {tickerMessages[tickerIndex]} · {latestCommentary}
           </div>
@@ -147,17 +147,17 @@ export function InteractiveDemoExperience() {
 
         <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           {[{ k: "Org Health", v: orgHealth }, { k: "Escalation Probability", v: escalationProbability }, { k: "Pressure Score", v: intelligence.pressure }, { k: "Delivery Confidence", v: clamp(100 - intelligence.executionRisk) }, { k: "Intervention Effectiveness", v: interventionEffectiveness }, { k: "PM Overload", v: clamp(intelligence.drift + 12) }].map((metric) => (
-            <article key={metric.k} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-white/55">{metric.k}</p>
+            <article key={metric.k} className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-slate-900/55">{metric.k}</p>
               <p className="mt-1 text-3xl font-black">{metric.v}</p>
-              <div className="mt-2 h-1.5 rounded-full bg-white/10"><div className="h-1.5 rounded-full bg-cyan-300/80 transition-all duration-700" style={{ width: `${metric.v}%` }} /></div>
+              <div className="mt-2 h-1.5 rounded-full bg-slate-50"><div className="h-1.5 rounded-full bg-cyan-300/80 transition-all duration-700" style={{ width: `${metric.v}%` }} /></div>
             </article>
           ))}
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[1.5fr,1fr]">
-          <article className="rounded-2xl border border-white/10 bg-[#0f1421] p-5">
-            <h2 className="text-lg font-black uppercase tracking-[0.14em] text-white/80">Project timeline replay mode</h2>
+          <article className="rounded-2xl border border-slate-200 bg-[#0f1421] p-5">
+            <h2 className="text-lg font-black uppercase tracking-[0.14em] text-slate-900/80">Project timeline replay mode</h2>
             <div className="mt-3 flex flex-wrap gap-2 text-sm">
               <button onClick={() => setPlaying((p) => !p)} className={controlButtonClass}>{playing ? "Pause" : "Play"}</button>
               <button onClick={() => setDay((d) => Math.max(0, d - 1))} className={controlButtonClass}>Jump -1</button>
@@ -165,50 +165,50 @@ export function InteractiveDemoExperience() {
               {scripts.map((s) => <button key={s.key} onClick={() => { setScript(s); setDay(s.sequence[0] ?? 0); }} className={scriptButtonClass}>{s.label}</button>)}
             </div>
             <ul className="mt-4 space-y-2 text-sm">
-              {activeTimeline.length === 0 ? <li className="text-white/50">Awaiting first project update.</li> : activeTimeline.map((event) => <li key={event.id} className="rounded-lg border border-white/10 bg-white/5 p-3"><span className="font-bold text-cyan-300">Day {event.day}:</span> {event.title}</li>)}
+              {activeTimeline.length === 0 ? <li className="text-slate-900/50">Awaiting first project update.</li> : activeTimeline.map((event) => <li key={event.id} className="rounded-lg border border-slate-200 bg-white p-3"><span className="font-bold text-cyan-700">Day {event.day}:</span> {event.title}</li>)}
             </ul>
           </article>
 
-          <article className="rounded-2xl border border-white/10 bg-[#0f1421] p-5">
+          <article className="rounded-2xl border border-slate-200 bg-[#0f1421] p-5">
             <h2 className="text-lg font-black">Why PMFreak suggested action</h2>
-            <div className="mt-3 space-y-2 text-sm text-white/80">
+            <div className="mt-3 space-y-2 text-sm text-slate-900/80">
               <p><strong>Confidence:</strong> 92% · Based on 14 project signals.</p>
               <p><strong>Rationale:</strong> Delayed responses + overloaded PM + cross-team blockers.</p>
               <p><strong>Risk summary:</strong> Executive response latency exceeded tolerance band by 19 hours.</p>
               <p><strong>Signals used:</strong> standup cadence, unresolved blocker count, stakeholder response lag, confidence decay.</p>
             </div>
-            <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/10 p-3 text-xs text-amber-50">High-confidence suggestion: protect the critical path and rebalance team workload.</div>
+            <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/10 p-3 text-xs text-amber-950">High-confidence suggestion: protect the critical path and rebalance team workload.</div>
           </article>
         </section>
 
         <section className="grid gap-4 lg:grid-cols-2">
-          <article className={`rounded-2xl border border-white/10 p-5 ${executiveMode ? "bg-gradient-to-b from-[#14203a] to-[#101622]" : "bg-[#101622]"}`}>
-            <div className="flex items-center justify-between"><h3 className="text-xl font-black">Prepare Update Mode</h3><button onClick={() => setExecutiveMode((v) => !v)} className="rounded-full border border-white/20 px-3 py-1 text-xs">{executiveMode ? "Exit" : "Enter"}</button></div>
-            <p className="mt-2 text-sm text-white/75">A concise leadership-ready view with project health, risks, and next steps.</p>
+          <article className={`rounded-2xl border border-slate-200 p-5 ${executiveMode ? "bg-gradient-to-b from-[#14203a] to-[#101622]" : "bg-[#101622]"}`}>
+            <div className="flex items-center justify-between"><h3 className="text-xl font-black">Prepare Update Mode</h3><button onClick={() => setExecutiveMode((v) => !v)} className="rounded-full border border-slate-200 px-3 py-1 text-xs">{executiveMode ? "Exit" : "Enter"}</button></div>
+            <p className="mt-2 text-sm text-slate-900/75">A concise leadership-ready view with project health, risks, and next steps.</p>
           </article>
-          <article className={`rounded-2xl border border-white/10 p-5 ${warRoomMode ? "bg-gradient-to-b from-[#2a161f] to-[#131720]" : "bg-[#101622]"}`}>
-            <div className="flex items-center justify-between"><h3 className="text-xl font-black">Team Coordination Mode</h3><button onClick={() => setWarRoomMode((v) => !v)} className="rounded-full border border-white/20 px-3 py-1 text-xs">{warRoomMode ? "Exit" : "Enter"}</button></div>
-            <p className="mt-2 text-sm text-white/75">Focused view for blockers, owners, and follow-through during delivery pressure.</p>
+          <article className={`rounded-2xl border border-slate-200 p-5 ${warRoomMode ? "bg-gradient-to-b from-[#2a161f] to-[#131720]" : "bg-[#101622]"}`}>
+            <div className="flex items-center justify-between"><h3 className="text-xl font-black">Team Coordination Mode</h3><button onClick={() => setWarRoomMode((v) => !v)} className="rounded-full border border-slate-200 px-3 py-1 text-xs">{warRoomMode ? "Exit" : "Enter"}</button></div>
+            <p className="mt-2 text-sm text-slate-900/75">Focused view for blockers, owners, and follow-through during delivery pressure.</p>
           </article>
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {projects.map((project, idx) => (
-            <article key={project} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <article key={project} className="rounded-2xl border border-slate-200 bg-white p-4">
               <h4 className="font-black">{project}</h4>
-              <p className="mt-2 text-xs uppercase tracking-[0.14em] text-white/55">Project pressure {clamp(intelligence.pressure - idx * 6)}</p>
-              <p className="mt-2 text-sm text-white/75">Resource collision with {(projects[(idx + 1) % projects.length])}; leadership priority conflict detected.</p>
+              <p className="mt-2 text-xs uppercase tracking-[0.14em] text-slate-900/55">Project pressure {clamp(intelligence.pressure - idx * 6)}</p>
+              <p className="mt-2 text-sm text-slate-900/75">Resource collision with {(projects[(idx + 1) % projects.length])}; leadership priority conflict detected.</p>
             </article>
           ))}
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-[#0f1421] p-6">
+        <section className="rounded-3xl border border-slate-200 bg-[#0f1421] p-6">
           <h2 className="text-xl font-black">Project workflow integrations</h2>
-          <p className="mt-2 text-sm text-white/75">Live integrations · Teams/Slack escalation ingestion · Jira telemetry · Portfolio intelligence · Autonomous AI PM agents.</p>
+          <p className="mt-2 text-sm text-slate-900/75">Live integrations · Teams/Slack escalation ingestion · Jira telemetry · Portfolio intelligence · Autonomous AI PM agents.</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Link className="rounded-full border border-white/25 px-4 py-2 font-bold" href="/signup">Start Free</Link>
-            <Link className="rounded-full border border-white/25 px-4 py-2 font-bold" href="/pricing">See Pricing</Link>
-            <Link className="rounded-full border border-white/25 px-4 py-2 font-bold" href="/login">Continue</Link>
+            <Link className="rounded-full border border-slate-200 px-4 py-2 font-bold" href="/signup">Start Free</Link>
+            <Link className="rounded-full border border-slate-200 px-4 py-2 font-bold" href="/pricing">See Pricing</Link>
+            <Link className="rounded-full border border-slate-200 px-4 py-2 font-bold" href="/login">Continue</Link>
           </div>
         </section>
       </div>

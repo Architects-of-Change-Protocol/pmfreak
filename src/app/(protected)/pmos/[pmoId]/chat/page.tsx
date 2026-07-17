@@ -25,11 +25,11 @@ export default async function PmoChatPage({ params }: Props) {
 
   return (
     <main className="space-y-5">
-      <header className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-        <p className="text-xs uppercase tracking-[0.24em] text-cyan-200">
-          <Link href="/pmos" className="hover:text-cyan-100">PMOs</Link> / <Link href={`/pmos/${pmo.id}`} className="hover:text-cyan-100">{pmo.name}</Link> / Chat
+      <header className="rounded-3xl border border-slate-200 bg-white p-6">
+        <p className="text-xs uppercase tracking-[0.24em] text-cyan-800">
+          <Link href="/pmos" className="hover:text-cyan-900">PMOs</Link> / <Link href={`/pmos/${pmo.id}`} className="hover:text-cyan-900">{pmo.name}</Link> / Chat
         </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
           <span className="mr-2">{pmo.icon ?? "🏛️"}</span>
           {pmo.name} — Chat
         </h1>

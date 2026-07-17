@@ -15,10 +15,10 @@ export function RuntimePersistenceStatus({
 }) {
   if (!betaMode) return null;
   return (
-    <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-slate-300">
-      <p>Runtime sync: <span className="font-medium text-slate-100">{syncStatus}</span></p>
-      <p>Hydration: <span className="font-medium text-slate-100">{integrity}</span></p>
-      <p>Checkpoint: <span className="font-medium text-slate-100">{lastCheckpoint ? new Date(lastCheckpoint).toLocaleString() : "pending"}</span></p>
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-700">
+      <p>Runtime sync: <span className="font-medium text-slate-900">{syncStatus}</span></p>
+      <p>Hydration: <span className="font-medium text-slate-900">{integrity}</span></p>
+      <p>Checkpoint: <span className="font-medium text-slate-900">{lastCheckpoint ? new Date(lastCheckpoint).toLocaleString() : "pending"}</span></p>
     </div>
   );
 }

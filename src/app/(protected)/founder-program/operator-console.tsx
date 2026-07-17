@@ -5,9 +5,9 @@ import { useCallback, useEffect, useState } from "react";
 type Json = Record<string, unknown>;
 
 const inputClass =
-  "rounded-lg border border-slate-600 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none";
-const buttonClass = "rounded-full border border-cyan-300/50 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-300/10 disabled:opacity-50";
-const dangerButtonClass = "rounded-full border border-rose-300/50 px-3 py-1.5 text-xs text-rose-200 hover:bg-rose-300/10 disabled:opacity-50";
+  "rounded-lg border border-slate-600 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none";
+const buttonClass = "rounded-full border border-cyan-300/50 px-3 py-1.5 text-xs text-cyan-800 hover:bg-cyan-300/10 disabled:opacity-50";
+const dangerButtonClass = "rounded-full border border-rose-300/50 px-3 py-1.5 text-xs text-rose-800 hover:bg-rose-300/10 disabled:opacity-50";
 
 async function api(path: string, init?: RequestInit): Promise<{ ok: boolean; data: Json }> {
   const response = await fetch(path, {
@@ -20,9 +20,9 @@ async function api(path: string, init?: RequestInit): Promise<{ ok: boolean; dat
 
 function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-3">
+    <div className="rounded-xl border border-slate-700 bg-slate-50 p-3">
       <p className="text-xs text-slate-500">{label}</p>
-      <p className="text-lg font-semibold text-slate-100">{value}</p>
+      <p className="text-lg font-semibold text-slate-900">{value}</p>
     </div>
   );
 }
@@ -130,9 +130,9 @@ export function FounderProgramOperatorConsole() {
 
   return (
     <div className="space-y-8">
-      {message ? <p role="status" className="rounded-lg border border-slate-600 bg-slate-800/70 px-3 py-2 text-sm text-slate-200">{message}</p> : null}
+      {message ? <p role="status" className="rounded-lg border border-slate-600 bg-slate-800/70 px-3 py-2 text-sm text-slate-800">{message}</p> : null}
       {manualLink ? (
-        <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-100">
+        <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-900">
           <p className="font-medium">Invite link (shown once — deliver it manually if email is not configured):</p>
           <code className="break-all text-xs">{manualLink}</code>
           <button className={`${buttonClass} ml-2`} onClick={() => setManualLink(null)}>dismiss</button>
@@ -140,7 +140,7 @@ export function FounderProgramOperatorConsole() {
       ) : null}
 
       <section aria-labelledby="fp-overview">
-        <h2 id="fp-overview" className="mb-3 text-lg font-medium text-slate-100">Overview</h2>
+        <h2 id="fp-overview" className="mb-3 text-lg font-medium text-slate-900">Overview</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Metric label="Program state" value={String(dashboard?.programState ?? "loading…")} />
           <Metric label="Approved capacity" value={`${String((capacitySummary as Json).approvedUsed ?? "–")} / ${String((capacitySummary as Json).approvedLimit ?? "–")}`} />
@@ -160,7 +160,7 @@ export function FounderProgramOperatorConsole() {
       </section>
 
       <section aria-labelledby="fp-invite">
-        <h2 id="fp-invite" className="mb-3 text-lg font-medium text-slate-100">Invite a participant</h2>
+        <h2 id="fp-invite" className="mb-3 text-lg font-medium text-slate-900">Invite a participant</h2>
         <form onSubmit={createInvitation} className="flex flex-wrap items-end gap-3">
           <input name="email" type="email" required placeholder="email@example.com" className={inputClass} aria-label="Invitee email" />
           <select name="archetype" required className={inputClass} aria-label="Archetype">
@@ -169,7 +169,7 @@ export function FounderProgramOperatorConsole() {
             ))}
           </select>
           <input name="nominationNote" placeholder="Internal note (optional)" className={inputClass} aria-label="Internal nomination note" />
-          <label className="flex items-center gap-2 text-sm text-slate-300">
+          <label className="flex items-center gap-2 text-sm text-slate-700">
             <input type="checkbox" name="send" defaultChecked /> send email
           </label>
           <button type="submit" disabled={busy} className={buttonClass}>Create invitation</button>
@@ -180,7 +180,7 @@ export function FounderProgramOperatorConsole() {
             <thead className="text-xs uppercase text-slate-500">
               <tr><th className="py-2">Email</th><th>Archetype</th><th>Status</th><th>Participant state</th><th>Expires</th><th>Actions</th></tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 text-slate-300">
+            <tbody className="divide-y divide-slate-800 text-slate-700">
               {invitations.map((inv) => {
                 const participant = inv.participant as Json | null;
                 return (
@@ -219,13 +219,13 @@ export function FounderProgramOperatorConsole() {
       </section>
 
       <section aria-labelledby="fp-review">
-        <h2 id="fp-review" className="mb-3 text-lg font-medium text-slate-100">Participants &amp; review queue</h2>
+        <h2 id="fp-review" className="mb-3 text-lg font-medium text-slate-900">Participants &amp; review queue</h2>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="text-xs uppercase text-slate-500">
               <tr><th className="py-2">Email</th><th>State</th><th>Archetype</th><th>Agreement</th><th>Actions</th></tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 text-slate-300">
+            <tbody className="divide-y divide-slate-800 text-slate-700">
               {participants.map((p) => {
                 const state = String(p.lifecycle_state);
                 return (
@@ -273,7 +273,7 @@ export function FounderProgramOperatorConsole() {
       </section>
 
       <section aria-labelledby="fp-feedback">
-        <h2 id="fp-feedback" className="mb-3 text-lg font-medium text-slate-100">Feedback queue</h2>
+        <h2 id="fp-feedback" className="mb-3 text-lg font-medium text-slate-900">Feedback queue</h2>
         <ul className="space-y-2 text-sm">
           {feedback.map((f) => (
             <li key={String(f.id)} className="rounded-lg border border-slate-700/60 p-3">
@@ -287,7 +287,7 @@ export function FounderProgramOperatorConsole() {
                   ))}
                 </span>
               </div>
-              <p className="mt-1 text-slate-300">{String(f.body)}</p>
+              <p className="mt-1 text-slate-700">{String(f.body)}</p>
             </li>
           ))}
           {feedback.length === 0 ? <li className="text-slate-500">No feedback yet.</li> : null}
@@ -295,8 +295,8 @@ export function FounderProgramOperatorConsole() {
       </section>
 
       <section aria-labelledby="fp-decision">
-        <h2 id="fp-decision" className="mb-3 text-lg font-medium text-slate-100">Program decision gate</h2>
-        <p className="mb-3 text-sm text-slate-400">
+        <h2 id="fp-decision" className="mb-3 text-lg font-medium text-slate-900">Program decision gate</h2>
+        <p className="mb-3 text-sm text-slate-600">
           Recording a decision is a human act: participant and activation counts are computed from real records at
           ratification time. Records are append-only.
         </p>

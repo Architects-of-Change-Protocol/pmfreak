@@ -68,18 +68,57 @@ test("command-center page renders CommandCenterEmptyState when there are no proj
 });
 
 // ─── 6. Runtime shell markers prove which shell actually rendered ───────────
-test("light command-center shells carry the pmfreak-light-command-center marker", () => {
+test("light command-center feature layout carries the pmfreak-light-command-center marker", () => {
   assert.match(commandCenterLayout, /data-shell="pmfreak-light-command-center"/);
   assert.match(commandCenterEmptyState, /data-shell="pmfreak-light-command-center"/);
-  assert.match(operationalShell, /data-shell=\{shellMarker\}/);
 });
 
 test("light workspace-setup shell carries the pmfreak-light-workspace-setup marker", () => {
   assert.match(workspaceSetupPage, /data-shell="pmfreak-light-workspace-setup"/);
 });
 
-test("legacy OperationalShell root carries the pmfreak-legacy-operational-shell marker", () => {
-  assert.match(operationalShell, /data-shell="pmfreak-legacy-operational-shell"/);
+// ─── 8. Single unified authenticated shell (post Workspace→PMO→Project fix) ──
+// The Workspace→PMO→Project refactor (#526/#527) added /workspaces, /pmos,
+// /pmos/[pmoId], /projects/[id] and /chat but never added them to the old
+// command-center/workspace-setup allowlist in (protected)/layout.tsx, so
+// every one of those new routes fell through to the legacy dark
+// OperationalShell branch -- the exact regression this test file now guards
+// against. OperationalShell is no longer "legacy": it is the one shell for
+// every onboarding-complete authenticated route except the /workspace/setup
+// wizard (which has no workspace/PMO/project data yet to build nav from).
+test("OperationalShell root carries the unified pmfreak-shell marker, not a legacy one", () => {
+  assert.match(operationalShell, /data-shell="pmfreak-shell"/);
+  assert.doesNotMatch(operationalShell, /pmfreak-legacy-operational-shell/);
+});
+
+test("OperationalShell no longer special-cases /command-center into a bare bypass shell", () => {
+  assert.doesNotMatch(operationalShell, /pathname\.startsWith\("\/command-center"\)/);
+});
+
+test("(protected)/layout.tsx no longer special-cases /command-center for onboarding-complete users", () => {
+  const protectedLayout = read("src/app/(protected)/layout.tsx");
+  const postOnboardingSection = protectedLayout.slice(
+    protectedLayout.lastIndexOf('if (currentPath.startsWith("/workspace/setup')
+  );
+  assert.doesNotMatch(postOnboardingSection, /currentPath\.startsWith\("\/command-center"\)/);
+  assert.match(postOnboardingSection, /<OperationalShell/);
+});
+
+test("the Workspace/PMO/Project routes added by the refactor render through the unified shell, not a bare div", () => {
+  const protectedLayout = read("src/app/(protected)/layout.tsx");
+  // Only the onboarding wizard gets a bare div for onboarding-complete users;
+  // every other path (including /workspaces, /pmos, /projects, /chat, /dashboard)
+  // falls through to <OperationalShell>. Anchor on the *last* occurrence of
+  // the workspace/setup bare-div branch, which only exists once we're past
+  // the onboarding-incomplete block (that block legitimately still special-
+  // cases /command-center for users who somehow reach it before completing
+  // onboarding, which is out of scope for this regression).
+  const postOnboardingSection = protectedLayout.slice(
+    protectedLayout.lastIndexOf('if (currentPath.startsWith("/workspace/setup')
+  );
+  assert.doesNotMatch(postOnboardingSection, /currentPath\.startsWith\("\/command-center"\)/);
+  const bareDivBranches = [...postOnboardingSection.matchAll(/currentPath\.startsWith\("([^"]+)"\)/g)].map((m) => m[1]);
+  assert.deepEqual(bareDivBranches, ["/workspace/setup"]);
 });
 
 // ─── 7. Safe diagnostic endpoint ─────────────────────────────────────────────

@@ -102,15 +102,15 @@ export function ContextChatPanel(props: Props) {
   }, [props, sending]);
 
   return (
-    <section className="flex h-full min-h-[28rem] flex-col rounded-3xl border border-white/10 bg-white/[0.03]">
-      <header className="border-b border-white/10 px-5 py-4">
+    <section className="flex h-full min-h-[28rem] flex-col rounded-3xl border border-slate-200 bg-white">
+      <header className="border-b border-slate-200 px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-lg font-semibold text-white">{title}</h2>
-            <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>
+            <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+            <p className="mt-0.5 text-xs text-slate-600">{subtitle}</p>
           </div>
           {contextId ? (
-            <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-cyan-100" title="Isolated context — memory never crosses this boundary">
+            <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-cyan-900" title="Isolated context — memory never crosses this boundary">
               Context {contextId}
             </span>
           ) : null}
@@ -119,10 +119,10 @@ export function ContextChatPanel(props: Props) {
 
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
         {loading ? (
-          <p className="text-sm text-slate-400">Loading conversation…</p>
+          <p className="text-sm text-slate-600">Loading conversation…</p>
         ) : messages.length === 0 ? (
           <div className="space-y-3">
-            <p className="text-sm text-slate-400">No messages yet in this context. This conversation is private to this {props.contextType}.</p>
+            <p className="text-sm text-slate-600">No messages yet in this context. This conversation is private to this {props.contextType}.</p>
             {suggestions && suggestions.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {suggestions.map((s) => (
@@ -130,7 +130,7 @@ export function ContextChatPanel(props: Props) {
                     key={s}
                     type="button"
                     onClick={() => void send(s)}
-                    className="rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-200 transition hover:border-cyan-300/40 hover:text-cyan-100"
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 transition hover:border-cyan-300/40 hover:text-cyan-900"
                   >
                     {s}
                   </button>
@@ -144,8 +144,8 @@ export function ContextChatPanel(props: Props) {
               <div
                 className={`max-w-[85%] whitespace-pre-wrap rounded-2xl border px-3.5 py-2.5 text-sm leading-relaxed ${
                   message.role === "user"
-                    ? "border-cyan-300/25 bg-cyan-400/10 text-cyan-50"
-                    : "border-white/10 bg-black/30 text-slate-200"
+                    ? "border-cyan-300/25 bg-cyan-400/10 text-cyan-950"
+                    : "border-slate-200 bg-slate-50 text-slate-800"
                 }`}
               >
                 {message.content}
@@ -154,11 +154,11 @@ export function ContextChatPanel(props: Props) {
           ))
         )}
         {sending ? <p className="text-xs text-slate-500">Analyzing this context…</p> : null}
-        {error ? <p className="text-xs text-rose-300">{error}</p> : null}
+        {error ? <p className="text-xs text-rose-700">{error}</p> : null}
       </div>
 
       <form
-        className="flex items-end gap-2 border-t border-white/10 px-5 py-4"
+        className="flex items-end gap-2 border-t border-slate-200 px-5 py-4"
         onSubmit={(event) => {
           event.preventDefault();
           void send(draft);
@@ -175,12 +175,12 @@ export function ContextChatPanel(props: Props) {
           }}
           rows={2}
           placeholder={placeholder ?? "Ask about this context…"}
-          className="block w-full resize-none rounded-xl border border-white/15 bg-slate-950/75 px-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300/70"
+          className="block w-full resize-none rounded-xl border border-slate-200 bg-[#FCFBF9]/75 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300/70"
         />
         <button
           type="submit"
           disabled={sending || !draft.trim()}
-          className="rounded-xl border border-cyan-200/45 bg-cyan-400/[0.1] px-4 py-2.5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.16] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-xl border border-cyan-200/45 bg-cyan-400/[0.1] px-4 py-2.5 text-sm font-semibold text-cyan-900 transition hover:bg-cyan-400/[0.16] disabled:cursor-not-allowed disabled:opacity-50"
         >
           Send
         </button>

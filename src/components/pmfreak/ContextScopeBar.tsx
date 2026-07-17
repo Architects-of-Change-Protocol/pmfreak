@@ -42,11 +42,11 @@ export function ContextScopeBar({
   }, []);
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-slate-900/50 px-4 py-3 backdrop-blur-xl md:px-5 md:py-4">
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 backdrop-blur-xl md:px-5 md:py-4">
       <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-3">
         {/* Left: scope selector */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-600">Scope</span>
+          <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">Scope</span>
           <select
             value={projectId}
             onChange={(e) => {
@@ -63,15 +63,15 @@ export function ContextScopeBar({
               router.push(`${pathname}${query ? `?${query}` : ""}`);
             }}
             disabled={loading}
-            className="rounded-lg border border-white/[0.12] bg-slate-800/80 px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-cyan-500/40"
+            className="rounded-lg border border-slate-200 bg-slate-800/80 px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-cyan-500/40"
           >
             <option value="">Portfolio scope</option>
             {projects.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
-          {!loading && <span className="hidden text-xs text-zinc-600 sm:inline">{scopeLabel}</span>}
-          {loading && <span className="text-xs text-zinc-600">Loading…</span>}
+          {!loading && <span className="hidden text-xs text-zinc-400 sm:inline">{scopeLabel}</span>}
+          {loading && <span className="text-xs text-zinc-400">Loading…</span>}
         </div>
 
         {/* Right: AI status + clock */}
@@ -82,7 +82,7 @@ export function ContextScopeBar({
             <LiveSignalPill label="Agents Standby" variant="standby" />
           )}
           {date && time && (
-            <span className="hidden text-[11px] tabular-nums text-zinc-600 md:inline">
+            <span className="hidden text-[11px] tabular-nums text-zinc-400 md:inline">
               {date} · {time}
             </span>
           )}
@@ -94,7 +94,7 @@ export function ContextScopeBar({
       {!loading && !error && !hasProjects && (
         <p className="mt-2 text-xs text-cyan-300/70">
           No operational contexts yet —{" "}
-          <Link href="/command-center" className="underline underline-offset-2 hover:text-cyan-200">
+          <Link href="/command-center" className="underline underline-offset-2 hover:text-cyan-800">
             activate one
           </Link>{" "}
           to unlock full AI telemetry.
@@ -105,10 +105,10 @@ export function ContextScopeBar({
       {hasProjects && (
         <div className="mt-2.5 flex flex-wrap items-center gap-1">
           {OPERATIONAL_FLOW.map((step, idx) => (
-            <span key={step} className="text-[10px] text-zinc-700">
+            <span key={step} className="text-[10px] text-zinc-300">
               {step}
               {idx < OPERATIONAL_FLOW.length - 1 && (
-                <span className="ml-1 text-zinc-800">→</span>
+                <span className="ml-1 text-zinc-200">→</span>
               )}
             </span>
           ))}

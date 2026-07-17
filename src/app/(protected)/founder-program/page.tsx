@@ -19,12 +19,12 @@ export default async function FounderProgramOperatorPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-widest text-cyan-300">Internal · Founder Program operations</p>
-        <h1 className="text-2xl font-semibold text-slate-100">
+        <p className="text-xs uppercase tracking-widest text-cyan-700">Internal · Founder Program operations</p>
+        <h1 className="text-2xl font-semibold text-slate-900">
           {config.enabled ? config.settings.displayName : "Founder Program"}
         </h1>
         {!config.enabled ? (
-          <div className="mt-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-100">
+          <div className="mt-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-900">
             The program is currently <strong>disabled</strong> (reason: {config.disabledReason}). Participant surfaces and
             APIs answer with controlled not-found responses. See docs/founder-program/14-launch-checklist.md for the
             enablement procedure.

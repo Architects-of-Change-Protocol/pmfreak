@@ -15,7 +15,7 @@ import {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const input =
-  "block w-full rounded-xl border border-white/[0.12] bg-black/40 px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400/60";
+  "block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400/60";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,8 +47,8 @@ function DomainFocusPicker({
   onChange: (v: PmoDomainFocus[]) => void;
 }) {
   return (
-    <div className="mt-2 rounded-xl border border-white/[0.08] bg-black/30 p-3">
-      <p className="mb-2 text-[9px] uppercase tracking-[0.2em] text-zinc-600">
+    <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <p className="mb-2 text-[9px] uppercase tracking-[0.2em] text-zinc-400">
         Domain Focus — select all that apply
       </p>
       <div className="flex flex-wrap gap-1.5">
@@ -65,8 +65,8 @@ function DomainFocusPicker({
               }}
               className={`rounded-lg border px-2.5 py-1 text-[11px] transition-colors ${
                 active
-                  ? "border-indigo-400/40 bg-indigo-400/10 text-indigo-200"
-                  : "border-white/[0.07] text-zinc-600 hover:border-white/[0.15] hover:text-zinc-400"
+                  ? "border-indigo-400/40 bg-indigo-400/10 text-indigo-800"
+                  : "border-slate-200 text-zinc-400 hover:border-slate-200 hover:text-zinc-600"
               }`}
             >
               {PMO_DOMAIN_FOCUS_META[d].label}
@@ -96,14 +96,14 @@ function InviteRowUI({
   const roleMeta = PMO_ROLE_META[row.role];
 
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.015] p-4 transition hover:border-white/[0.12]">
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-200">
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="grid gap-3 sm:grid-cols-2">
             {/* Email */}
             <div>
-              <label className="mb-1 block text-[10px] uppercase tracking-[0.15em] text-zinc-600">
-                Email {index === 0 && <span className="text-pink-400 normal-case">*</span>}
+              <label className="mb-1 block text-[10px] uppercase tracking-[0.15em] text-zinc-400">
+                Email {index === 0 && <span className="text-pink-600 normal-case">*</span>}
               </label>
               <input
                 type="email"
@@ -116,13 +116,13 @@ function InviteRowUI({
 
             {/* Role */}
             <div>
-              <label className="mb-1 block text-[10px] uppercase tracking-[0.15em] text-zinc-600">
+              <label className="mb-1 block text-[10px] uppercase tracking-[0.15em] text-zinc-400">
                 Role
               </label>
               <select
                 value={row.role}
                 onChange={(e) => onUpdate({ role: e.target.value as PmoTeamRole })}
-                className={`${input} [&>option]:bg-slate-950`}
+                className={`${input} [&>option]:bg-[#FCFBF9]`}
               >
                 {PMO_ROLES_ORDERED.map((r) => (
                   <option key={r} value={r}>
@@ -134,7 +134,7 @@ function InviteRowUI({
           </div>
 
           {/* Role description */}
-          <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-700">
+          <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-300">
             {roleMeta.description}
           </p>
 
@@ -142,7 +142,7 @@ function InviteRowUI({
           <button
             type="button"
             onClick={() => onUpdate({ domainPickerOpen: !row.domainPickerOpen })}
-            className="mt-2 flex items-center gap-1.5 text-[11px] text-zinc-600 transition hover:text-zinc-400"
+            className="mt-2 flex items-center gap-1.5 text-[11px] text-zinc-400 transition hover:text-zinc-600"
           >
             <span
               className={`inline-block transition-transform ${row.domainPickerOpen ? "rotate-90" : ""}`}
@@ -168,7 +168,7 @@ function InviteRowUI({
             type="button"
             onClick={onRemove}
             aria-label="Remove invite"
-            className="mt-0.5 shrink-0 rounded-lg border border-white/[0.06] p-1.5 text-zinc-700 transition hover:border-red-400/30 hover:text-red-400"
+            className="mt-0.5 shrink-0 rounded-lg border border-slate-200 p-1.5 text-zinc-300 transition hover:border-red-400/30 hover:text-red-600"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -244,7 +244,7 @@ export function InviteTeamClient({ pmoName }: { pmoName: string }) {
       <div className="flex items-center gap-3 rounded-xl border border-cyan-300/10 bg-cyan-400/[0.03] px-4 py-3">
         <span className="inline-flex h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.9)]" />
         <p className="text-xs text-zinc-500">
-          <span className="text-cyan-300">{pmoName}</span> brain is online. Assembling the human operating layer.
+          <span className="text-cyan-700">{pmoName}</span> brain is online. Assembling the human operating layer.
         </p>
       </div>
 
@@ -266,7 +266,7 @@ export function InviteTeamClient({ pmoName }: { pmoName: string }) {
       <button
         type="button"
         onClick={addRow}
-        className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.01] px-4 py-2.5 text-sm text-zinc-600 transition hover:border-white/[0.14] hover:text-zinc-300"
+        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-zinc-400 transition hover:border-slate-200 hover:text-zinc-700"
       >
         <span className="text-base leading-none">+</span> Add another person
       </button>
@@ -276,8 +276,8 @@ export function InviteTeamClient({ pmoName }: { pmoName: string }) {
         <div
           className={`rounded-xl border px-4 py-3 text-sm ${
             result.ok
-              ? "border-cyan-400/25 bg-cyan-400/[0.05] text-cyan-200"
-              : "border-red-400/25 bg-red-400/[0.05] text-red-300"
+              ? "border-cyan-400/25 bg-cyan-400/[0.05] text-cyan-800"
+              : "border-red-400/25 bg-red-400/[0.05] text-red-700"
           }`}
         >
           {result.message}
@@ -291,11 +291,11 @@ export function InviteTeamClient({ pmoName }: { pmoName: string }) {
           type="button"
           onClick={handleSendInvites}
           disabled={submitting}
-          className="relative overflow-hidden rounded-2xl border border-cyan-300/30 bg-gradient-to-r from-cyan-950/60 via-indigo-950/60 to-cyan-950/60 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_0_40px_rgba(34,211,238,0.10)] transition-all hover:shadow-[0_0_60px_rgba(34,211,238,0.18)] disabled:opacity-60"
+          className="relative overflow-hidden rounded-2xl border border-cyan-300/30 bg-gradient-to-r from-cyan-950/60 via-indigo-950/60 to-cyan-950/60 px-6 py-3.5 text-sm font-semibold text-slate-900 shadow-[0_0_40px_rgba(34,211,238,0.10)] transition-all hover:shadow-[0_0_60px_rgba(34,211,238,0.18)] disabled:opacity-60"
         >
           {submitting ? (
             <span className="flex items-center justify-center gap-2.5">
-              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/20 border-t-cyan-400" />
+              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-200 border-t-cyan-400" />
               Saving invites…
             </span>
           ) : (
@@ -308,14 +308,14 @@ export function InviteTeamClient({ pmoName }: { pmoName: string }) {
           <button
             type="button"
             onClick={() => router.push("/command-center?from=onboarding&invited=0")}
-            className="rounded-xl border border-white/[0.09] px-4 py-2.5 text-sm text-zinc-500 transition hover:border-white/[0.18] hover:text-zinc-200"
+            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-zinc-500 transition hover:border-slate-200 hover:text-zinc-800"
           >
             Skip for now
           </button>
           <button
             type="button"
             onClick={() => router.push("/command-center?from=onboarding&invited=0")}
-            className="rounded-xl border border-indigo-300/20 bg-indigo-400/[0.06] px-4 py-2.5 text-sm text-indigo-300 transition hover:bg-indigo-400/[0.12]"
+            className="rounded-xl border border-indigo-300/20 bg-indigo-400/[0.06] px-4 py-2.5 text-sm text-indigo-700 transition hover:bg-indigo-400/[0.12]"
           >
             Continue to Command Center
           </button>
@@ -323,23 +323,23 @@ export function InviteTeamClient({ pmoName }: { pmoName: string }) {
       </div>
 
       {/* Role legend */}
-      <details className="group rounded-xl border border-white/[0.05] bg-black/20">
-        <summary className="cursor-pointer px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-zinc-700 transition hover:text-zinc-500 list-none flex items-center gap-2">
+      <details className="group rounded-xl border border-slate-200 bg-slate-50">
+        <summary className="cursor-pointer px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-zinc-300 transition hover:text-zinc-500 list-none flex items-center gap-2">
           <span className="transition-transform group-open:rotate-90">›</span>
           Role reference guide
         </summary>
-        <div className="border-t border-white/[0.05] px-4 py-4">
+        <div className="border-t border-slate-200 px-4 py-4">
           <div className="grid gap-2 sm:grid-cols-2">
             {PMO_ROLES_ORDERED.map((r) => {
               const meta = PMO_ROLE_META[r];
               return (
                 <div key={r} className="flex items-start gap-2.5">
-                  <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded bg-white/[0.04] text-[9px] font-bold text-zinc-600">
+                  <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded bg-white text-[9px] font-bold text-zinc-400">
                     {meta.authorityLevel}
                   </span>
                   <div>
-                    <p className="text-xs font-medium text-zinc-400">{meta.label}</p>
-                    <p className="text-[11px] leading-relaxed text-zinc-700">{meta.description}</p>
+                    <p className="text-xs font-medium text-zinc-600">{meta.label}</p>
+                    <p className="text-[11px] leading-relaxed text-zinc-300">{meta.description}</p>
                   </div>
                 </div>
               );

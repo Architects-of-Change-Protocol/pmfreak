@@ -14,13 +14,13 @@ export default function PilotAgreementPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
       <header className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">Closed Pilot</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-cyan-700">Closed Pilot</p>
         <h1 className="text-2xl font-semibold">Pilot Agreement</h1>
-        <p className="text-sm text-slate-400">Version {PILOT_AGREEMENT_VERSION}</p>
+        <p className="text-sm text-slate-600">Version {PILOT_AGREEMENT_VERSION}</p>
       </header>
 
       {PILOT_AGREEMENT_IS_PLACEHOLDER && (
-        <div className="rounded-2xl border border-yellow-400/40 bg-yellow-400/10 p-4 text-sm text-yellow-200" data-testid="pilot-agreement-placeholder-banner">
+        <div className="rounded-2xl border border-yellow-400/40 bg-yellow-400/10 p-4 text-sm text-yellow-800" data-testid="pilot-agreement-placeholder-banner">
           <p className="font-semibold">Draft structure — not a legal document.</p>
           <p className="mt-1">
             This page is the technical shell for the pilot agreement. The content below is placeholder
@@ -32,9 +32,9 @@ export default function PilotAgreementPage() {
 
       <div className="space-y-4">
         {PILOT_AGREEMENT_SECTIONS.map((section) => (
-          <section key={section.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <h2 className="text-sm font-semibold text-slate-100">{section.title}</h2>
-            <p className="mt-2 text-sm italic text-slate-400">{section.placeholder}</p>
+          <section key={section.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+            <h2 className="text-sm font-semibold text-slate-900">{section.title}</h2>
+            <p className="mt-2 text-sm italic text-slate-600">{section.placeholder}</p>
           </section>
         ))}
       </div>

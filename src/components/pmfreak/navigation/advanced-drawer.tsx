@@ -15,7 +15,7 @@ export function AdvancedDrawer({ items, pathname, navHref }: AdvancedDrawerProps
   const hasActiveItem = useMemo(() => items.some((item) => pathname.startsWith(item.href)), [items, pathname]);
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.01]">
+    <div className="rounded-xl border border-slate-200 bg-white">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -36,7 +36,7 @@ export function AdvancedDrawer({ items, pathname, navHref }: AdvancedDrawerProps
                 className={`block rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
                   isActive
                     ? `${item.active} border-opacity-100`
-                    : `border-white/[0.05] bg-white/[0.01] ${item.idle} hover:border-white/[0.12]`
+                    : `border-slate-200 bg-white ${item.idle} hover:border-slate-200`
                 }`}
               >
                 {item.label}

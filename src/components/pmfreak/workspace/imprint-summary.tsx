@@ -43,8 +43,8 @@ export function ImprintSummary({ profile, companyId, workspaceId, userId, onRese
   };
 
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.01] p-3 text-xs">
-      <p className="mb-2 text-[9px] uppercase tracking-[0.28em] text-zinc-600">Observed tendencies</p>
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 text-xs">
+      <p className="mb-2 text-[9px] uppercase tracking-[0.28em] text-zinc-400">Observed tendencies</p>
       <ul className="space-y-1.5 text-slate-500">
         <li className="flex items-center gap-1.5">
           <span className="h-1 w-1 shrink-0 rounded-full bg-indigo-400/40" />
@@ -62,7 +62,7 @@ export function ImprintSummary({ profile, companyId, workspaceId, userId, onRese
       <button
         type="button"
         onClick={handleReset}
-        className="mt-2.5 text-[9px] uppercase tracking-[0.18em] text-zinc-700 transition hover:text-zinc-500"
+        className="mt-2.5 text-[9px] uppercase tracking-[0.18em] text-zinc-300 transition hover:text-zinc-500"
       >
         Reset Operational Imprint
       </button>

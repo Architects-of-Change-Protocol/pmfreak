@@ -50,25 +50,25 @@ export default function InputHubPage() {
   return (
     <ModuleShell title="Operational Input Hub" subtitle="Drop operational reality here. PMFreak classifies, routes, structures, and persists each signal into operational memory." metrics={[{ label: "Modes", value: "7" }, { label: "Routing", value: "Live" }, { label: "Traceability", value: "On" }, { label: "Daily Loop", value: "Active" }]}>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {CARDS.map((card) => <button key={card.mode} onClick={() => setActive(card)} className={`rounded-2xl border p-4 text-left ${active.mode === card.mode ? "border-cyan-300 bg-cyan-500/10" : "border-white/10 bg-white/5"}`}><p className="text-sm font-semibold">{card.title}</p><p className="mt-1 text-xs text-slate-300">{card.prompt}</p></button>)}
+        {CARDS.map((card) => <button key={card.mode} onClick={() => setActive(card)} className={`rounded-2xl border p-4 text-left ${active.mode === card.mode ? "border-cyan-300 bg-cyan-500/10" : "border-slate-200 bg-white"}`}><p className="text-sm font-semibold">{card.title}</p><p className="mt-1 text-xs text-slate-700">{card.prompt}</p></button>)}
       </div>
-      <section className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-3">
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3">
         <h2 className="text-lg font-semibold">{active.title}</h2>
-        <p className="text-sm text-slate-300">{active.prompt}</p>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Signal title" className="w-full rounded-xl border border-white/10 bg-white/20 p-3 text-sm" />
-        <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={active.placeholder} className="min-h-32 w-full rounded-xl border border-white/10 bg-white/20 p-3 text-sm" />
+        <p className="text-sm text-slate-700">{active.prompt}</p>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Signal title" className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm" />
+        <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={active.placeholder} className="min-h-32 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm" />
         {active.mode === "attachment" ? <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full text-sm" /> : null}
-        <input value={contextNote} onChange={(e) => setContextNote(e.target.value)} placeholder="Context note (optional)" className="w-full rounded-xl border border-white/10 bg-white/20 p-3 text-sm" />
+        <input value={contextNote} onChange={(e) => setContextNote(e.target.value)} placeholder="Context note (optional)" className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm" />
         <button onClick={submit} className="rounded-xl bg-cyan-400 px-4 py-2 text-black font-semibold">Submit Operational Signal</button>
       </section>
-      <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
+      <section className="rounded-3xl border border-slate-200 bg-white p-5">
         <h3 className="text-lg font-semibold">PMFreak understood this as</h3>
-        <ul className="mt-2 list-disc pl-6 text-sm text-slate-200">{understood.map((u) => <li key={u}>{u}</li>)}</ul>
+        <ul className="mt-2 list-disc pl-6 text-sm text-slate-800">{understood.map((u) => <li key={u}>{u}</li>)}</ul>
       </section>
-      <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
+      <section className="rounded-3xl border border-slate-200 bg-white p-5">
         <h3 className="text-lg font-semibold">Recent Operational Signals</h3>
         <div className="mt-3 space-y-2">
-          {history.map((row) => <article key={row.id} className="rounded-xl border border-white/10 bg-white/20 p-3 text-sm"><p className="font-medium">{row.title}</p><p className="text-slate-400">Routed: {row.domain} · Confidence: {row.confidenceScore}% · {new Date(row.createdAt).toLocaleString()}</p><p className="text-slate-300">Generated: {(row.extractedFacts ?? []).slice(0, 2).join(", ") || "Signals generated"}</p></article>)}
+          {history.map((row) => <article key={row.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><p className="font-medium">{row.title}</p><p className="text-slate-600">Routed: {row.domain} · Confidence: {row.confidenceScore}% · {new Date(row.createdAt).toLocaleString()}</p><p className="text-slate-700">Generated: {(row.extractedFacts ?? []).slice(0, 2).join(", ") || "Signals generated"}</p></article>)}
         </div>
       </section>
     </ModuleShell>

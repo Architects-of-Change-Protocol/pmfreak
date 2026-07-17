@@ -34,26 +34,26 @@ export default async function GovernancePage() {
   const inactiveDelegations = allDelegations.filter((d) => d.status !== "active");
 
   return (
-    <section className="space-y-8 rounded-3xl border border-white/10 bg-slate-900/55 p-6 shadow-[0_30px_80px_-50px_rgba(15,23,42,0.95)] backdrop-blur-xl md:p-8">
+    <section className="space-y-8 rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-[0_30px_80px_-50px_rgba(15,23,42,0.95)] backdrop-blur-xl md:p-8">
       <section>
         <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/90">Governance</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-50">Approval inbox</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-400">Review high-risk execution requests with clean lineage, clear status, and immediate decision controls.</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Approval inbox</h1>
+        <p className="mt-2 max-w-3xl text-sm text-slate-600">Review high-risk execution requests with clean lineage, clear status, and immediate decision controls.</p>
 
-        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3">
           {pendingCount > 0 ? (
             <div className="flex items-center gap-3">
-              <span className="rounded-full border border-amber-400/40 bg-amber-500/20 px-3 py-1 text-sm font-semibold text-amber-200">
+              <span className="rounded-full border border-amber-400/40 bg-amber-500/20 px-3 py-1 text-sm font-semibold text-amber-800">
                 {pendingCount} pending decision{pendingCount === 1 ? "" : "s"}
               </span>
-              <p className="text-xs text-slate-400">High-risk AI actions awaiting your review.</p>
+              <p className="text-xs text-slate-600">High-risk AI actions awaiting your review.</p>
             </div>
           ) : (
             <div className="flex items-center gap-3">
-              <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-sm font-medium text-emerald-200">
+              <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-sm font-medium text-emerald-800">
                 All caught up
               </span>
-              <p className="text-xs text-slate-400">No pending decisions right now.</p>
+              <p className="text-xs text-slate-600">No pending decisions right now.</p>
             </div>
           )}
         </div>
@@ -61,14 +61,14 @@ export default async function GovernancePage() {
 
       {allRequests.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-cyan-200/20 bg-cyan-500/[0.03] p-8 text-center">
-          <p className="text-sm text-slate-300">No approval requests yet.</p>
-          <p className="mt-1 text-xs text-slate-400">High-risk AI actions will appear here for review.</p>
+          <p className="text-sm text-slate-700">No approval requests yet.</p>
+          <p className="mt-1 text-xs text-slate-600">High-risk AI actions will appear here for review.</p>
         </div>
       ) : (
         <>
           {pendingCount > 0 ? (
             <section>
-              <h2 className="text-xl font-semibold tracking-tight text-slate-100">Needs your decision</h2>
+              <h2 className="text-xl font-semibold tracking-tight text-slate-900">Needs your decision</h2>
               <div className="mt-4 space-y-3">
                 {pending.map((r) => {
                   const grant = grantByApproval.get(r.id);
@@ -90,13 +90,13 @@ export default async function GovernancePage() {
               </div>
             </section>
           ) : (
-            <p className="text-sm text-slate-400">Nothing pending — all requests have been resolved.</p>
+            <p className="text-sm text-slate-600">Nothing pending — all requests have been resolved.</p>
           )}
 
           {resolved.length > 0 ? (
             <details className="group">
               <summary className="cursor-pointer list-none">
-                <h2 className="inline text-base font-medium text-slate-400 hover:text-slate-300 transition-colors">
+                <h2 className="inline text-base font-medium text-slate-600 hover:text-slate-700 transition-colors">
                   Resolved requests ({resolved.length})
                 </h2>
               </summary>
@@ -125,11 +125,11 @@ export default async function GovernancePage() {
       )}
 
       <section>
-        <h2 className="text-xl font-semibold tracking-tight text-slate-100">Governance delegations</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-slate-900">Governance delegations</h2>
 
         {allDelegations.length === 0 ? (
-          <div className="mt-4 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-center">
-            <p className="text-sm text-slate-400">No active delegations</p>
+          <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center">
+            <p className="text-sm text-slate-600">No active delegations</p>
           </div>
         ) : (
           <div className="mt-4 space-y-6">
@@ -152,13 +152,13 @@ export default async function GovernancePage() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-slate-400">No active delegations</p>
+              <p className="text-sm text-slate-600">No active delegations</p>
             )}
 
             {inactiveDelegations.length > 0 ? (
               <details>
                 <summary className="cursor-pointer list-none">
-                  <span className="text-base font-medium text-slate-400 hover:text-slate-300 transition-colors">
+                  <span className="text-base font-medium text-slate-600 hover:text-slate-700 transition-colors">
                     Inactive delegations ({inactiveDelegations.length})
                   </span>
                 </summary>

@@ -13,58 +13,58 @@ import type {
 // ─── Style maps ───────────────────────────────────────────────────────────────
 
 const STATUS_COLORS: Record<string, string> = {
-  active:    "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  inactive:  "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
-  suspended: "bg-red-500/20 text-red-300 border-red-500/30",
+  active:    "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  inactive:  "bg-zinc-500/20 text-zinc-700 border-zinc-500/30",
+  suspended: "bg-red-500/20 text-red-700 border-red-500/30",
 };
 
 const OPERATIONAL_STATUS_STYLES: Record<string, string> = {
-  healthy:               "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  watch:                 "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  capacity_risk:         "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  performance_risk:      "bg-red-500/20 text-red-300 border-red-500/30",
-  insufficient_evidence: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
-  critical:              "bg-red-500/20 text-red-300 border-red-500/30",
+  healthy:               "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  watch:                 "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  capacity_risk:         "bg-orange-500/20 text-orange-700 border-orange-500/30",
+  performance_risk:      "bg-red-500/20 text-red-700 border-red-500/30",
+  insufficient_evidence: "bg-zinc-500/20 text-zinc-700 border-zinc-500/30",
+  critical:              "bg-red-500/20 text-red-700 border-red-500/30",
 };
 
 const CAPACITY_STATUS_STYLES: Record<string, string> = {
-  underutilized: "bg-sky-500/20 text-sky-300 border-sky-500/30",
-  healthy:       "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  near_capacity: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  at_capacity:   "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  overloaded:    "bg-red-500/20 text-red-300 border-red-500/30",
-  busy:          "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  critical:      "bg-red-500/20 text-red-300 border-red-500/30",
+  underutilized: "bg-sky-500/20 text-sky-700 border-sky-500/30",
+  healthy:       "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  near_capacity: "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  at_capacity:   "bg-orange-500/20 text-orange-700 border-orange-500/30",
+  overloaded:    "bg-red-500/20 text-red-700 border-red-500/30",
+  busy:          "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  critical:      "bg-red-500/20 text-red-700 border-red-500/30",
 };
 
 const PERF_STATUS_STYLES: Record<string, string> = {
-  excellent: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  strong:    "bg-teal-500/20 text-teal-300 border-teal-500/30",
-  stable:    "bg-sky-500/20 text-sky-300 border-sky-500/30",
-  warning:   "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  critical:  "bg-red-500/20 text-red-300 border-red-500/30",
+  excellent: "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  strong:    "bg-teal-500/20 text-teal-700 border-teal-500/30",
+  stable:    "bg-sky-500/20 text-sky-700 border-sky-500/30",
+  warning:   "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  critical:  "bg-red-500/20 text-red-700 border-red-500/30",
 };
 
 const RISK_STYLES: Record<string, string> = {
-  none:     "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
-  low:      "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  medium:   "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  high:     "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  critical: "bg-red-500/20 text-red-300 border-red-500/30",
+  none:     "bg-zinc-500/20 text-zinc-700 border-zinc-500/30",
+  low:      "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  medium:   "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  high:     "bg-orange-500/20 text-orange-700 border-orange-500/30",
+  critical: "bg-red-500/20 text-red-700 border-red-500/30",
 };
 
 const CONFIDENCE_STYLES: Record<string, string> = {
-  high:     "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  medium:   "bg-sky-500/20 text-sky-300 border-sky-500/30",
-  low:      "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  very_low: "bg-red-500/20 text-red-300 border-red-500/30",
+  high:     "bg-emerald-500/20 text-emerald-700 border-emerald-500/30",
+  medium:   "bg-sky-500/20 text-sky-700 border-sky-500/30",
+  low:      "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  very_low: "bg-red-500/20 text-red-700 border-red-500/30",
 };
 
 const SEVERITY_STYLES: Record<string, string> = {
-  critical: "bg-red-500/20 text-red-300 border-red-500/30",
-  high:     "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  medium:   "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  low:      "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
+  critical: "bg-red-500/20 text-red-700 border-red-500/30",
+  high:     "bg-orange-500/20 text-orange-700 border-orange-500/30",
+  medium:   "bg-amber-500/20 text-amber-700 border-amber-500/30",
+  low:      "bg-zinc-500/20 text-zinc-700 border-zinc-500/30",
 };
 
 // ─── Edit PM Modal ────────────────────────────────────────────────────────────
@@ -101,35 +101,35 @@ function EditPMModal({ pm, onClose, onUpdated }: { pm: PM; onClose: () => void; 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0c0c10] p-6 shadow-2xl">
-        <h2 className="text-lg font-semibold text-white">Edit Project Manager</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-50 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-[#0c0c10] p-6 shadow-2xl">
+        <h2 className="text-lg font-semibold text-slate-900">Edit Project Manager</h2>
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Display Name</label>
+            <label className="block text-xs text-zinc-600 mb-1">Display Name</label>
             <input
               required
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-400"
             />
           </div>
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Status</label>
+            <label className="block text-xs text-zinc-600 mb-1">Status</label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as PM["status"])}
-              className="w-full rounded-xl border border-white/10 bg-[#0c0c10] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              className="w-full rounded-xl border border-slate-200 bg-[#0c0c10] px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-400"
             >
               <option value="active">active</option>
               <option value="inactive">inactive</option>
               <option value="suspended">suspended</option>
             </select>
           </div>
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-white/10 px-4 py-2 text-sm text-zinc-300 hover:bg-white/5">Cancel</button>
-            <button type="submit" disabled={loading} className="flex-1 rounded-xl border border-indigo-300/40 bg-indigo-400/10 px-4 py-2 text-sm font-semibold text-indigo-100 hover:bg-indigo-400/20 disabled:opacity-50">
+            <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm text-zinc-700 hover:bg-white">Cancel</button>
+            <button type="submit" disabled={loading} className="flex-1 rounded-xl border border-indigo-300/40 bg-indigo-400/10 px-4 py-2 text-sm font-semibold text-indigo-900 hover:bg-indigo-400/20 disabled:opacity-50">
               {loading ? "Saving…" : "Save"}
             </button>
           </div>
@@ -143,8 +143,8 @@ function EditPMModal({ pm, onClose, onUpdated }: { pm: PM; onClose: () => void; 
 
 function Section({ title, children, className = "" }: { title: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-2xl border border-white/10 bg-white/5 p-5 ${className}`}>
-      <h2 className="text-sm font-semibold text-white mb-3">{title}</h2>
+    <div className={`rounded-2xl border border-slate-200 bg-white p-5 ${className}`}>
+      <h2 className="text-sm font-semibold text-slate-900 mb-3">{title}</h2>
       {children}
     </div>
   );
@@ -152,7 +152,7 @@ function Section({ title, children, className = "" }: { title: string; children:
 
 function MetricCard({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
       <p className="text-xs text-zinc-500">{label}</p>
       <div className="mt-1">{children}</div>
     </div>
@@ -161,7 +161,7 @@ function MetricCard({ label, children }: { label: string; children: React.ReactN
 
 function Badge({ text, style }: { text: string; style?: string }) {
   return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${style ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30"}`}>
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${style ?? "bg-zinc-500/20 text-zinc-700 border-zinc-500/30"}`}>
       {text.replace(/_/g, " ")}
     </span>
   );
@@ -173,11 +173,11 @@ function RiskBanner({ dossier }: { dossier: PMOperatingDossier }) {
   const { operational_status, top_recommendation } = dossier.executive_summary;
 
   const bannerConfig: Record<string, { border: string; bg: string; text: string; label: string } | undefined> = {
-    critical:              { border: "border-red-500/30",    bg: "bg-red-500/10",    text: "text-red-300",    label: "Critical" },
-    performance_risk:      { border: "border-red-500/30",    bg: "bg-red-500/10",    text: "text-red-300",    label: "Performance Risk" },
-    capacity_risk:         { border: "border-orange-500/30", bg: "bg-orange-500/10", text: "text-orange-300", label: "Workload Warning" },
-    insufficient_evidence: { border: "border-zinc-500/30",   bg: "bg-zinc-500/10",   text: "text-zinc-300",   label: "Provisional Score" },
-    watch:                 { border: "border-amber-500/30",  bg: "bg-amber-500/10",  text: "text-amber-300",  label: "Watch" },
+    critical:              { border: "border-red-500/30",    bg: "bg-red-500/10",    text: "text-red-700",    label: "Critical" },
+    performance_risk:      { border: "border-red-500/30",    bg: "bg-red-500/10",    text: "text-red-700",    label: "Performance Risk" },
+    capacity_risk:         { border: "border-orange-500/30", bg: "bg-orange-500/10", text: "text-orange-700", label: "Workload Warning" },
+    insufficient_evidence: { border: "border-zinc-500/30",   bg: "bg-zinc-500/10",   text: "text-zinc-700",   label: "Provisional Score" },
+    watch:                 { border: "border-amber-500/30",  bg: "bg-amber-500/10",  text: "text-amber-700",  label: "Watch" },
   };
 
   const config = bannerConfig[operational_status];
@@ -205,7 +205,7 @@ function ExecutiveSummaryCards({ dossier }: { dossier: PMOperatingDossier }) {
         <Badge text={s.operational_status} style={OPERATIONAL_STATUS_STYLES[s.operational_status]} />
       </MetricCard>
       <MetricCard label="Active Assignments">
-        <p className="text-sm font-medium text-white">{s.active_assignment_count}</p>
+        <p className="text-sm font-medium text-slate-900">{s.active_assignment_count}</p>
         <p className="text-xs text-zinc-500">{s.counted_assignment_count} counted</p>
       </MetricCard>
       <MetricCard label="Capacity">
@@ -260,14 +260,14 @@ function CapacitySection({ dossier, onGenerate, generating, error }: {
         <button
           onClick={onGenerate}
           disabled={generating}
-          className="shrink-0 rounded-xl border border-white/10 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+          className="shrink-0 rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-zinc-700 hover:bg-white disabled:opacity-50"
         >
           {generating ? "Generating…" : "Generate capacity snapshot"}
         </button>
       </div>
-      {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
+      {error && <p className="mb-3 text-xs text-red-600">{error}</p>}
       {!cap.present ? (
-        <p className="text-sm text-zinc-400">{cap.message}</p>
+        <p className="text-sm text-zinc-600">{cap.message}</p>
       ) : (() => {
         const c = cap as PMDossierCapacityPresent;
         const isAlert = c.capacity_status === "overloaded" || c.capacity_status === "critical";
@@ -278,12 +278,12 @@ function CapacitySection({ dossier, onGenerate, generating, error }: {
         return (
           <>
             {isAlert && (
-              <div className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+              <div className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700">
                 This PM is {c.capacity_status.replace(/_/g, " ")}. Review assignments before adding new projects.
               </div>
             )}
             {isWarning && (
-              <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+              <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
                 This PM is approaching capacity. Monitor before adding new workload-counting assignments.
               </div>
             )}
@@ -295,20 +295,20 @@ function CapacitySection({ dossier, onGenerate, generating, error }: {
                 <Badge text={c.overload_risk} style={RISK_STYLES[c.overload_risk]} />
               </MetricCard>
               <MetricCard label="Utilization">
-                <p className="text-sm font-medium text-white">{utilPct}</p>
+                <p className="text-sm font-medium text-slate-900">{utilPct}</p>
               </MetricCard>
               <MetricCard label="Counted / limit">
-                <p className="text-sm font-medium text-white">
+                <p className="text-sm font-medium text-slate-900">
                   {c.counted_assignment_count ?? "—"} / {c.active_projects_limit ?? "—"}
                 </p>
               </MetricCard>
               <MetricCard label="Observer assignments">
-                <p className="text-sm font-medium text-white">{c.observer_assignment_count ?? "—"}</p>
+                <p className="text-sm font-medium text-slate-900">{c.observer_assignment_count ?? "—"}</p>
               </MetricCard>
               {c.recommendations.length > 0 && (
-                <div className="col-span-2 sm:col-span-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                <div className="col-span-2 sm:col-span-3 rounded-xl border border-slate-200 bg-white p-3">
                   <p className="text-xs text-zinc-500 mb-1">Recommendation</p>
-                  <p className="text-sm text-zinc-300">{c.recommendations[0]?.message}</p>
+                  <p className="text-sm text-zinc-700">{c.recommendations[0]?.message}</p>
                 </div>
               )}
             </div>
@@ -316,7 +316,7 @@ function CapacitySection({ dossier, onGenerate, generating, error }: {
         );
       })()}
       <div className="mt-3">
-        <Link href={`/pm-capacity/${pmId}`} className="text-xs text-indigo-400 hover:text-indigo-300">
+        <Link href={`/pm-capacity/${pmId}`} className="text-xs text-indigo-600 hover:text-indigo-700">
           View full capacity dashboard →
         </Link>
       </div>
@@ -346,14 +346,14 @@ function PerformanceSection({ dossier, onGenerate, generating, error }: {
         <button
           onClick={onGenerate}
           disabled={generating}
-          className="shrink-0 rounded-xl border border-white/10 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+          className="shrink-0 rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-zinc-700 hover:bg-white disabled:opacity-50"
         >
           {generating ? "Generating…" : "Generate performance snapshot"}
         </button>
       </div>
-      {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
+      {error && <p className="mb-3 text-xs text-red-600">{error}</p>}
       {!perf.present ? (
-        <p className="text-sm text-zinc-400">{perf.message}</p>
+        <p className="text-sm text-zinc-600">{perf.message}</p>
       ) : (() => {
         const p = perf as PMDossierPerformancePresent;
         const isAlert = p.performance_status === "critical" || p.performance_status === "warning";
@@ -367,13 +367,13 @@ function PerformanceSection({ dossier, onGenerate, generating, error }: {
         return (
           <>
             {isAlert && (
-              <div className={`mb-3 rounded-xl border px-3 py-2 text-xs ${p.performance_status === "critical" ? "border-red-500/30 bg-red-500/10 text-red-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}>
+              <div className={`mb-3 rounded-xl border px-3 py-2 text-xs ${p.performance_status === "critical" ? "border-red-500/30 bg-red-500/10 text-red-700" : "border-amber-500/30 bg-amber-500/10 text-amber-700"}`}>
                 PM performance is <strong>{p.performance_status}</strong>. PMO review recommended.
               </div>
             )}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <MetricCard label="Overall score">
-                <p className="text-xl font-semibold text-white">{p.overall_performance_score.toFixed(1)}</p>
+                <p className="text-xl font-semibold text-slate-900">{p.overall_performance_score.toFixed(1)}</p>
               </MetricCard>
               <MetricCard label="Status">
                 <Badge text={p.performance_status} style={PERF_STATUS_STYLES[p.performance_status]} />
@@ -385,12 +385,12 @@ function PerformanceSection({ dossier, onGenerate, generating, error }: {
               )}
               {p.assigned_project_count !== null && (
                 <MetricCard label="Assigned projects">
-                  <p className="text-sm font-medium text-white">{p.assigned_project_count}</p>
+                  <p className="text-sm font-medium text-slate-900">{p.assigned_project_count}</p>
                 </MetricCard>
               )}
               {domains.map(({ label, value }) => (
                 <MetricCard key={label} label={label}>
-                  <p className="text-sm font-medium text-white">{value.toFixed(1)}</p>
+                  <p className="text-sm font-medium text-slate-900">{value.toFixed(1)}</p>
                 </MetricCard>
               ))}
             </div>
@@ -398,7 +398,7 @@ function PerformanceSection({ dossier, onGenerate, generating, error }: {
         );
       })()}
       <div className="mt-3">
-        <Link href={`/pm-performance/${pmId}`} className="text-xs text-indigo-400 hover:text-indigo-300">
+        <Link href={`/pm-performance/${pmId}`} className="text-xs text-indigo-600 hover:text-indigo-700">
           View full performance dashboard →
         </Link>
       </div>
@@ -414,13 +414,13 @@ function EvidenceConfidenceSection({ dossier }: { dossier: PMOperatingDossier })
   return (
     <Section title="Evidence Confidence">
       {!ev.present ? (
-        <p className="text-sm text-zinc-400">{ev.message}</p>
+        <p className="text-sm text-zinc-600">{ev.message}</p>
       ) : (() => {
         const e = ev as PMDossierEvidencePresent;
         return (
           <>
             {e.warning && (
-              <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+              <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
                 {e.warning}
               </div>
             )}
@@ -429,25 +429,25 @@ function EvidenceConfidenceSection({ dossier }: { dossier: PMOperatingDossier })
                 <Badge text={e.confidence_level} style={CONFIDENCE_STYLES[e.confidence_level]} />
               </MetricCard>
               <MetricCard label="Completeness">
-                <p className="text-sm font-medium text-white">{Math.round(e.evidence_completeness * 100)}%</p>
+                <p className="text-sm font-medium text-slate-900">{Math.round(e.evidence_completeness * 100)}%</p>
               </MetricCard>
               <MetricCard label="Sources">
-                <p className="text-sm font-medium text-white">{e.available_source_count} / {e.total_source_count}</p>
+                <p className="text-sm font-medium text-slate-900">{e.available_source_count} / {e.total_source_count}</p>
               </MetricCard>
               <MetricCard label="Interpretation">
-                <p className="text-xs text-zinc-300">{e.score_interpretation.replace(/_/g, " ")}</p>
+                <p className="text-xs text-zinc-700">{e.score_interpretation.replace(/_/g, " ")}</p>
               </MetricCard>
             </div>
             {e.missing_sources.length > 0 && (
-              <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
+              <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
                 <p className="text-xs text-zinc-500 mb-1">Missing sources</p>
-                <p className="text-xs text-zinc-400">{e.missing_sources.join(", ")}</p>
+                <p className="text-xs text-zinc-600">{e.missing_sources.join(", ")}</p>
               </div>
             )}
             {e.neutral_baseline_domains.length > 0 && (
-              <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-3">
+              <div className="mt-2 rounded-xl border border-slate-200 bg-white p-3">
                 <p className="text-xs text-zinc-500 mb-1">Neutral baseline (75) applied to</p>
-                <p className="text-xs text-zinc-400">{e.neutral_baseline_domains.join(", ")}</p>
+                <p className="text-xs text-zinc-600">{e.neutral_baseline_domains.join(", ")}</p>
               </div>
             )}
           </>
@@ -464,7 +464,7 @@ function ProjectBreakdownSection({ dossier }: { dossier: PMOperatingDossier }) {
   if (rows.length === 0) {
     return (
       <Section title="Project Breakdown">
-        <p className="text-sm text-zinc-400">No assignments found.</p>
+        <p className="text-sm text-zinc-600">No assignments found.</p>
       </Section>
     );
   }
@@ -472,9 +472,9 @@ function ProjectBreakdownSection({ dossier }: { dossier: PMOperatingDossier }) {
   return (
     <Section title="Project Breakdown">
       <div className="overflow-x-auto">
-        <table className="w-full text-xs text-zinc-400">
+        <table className="w-full text-xs text-zinc-600">
           <thead>
-            <tr className="text-left border-b border-white/10">
+            <tr className="text-left border-b border-slate-200">
               {["Project", "Type", "Status", "Counted", "Evidence", "Active", "Assigned"].map((h) => (
                 <th key={h} className="pb-2 pr-4 font-medium text-zinc-500">{h}</th>
               ))}
@@ -487,16 +487,16 @@ function ProjectBreakdownSection({ dossier }: { dossier: PMOperatingDossier }) {
                 <td className="py-2 pr-4">
                   <Badge text={r.assignment_type} />
                 </td>
-                <td className="py-2 pr-4 text-zinc-400">{r.project_status ?? "—"}</td>
+                <td className="py-2 pr-4 text-zinc-600">{r.project_status ?? "—"}</td>
                 <td className="py-2 pr-4">
                   {r.capacity_counted
-                    ? <span className="text-emerald-400">Yes</span>
+                    ? <span className="text-emerald-600">Yes</span>
                     : <span className="text-zinc-500">No</span>}
                 </td>
                 <td className="py-2 pr-4 text-zinc-500">{r.evidence_status.replace(/_/g, " ")}</td>
                 <td className="py-2 pr-4">
                   {r.active
-                    ? <span className="text-emerald-400">Active</span>
+                    ? <span className="text-emerald-600">Active</span>
                     : <span className="text-zinc-500">Removed</span>}
                 </td>
                 <td className="py-2 pr-4">{new Date(r.assigned_at).toLocaleDateString()}</td>
@@ -517,12 +517,12 @@ function AssignmentsSection({ dossier }: { dossier: PMOperatingDossier }) {
     <div className="space-y-4">
       <Section title={`Active Assignments (${active.length})`}>
         {active.length === 0 ? (
-          <p className="text-sm text-zinc-400">No active assignments.</p>
+          <p className="text-sm text-zinc-600">No active assignments.</p>
         ) : (
           <ul className="space-y-2">
             {active.map((a) => (
-              <li key={a.assignment_id} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm">
-                <span className="text-zinc-300 font-mono text-xs">{a.project_id}</span>
+              <li key={a.assignment_id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm">
+                <span className="text-zinc-700 font-mono text-xs">{a.project_id}</span>
                 <Badge text={a.assignment_type} />
                 <span className="text-xs text-zinc-500">{new Date(a.assigned_at).toLocaleDateString()}</span>
                 {a.capacity_counted && <span className="text-xs text-emerald-500">counted</span>}
@@ -535,8 +535,8 @@ function AssignmentsSection({ dossier }: { dossier: PMOperatingDossier }) {
         <Section title={`Historical Assignments (${historical.length})`} className="opacity-70">
           <ul className="space-y-2">
             {historical.map((a) => (
-              <li key={a.assignment_id} className="flex items-center justify-between rounded-xl border border-white/5 px-4 py-2 text-sm opacity-70">
-                <span className="text-zinc-400 font-mono text-xs">{a.project_id}</span>
+              <li key={a.assignment_id} className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-2 text-sm opacity-70">
+                <span className="text-zinc-600 font-mono text-xs">{a.project_id}</span>
                 <span className="text-xs text-zinc-500">{a.assignment_type}</span>
                 {a.removed_at && (
                   <span className="text-xs text-zinc-500">removed {new Date(a.removed_at).toLocaleDateString()}</span>
@@ -558,11 +558,11 @@ function RecommendationsSection({ dossier }: { dossier: PMOperatingDossier }) {
     <Section title="Recommendations">
       <ul className="space-y-2">
         {recs.map((r, i) => (
-          <li key={i} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+          <li key={i} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
             <Badge text={r.severity} style={SEVERITY_STYLES[r.severity]} />
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-zinc-300">{r.message}</p>
-              <p className="mt-0.5 text-xs text-zinc-600">{r.source.replace(/_/g, " ")} · {r.type.replace(/_/g, " ")}</p>
+              <p className="text-xs text-zinc-700">{r.message}</p>
+              <p className="mt-0.5 text-xs text-zinc-400">{r.source.replace(/_/g, " ")} · {r.type.replace(/_/g, " ")}</p>
             </div>
           </li>
         ))}
@@ -578,15 +578,15 @@ function EventTimelineSection({ dossier }: { dossier: PMOperatingDossier }) {
   return (
     <Section title="Event Timeline">
       {events.length === 0 ? (
-        <p className="text-sm text-zinc-400">No recent PM events found.</p>
+        <p className="text-sm text-zinc-600">No recent PM events found.</p>
       ) : (
         <ul className="space-y-3">
           {events.map((e, i) => (
             <li key={i} className="flex items-start gap-3">
               <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-indigo-400/60" />
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-zinc-300">{e.summary}</p>
-                <div className="mt-0.5 flex items-center gap-2 text-xs text-zinc-600">
+                <p className="text-xs text-zinc-700">{e.summary}</p>
+                <div className="mt-0.5 flex items-center gap-2 text-xs text-zinc-400">
                   <span>{e.event_type}</span>
                   <span>·</span>
                   <span>{new Date(e.occurred_at).toLocaleString()}</span>
@@ -608,7 +608,7 @@ function ProfileSection({ dossier }: { dossier: PMOperatingDossier }) {
   if (!profile.present) {
     return (
       <Section title="PM Profile">
-        <p className="text-sm text-zinc-400">{profile.message}</p>
+        <p className="text-sm text-zinc-600">{profile.message}</p>
       </Section>
     );
   }
@@ -622,7 +622,7 @@ function ProfileSection({ dossier }: { dossier: PMOperatingDossier }) {
           { label: "Max Projects", value: String(profile.active_projects_limit) },
         ].map(({ label, value }) => (
           <MetricCard key={label} label={label}>
-            <p className="text-sm font-medium text-white">{value}</p>
+            <p className="text-sm font-medium text-slate-900">{value}</p>
           </MetricCard>
         ))}
       </div>
@@ -645,26 +645,26 @@ function ActionsSection({ dossier, onGenerateCapacity, onGeneratePerformance, ge
         <button
           onClick={onGenerateCapacity}
           disabled={generatingCapacity}
-          className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+          className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-zinc-700 hover:bg-white disabled:opacity-50"
         >
           {generatingCapacity ? "Generating…" : "Generate Capacity Snapshot"}
         </button>
         <button
           onClick={onGeneratePerformance}
           disabled={generatingPerformance}
-          className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+          className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-zinc-700 hover:bg-white disabled:opacity-50"
         >
           {generatingPerformance ? "Generating…" : "Generate Performance Snapshot"}
         </button>
         <Link
           href={`/pm-capacity`}
-          className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5"
+          className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-zinc-700 hover:bg-white"
         >
           View PM Capacity
         </Link>
         <Link
           href={`/pm-performance`}
-          className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5"
+          className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-zinc-700 hover:bg-white"
         >
           View PM Performance
         </Link>
@@ -748,8 +748,8 @@ export default function PMDetailPage() {
 
   if (loading) {
     return (
-      <div className="rounded-3xl border border-white/10 bg-[#050507] p-10 text-center">
-        <p className="text-sm text-zinc-400">Loading PM Operating Dossier…</p>
+      <div className="rounded-3xl border border-slate-200 bg-[#050507] p-10 text-center">
+        <p className="text-sm text-zinc-600">Loading PM Operating Dossier…</p>
       </div>
     );
   }
@@ -757,8 +757,8 @@ export default function PMDetailPage() {
   if (error || !dossier) {
     return (
       <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-10">
-        <p className="text-sm text-red-400">{error ?? "PM not found."}</p>
-        <Link href="/pm-registry" className="mt-3 block text-xs text-red-300 underline">Back to registry</Link>
+        <p className="text-sm text-red-600">{error ?? "PM not found."}</p>
+        <Link href="/pm-registry" className="mt-3 block text-xs text-red-700 underline">Back to registry</Link>
       </div>
     );
   }
@@ -774,17 +774,17 @@ export default function PMDetailPage() {
           onUpdated={() => { setShowEdit(false); void fetchDossier(); }}
         />
       )}
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#050507] p-6 shadow-[0_40px_120px_rgba(0,0,0,0.55)] md:p-10">
+      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-[#050507] p-6 shadow-[0_40px_120px_rgba(0,0,0,0.55)] md:p-10">
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:38px_38px]" />
         <div className="relative space-y-8">
 
           {/* Header */}
           <div className="flex items-start justify-between gap-4">
             <div>
-              <Link href="/pm-registry" className="text-xs text-zinc-500 hover:text-zinc-300">← PM Registry</Link>
-              <p className="mt-1 text-xs font-medium text-indigo-400 tracking-widest uppercase">PM Operating Dossier</p>
-              <h1 className="mt-1 text-3xl font-semibold tracking-tight text-white">{pm.display_name}</h1>
-              <p className="mt-1 text-sm text-zinc-400">{pm.email}</p>
+              <Link href="/pm-registry" className="text-xs text-zinc-500 hover:text-zinc-700">← PM Registry</Link>
+              <p className="mt-1 text-xs font-medium text-indigo-600 tracking-widest uppercase">PM Operating Dossier</p>
+              <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">{pm.display_name}</h1>
+              <p className="mt-1 text-sm text-zinc-600">{pm.email}</p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Badge text={pm.status} style={STATUS_COLORS[pm.status]} />
                 {executive_summary.role && <Badge text={executive_summary.role} />}
@@ -795,7 +795,7 @@ export default function PMDetailPage() {
             </div>
             <button
               onClick={() => setShowEdit(true)}
-              className="shrink-0 rounded-xl border border-white/10 px-4 py-2 text-sm text-zinc-300 hover:bg-white/5"
+              className="shrink-0 rounded-xl border border-slate-200 px-4 py-2 text-sm text-zinc-700 hover:bg-white"
             >
               Edit
             </button>

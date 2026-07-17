@@ -85,14 +85,14 @@ const STEPS = [
 // ─── Shared styles ─────────────────────────────────────────────────────────────
 
 const input =
-  "block w-full rounded-xl border border-white/[0.12] bg-black/40 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-600 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400/60";
-const select = `${input} [&>option]:bg-slate-950`;
+  "block w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400/60";
+const select = `${input} [&>option]:bg-[#FCFBF9]`;
 const label = "flex flex-col gap-1.5 text-[11px] uppercase tracking-[0.15em] text-zinc-500";
 const chip = (active: boolean) =>
   `cursor-pointer rounded-xl border px-4 py-3 text-left text-sm transition-all ${
     active
-      ? "border-cyan-400/40 bg-cyan-400/[0.08] text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.08)]"
-      : "border-white/[0.07] bg-white/[0.02] text-zinc-400 hover:border-white/[0.15] hover:text-zinc-200"
+      ? "border-cyan-400/40 bg-cyan-400/[0.08] text-cyan-900 shadow-[0_0_16px_rgba(34,211,238,0.08)]"
+      : "border-slate-200 bg-white text-zinc-600 hover:border-slate-200 hover:text-zinc-800"
   }`;
 
 // ─── Validation ────────────────────────────────────────────────────────────────
@@ -126,14 +126,14 @@ function validate(step: number, d: WizardState): string[] {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-4 text-[10px] uppercase tracking-[0.3em] text-zinc-600">{children}</p>
+    <p className="mb-4 text-[10px] uppercase tracking-[0.3em] text-zinc-400">{children}</p>
   );
 }
 
 function StepIntro({ title, description }: { title: string; description: string }) {
   return (
     <div className="mb-7">
-      <h2 className="text-2xl font-semibold tracking-tight text-white">{title}</h2>
+      <h2 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h2>
       <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-500">{description}</p>
     </div>
   );
@@ -169,7 +169,7 @@ function StepIdentity({
 
       <div className="grid gap-5 sm:grid-cols-2">
         <label className={label}>
-          Command Center Name <span className="text-pink-400 normal-case">*</span>
+          Command Center Name <span className="text-pink-600 normal-case">*</span>
           <input
             className={input}
             placeholder="Enterprise Delivery Office"
@@ -178,7 +178,7 @@ function StepIdentity({
           />
         </label>
         <label className={label}>
-          Organization Name <span className="text-pink-400 normal-case">*</span>
+          Organization Name <span className="text-pink-600 normal-case">*</span>
           <input
             className={input}
             placeholder="Acme Corporation"
@@ -199,7 +199,7 @@ function StepIdentity({
               className={chip(data.pmoType === t.value)}
             >
               <span className="block font-semibold">{t.label}</span>
-              <span className="mt-0.5 block text-[11px] text-zinc-600">{t.desc}</span>
+              <span className="mt-0.5 block text-[11px] text-zinc-400">{t.desc}</span>
             </button>
           ))}
         </div>
@@ -216,7 +216,7 @@ function StepIdentity({
               className={chip(data.operatingModel === m.value)}
             >
               <span className="block font-semibold">{m.label}</span>
-              <span className="mt-0.5 block text-[11px] text-zinc-600">{m.desc}</span>
+              <span className="mt-0.5 block text-[11px] text-zinc-400">{m.desc}</span>
             </button>
           ))}
         </div>
@@ -261,7 +261,7 @@ function StepVault({
 
       <div className="rounded-2xl border border-indigo-300/10 bg-indigo-400/[0.04] px-5 py-4">
         <p className="text-[11px] uppercase tracking-[0.2em] text-indigo-300/60">AOC Protocol</p>
-        <p className="mt-1.5 text-sm leading-relaxed text-zinc-400">
+        <p className="mt-1.5 text-sm leading-relaxed text-zinc-600">
           All data is governed by the AOC Protocol data sovereignty layer. Your choice below determines physical storage location — the protocol guarantees audit trails, cryptographic integrity, and access control regardless of vault provider.
         </p>
       </div>
@@ -275,17 +275,17 @@ function StepVault({
             className={`w-full rounded-2xl border px-5 py-4 text-left transition-all ${
               data.provider === v.provider
                 ? "border-cyan-400/40 bg-cyan-400/[0.06] shadow-[0_0_24px_rgba(34,211,238,0.07)]"
-                : "border-white/[0.07] bg-white/[0.02] hover:border-white/[0.14]"
+                : "border-slate-200 bg-white hover:border-slate-200"
             }`}
           >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <span className={`text-sm font-semibold ${data.provider === v.provider ? "text-cyan-100" : "text-slate-200"}`}>
+                  <span className={`text-sm font-semibold ${data.provider === v.provider ? "text-cyan-900" : "text-slate-800"}`}>
                     {v.label}
                   </span>
                   {v.badge && (
-                    <span className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-2 py-0.5 text-[9px] uppercase tracking-[0.15em] text-cyan-300">
+                    <span className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-2 py-0.5 text-[9px] uppercase tracking-[0.15em] text-cyan-700">
                       {v.badge}
                     </span>
                   )}
@@ -359,8 +359,8 @@ function StepGovernance({
               onClick={() => onChange("methodology", m.value)}
               className={`rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${
                 data.methodology === m.value
-                  ? "border-indigo-300/50 bg-indigo-400/15 text-indigo-100"
-                  : "border-white/[0.08] bg-white/[0.02] text-zinc-500 hover:border-white/[0.18] hover:text-zinc-200"
+                  ? "border-indigo-300/50 bg-indigo-400/15 text-indigo-900"
+                  : "border-slate-200 bg-white text-zinc-500 hover:border-slate-200 hover:text-zinc-800"
               }`}
             >
               {m.label}
@@ -379,8 +379,8 @@ function StepGovernance({
               onClick={() => onChange("reportingCadence", c.value)}
               className={`rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${
                 data.reportingCadence === c.value
-                  ? "border-indigo-300/50 bg-indigo-400/15 text-indigo-100"
-                  : "border-white/[0.08] bg-white/[0.02] text-zinc-500 hover:border-white/[0.18] hover:text-zinc-200"
+                  ? "border-indigo-300/50 bg-indigo-400/15 text-indigo-900"
+                  : "border-slate-200 bg-white text-zinc-500 hover:border-slate-200 hover:text-zinc-800"
               }`}
             >
               {c.label}
@@ -400,7 +400,7 @@ function StepGovernance({
               className={chip(data.projectScale === s.value)}
             >
               <span className="block font-semibold">{s.label}</span>
-              <span className="mt-0.5 block text-[11px] text-zinc-600">{s.desc}</span>
+              <span className="mt-0.5 block text-[11px] text-zinc-400">{s.desc}</span>
             </button>
           ))}
         </div>
@@ -417,7 +417,7 @@ function StepGovernance({
               className={chip(data.approvalGovernance === a.value)}
             >
               <span className="block font-semibold">{a.label}</span>
-              <span className="mt-0.5 block text-[11px] text-zinc-600">{a.desc}</span>
+              <span className="mt-0.5 block text-[11px] text-zinc-400">{a.desc}</span>
             </button>
           ))}
         </div>
@@ -445,7 +445,7 @@ function StepAgents({
         className={`group relative w-full overflow-hidden rounded-2xl border px-5 py-4 text-left transition-all duration-300 ${
           agent.enabled
             ? "border-cyan-400/30 bg-gradient-to-br from-cyan-950/40 to-black/60 shadow-[0_0_20px_rgba(34,211,238,0.06)]"
-            : "border-white/[0.06] bg-black/20 hover:border-white/[0.12]"
+            : "border-slate-200 bg-slate-50 hover:border-slate-200"
         }`}
       >
         <div className="flex items-start justify-between gap-3">
@@ -456,19 +456,19 @@ function StepAgents({
                   agent.enabled ? "bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)]" : "bg-zinc-700"
                 }`}
               />
-              <span className={`text-sm font-semibold ${agent.enabled ? "text-white" : "text-zinc-500"}`}>
+              <span className={`text-sm font-semibold ${agent.enabled ? "text-slate-900" : "text-zinc-500"}`}>
                 {meta.label}
               </span>
             </div>
-            <p className={`mt-1 text-xs leading-relaxed ${agent.enabled ? "text-zinc-400" : "text-zinc-700"}`}>
+            <p className={`mt-1 text-xs leading-relaxed ${agent.enabled ? "text-zinc-600" : "text-zinc-300"}`}>
               {meta.description}
             </p>
           </div>
           <span
             className={`mt-0.5 shrink-0 rounded-full border px-2.5 py-0.5 text-[9px] uppercase tracking-[0.15em] transition-all ${
               agent.enabled
-                ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-300"
-                : "border-zinc-800 text-zinc-700"
+                ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-700"
+                : "border-zinc-800 text-zinc-300"
             }`}
           >
             {agent.enabled ? "Awakening" : "Dormant"}
@@ -555,8 +555,8 @@ function StepContext({
                 onClick={() => onToggleChallenge(c.value)}
                 className={`rounded-xl border px-3.5 py-2 text-sm transition-colors ${
                   active
-                    ? "border-pink-400/40 bg-pink-400/[0.08] text-pink-200"
-                    : "border-white/[0.08] bg-white/[0.02] text-zinc-500 hover:border-white/[0.18] hover:text-zinc-200"
+                    ? "border-pink-400/40 bg-pink-400/[0.08] text-pink-800"
+                    : "border-slate-200 bg-white text-zinc-500 hover:border-slate-200 hover:text-zinc-800"
                 }`}
               >
                 {c.label}
@@ -604,7 +604,7 @@ function StepReview({
         description="Review your governance configuration. Once activated, PMFreak will initialize all selected agents and direct you to your Command Center."
       />
 
-      <div className="rounded-2xl border border-white/[0.07] bg-black/30 p-5">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
         <p className="mb-3 text-[10px] uppercase tracking-[0.24em] text-indigo-300/60">Command Center Identity</p>
         <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
           {[
@@ -614,19 +614,19 @@ function StepReview({
             ["Operating Model", humanize(state.identity.operatingModel)],
           ].map(([k, v]) => (
             <div key={k}>
-              <dt className="text-[10px] uppercase tracking-[0.14em] text-zinc-600">{k}</dt>
-              <dd className="mt-0.5 text-sm text-slate-200">{v || "—"}</dd>
+              <dt className="text-[10px] uppercase tracking-[0.14em] text-zinc-400">{k}</dt>
+              <dd className="mt-0.5 text-sm text-slate-800">{v || "—"}</dd>
             </div>
           ))}
         </dl>
       </div>
 
-      <div className="rounded-2xl border border-white/[0.07] bg-black/30 p-5">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
         <p className="mb-3 text-[10px] uppercase tracking-[0.24em] text-indigo-300/60">Data Sovereignty</p>
-        <p className="text-sm text-slate-200">{state.vault.label}</p>
+        <p className="text-sm text-slate-800">{state.vault.label}</p>
       </div>
 
-      <div className="rounded-2xl border border-white/[0.07] bg-black/30 p-5">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
         <p className="mb-3 text-[10px] uppercase tracking-[0.24em] text-indigo-300/60">Governance</p>
         <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
           {[
@@ -636,14 +636,14 @@ function StepReview({
             ["Approval", humanize(state.governance.approvalGovernance)],
           ].map(([k, v]) => (
             <div key={k}>
-              <dt className="text-[10px] uppercase tracking-[0.14em] text-zinc-600">{k}</dt>
-              <dd className="mt-0.5 text-sm text-slate-200">{v || "—"}</dd>
+              <dt className="text-[10px] uppercase tracking-[0.14em] text-zinc-400">{k}</dt>
+              <dd className="mt-0.5 text-sm text-slate-800">{v || "—"}</dd>
             </div>
           ))}
         </dl>
       </div>
 
-      <div className="rounded-2xl border border-white/[0.07] bg-black/30 p-5">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
         <p className="mb-3 text-[10px] uppercase tracking-[0.24em] text-indigo-300/60">
           Agents Activating ({enabledAgents.length})
         </p>
@@ -651,7 +651,7 @@ function StepReview({
           {enabledAgents.map((a) => (
             <span
               key={a.agentId}
-              className="rounded-full border border-cyan-300/30 bg-cyan-400/[0.08] px-3 py-1 text-xs text-cyan-200"
+              className="rounded-full border border-cyan-300/30 bg-cyan-400/[0.08] px-3 py-1 text-xs text-cyan-800"
             >
               {AGENT_META[a.agentId].label}
             </span>
@@ -660,17 +660,17 @@ function StepReview({
       </div>
 
       {(state.contextSeed.strategicObjective || state.contextSeed.deliveryChallenges.length > 0) && (
-        <div className="rounded-2xl border border-white/[0.07] bg-black/30 p-5">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
           <p className="mb-3 text-[10px] uppercase tracking-[0.24em] text-indigo-300/60">Context Seed</p>
           {state.contextSeed.strategicObjective && (
-            <p className="text-sm leading-relaxed text-slate-300">{state.contextSeed.strategicObjective}</p>
+            <p className="text-sm leading-relaxed text-slate-700">{state.contextSeed.strategicObjective}</p>
           )}
           {state.contextSeed.deliveryChallenges.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {state.contextSeed.deliveryChallenges.map((c) => (
                 <span
                   key={c}
-                  className="rounded-full border border-pink-300/25 bg-pink-400/[0.06] px-2.5 py-0.5 text-[11px] text-pink-200"
+                  className="rounded-full border border-pink-300/25 bg-pink-400/[0.06] px-2.5 py-0.5 text-[11px] text-pink-800"
                 >
                   {humanize(c)}
                 </span>
@@ -684,11 +684,11 @@ function StepReview({
         type="button"
         onClick={onCreate}
         disabled={creating || !!createError}
-        className="relative w-full overflow-hidden rounded-2xl border border-cyan-300/30 bg-gradient-to-r from-cyan-950/60 via-indigo-950/60 to-cyan-950/60 px-6 py-4 text-base font-semibold text-white shadow-[0_0_40px_rgba(34,211,238,0.12)] transition-all hover:shadow-[0_0_60px_rgba(34,211,238,0.2)] disabled:opacity-60"
+        className="relative w-full overflow-hidden rounded-2xl border border-cyan-300/30 bg-gradient-to-r from-cyan-950/60 via-indigo-950/60 to-cyan-950/60 px-6 py-4 text-base font-semibold text-slate-900 shadow-[0_0_40px_rgba(34,211,238,0.12)] transition-all hover:shadow-[0_0_60px_rgba(34,211,238,0.2)] disabled:opacity-60"
       >
         {creating ? (
           <span className="flex items-center justify-center gap-2.5">
-            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-cyan-400" />
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-cyan-400" />
             Initializing Command Center…
           </span>
         ) : (
@@ -884,19 +884,19 @@ export function CreatePmoWizard() {
                 disabled={!isDone}
                 className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs transition-colors ${
                   isCurrent
-                    ? "border border-cyan-300/40 bg-cyan-400/[0.1] text-cyan-100"
+                    ? "border border-cyan-300/40 bg-cyan-400/[0.1] text-cyan-900"
                     : isDone
-                    ? "cursor-pointer border border-white/10 bg-white/[0.03] text-zinc-400 hover:text-slate-200"
-                    : "cursor-default border border-white/[0.04] text-zinc-700"
+                    ? "cursor-pointer border border-slate-200 bg-white text-zinc-600 hover:text-slate-800"
+                    : "cursor-default border border-slate-200 text-zinc-300"
                 }`}
               >
                 <span
                   className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
                     isCurrent
-                      ? "bg-cyan-400/25 text-cyan-100"
+                      ? "bg-cyan-400/25 text-cyan-900"
                       : isDone
-                      ? "bg-white/10 text-zinc-300"
-                      : "bg-white/[0.04] text-zinc-700"
+                      ? "bg-slate-50 text-zinc-700"
+                      : "bg-white text-zinc-300"
                   }`}
                 >
                   {isDone ? "✓" : s.id}
@@ -906,7 +906,7 @@ export function CreatePmoWizard() {
               </button>
               {i < STEPS.length - 1 && (
                 <span
-                  className={`h-px w-3 shrink-0 ${s.id < step ? "bg-cyan-400/25" : "bg-white/[0.05]"}`}
+                  className={`h-px w-3 shrink-0 ${s.id < step ? "bg-cyan-400/25" : "bg-white"}`}
                 />
               )}
             </div>
@@ -915,7 +915,7 @@ export function CreatePmoWizard() {
       </div>
 
       {/* Content */}
-      <div className="rounded-2xl border border-white/[0.07] bg-slate-950/50 p-6 md:p-8">
+      <div className="rounded-2xl border border-slate-200 bg-[#FCFBF9]/50 p-6 md:p-8">
         {renderStep()}
       </div>
 
@@ -925,14 +925,14 @@ export function CreatePmoWizard() {
           <p className="mb-0.5 text-[10px] uppercase tracking-[0.18em] text-red-400/70">
             {createErrorClass === "fatal_failure" ? "Fatal failure" : "Recoverable failure"}
           </p>
-          <p className="mb-1 text-sm font-semibold text-red-300">Command Center activation failed</p>
+          <p className="mb-1 text-sm font-semibold text-red-700">Command Center activation failed</p>
           <p className="text-sm text-red-200/80">{createError}</p>
           <div className="mt-3 flex gap-2.5">
             {createErrorClass === "fatal_failure" ? (
               <button
                 type="button"
                 onClick={() => { setCreateError(null); setCreateErrorClass(null); setStep(1); }}
-                className="rounded-lg border border-red-400/30 px-4 py-1.5 text-sm font-medium text-red-200 transition hover:bg-red-400/10"
+                className="rounded-lg border border-red-400/30 px-4 py-1.5 text-sm font-medium text-red-800 transition hover:bg-red-400/10"
               >
                 Return to edit
               </button>
@@ -941,7 +941,7 @@ export function CreatePmoWizard() {
                 type="button"
                 onClick={handleCreate}
                 disabled={creating}
-                className="rounded-lg border border-red-400/30 px-4 py-1.5 text-sm font-medium text-red-200 transition hover:bg-red-400/10 disabled:opacity-40"
+                className="rounded-lg border border-red-400/30 px-4 py-1.5 text-sm font-medium text-red-800 transition hover:bg-red-400/10 disabled:opacity-40"
               >
                 {creating ? "Retrying…" : "Retry"}
               </button>
@@ -955,7 +955,7 @@ export function CreatePmoWizard() {
         <div className="rounded-xl border border-red-400/25 bg-red-400/[0.05] p-4">
           <ul className="space-y-1">
             {errors.map((e) => (
-              <li key={e} className="text-sm text-red-300">
+              <li key={e} className="text-sm text-red-700">
                 {e}
               </li>
             ))}
@@ -970,14 +970,14 @@ export function CreatePmoWizard() {
             type="button"
             onClick={handleBack}
             disabled={step === 1}
-            className="rounded-xl border border-white/10 px-5 py-2.5 text-sm text-zinc-400 transition hover:border-white/20 hover:text-slate-200 disabled:cursor-default disabled:opacity-30"
+            className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm text-zinc-600 transition hover:border-slate-200 hover:text-slate-800 disabled:cursor-default disabled:opacity-30"
           >
             Back
           </button>
           <button
             type="button"
             onClick={handleNext}
-            className="rounded-xl border border-cyan-200/30 bg-cyan-400/[0.1] px-6 py-2.5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.18]"
+            className="rounded-xl border border-cyan-200/30 bg-cyan-400/[0.1] px-6 py-2.5 text-sm font-semibold text-cyan-900 transition hover:bg-cyan-400/[0.18]"
           >
             Continue →
           </button>
@@ -989,7 +989,7 @@ export function CreatePmoWizard() {
             type="button"
             onClick={handleBack}
             disabled={creating}
-            className="rounded-xl border border-white/10 px-5 py-2.5 text-sm text-zinc-400 transition hover:border-white/20 hover:text-slate-200 disabled:opacity-30"
+            className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm text-zinc-600 transition hover:border-slate-200 hover:text-slate-800 disabled:opacity-30"
           >
             Back
           </button>

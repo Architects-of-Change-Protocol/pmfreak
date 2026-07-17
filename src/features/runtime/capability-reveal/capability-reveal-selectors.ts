@@ -19,10 +19,10 @@ export const LENS_LABELS = {
 } as const;
 
 const NAV_STYLE = {
-  primary: { accent: "from-indigo-300/25 to-cyan-300/15", active: "border-indigo-100/70 bg-indigo-300/[0.16] text-white shadow-[0_0_24px_rgba(129,140,248,0.28)]", idle: "text-indigo-100/90" },
-  lens: { accent: "from-cyan-300/20 to-fuchsia-300/10", active: "border-cyan-200/30 bg-cyan-300/[0.07] text-cyan-100", idle: "text-slate-300" },
-  utility: { accent: "from-emerald-300/20 to-teal-300/10", active: "border-emerald-200/30 bg-emerald-300/[0.07] text-emerald-100", idle: "text-slate-300" },
-  advanced: { accent: "from-slate-300/15 to-zinc-300/10", active: "border-slate-200/30 bg-slate-200/[0.07] text-slate-100", idle: "text-slate-300" },
+  primary: { accent: "from-indigo-300/25 to-cyan-300/15", active: "border-indigo-300/70 bg-indigo-50 text-indigo-900 shadow-[0_0_24px_rgba(129,140,248,0.18)]", idle: "text-indigo-700" },
+  lens: { accent: "from-cyan-300/20 to-fuchsia-300/10", active: "border-cyan-300/50 bg-cyan-50 text-cyan-800", idle: "text-slate-700" },
+  utility: { accent: "from-emerald-300/20 to-teal-300/10", active: "border-emerald-300/50 bg-emerald-50 text-emerald-800", idle: "text-slate-700" },
+  advanced: { accent: "from-slate-300/15 to-zinc-300/10", active: "border-slate-300/60 bg-slate-100 text-slate-800", idle: "text-slate-700" },
 } as const;
 
 export const computeRoleProfile = (role: string): RoleProfile => {

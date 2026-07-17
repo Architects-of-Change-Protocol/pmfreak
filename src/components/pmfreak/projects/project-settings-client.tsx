@@ -119,26 +119,26 @@ export function ProjectSettingsClient({ project, pmos }: { project: ProjectSetti
 
   return (
     <div className="space-y-5">
-      {error ? <p className="rounded-xl border border-rose-300/30 bg-rose-400/10 px-3 py-2 text-sm text-rose-200">{error}</p> : null}
-      {saved ? <p className="rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">Project updated.</p> : null}
+      {error ? <p className="rounded-xl border border-rose-300/30 bg-rose-400/10 px-3 py-2 text-sm text-rose-800">{error}</p> : null}
+      {saved ? <p className="rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-800">Project updated.</p> : null}
 
-      <section className="space-y-4 rounded-2xl border border-white/10 bg-black/25 p-5">
-        <h2 className="text-lg font-semibold text-white">Project details</h2>
+      <section className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+        <h2 className="text-lg font-semibold text-slate-900">Project details</h2>
         <div className="grid gap-3 md:grid-cols-2">
-          <label className="space-y-1.5 text-xs uppercase tracking-[0.14em] text-zinc-400">
+          <label className="space-y-1.5 text-xs uppercase tracking-[0.14em] text-zinc-600">
             Name
             <input
               value={form.name}
               onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
-              className="block w-full rounded-xl border border-white/15 bg-slate-950/75 px-3 py-2.5 text-sm text-slate-100"
+              className="block w-full rounded-xl border border-slate-200 bg-[#FCFBF9]/75 px-3 py-2.5 text-sm text-slate-900"
             />
           </label>
-          <label className="space-y-1.5 text-xs uppercase tracking-[0.14em] text-zinc-400">
+          <label className="space-y-1.5 text-xs uppercase tracking-[0.14em] text-zinc-600">
             PMO
             <select
               value={form.pmoId}
               onChange={(e) => setForm((s) => ({ ...s, pmoId: e.target.value }))}
-              className="block w-full rounded-xl border border-white/15 bg-slate-950/75 px-3 py-2.5 text-sm text-slate-100"
+              className="block w-full rounded-xl border border-slate-200 bg-[#FCFBF9]/75 px-3 py-2.5 text-sm text-slate-900"
             >
               <option value="">Unassigned</option>
               {pmos.map((pmo) => (
@@ -146,24 +146,24 @@ export function ProjectSettingsClient({ project, pmos }: { project: ProjectSetti
               ))}
             </select>
           </label>
-          <label className="space-y-1.5 text-xs uppercase tracking-[0.14em] text-zinc-400">
+          <label className="space-y-1.5 text-xs uppercase tracking-[0.14em] text-zinc-600">
             Status
             <select
               value={form.status}
               onChange={(e) => setForm((s) => ({ ...s, status: e.target.value }))}
-              className="block w-full rounded-xl border border-white/15 bg-slate-950/75 px-3 py-2.5 text-sm text-slate-100"
+              className="block w-full rounded-xl border border-slate-200 bg-[#FCFBF9]/75 px-3 py-2.5 text-sm text-slate-900"
             >
               {STATUS_OPTIONS.map((status) => (
                 <option key={status} value={status}>{status}</option>
               ))}
             </select>
           </label>
-          <label className="space-y-1.5 text-xs uppercase tracking-[0.14em] text-zinc-400">
+          <label className="space-y-1.5 text-xs uppercase tracking-[0.14em] text-zinc-600">
             Methodology
             <select
               value={form.methodology}
               onChange={(e) => setForm((s) => ({ ...s, methodology: e.target.value }))}
-              className="block w-full rounded-xl border border-white/15 bg-slate-950/75 px-3 py-2.5 text-sm text-slate-100"
+              className="block w-full rounded-xl border border-slate-200 bg-[#FCFBF9]/75 px-3 py-2.5 text-sm text-slate-900"
             >
               {METHODOLOGY_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -171,23 +171,23 @@ export function ProjectSettingsClient({ project, pmos }: { project: ProjectSetti
             </select>
           </label>
         </div>
-        <label className="block space-y-1.5 text-xs uppercase tracking-[0.14em] text-zinc-400">
+        <label className="block space-y-1.5 text-xs uppercase tracking-[0.14em] text-zinc-600">
           Description
           <textarea
             value={form.description}
             onChange={(e) => setForm((s) => ({ ...s, description: e.target.value }))}
             rows={3}
-            className="block w-full rounded-xl border border-white/15 bg-slate-950/75 px-3 py-2.5 text-sm text-slate-100"
+            className="block w-full rounded-xl border border-slate-200 bg-[#FCFBF9]/75 px-3 py-2.5 text-sm text-slate-900"
           />
         </label>
         <div className="flex flex-wrap items-center gap-6">
           <div className="space-y-1.5">
-            <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Icon</p>
+            <p className="text-xs uppercase tracking-[0.14em] text-zinc-600">Icon</p>
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
                 onClick={() => setForm((s) => ({ ...s, icon: "" }))}
-                className={`rounded-lg border px-2 py-1 text-xs ${!form.icon ? "border-cyan-300/60 bg-cyan-400/10 text-cyan-100" : "border-white/10 text-slate-400 hover:border-white/25"}`}
+                className={`rounded-lg border px-2 py-1 text-xs ${!form.icon ? "border-cyan-300/60 bg-cyan-400/10 text-cyan-900" : "border-slate-200 text-slate-600 hover:border-slate-200"}`}
               >
                 None
               </button>
@@ -196,7 +196,7 @@ export function ProjectSettingsClient({ project, pmos }: { project: ProjectSetti
                   key={icon}
                   type="button"
                   onClick={() => setForm((s) => ({ ...s, icon }))}
-                  className={`rounded-lg border px-2 py-1 text-base ${form.icon === icon ? "border-cyan-300/60 bg-cyan-400/10" : "border-white/10 bg-white/[0.02] hover:border-white/25"}`}
+                  className={`rounded-lg border px-2 py-1 text-base ${form.icon === icon ? "border-cyan-300/60 bg-cyan-400/10" : "border-slate-200 bg-white hover:border-slate-200"}`}
                 >
                   {icon}
                 </button>
@@ -204,12 +204,12 @@ export function ProjectSettingsClient({ project, pmos }: { project: ProjectSetti
             </div>
           </div>
           <div className="space-y-1.5">
-            <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Color</p>
+            <p className="text-xs uppercase tracking-[0.14em] text-zinc-600">Color</p>
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
                 onClick={() => setForm((s) => ({ ...s, color: "" }))}
-                className={`rounded-lg border px-2 py-1 text-xs ${!form.color ? "border-cyan-300/60 bg-cyan-400/10 text-cyan-100" : "border-white/10 text-slate-400 hover:border-white/25"}`}
+                className={`rounded-lg border px-2 py-1 text-xs ${!form.color ? "border-cyan-300/60 bg-cyan-400/10 text-cyan-900" : "border-slate-200 text-slate-600 hover:border-slate-200"}`}
               >
                 None
               </button>
@@ -219,7 +219,7 @@ export function ProjectSettingsClient({ project, pmos }: { project: ProjectSetti
                   type="button"
                   aria-label={`Color ${color}`}
                   onClick={() => setForm((s) => ({ ...s, color }))}
-                  className={`h-7 w-7 rounded-full border-2 ${form.color === color ? "border-white" : "border-transparent"}`}
+                  className={`h-7 w-7 rounded-full border-2 ${form.color === color ? "border-slate-200" : "border-transparent"}`}
                   style={{ backgroundColor: color }}
                 />
               ))}
@@ -230,20 +230,20 @@ export function ProjectSettingsClient({ project, pmos }: { project: ProjectSetti
           type="button"
           disabled={busy}
           onClick={() => void save()}
-          className="rounded-xl border border-cyan-200/45 bg-cyan-400/[0.1] px-4 py-2.5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.16] disabled:opacity-50"
+          className="rounded-xl border border-cyan-200/45 bg-cyan-400/[0.1] px-4 py-2.5 text-sm font-semibold text-cyan-900 transition hover:bg-cyan-400/[0.16] disabled:opacity-50"
         >
           Save changes
         </button>
       </section>
 
-      <section className="space-y-3 rounded-2xl border border-white/10 bg-black/25 p-5">
-        <h2 className="text-lg font-semibold text-white">Danger zone</h2>
+      <section className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+        <h2 className="text-lg font-semibold text-slate-900">Danger zone</h2>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             disabled={busy}
             onClick={() => void duplicate()}
-            className="rounded-xl border border-white/15 px-4 py-2 text-sm text-slate-200 hover:border-cyan-300/40 disabled:opacity-50"
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-800 hover:border-cyan-300/40 disabled:opacity-50"
           >
             Duplicate project
           </button>
@@ -251,7 +251,7 @@ export function ProjectSettingsClient({ project, pmos }: { project: ProjectSetti
             type="button"
             disabled={busy}
             onClick={() => void remove()}
-            className="rounded-xl border border-rose-300/25 px-4 py-2 text-sm text-rose-200 hover:border-rose-300/50 disabled:opacity-50"
+            className="rounded-xl border border-rose-300/25 px-4 py-2 text-sm text-rose-800 hover:border-rose-300/50 disabled:opacity-50"
           >
             Delete project
           </button>

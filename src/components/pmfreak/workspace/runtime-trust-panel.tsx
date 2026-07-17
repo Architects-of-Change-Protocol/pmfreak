@@ -29,12 +29,12 @@ export function RuntimeTrustPanel({ traces, currentConfidence, onFeedback }: Pro
   const latest = traces[traces.length - 1] ?? null;
 
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.01] p-3 text-xs">
-      <p className="mb-2.5 text-[9px] uppercase tracking-[0.28em] text-zinc-600">Runtime Trust</p>
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 text-xs">
+      <p className="mb-2.5 text-[9px] uppercase tracking-[0.28em] text-zinc-400">Runtime Trust</p>
 
       {/* Confidence */}
       <div className="mb-3">
-        <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-1">Confidence</p>
+        <p className="text-[10px] text-zinc-400 uppercase tracking-widest mb-1">Confidence</p>
         <p className={`font-medium ${CONFIDENCE_STYLES[currentConfidence]}`}>
           {VALIDATION_CONFIDENCE_LABELS[currentConfidence]}
         </p>
@@ -45,7 +45,7 @@ export function RuntimeTrustPanel({ traces, currentConfidence, onFeedback }: Pro
           {/* Active Signal Sources */}
           {latest.activeSources.length > 0 ? (
             <div className="mb-3">
-              <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-1.5">Active Sources</p>
+              <p className="text-[10px] text-zinc-400 uppercase tracking-widest mb-1.5">Active Sources</p>
               <div className="flex flex-wrap gap-1">
                 {latest.activeSources.map((src) => (
                   <span
@@ -68,7 +68,7 @@ export function RuntimeTrustPanel({ traces, currentConfidence, onFeedback }: Pro
               <ol className="mt-1.5 space-y-0.5 text-slate-500">
                 {latest.reasoningPath.map((step, i) => (
                   <li key={step} className="flex items-start gap-1">
-                    {i > 0 ? <span className="text-zinc-700">→</span> : null}
+                    {i > 0 ? <span className="text-zinc-300">→</span> : null}
                     <span>{step}</span>
                   </li>
                 ))}
@@ -95,7 +95,7 @@ export function RuntimeTrustPanel({ traces, currentConfidence, onFeedback }: Pro
 
           {/* Feedback */}
           {latest.feedbackState ? (
-            <p className="text-[10px] text-zinc-600">
+            <p className="text-[10px] text-zinc-400">
               Feedback recorded:{" "}
               <span className={latest.feedbackState === "aligned" ? "text-emerald-400/60" : "text-amber-400/60"}>
                 {latest.feedbackState === "aligned" ? "Runtime aligned" : "Needs recalibration"}
@@ -121,7 +121,7 @@ export function RuntimeTrustPanel({ traces, currentConfidence, onFeedback }: Pro
           )}
         </>
       ) : (
-        <p className="text-[11px] text-zinc-700">Awaiting first operational signal</p>
+        <p className="text-[11px] text-zinc-300">Awaiting first operational signal</p>
       )}
     </div>
   );
