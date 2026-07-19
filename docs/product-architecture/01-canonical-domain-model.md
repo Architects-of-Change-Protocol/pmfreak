@@ -2,6 +2,15 @@
 
 **Type:** Research / domain-modeling audit. Documentation only. No product code, styles, routes, APIs, or database schema were modified to produce this report.
 
+> **Amendment notice (PR1.1, 2026-07-18 — Founder Ratification):** The founder has since ratified product decisions **D-01** (Enterprise is a canonical entity, distinct from Workspace), **D-17** (Program is PMI-Program — a coordination entity connected to PMO/Portfolio/Project), and **D-18** (Portfolio is built to PMI semantics, as a PMO-owned strategic entity) — along with a complete set of companion decisions covering Workspace, PMO, Project, Command Center, Project Intelligence Feed, Project Memory, Enterprise Intelligence, methodology, and progressive disclosure. These are now **ratified product instructions**, not open questions. They are formalized in:
+> - §47 [Founder-Ratified Product Decisions](#47-founder-ratified-product-decisions)
+> - §48 [Ratified Canonical Target Model](#48-ratified-canonical-target-model)
+> - §49 [Current Implementation vs Ratified Target](#49-current-implementation-vs-ratified-target)
+> - `docs/product-architecture/01.1-domain-ratification.md` (the authoritative ratification record)
+> - `docs/adr/ADR-PMF-001` through `ADR-PMF-012`
+>
+> **This ratification does not retroactively change what code exists.** Everything below this notice (§1–§46) is preserved unmodified as the original PR1 audit and its evidence — including the "Open Product Decisions" table in §43, which is left intact as the historical record of the questions as they stood *before* ratification, with pointers added to where each is now resolved. No implementation was performed by this amendment; PR2 has not started.
+
 ---
 
 ## 1. Executive Summary
@@ -799,9 +808,11 @@ Not designed in this PR (explicitly out of scope); listed only so a future imple
 
 Twenty items, per the brief's required list, plus the domain-specific decisions raised above. Confidence is this audit's confidence in the *evidence*, not a recommendation of certainty about the *answer* — every "High confidence" item below is high confidence that the option described is what the evidence supports, not that it is what product should choose.
 
+> **This table is preserved as the historical record of these questions as they stood at the end of PR1, before ratification.** D-01, D-17, and D-18 have since been **ratified** by the founder (PR1.1, 2026-07-18) — see §47 and the linked ADRs. Their rows below are annotated with the ratified answer rather than rewritten, so the original options/evidence/confidence framing remains intact.
+
 | ID | Decision | Option A | Option B | Option C | Recommendation | Evidence | Confidence | Blocks PR2? |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| D-01 | Are Enterprise and Workspace distinct entities? | Yes — build Enterprise above Workspace | No — Workspace is the top; "Enterprise" stays a vision/marketing word only | Enterprise = a *view* over a set of Workspaces the same operator manages, no new entity | This document does not choose; evidence shows zero implementation today (§15) | §9, §12 C-2/C-7, §15 | High (on the evidence), N/A (on the decision) | Yes |
+| D-01 | Are Enterprise and Workspace distinct entities? | **Yes — build Enterprise above Workspace ← RATIFIED, see §47 D-01 / ADR-PMF-001** | No — Workspace is the top; "Enterprise" stays a vision/marketing word only | Enterprise = a *view* over a set of Workspaces the same operator manages, no new entity | ~~This document does not choose~~ **RATIFIED toward Option A (2026-07-18) — see §47** | §9, §12 C-2/C-7, §15 | High (on the evidence), N/A (on the decision) | **No longer blocks — ratified** |
 | D-02 | Is Workspace a data/security boundary? | Yes | No | — | **Yes** — already true, live-tested | §16, §35 | High | No (already resolved) |
 | D-03 | Can a Workspace contain multiple PMOs? | Yes | No | — | **Yes** — already true | §17 | High | No (already resolved) |
 | D-04 | Can a Project exist without a PMO? | Yes | No | — | **Yes** — already true (`pmo_id` nullable) | §17, §20 | High | No (already resolved) |
@@ -817,8 +828,8 @@ Twenty items, per the brief's required list, plus the domain-specific decisions 
 | D-14 | How is knowledge elevated? | Automatic | **Governed, human-reviewed promotion, evidence+confidence+lineage required** | No elevation at all — isolation only, as today | This document does not choose between "build a governed pipeline" and "keep pure isolation" — both are legitimate, opposite answers to the same evidence | §27, §38 | Medium | Yes |
 | D-15 | How is segregation between clients protected? | RLS as today | Additional application-layer checks | — | **RLS as today** — already proven live under test | §16, §35 | High | No (already resolved) |
 | D-16 | Should Sprint be universal or methodology-specific? | Universal | **Methodology-specific (agile-only, scoped to Program tool)** | — | **Methodology-specific** — matches current, correct implementation | §21 | High | No (already resolved, just undocumented as intentional) |
-| D-17 | Does "Program" mean PMI-Program (groups Projects) or the roadmap-parsing tool it is today? | PMI-Program — add new relationship on top of existing tool | Roadmap tool keeps the name; PMI meaning expressed some other way (or not at all) | Both — rename the roadmap tool, free "Program" for a new PMI-aligned construct | This document explicitly does not choose (see §19) — this is the clearest fork in the whole audit | §19, §33 | Medium | **Yes — blocks any Program/Project FK work** |
-| D-18 | Should Portfolio be built to PMI semantics? | Yes — new `portfolios` aggregate | No — retire the word from anywhere except `personal_portfolios`, per the sibling audit's recommendation | Yes, but scoped only within a single PMO, not cross-PMO | This document does not choose — flags the tension with the sibling audit explicitly (§12 C-6) | §18, §12 C-6 | Medium | **Yes — blocks any Portfolio schema work** |
+| D-17 | Does "Program" mean PMI-Program (groups Projects) or the roadmap-parsing tool it is today? | **PMI-Program — add new relationship on top of existing tool ← RATIFIED, see §47 D-05 / ADR-PMF-005** | Roadmap tool keeps the name; PMI meaning expressed some other way (or not at all) | Both — rename the roadmap tool, free "Program" for a new PMI-aligned construct | ~~This document explicitly does not choose~~ **RATIFIED toward Option A (2026-07-18) — see §47** | §19, §33 | Medium | **No longer blocks — ratified** |
+| D-18 | Should Portfolio be built to PMI semantics? | **Yes — new `portfolios` aggregate ← RATIFIED, see §47 D-04 / ADR-PMF-004** | No — retire the word from anywhere except `personal_portfolios`, per the sibling audit's recommendation | Yes, but scoped only within a single PMO, not cross-PMO | ~~This document does not choose~~ **RATIFIED toward Option A, scoped to one PMO per rules D-04.11/.12 (2026-07-18) — see §47** | §18, §12 C-6 | Medium | **No longer blocks — ratified** |
 | D-19 | Which of Project/Context/Initiative is the one user-facing name? | Project | Context | Initiative | **Project** — already the majority usage and the technical name everywhere else | §20, §11 | High | No — but requires a copy-only future PR to execute |
 | D-20 | Which concepts should be hidden in onboarding for independent PMs? | Everything above Project | PMO visible but optional | Current behavior (PMO creation mandatory before Project creation) | Recommend moving away from **current behavior**, which contradicts the stated small-user vision — but the specific replacement needs ratification | §38 | Medium | Partially — affects onboarding UX in a future PR |
 
@@ -826,33 +837,41 @@ Twenty items, per the brief's required list, plus the domain-specific decisions 
 
 ## 44. ADR Candidates
 
-No ADR convention exists in this repository today (only one genuine ADR was found, `docs/founder-program/00-architecture-decision-record.md`, scoped to a single feature). This audit recommends establishing `docs/adr/` as a repo-wide convention and proposes the following candidates, in priority order:
+No ADR convention exists in this repository today (only one genuine ADR was found, `docs/founder-program/00-architecture-decision-record.md`, scoped to a single feature). This audit recommended establishing `docs/adr/` as a repo-wide convention and proposed the following candidates, in priority order.
 
-| Priority | ADR candidate | Depends on ratifying |
-| --- | --- | --- |
-| 1 | PMO canonicalization: `pmos` table is the sole source of truth; `command_center_type` enum and `PmoTenant` blob become read-only legacy inputs, deprecation path defined | D-05 |
-| 2 | Command Center as a UI/UX term, never an entity; rename `Create Command Center` action to name the entity it actually creates | D-10 |
-| 3 | Program semantic decision (PMI-Program vs. roadmap-parsing tool) | D-17 |
-| 4 | Portfolio: build to PMI semantics, or formally retire the word outside `personal_portfolios` | D-18 |
-| 5 | Enterprise Intelligence elevation model: governed pipeline vs. pure isolation | D-13, D-14 |
-| 6 | Enterprise entity: build, or remain vision-only language | D-01 |
-| 7 | Project Intelligence Feed: formal projection design over existing bounded contexts | D-11 |
-| 8 | Decision-table unification (6+ fragmented tables) | (not covered by the 20-item matrix; flagged in §40/§42 as its own future audit) |
-| 9 | Data sovereignty vs. cross-tenant learning reconciliation | D-13, D-14, and §36 |
-| 10 | Progressive disclosure segment rollout, formalizing the existing `capability-reveal` engine against the five segments in §38 | D-05, D-20 |
+> **Status update (PR1.1, 2026-07-18):** All twelve ADRs below (and two more covering decisions not originally scoped as ADR candidates in PR1 — Project as execution aggregate and Project Intelligence Feed as a formally-named record) have now been written and accepted. See §47 for the full ADR Index with file paths.
+
+| Priority | ADR candidate | Depends on ratifying | Status |
+| --- | --- | --- | --- |
+| 1 | PMO canonicalization: `pmos` table is the sole source of truth; `command_center_type` enum and `PmoTenant` blob become read-only legacy inputs, deprecation path defined | D-05 | **Accepted — ADR-PMF-003** |
+| 2 | Command Center as a UI/UX term, never an entity; rename `Create Command Center` action to name the entity it actually creates | D-10 | **Accepted — ADR-PMF-007** |
+| 3 | Program semantic decision (PMI-Program vs. roadmap-parsing tool) | D-17 | **Accepted — ADR-PMF-005** |
+| 4 | Portfolio: build to PMI semantics, or formally retire the word outside `personal_portfolios` | D-18 | **Accepted — ADR-PMF-004** |
+| 5 | Enterprise Intelligence elevation model: governed pipeline vs. pure isolation | D-13, D-14 | **Accepted — ADR-PMF-010** |
+| 6 | Enterprise entity: build, or remain vision-only language | D-01 | **Accepted — ADR-PMF-001** |
+| 7 | Project Intelligence Feed: formal projection design over existing bounded contexts | D-11 | **Accepted — ADR-PMF-008** |
+| 8 | Decision-table unification (6+ fragmented tables) | (not covered by the 20-item matrix; flagged in §40/§42 as its own future audit) | Not ratified this PR — remains open, see §25 of `01.1-domain-ratification.md` |
+| 9 | Data sovereignty vs. cross-tenant learning reconciliation | D-13, D-14, and §36 | **Accepted — ADR-PMF-010** (folded in) |
+| 10 | Progressive disclosure segment rollout, formalizing the existing `capability-reveal` engine against the five segments in §38 | D-05, D-20 | **Accepted — ADR-PMF-012** |
+| — | Workspace as operational/data/access boundary (not originally a candidate — formalized because Enterprise's ratification required clarifying what sits below it) | D-02 | **Accepted — ADR-PMF-002** |
+| — | Project as the central execution aggregate | D-06 | **Accepted — ADR-PMF-006** |
+| — | Project Memory distinct from chat history | D-09/D-12 | **Accepted — ADR-PMF-009** |
+| — | Sprint/Iteration as methodology-specific, not universal | D-16 | **Accepted — ADR-PMF-011** |
 
 ## 45. Ratification Plan
 
-1. Circulate this document and the sibling conceptual audit (`docs/audits/conceptual-model-architecture-audit-2026-07-18.md`) together to product/architecture leadership, explicitly flagging §12 C-6 as the central disagreement to resolve first (simplify-away vs. connect-and-preserve).
-2. Ratify D-01 (Enterprise), D-17 (Program), and D-18 (Portfolio) as the three highest-leverage decisions — nearly every other open item is downstream of these three.
-3. Once D-01/D-17/D-18 are ratified, write the corresponding ADRs (§44, priorities 1–6).
-4. Only after ADRs are ratified should a PR2 (implementation) be scoped — and PR2 should be split by ADR, not attempted as one large refactor, given how independent these decisions are from each other (e.g., D-10's Command Center rename does not require D-18's Portfolio decision to be resolved first).
+1. ~~Circulate this document and the sibling conceptual audit (`docs/audits/conceptual-model-architecture-audit-2026-07-18.md`) together to product/architecture leadership, explicitly flagging §12 C-6 as the central disagreement to resolve first (simplify-away vs. connect-and-preserve).~~ **Done.** The founder resolved §12 C-6 explicitly in favor of connect-and-preserve, not the sibling audit's simplify-away recommendation — see §47.
+2. ~~Ratify D-01 (Enterprise), D-17 (Program), and D-18 (Portfolio) as the three highest-leverage decisions~~ **Done (PR1.1, 2026-07-18)** — along with every other item in §43, not only the top three.
+3. ~~Once D-01/D-17/D-18 are ratified, write the corresponding ADRs (§44, priorities 1–6).~~ **Done** — twelve ADRs accepted, see §47.
+4. Only after ADRs are ratified should a PR2 (implementation) be scoped — and PR2 should be split by ADR, not attempted as one large refactor, given how independent these decisions are from each other (e.g., D-10's Command Center rename does not require D-18's Portfolio decision to be resolved first). **This step is now unblocked** — PR2 may be scoped following this ratification — **but PR2 has not started and is not started by this document.**
 
 ## 46. Final Status
 
 ```text
 DOMAIN MODEL REQUIRES PRODUCT DECISIONS
 ```
+
+*(Status as recorded at the close of PR1, preserved verbatim below as the historical record.)*
 
 The database's Workspace → PMO → Project spine is sound, RLS-verified, and does not need to be rebuilt. But this audit surfaces genuine, high-leverage product decisions (Enterprise's existence, Program's semantic, Portfolio's build-vs-retire fork, and the elevation-vs-isolation tension in Enterprise Intelligence) that determine the shape of a large fraction of any future implementation work. None of these can be resolved by evidence alone — they are product decisions, and this document deliberately does not make them silently. **PR2 should not begin until at minimum D-01, D-17, and D-18 are ratified.**
 
@@ -869,3 +888,89 @@ The database's Workspace → PMO → Project spine is sound, RLS-verified, and d
 - **Migrations created:** No
 - **PR2 started:** No
 - **Recommended next step:** Product/architecture ratification of D-01, D-17, and D-18 (§43), followed by ADR authorship (§44) for the ratified decisions, before any implementation PR is scoped.
+
+> **PR1.1 amendment status (2026-07-18):** The recommended next step above has been carried out in full — see §47–§49 below, `docs/product-architecture/01.1-domain-ratification.md`, and `docs/adr/ADR-PMF-001` through `ADR-PMF-012`. The updated overall status as of this amendment is **DOMAIN MODEL RATIFIED** (see the ratification document's Final Status section for the authoritative statement). This PR1 document's own final-status block above is left unmodified as the historical record of what PR1 concluded; it does not retroactively describe the current state.
+
+---
+
+## 47. Founder-Ratified Product Decisions
+
+This section records, as ratified fact, the founder's resolution of every item in §43 (and additional decisions beyond that table's scope). Each decision below is an **instruction**, not a recommendation — it must not be re-litigated as an open question in future work. Implementation is out of scope for this PR; only the target semantics are ratified here. Full rule sets, contracts, and cardinalities are formalized in `docs/product-architecture/01.1-domain-ratification.md` and the corresponding ADR; this section is a compact index.
+
+| ID | Decision area | Ratified answer | ADR | Resolves §43 item(s) |
+| --- | --- | --- | --- | --- |
+| D-01 | Enterprise vs. Workspace | Enterprise is a canonical entity, distinct from and superior to Workspace; may contain multiple Workspaces; may be auto-created/hidden for small customers; is not billing, not a dashboard, not a replacement for Workspace or PMO | `ADR-PMF-001` | §43 D-01 |
+| D-02 | Workspace boundary | Workspace is the operational, data, and access boundary within an Enterprise; nothing crosses Workspaces automatically; consultancies use one Workspace per client | `ADR-PMF-002` | §43 D-02, D-15 (reaffirmed) |
+| D-03 | PMO semantics | PMO is an organizational/governance entity (standards, templates, governance, reporting, portfolio/program oversight), not a Workspace alias; no invisible universal default PMO | `ADR-PMF-003` | §43 D-03, D-04, D-05 (partially — permanence question resolved toward no-mandatory-backfill) |
+| D-04 | Portfolio semantics | Portfolio is a strategic entity (investment/priority/capacity/risk/value), PMO-owned 1:N, optional Program/Project children, one primary Portfolio per Project/Program initially, no many-to-many, no cross-Workspace/cross-PMO | `ADR-PMF-004` | §43 D-06, D-08 (partially), D-18 |
+| D-05 | Program semantics | Program coordinates related Projects for joint benefits, PMO-owned 1:N, optional Portfolio parent, one primary Program per Project initially, no many-to-many, no cross-Workspace/cross-PMO; current disconnection classified as incomplete integration, must not be deleted | `ADR-PMF-005` | §43 D-07, D-08 (partially), D-09, D-17 |
+| D-06 | Project semantics | Project is the central execution aggregate, always Workspace-scoped, optionally PMO/Portfolio/Program-scoped; the hierarchy must never block fast Project creation | `ADR-PMF-006` | §43 D-19 (semantics only — the naming-consolidation execution remains a future copy-only PR) |
+| D-07 | Command Center semantics | Command Center is an operational experience/projection over a governed entity, never an entity itself, never independently created | `ADR-PMF-007` | §43 D-10 |
+| D-08 | Project Intelligence Feed | A composite projection over existing bounded contexts (Chat, Evidence, RAID, Decision, Task, Milestone), not an aggregate, not the sole source of truth; preserves the Raw Source → ... → Outcome pipeline without auto-promotion at any stage | `ADR-PMF-008` | §43 D-11 |
+| D-09 | Project Memory | Governed, structured, traceable operational knowledge distinct from chat history; chat can feed it but never automatically becomes authoritative | `ADR-PMF-009` | §43 D-12 (reaffirmed) |
+| D-10 | Enterprise Intelligence | Belongs to Enterprise; incorporates only governed/ratified knowledge with full provenance; must never weaken Workspace-level RLS isolation; elevation requires evidence+confidence+review+lineage+applicability+ratification | `ADR-PMF-010` | §43 D-13, D-14 |
+| D-11 | Sprint/Iteration | Sprint is optional and methodology-specific (agile/hybrid); Iteration is the general abstraction name; Milestone remains the one cross-methodology concept; methodology configurable per Project | `ADR-PMF-011` | §43 D-16 (reaffirmed) |
+| D-12 | Progressive disclosure | The full enterprise domain exists at all times regardless of what the UI reveals; hiding ≠ absence; auto-creation ≠ irrelevance | `ADR-PMF-012` | §43 D-20 (semantics only — the onboarding-blocker fix remains future-PR work) |
+
+**Not ratified by this PR (remain open, per §11 of the founder's brief):** exact technical model of Enterprise; tenant-migration strategy; future Portfolio/Program many-to-many; Program cross-PMO; Portfolio cross-PMO; shared services across Workspaces; exact storage strategy; event infrastructure; vector storage; detailed knowledge-ratification workflow; Enterprise billing; final visible navigation names; final routes; API contracts; final database shape; feature flags; migration plan; implementation order; final UI. These belong to PR2 and later.
+
+## 48. Ratified Canonical Target Model
+
+This is the target-state domain capability model, ratified 2026-07-18. It supersedes §14's dashed/solid distinction with a fully ratified hierarchy — **ratified does not mean implemented**; see §49 for the gap-by-gap comparison against current code.
+
+```mermaid
+flowchart TD
+    ENT["Enterprise\n(ratified canonical root — D-01/ADR-PMF-001;\nNOT YET IMPLEMENTED as a table/type)"]
+    WS["Workspace\n(operational/data/access boundary — D-02/ADR-PMF-002;\nALREADY IMPLEMENTED, RLS-verified)"]
+    PMO["PMO\n(governance entity — D-03/ADR-PMF-003;\npmos table IMPLEMENTED, 2 legacy reps to retire)"]
+    PORT["Portfolio\n(strategic entity — D-04/ADR-PMF-004;\nNOT YET IMPLEMENTED to PMI semantics)"]
+    PROG["Program\n(coordination entity — D-05/ADR-PMF-005;\nroadmap-parsing tool IMPLEMENTED, FK to Project/PMO NOT YET BUILT)"]
+    PRJ["Project\n(execution aggregate — D-06/ADR-PMF-006;\nALREADY IMPLEMENTED, best-designed entity)"]
+
+    ENT -->|"1:N"| WS
+    WS -->|"1:N"| PMO
+    WS -.->|"1:N optional, direct"| PRJ
+    PMO -->|"1:N"| PORT
+    PMO -->|"1:N"| PROG
+    PMO -.->|"1:N optional, direct"| PRJ
+    PORT -.->|"1:N optional"| PROG
+    PORT -.->|"1:N optional, direct"| PRJ
+    PROG -->|"1:N"| PRJ
+```
+
+Solid arrows are mandatory relationships in the ratified target model. Dashed arrows are the ratified **optional shortcuts** (Workspace→Project, PMO→Project, Portfolio→Project) that preserve progressive disclosure and fast Project creation (D-06, D-12) — they are not weaker relationships, just optional ones. This diagram represents ratified domain **capability**, not a mandatory onboarding sequence, and not a claim that every level must be visible or populated for every customer (§48 pairs with D-12/ADR-PMF-012).
+
+**Entity vs. projection model** (Command Center, D-07/ADR-PMF-007):
+
+```mermaid
+flowchart LR
+    ENT2[Enterprise Entity] --> ENTCC[Enterprise Command Center]
+    WS2[Workspace Entity] --> WSCC[Workspace Command Center]
+    PMO2[PMO Entity] --> PMOCC[PMO Command Center]
+    PORT2[Portfolio Entity] --> PORTCC[Portfolio Command Center]
+    PROG2[Program Entity] --> PROGCC[Program Command Center]
+    PRJ2[Project Entity] --> PRJCC[Project Command Center]
+```
+
+Every Command Center in this diagram is a **view/projection** over its entity — never a second entity, never independently created (D-07). None of the six variants above require a dedicated table unless a persistent *view configuration* is needed, in which case that configuration belongs to the view, not to a new governed entity.
+
+## 49. Current Implementation vs Ratified Target
+
+This table is the authoritative gap ledger for this ratification. It restates §10/§13/§40 (current state, unchanged by this PR) against the newly ratified target (§47/§48), and must not be read as a claim that any gap below has been closed by this PR.
+
+| Concept | Current implementation state (unchanged by this PR) | Ratified target state | Gap type | Closes in |
+| --- | --- | --- | --- | --- |
+| Enterprise | No table, no FK, no TS type anywhere; only trace is a dead `plan='enterprise'` billing-enum value silently coerced to `'free'` (§12 C-2, §15) | Canonical aggregate root above Workspace, 1:N to Workspace, may be auto-created/hidden for small customers (D-01) | Missing capability — full build | PR2, scope TBD |
+| Workspace | Real, migration-enforced, RLS-verified tenant boundary; 408/409 tables RLS-enabled; overloaded with "Command Center" naming on `command_center_type`/`visibility_scope`/`confidentiality_level` (§16, §22, §35) | Operational/data/access boundary under Enterprise, semantics unchanged, naming to be disentangled from Command Center (D-02) | Naming/config disentanglement, not structural | Future copy/config PR |
+| PMO | Three layered representations: enum (2026-07-02), `PmoTenant` JSON blob, and the canonical `pmos` table (2026-08-28) — not fully reconciled (§9, §12 C-1, §17) | Single canonical `pmos`-table entity; enum/blob become configuration inputs only, deprecation path required (D-03) | Model mismatch — legacy-input reconciliation | PR2, scope TBD |
+| Portfolio | Zero PMI-sense implementation; 6 unrelated naming collisions; `personal_portfolios` is a real but unrelated per-user watchlist (§9, §18) | New `portfolios` aggregate, PMO-owned 1:N, optional Program/Project children, one primary each, no cross-PMO/cross-Workspace (D-04) | Missing canonical model — new table + migration | PR2, scope TBD |
+| Program | Real, tested roadmap-to-backlog capability (`programs`/`program_epics`/`program_sprints`/`program_cards`); zero FK to `projects`/`pmos`, `workspace_id`-only tenancy (§9, §19, §29-31) | Connected coordination entity: PMO-owned 1:N, optional Portfolio, 1:N to Project, one primary Program per Project, roadmap tool preserved underneath (D-05) | Integration gap — new FK/relationship, not a rebuild | PR2, scope TBD |
+| Project | Real, best-designed entity; `workspace_id` NOT NULL, `pmo_id` nullable, workspace-consistency trigger enforced; 3 UI names (Project/Context/Initiative) (§9, §20, §29) | Central execution aggregate, semantics ratified as-is; UI-name consolidation to "Project" remains outstanding (D-06, D-19) | Refinement — naming/UX only, no structural gap | Future copy-only PR |
+| Command Center | Label applied to 5-6 different objects (Workspace row+wizard, `/command-center` route, `pmo_command_center_snapshots`, `operational_command_centers`, `/pmo-command-center`, `/projects` `<h1>`); "Create Command Center" actually creates a PMO (§9, §11, §22) | Formalized as a view/projection term over any governed entity; creation actions must name the entity they create (D-07) | Naming/semantic gap — no schema change needed | PR2/PR3, UI-scoped |
+| Project Intelligence Feed | Not built; no `Feed`/`IntelligenceFeed`/`ActivityStream` type or table; only a UI heading with no backing model (§23) | Composite projection over Chat/Evidence/RAID/Decision/Task/Milestone, preserving the full Raw Source→Outcome pipeline (D-08) | Product gap — new projection to design and build | Sprint/PR TBD |
+| Project Memory | `project_memory_snapshots` real and distinct from chat history; no explicit correction/audit-trail mechanism confirmed (§24) | Governed knowledge with source/actor/date/context/evidence/confidence/validation/lineage/corrections preserved (D-09) | Architecture gap — governance metadata completeness | Sprint/PR TBD |
+| Enterprise Intelligence | No elevation pipeline exists anywhere; architecture instead enforces hard RLS isolation with no cross-workspace query path — in tension with any future elevation model (§27) | Belongs to Enterprise; only governed/ratified knowledge elevates, six-part gate (evidence/confidence/review/lineage/applicability/ratification), isolation guarantees preserved (D-10) | Missing capability — governed pipeline design, reconciled with existing isolation | Sprint/PR TBD, security-reviewed |
+| Sprint/Iteration | Sprint/Epic already correctly scoped to the isolated Program tree only; no generic "Iteration" type exists; `methodology` field on `projects` not confirmed wired to UI gating (§21) | Sprint stays optional/methodology-specific; "Iteration" is the ratified future vocabulary for a methodology-neutral abstraction if/when needed (D-11) | Mostly already correct — verify `methodology` gating, reconcile Program-Card `MILESTONE` with `project_milestones` | Future verification PR |
+| Progressive disclosure | Real, working `capability-reveal` engine (stages/domains/roles/plan tiers) already exists; onboarding currently blocks "Create Project" until "Create Command Center"/PMO is done, contradicting the independent-PM vision (§37, §38) | Full domain exists regardless of UI reveal state; future gates for Enterprise/Portfolio/Program extend this existing engine, do not replace it (D-12) | Ahead of the domain model in infrastructure; blocked by the onboarding contradiction above | Future onboarding-fix PR |
+
+No migration, schema change, route change, or code change was made to close any gap in this table — this PR ratifies the target column only.
