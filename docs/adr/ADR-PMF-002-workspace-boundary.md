@@ -79,13 +79,17 @@ it does not open a channel across Workspaces.
    MUST use a separate Workspace per client. This is the intended and supported
    multi-tenant pattern for that use case, not a workaround.
 9. Cross-client intelligence — insights, patterns, memory, or recommendations
-   derived from one client's Workspace appearing in another's — is prohibited by
-   default. It can only be enabled through the explicit governed-elevation policy
-   referenced in Rule 7, and only for knowledge that has been promoted to
-   Enterprise Intelligence under its own governance (see the ratified
-   Recommendation→Decision→Action→Outcome chain and the "candidate pattern ≠
-   ratified pattern" invariant); raw Workspace or Project data itself never
-   crosses regardless of policy.
+   derived from one client's Workspace appearing in another client's Workspace —
+   is prohibited, with no exception. This holds even when both Workspaces share
+   an Enterprise (e.g., a consultancy's per-client Workspaces) and even for
+   knowledge that has been promoted all the way to Enterprise Intelligence:
+   per ADR-PMF-010 Rule 6, Enterprise Intelligence must not blend one client's
+   knowledge into another's regardless of shared Enterprise membership. Raw
+   Workspace or Project data itself never crosses under any circumstance. The
+   governed-elevation policy referenced in Rule 7 governs transfers that do
+   not cross a client boundary — for example, multiple Workspaces operated by
+   the same client organization within one Enterprise — and is not a
+   mechanism for crossing between distinct clients.
 10. Workspace is surfaced to the user when it adds context — for example, when a
     user belongs to more than one Workspace, or when a consultancy needs to
     confirm which client they are acting within. It is not surfaced as clutter

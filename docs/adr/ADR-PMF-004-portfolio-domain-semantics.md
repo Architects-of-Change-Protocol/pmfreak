@@ -33,7 +33,7 @@ Portfolio takes its place in the ratified canonical hierarchy as:
 Enterprise → Workspace → PMO → Portfolio → Program → Project
 ```
 
-with the optional shortcut Portfolio → Project (direct), alongside the other ratified shortcuts (Workspace→Project, PMO→Project, PMO→Program).
+with the optional shortcut Portfolio → Project (direct), alongside the other ratified shortcuts (Workspace→Project, PMO→Project, Portfolio→Program — Program's membership in a PMO is always mandatory per ADR-PMF-005; only its Portfolio nesting is optional).
 
 Cardinality (target-state contract, per the PR1.1 ratification):
 

@@ -92,11 +92,16 @@ given Project at all.
    ratified in ADR-PMF-006 Rule 11 (the hierarchy, and by extension any
    methodology-specific capability within it, must never block core Project
    use).
-5. Milestone is a cross-cutting capability: it applies to every Project
-   regardless of methodology. `project_milestones` is ratified as the
-   canonical, single Milestone concept for this purpose. It is not
-   optional, not methodology-gated, and not a subtype of Sprint or
-   Iteration.
+5. Milestone is a cross-cutting capability: its availability applies to every
+   Project regardless of methodology. `project_milestones` is ratified as the
+   canonical, single Milestone concept for this purpose, and is not
+   methodology-gated or a subtype of Sprint or Iteration — no Project may be
+   denied access to Milestone on methodology grounds. This rule concerns the
+   *capability's* availability, not any individual Project's records: whether
+   a given Project has zero, one, or many milestone records remains a normal
+   per-Project modeling choice, exactly as with any other optional Project
+   capability (Tasks, RAID items, etc.) — Milestone availability is mandatory
+   and methodology-neutral; individual milestone records are not.
 6. Epic must not be mandatory for all Projects. Like Sprint, Epic
    (`program_epics`) is a methodology-specific capability, scoped to
    agile/hybrid Projects, and must never be a required structure for a

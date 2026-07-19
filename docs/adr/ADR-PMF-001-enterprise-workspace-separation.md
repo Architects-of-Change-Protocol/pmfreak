@@ -36,7 +36,7 @@ This decision formally supersedes the "Workspace is the whole organization, with
 6. Enterprise does not replace PMO. PMO remains a Workspace-scoped governance entity (per the separate, already-ratified `pmos` table model); Enterprise does not absorb or duplicate PMO's responsibilities.
 7. Enterprise is not a dashboard. It is an organizational/administrative entity, not a UI surface or a view.
 8. Enterprise must not be confused with a billing plan. The dead `plan = 'enterprise'` CHECK-constraint value described in Context is a naming collision with this decision, not an implementation of it, and must not be treated as prior art for the Enterprise entity.
-9. Enterprise is the upper administrative boundary of the organization in the target hierarchy: `Enterprise → Workspace → PMO → Portfolio → Program → Project`, with optional shortcuts `Workspace → Project`, `PMO → Project`, `PMO → Program`, and `Portfolio → Project`.
+9. Enterprise is the upper administrative boundary of the organization in the target hierarchy: `Enterprise → Workspace → PMO → Portfolio → Program → Project`, with optional shortcuts `Workspace → Project`, `PMO → Project`, `Portfolio → Program`, and `Portfolio → Project` (Program's membership in a PMO is always mandatory, per ADR-PMF-005; only its Portfolio nesting is optional).
 10. Enterprise's conceptual existence does not require all of its modules (billing consolidation, cross-Workspace administration, Enterprise Intelligence, integration governance, etc.) to be implemented immediately. Ratifying the entity and ratifying full implementation of every module attached to it are separate acts.
 
 ## Alternatives Considered
