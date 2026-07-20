@@ -29,7 +29,7 @@ One frontend module per PR4 bounded context that has a user-facing surface, or a
 
 | Frontend module | PR4 bounded context(s) | Owns screens (examples, `03-screen-catalog.md`) | Public entry point (target) |
 | --- | --- | --- | --- |
-| Identity and Access | Identity and Access | Log In, Sign Up, session/Workspace switcher | `modules/identity` |
+| Identity and Access | Identity and Access | Landing, Log In, Sign Up, session/Workspace switcher, Profile, Saved Projects | `modules/identity` |
 | Enterprise Administration | Enterprise Administration | Enterprise Home, Enterprise Command Center, Enterprise Settings | `modules/enterprise` |
 | Workspace Management | Workspace Management | Workspace Home, Workspace Command Center, Workspace Settings | `modules/workspace` |
 | PMO Governance | PMO Governance | PMO Home, PMO Command Center, PMO Settings | `modules/pmo` |
@@ -50,6 +50,8 @@ One frontend module per PR4 bounded context that has a user-facing surface, or a
 | Audit | Audit and Compliance | Audit (Administration Layer) | `modules/audit` |
 | Billing | Billing and Entitlements | Billing (Administration Layer) | `modules/billing` |
 | Search | Search and Discovery (consumed, not owned) | Search (Global), scoped Search variants | `modules/search` |
+
+Landing, Profile, and Saved Projects (`03-canonical-information-architecture.md` §5.1, Global & Personal Layer) sit outside the Enterprise→Project hierarchy entirely — each is scoped to the User, "not a hierarchy entity" per that section — so none traces to one of the twenty domain-hierarchy bounded contexts above. They are assigned to Identity and Access because that context is PR4 §10's explicit owner of "User identity" (the one bounded context whose ownership already extends to the User as a concept, distinct from any Workspace-scoped role); this is the same reasoning `03-canonical-information-architecture.md` §5.1 uses to place these three screens outside the domain hierarchy while still requiring a session-authenticated context to render.
 
 `03-canonical-information-architecture.md` §5.11 names six cross-scope screens: Reports, Health Center, Forecast Center, Calendar, Timeline, and Agent Center. Two of the six — Reports and Agent Center — get their own dedicated module above (Reporting, Agent Experience) because each traces to its own PR4 §10 bounded context (Reporting and Analytics, Agent Orchestration) with its own aggregate/read-model ownership, exactly like any other module in this catalog. The remaining four — Health Center, Forecast Center, Calendar, Timeline — are Domain Presentation components consumed by whichever scoping module renders them, never an independent module, because none of the four traces to a bounded context of its own; each is a derived, scope-qualified view over its scoping entity's existing data (§11 of `07-canonical-frontend-architecture.md`'s Command Center composition model), with no independent aggregate to own.
 

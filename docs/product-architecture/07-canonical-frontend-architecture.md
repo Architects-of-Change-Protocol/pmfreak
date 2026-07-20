@@ -186,6 +186,7 @@ Deliberately left open, not resolved by guesswork — full context in each compa
 - Visual-regression tooling.
 - Exact route migration order (phases are fixed in `07-frontend-migration-strategy.md`; the order within a phase is not).
 - Exact cache durations.
+- A per-Command affected-Query/invalidation-target field in `06-command-catalog.md` (currently derived from each Command's documented Side Effects and Emitted Events, `07-frontend-state-and-data-architecture.md` §9).
 - Exact performance budgets.
 - Exact realtime provider (for any screen requiring live updates beyond polling).
 - Exact analytics provider.

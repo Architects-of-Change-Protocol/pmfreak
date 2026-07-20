@@ -137,7 +137,7 @@ flowchart LR
 
 ## 7. Phased Migration
 
-1. **Phase 0 — Contract clients and module boundaries (no route changes).** Introduce the Application Contracts layer and target module skeleton (`07-frontend-module-boundaries.md` §6); replace the 20 direct-Supabase-call files' data access with contract-client calls in place, without moving them. Add the fitness functions (`07-frontend-module-boundaries.md` §4) so no new direct-persistence-access file can be introduced during the rest of migration.
+1. **Phase 0 — Contract clients and module boundaries (no route changes).** Introduce the Application Contracts layer and target module skeleton (`07-frontend-module-boundaries.md` §6); replace all 26 direct-Supabase-call files' (69 call sites, §2/§4 above) data access with contract-client calls in place, without moving them — including the six colocated `actions.ts` Server Action files, not only the twenty `page.tsx`/`layout.tsx` files. Add the fitness functions (`07-frontend-module-boundaries.md` §4) so no new direct-persistence-access file can be introduced during the rest of migration.
 2. **Phase 1 — Direct-match routes (Project, Workspace, PMO, Portfolio, Program).** Migrate the routes already classified "direct match" (§4) into the canonical route map and their owning modules — highest-confidence, lowest-risk migration units, and the routes most users depend on daily.
 3. **Phase 2 — Command Center consolidation.** Split today's bare `/command-center` and `/pmo-command-center` routes into entity-qualified Command Centers per `07-canonical-frontend-architecture.md` §11 and ADR-PMF-065 — resolves PR1 §11's named defect directly.
 4. **Phase 3 — Near-match and creation-flow routes.** Migrate `create-command-center`, `create-pmo`, and remaining near-match routes, aligning creation flows to land on the created entity's Home per IA Principle 7.
@@ -178,6 +178,8 @@ Once a route or module enters an active migration phase (§7), new feature work 
 
 A migrated legacy route is marked deprecated (redirected to its canonical replacement) only after its replacement has served production traffic behind a fully-enabled flag for a bake-in period; exact deprecation windows are open (§13 of the parent document).
 
+**This redirect is not one of `03-navigation-contracts.md` §5's three ratified classes** (post-authentication, post-creation, access-revocation) — that section governs product/UX navigation redirects between screens within a user's session, and its closing rule ("No other redirect is permitted") predates PR7's migration need; it does not yet name a URL-canonicalization redirect for a deprecated route to its replacement. Executing this deprecation step as specified therefore requires an explicit, narrow **Migration Redirect** class to be added to `03-navigation-contracts.md` §5 (a deprecated legacy URL to its canonical replacement, permitted only under this section's bake-in precondition) before Phase-4/§16 deprecation can be carried out without contradicting PR3's ratified navigation contract. This document names the required amendment; it does not itself modify `03-navigation-contracts.md` — amending a PR3-ratified document is out of PR7's own scope (PR7 documents and modifies only `07-*` architecture and `ADR-PMF-057`–`068`, never a PR1–PR6 document) and is deferred to whichever future PR is authorized to extend it.
+
 ## 16. Removal Criteria
 
 A deprecated legacy route/component is removed only when: its replacement has been at 100% rollout for the bake-in period, its own test coverage (§10) has been ported or superseded, and no remaining code references it (verified by the same dependency-direction fitness functions used throughout migration, `07-frontend-module-boundaries.md` §4). No route is removed as part of this documentary PR.
@@ -190,7 +192,7 @@ Phases 0–5 (§7) execute in order; within a phase, routes are sequenced by the
 
 ```mermaid
 flowchart LR
-    Legacy[Legacy: 54 mixed route folders,<br/>145-entry src/lib, 20 direct-Supabase pages]
+    Legacy[Legacy: 54 mixed route folders,<br/>145-entry src/lib, 26 direct-Supabase files]
     Boundary[Boundary: module catalog +<br/>fitness functions introduced]
     ContractClient[Contract Client: 06 API<br/>consumed exclusively]
     FeatureMigration[Feature Migration: per-module<br/>Screens/Features/Domain Presentation]

@@ -36,8 +36,10 @@ Every route below corresponds to exactly one screen in `03-screen-catalog.md`; t
 | `/workspaces/[workspaceId]/pmos/[pmoId]/settings` | PMO Settings | Authenticated Shell → Workspace → PMO |
 | `/workspaces/[workspaceId]/pmos/[pmoId]/portfolios/[portfolioId]` | Portfolio Home | Authenticated Shell → Workspace → PMO → Portfolio |
 | `/workspaces/[workspaceId]/pmos/[pmoId]/portfolios/[portfolioId]/command-center` | Portfolio Command Center | Authenticated Shell → Workspace → PMO → Portfolio |
+| `/workspaces/[workspaceId]/pmos/[pmoId]/portfolios/[portfolioId]/settings` | Portfolio Settings | Authenticated Shell → Workspace → PMO → Portfolio |
 | `/workspaces/[workspaceId]/pmos/[pmoId]/programs/[programId]` | Program Home | Authenticated Shell → Workspace → PMO → Program |
 | `/workspaces/[workspaceId]/pmos/[pmoId]/programs/[programId]/command-center` | Program Command Center | Authenticated Shell → Workspace → PMO → Program |
+| `/workspaces/[workspaceId]/pmos/[pmoId]/programs/[programId]/settings` | Program Settings | Authenticated Shell → Workspace → PMO → Program |
 | `/workspaces/[workspaceId]/pmos/[pmoId]/programs/[programId]/roadmap` | Roadmap | Authenticated Shell → Workspace → PMO → Program |
 | `/workspaces/[workspaceId]/projects/[projectId]` | Project Home | Authenticated Shell → Workspace → Project |
 | `/workspaces/[workspaceId]/projects/[projectId]/command-center` | Project Command Center | Authenticated Shell → Workspace → Project |
@@ -55,14 +57,14 @@ Every route below corresponds to exactly one screen in `03-screen-catalog.md`; t
 | `/workspaces/[workspaceId]/projects/[projectId]/feed` | Project Intelligence Feed | Authenticated Shell → Workspace → Project |
 | `/workspaces/[workspaceId]/projects/[projectId]/memory` | Project Memory | Authenticated Shell → Workspace → Project |
 | `/workspaces/[workspaceId]/admin` | Administration (Workspace-scoped) | Authenticated Shell → Workspace → Admin |
-| `/workspaces/[workspaceId]/admin/users` \| `/permissions` \| `/audit` \| `/api-keys` \| `/billing` \| `/integrations` | Users, Permissions, Audit, API Keys, Billing, Integrations | Authenticated Shell → Workspace → Admin |
+| `/workspaces/[workspaceId]/admin/users`, `/workspaces/[workspaceId]/admin/permissions`, `/workspaces/[workspaceId]/admin/audit`, `/workspaces/[workspaceId]/admin/api-keys`, `/workspaces/[workspaceId]/admin/billing`, `/workspaces/[workspaceId]/admin/integrations` | Users, Permissions, Audit, API Keys, Billing, Integrations | Authenticated Shell → Workspace → Admin |
 | `/enterprises/[enterpriseId]/admin/...` (same children) | Administration (Enterprise-scoped) | Authenticated Shell → Enterprise → Admin |
 
 **Cross-scope screens** (Reports, Health Center, Forecast Center, Calendar, Timeline, Agent Center — `03-canonical-information-architecture.md` §5.11) are not separate routes; each is a sub-path or tab under the scoping entity's own route (e.g., `/workspaces/[workspaceId]/projects/[projectId]/health`, `/workspaces/[workspaceId]/projects/[projectId]/agents`), consistent with §5.11's rule that Parent = the scoping entity's Home/Command Center.
 
 **Search variants** (Workspace Search, Project Search, Knowledge Search, Agent Search — `03-canonical-information-architecture.md` §5.12) are query-parameterized views of their scoping route (e.g., `/workspaces/[workspaceId]?q=...&scope=workspace`) or a dedicated sub-path, resolved during migration — the exact form is an open decision (§13 of the parent document does not fix this; it is a route-migration-order detail, not an architectural one).
 
-Total: fifty canonical screens (`03-canonical-information-architecture.md` §6). Forty map to an explicit top-level route row above; the remaining ten (six cross-scope screens, four Search variants) map to a sub-path or query-parameterized view of an already-listed route rather than a new top-level row, consistent with their PR3 classification as manifestations, not independent screens. Of those ten, the six cross-scope screens' sub-path form is fixed by this document (§2); the four Search variants' exact form is explicitly left open (§2 above) — so "every screen has a route" holds for all fifty, but "every screen has an already-fixed route form" holds for forty-six of them, not all fifty.
+Total: fifty canonical screens (`03-canonical-information-architecture.md` §6). Every one of the fifty resolves to either an explicit top-level route row above, or a sub-path/query-parameterized view of an already-listed route, per the two rules stated immediately below the table: the six cross-scope screens' sub-path form is fixed by this document; the four Search variants' exact route form is explicitly left open. So "every screen has a route" holds for all fifty, but "every screen's route form is already fixed by this document" does not — it holds for forty-six of the fifty; the four Search variants remain an open route-form decision (§13 of the parent document).
 
 ## 3. Layout Hierarchy
 
@@ -92,7 +94,7 @@ Each layout owns exactly the chrome `03-canonical-information-architecture.md` �
 ## 4. Screen-to-Route Mapping Rules
 
 1. Every route resolves to exactly one screen; a screen is never split across two competing routes (restates IA Principle 5, One Entity One Home).
-2. A route never implies a navigation edge `03-navigation-contracts.md` §1 does not ratify — a URL is never constructed by a client to "jump" from Project directly to Portfolio, for instance.
+2. A route's *forward* navigation (a link or Quick Action offered from one screen to create or open a differently-scoped entity) never implies a navigation edge `03-navigation-contracts.md` §1 does not ratify — a Project screen never offers a direct-creation or direct-open action that would imply a fictitious Project→Portfolio edge, for instance. This does not restrict *ancestor-return* navigation: per `03-navigation-contracts.md` §2.3 rule 1 and §7, a breadcrumb node for an entity's actual resolved ancestor (e.g., a Project's Portfolio, where one exists in that Project's real ancestry) is always clickable and always navigates to that ancestor's Home — that is name-resolving an existing relationship (§6 below), not inventing a new edge.
 3. Command Center routes are always the terminal segment under their entity (`/…/command-center`), mirroring the breadcrumb rule that Command Center is always the trail's terminal node (`03-navigation-contracts.md` §2.3 rule 4) — never a mid-path segment with children beneath it.
 4. Dynamic route segments (`[workspaceId]`, `[projectId]`, etc.) use the canonical identifier only (`05-canonical-persistence-architecture.md` §6); no route segment is a name, slug, or display label that could collide or go stale.
 
