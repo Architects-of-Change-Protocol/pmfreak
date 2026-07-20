@@ -41,7 +41,7 @@ Restated verbatim from `04-ai-agent-application-architecture.md` §2, because co
 | **Agent Configuration** | Per-PMO/Workspace activation toggle and parameters, in Agent Center settings | PMO Manager / Workspace Administrator |
 | **Agent Run** | One execution instance, its own status/history entry (`GetAgentRun`/`ListAgentRuns`) | Requested via `RequestAgentRun`; cancellable via `CancelAgentRun` by the requesting actor/Admin |
 
-The Agent Center never presents "configure this Agent" and "run this Agent" as the same action, and never presents a past Agent Run's record as editable — Agent Run records are append-only (`05-canonical-persistence-architecture.md` §18, `AgentRunRepository`).
+The Agent Center never presents "configure this Agent" and "run this Agent" as the same action, and never presents a past Agent Run's record as editable — Agent Run records are append-only (`05-canonical-persistence-architecture.md` §19, `AgentRunRepository`).
 
 ## 6. Agent Proposals and Approval
 
@@ -75,7 +75,7 @@ Any AI-generated text, summary, or suggestion rendered anywhere in the frontend 
 
 ## 10. Revoked Knowledge
 
-A revoked Enterprise Knowledge Record (`RevokeEnterpriseKnowledge`) or a revoked/superseded Project Memory Record is never presented as active guidance once revoked — the frontend's Query layer relies on `06-canonical-api-contracts.md` §13's rule that a Search DTO always references the canonical record and its current status, so a revoked record surfaces (where shown at all, e.g., in a lineage/history view) with an explicit "revoked" state and its revocation reason/actor, never silently omitted in a way that would make its prior existence undiscoverable to an authorized reviewer, and never still-actionable in any Recommendation-generation surface.
+A revoked Enterprise Knowledge Record (`RevokeEnterpriseKnowledge`) or a revoked/superseded Project Memory Record is never presented as active guidance once revoked — the frontend's Query layer relies on `06-canonical-api-contracts.md` §9's rule that a Search DTO always references the canonical record and its version, so a revoked record surfaces (where shown at all, e.g., in a lineage/history view) with an explicit "revoked" state and its revocation reason/actor, never silently omitted in a way that would make its prior existence undiscoverable to an authorized reviewer, and never still-actionable in any Recommendation-generation surface.
 
 ## 11. Cross-Tenant Protection
 

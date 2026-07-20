@@ -26,14 +26,14 @@ Every route below corresponds to exactly one screen in `03-screen-catalog.md`; t
 | `/profile/saved-projects` | Saved Projects | Authenticated Shell → Profile |
 | `/enterprises/[enterpriseId]` | Enterprise Home | Authenticated Shell → Enterprise |
 | `/enterprises/[enterpriseId]/command-center` | Enterprise Command Center | Authenticated Shell → Enterprise |
-| `/enterprises/[enterpriseId]/settings` | Settings (Enterprise) | Authenticated Shell → Enterprise |
+| `/enterprises/[enterpriseId]/settings` | Enterprise Settings | Authenticated Shell → Enterprise |
 | `/enterprises/[enterpriseId]/knowledge` | Knowledge Center (Enterprise) | Authenticated Shell → Enterprise |
 | `/workspaces/[workspaceId]` | Workspace Home | Authenticated Shell → Workspace |
 | `/workspaces/[workspaceId]/command-center` | Workspace Command Center | Authenticated Shell → Workspace |
-| `/workspaces/[workspaceId]/settings` | Settings (Workspace) | Authenticated Shell → Workspace |
+| `/workspaces/[workspaceId]/settings` | Workspace Settings | Authenticated Shell → Workspace |
 | `/workspaces/[workspaceId]/pmos/[pmoId]` | PMO Home | Authenticated Shell → Workspace → PMO |
 | `/workspaces/[workspaceId]/pmos/[pmoId]/command-center` | PMO Command Center | Authenticated Shell → Workspace → PMO |
-| `/workspaces/[workspaceId]/pmos/[pmoId]/settings` | Settings (PMO) | Authenticated Shell → Workspace → PMO |
+| `/workspaces/[workspaceId]/pmos/[pmoId]/settings` | PMO Settings | Authenticated Shell → Workspace → PMO |
 | `/workspaces/[workspaceId]/pmos/[pmoId]/portfolios/[portfolioId]` | Portfolio Home | Authenticated Shell → Workspace → PMO → Portfolio |
 | `/workspaces/[workspaceId]/pmos/[pmoId]/portfolios/[portfolioId]/command-center` | Portfolio Command Center | Authenticated Shell → Workspace → PMO → Portfolio |
 | `/workspaces/[workspaceId]/pmos/[pmoId]/programs/[programId]` | Program Home | Authenticated Shell → Workspace → PMO → Program |
@@ -62,7 +62,7 @@ Every route below corresponds to exactly one screen in `03-screen-catalog.md`; t
 
 **Search variants** (Workspace Search, Project Search, Knowledge Search, Agent Search — `03-canonical-information-architecture.md` §5.12) are query-parameterized views of their scoping route (e.g., `/workspaces/[workspaceId]?q=...&scope=workspace`) or a dedicated sub-path, resolved during migration — the exact form is an open decision (§13 of the parent document does not fix this; it is a route-migration-order detail, not an architectural one).
 
-Total: fifty canonical screens (`03-canonical-information-architecture.md` §6), fifty corresponding route mappings above (cross-scope and search-variant screens map to sub-paths of an already-listed route rather than new top-level rows, consistent with their PR3 classification as manifestations, not independent screens).
+Total: fifty canonical screens (`03-canonical-information-architecture.md` §6). Forty map to an explicit top-level route row above; the remaining ten (six cross-scope screens, four Search variants) map to a sub-path or query-parameterized view of an already-listed route rather than a new top-level row, consistent with their PR3 classification as manifestations, not independent screens. Of those ten, the six cross-scope screens' sub-path form is fixed by this document (§2); the four Search variants' exact form is explicitly left open (§2 above) — so "every screen has a route" holds for all fifty, but "every screen has an already-fixed route form" holds for forty-six of them, not all fifty.
 
 ## 3. Layout Hierarchy
 
@@ -130,7 +130,7 @@ Breadcrumbs implement `03-navigation-contracts.md` §2 exactly: computed from th
 | --- | --- | --- |
 | **Unauthorized** — authenticated, but lacking the role/permission the resolved scope requires | Explicit "you don't have access to this" state, never a silent redirect to a different entity and never a bare 404 that would hide the resource's existence from someone who might legitimately request access | `06-error-model.md` §1's `AuthorizationError` (403) is the source category; the frontend must not collapse it into `NotFoundError`'s presentation, since the two answer different questions (`06-error-model.md` §4's authentication/authorization distinction extends here: existence-known-but-denied vs. genuinely absent) |
 | **Archived** — the entity exists but has been archived (Project, Workspace archival per `04-canonical-application-architecture.md` §13 `ArchiveWorkspace`/`ArchiveProject`) | Read-only banner state showing the archived entity's last-known data where the viewer is still authorized, with mutation actions disabled and explained, never a redirect that hides the archival happened | Archival is a state transition (soft-delete equivalent, `05-canonical-persistence-architecture.md` §16), not a deletion — the frontend must reflect that distinction, not treat archived identically to not-found |
-| **Not Found** — no entity resolves for the given identifier, or the requester is not authorized to know whether it exists (per §4's leakage-prevention ordering) | Generic not-found state, identical in presentation whether the record never existed or the requester's authorization would otherwise leak its existence, per `06-canonical-api-contracts.md` §2 principle 15's leakage-prevention rule extended to the UI | Matches the API layer's own authorization-before-validation ordering (`06-canonical-api-contracts.md` §15) — the frontend must not accidentally leak more than the API already decided to reveal by rendering a different not-found page for "truly absent" vs. "exists but hidden" |
+| **Not Found** — no entity resolves for the given identifier, or the requester is not authorized to know whether it exists (per §4's leakage-prevention ordering) | Generic not-found state, identical in presentation whether the record never existed or the requester's authorization would otherwise leak its existence, per `06-canonical-api-contracts.md` §3 principle 15's leakage-prevention rule extended to the UI | Matches the API layer's own authorization-before-validation-side-effects ordering (`06-canonical-api-contracts.md` §2, §3 principle 15) — the frontend must not accidentally leak more than the API already decided to reveal by rendering a different not-found page for "truly absent" vs. "exists but hidden" |
 | **Guest access expired/revoked** | The dedicated "access ended" state `03-navigation-contracts.md` §5 redirect class 3 already names — never silently to Landing, never a bare 404 | Restates `03-navigation-contracts.md` §5 exactly |
 
 ## 8. Route Migration Strategy (Summary)

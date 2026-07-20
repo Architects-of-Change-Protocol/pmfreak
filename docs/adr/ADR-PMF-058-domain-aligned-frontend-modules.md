@@ -16,7 +16,7 @@ Superseded by: None
 
 ## Frontend Rules
 
-1. Every frontend module's ownership mirrors its corresponding PR4 application service's ownership exactly (`07-frontend-module-boundaries.md` §7) — no frontend module is invented that does not correspond to an already-ratified bounded context.
+1. Every frontend module's ownership mirrors its corresponding PR4 §10 bounded context, and its PR4 §17 application service wherever one is named (`07-frontend-module-boundaries.md` §7) — no frontend module is invented that does not correspond to an already-ratified bounded context.
 2. A module's internals (Features, Domain Presentation, Application Contracts) are never imported directly by another module — only its public entry point is (`07-frontend-module-boundaries.md` §3).
 3. Shared UI (Platform) is domain-free by construction — the moment a "shared" component branches on entity type, it has become a Domain Presentation component and must move into its owning module (`07-frontend-module-boundaries.md` §8).
 4. A module's screen ownership is exhaustive against `03-screen-catalog.md` — every one of the fifty canonical screens maps to exactly one module.
@@ -33,7 +33,7 @@ Superseded by: None
 
 ## Negative Consequences
 
-- Requires reclassifying a large existing surface (145 `src/lib/` entries, ~53 route folders) incrementally — slower than leaving the current structure alone.
+- Requires reclassifying a large existing surface (145 `src/lib/` entries, 54 route folders) incrementally — slower than leaving the current structure alone.
 
 ## Risks
 
@@ -66,7 +66,7 @@ Superseded by: None
 
 ## Validation
 
-Validation criteria: (1) every screen in `03-screen-catalog.md` maps to exactly one module in `07-frontend-module-boundaries.md` §2; (2) every module's ownership traces to a PR4 §17 application service; (3) the forbidden-dependency list (`07-frontend-module-boundaries.md` §3) has a corresponding fitness function (§4 of the same document).
+Validation criteria: (1) every screen in `03-screen-catalog.md` maps to exactly one module in `07-frontend-module-boundaries.md` §2 — to be confirmed by the screen-coverage fitness function `07-frontend-module-boundaries.md` §4 defines but does not yet run; (2) every module's ownership traces to a PR4 §10 bounded context, and to a PR4 §17 application service wherever one is named; (3) the forbidden-dependency list (`07-frontend-module-boundaries.md` §3) has a corresponding fitness function (§4 of the same document).
 
 ## References
 

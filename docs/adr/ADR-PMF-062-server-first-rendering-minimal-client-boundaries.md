@@ -8,7 +8,7 @@ Superseded by: None
 
 ## Context
 
-AGENTS.md governing this repository already flags that the installed Next.js version has breaking changes versus prior conventions and directs engineers to the vendored framework documentation before writing code — a signal that this codebase's rendering model cannot be assumed from generic Next.js familiarity. `03-canonical-information-architecture.md` §5 shows PMFreak's fifty canonical screens are dominated by read-heavy, tenant-scoped Command Centers, Registers, and Feeds rather than highly interactive, client-state-heavy surfaces. PR7 must decide the default rendering posture — server-rendered by default with narrow client boundaries, or client-rendered by default with server rendering as the exception — before module and state architecture (ADR-PMF-058, ADR-PMF-059) can be applied consistently.
+AGENTS.md governing this repository already flags that the installed Next.js version has breaking changes versus prior conventions and directs engineers to the vendored framework documentation before writing code — a signal that this codebase's rendering model cannot be assumed from generic Next.js familiarity. `03-canonical-information-architecture.md` §5 shows PMFreak's fifty canonical screens are dominated by read-heavy, tenant-scoped Command Centers, Registers (`05-canonical-persistence-architecture.md` §22), and Feeds rather than highly interactive, client-state-heavy surfaces. PR7 must decide the default rendering posture — server-rendered by default with narrow client boundaries, or client-rendered by default with server rendering as the exception — before module and state architecture (ADR-PMF-058, ADR-PMF-059) can be applied consistently.
 
 ## Decision
 

@@ -35,7 +35,7 @@ One frontend module per PR4 bounded context that has a user-facing surface, or a
 | PMO Governance | PMO Governance | PMO Home, PMO Command Center, PMO Settings | `modules/pmo` |
 | Portfolio Management | Portfolio Management | Portfolio Home, Portfolio Command Center | `modules/portfolio` |
 | Program Management | Program Management | Program Home, Program Command Center, Roadmap | `modules/program` |
-| Project Management | Project Management | Project Home, Project Command Center | `modules/project` |
+| Project Management | Project Management | Project Home, Project Command Center, Project Intelligence Feed | `modules/project` |
 | Project Execution | Work Execution, Schedule and Milestones, RAID Management, Stakeholder and Communication Management | Tasks, Milestones, Risks, Issues, Dependencies, Stakeholders | `modules/project-execution` |
 | Evidence and Documents | Document and Evidence Management | Documents | `modules/evidence` |
 | Recommendation Review | Recommendation Management | Recommendations | `modules/recommendations` |
@@ -51,7 +51,7 @@ One frontend module per PR4 bounded context that has a user-facing surface, or a
 | Billing | Billing and Entitlements | Billing (Administration Layer) | `modules/billing` |
 | Search | Search and Discovery (consumed, not owned) | Search (Global), scoped Search variants | `modules/search` |
 
-Cross-scope screens (Health Center, Forecast Center, Calendar, Timeline — `03-canonical-information-architecture.md` §5.11) are Domain Presentation components consumed by whichever scoping module renders them, never an independent module — they have no independent aggregate to own.
+`03-canonical-information-architecture.md` §5.11 names six cross-scope screens: Reports, Health Center, Forecast Center, Calendar, Timeline, and Agent Center. Two of the six — Reports and Agent Center — get their own dedicated module above (Reporting, Agent Experience) because each traces to its own PR4 §10 bounded context (Reporting and Analytics, Agent Orchestration) with its own aggregate/read-model ownership, exactly like any other module in this catalog. The remaining four — Health Center, Forecast Center, Calendar, Timeline — are Domain Presentation components consumed by whichever scoping module renders them, never an independent module, because none of the four traces to a bounded context of its own; each is a derived, scope-qualified view over its scoping entity's existing data (§11 of `07-canonical-frontend-architecture.md`'s Command Center composition model), with no independent aggregate to own.
 
 ## 3. Allowed and Forbidden Dependencies
 
@@ -102,7 +102,7 @@ Methodology: direct enumeration of `src/` top-level directories and `src/app/(pr
 
 | Current top-level directory | What it contains today | Classification against target layer model |
 | --- | --- | --- |
-| `src/app/` | Next.js App Router routes, including `(protected)/` with ~53 feature folders (`accept-invite`, `audit`, `billing`, `capabilities`, `chat`, `command-center`, `copilot`, `create-command-center`, `create-pmo`, `dashboard`, `evidence`, `executive`, `governance`, `intelligence`, `pmo`, `pmo-command-center`, `policies`, `portfolio`, `programs`, `project-memory`, `projects`, `workspace`, `workspaces`, and others) plus top-level `auth`, `login`, `logout`, `signup`, `pricing`, `api` | **Routes layer, present but not yet screen-mapped.** Several folder names (`playground`, `debug-session`, `change-detection`, `follow-up-dashboard`, `message-nudges`, `stakeholder-intel`, `political-risk`, `pilot-agreement`, `founder-circle`, `founder-program`, `early-access`, `escalation-guide`, `input-hub`, `operational-memory`, `trust`, `trials`) have no direct 1:1 counterpart in `03-screen-catalog.md`'s fifty canonical screens — each is a candidate for either mapping onto an existing canonical screen, reclassifying as a Feature within a canonical screen, or explicit deprecation, decided per-route in `07-frontend-migration-strategy.md`, not guessed here. |
+| `src/app/` | Next.js App Router routes, including `(protected)/` with 54 feature folders (`accept-invite`, `audit`, `billing`, `capabilities`, `chat`, `command-center`, `copilot`, `create-command-center`, `create-pmo`, `dashboard`, `evidence`, `executive`, `governance`, `intelligence`, `pmo`, `pmo-command-center`, `policies`, `portfolio`, `programs`, `project-memory`, `projects`, `workspace`, `workspaces`, and others) plus top-level `auth`, `login`, `logout`, `signup`, `pricing`, `api` | **Routes layer, present but not yet screen-mapped.** Several folder names (`playground`, `debug-session`, `change-detection`, `follow-up-dashboard`, `message-nudges`, `stakeholder-intel`, `political-risk`, `pilot-agreement`, `founder-circle`, `founder-program`, `early-access`, `escalation-guide`, `input-hub`, `operational-memory`, `trust`, `trials`) have no direct 1:1 counterpart in `03-screen-catalog.md`'s fifty canonical screens — each is a candidate for either mapping onto an existing canonical screen, reclassifying as a Feature within a canonical screen, or explicit deprecation, decided per-route in `07-frontend-migration-strategy.md`, not guessed here. |
 | `src/components/` | Mixed: some domain-named (`command-center/`, `dashboard/`, `governance/`, `program-builder/`), some clearly shared (`brand/`, `landing/`, `marketing-navbar.tsx`), one auth-related (`auth/`, `auth-submit-button.tsx`) | **Mixed Domain Presentation and Platform, not yet separated.** `brand/` and generic layout pieces classify as Platform target; `command-center/`, `dashboard/`, `governance/`, `program-builder/` classify as Domain Presentation belonging to specific modules above. |
 | `src/features/` | `command-center/`, `domain-policy-pack-runtime/`, `enterprise-ux/`, `follow-up/`, `live-federation/`, `navigation/`, `pmfreak/`, `pmfreak-integrations/`, `recognition-runtime/`, `runtime/`, `trial/` | **Partial Features layer, not yet domain-aligned to the module catalog.** Some names (`enterprise-ux`, `runtime`, `pmfreak`) are broader than one module; each requires per-file reclassification during migration, not renamed wholesale by this PR. |
 | `src/ui-core/` | `auth/`, `forms/`, `index.ts` | **Partial Platform layer.** A real shared-primitives seam already exists; its scope (forms, auth-adjacent primitives) is narrower than the full target Platform layer (§6). |
@@ -150,31 +150,31 @@ This tree is a target for incremental migration (`07-frontend-migration-strategy
 
 ## 7. Ownership Matrix
 
-| Module | Primary owner (mirrors PR4 §17 application service ownership) |
+| Module | Primary owner (PR4 §17 application service, where one is named) |
 | --- | --- |
-| Identity and Access | Identity and Access application service |
-| Enterprise Administration | Enterprise application service |
-| Workspace Management | Workspace application service |
-| PMO Governance | PMO application service |
-| Portfolio Management | Portfolio application service |
-| Program Management | Program application service |
-| Project Management | Project application service |
-| Project Execution | Execution, RAID application services |
-| Evidence and Documents | Evidence application service |
-| Recommendation Review | Recommendation application service |
-| Decision Register | Decision application service |
-| Action and Outcome | Action/Outcome application service |
-| Project Memory | Project Memory application service |
-| Enterprise Intelligence | Enterprise Intelligence application service |
-| Agent Experience | Agent Orchestration application service |
-| Integrations | Integration Management (via its application service) |
-| Notifications | Notification application service |
-| Reporting | Reporting application service |
-| Audit | Audit application service |
-| Billing | Billing and Entitlements (via its application service) |
-| Search | Search application service |
+| Identity and Access | Identity and Access bounded context (PR4 §10) — PR4 §17 does not name a dedicated application service for this context; a naming gap to close alongside PR4, not invented here |
+| Enterprise Administration | `EnterpriseApplicationService` |
+| Workspace Management | `WorkspaceApplicationService` |
+| PMO Governance | `PMOApplicationService` |
+| Portfolio Management | `PortfolioApplicationService` |
+| Program Management | `ProgramApplicationService` |
+| Project Management | `ProjectApplicationService` |
+| Project Execution | `ExecutionApplicationService`, `RAIDApplicationService` |
+| Evidence and Documents | `EvidenceApplicationService` |
+| Recommendation Review | `RecommendationApplicationService` |
+| Decision Register | `DecisionApplicationService` |
+| Action and Outcome | `ActionOutcomeApplicationService` |
+| Project Memory | `ProjectMemoryApplicationService` |
+| Enterprise Intelligence | `EnterpriseIntelligenceApplicationService` |
+| Agent Experience | `AgentOrchestrationApplicationService` |
+| Integrations | Integration Management bounded context (PR4 §10) — no dedicated §17 application service named, same gap as Identity and Access |
+| Notifications | `NotificationApplicationService` |
+| Reporting | `ReportingApplicationService` |
+| Audit | `AuditApplicationService` |
+| Billing | Billing and Entitlements bounded context (PR4 §10) — no dedicated §17 application service named, same gap as Identity and Access |
+| Search | `SearchApplicationService` |
 
-A module's frontend ownership mirrors its backend application-service ownership exactly (PR4 §17) — no frontend module is owned by a team or boundary that does not correspond to an already-ratified bounded context.
+A module's frontend ownership mirrors its backend application-service ownership wherever PR4 §17 names one — eighteen of the twenty-one modules above map to a named application service exactly. The remaining three (Identity and Access, Integrations, Billing) map to a PR4 §10 bounded context that has no dedicated §17 service name yet; this is an existing PR4 cataloging gap, not a new one introduced here, and it does not change either context's ownership boundary — only its exact service name is unresolved.
 
 ## 8. Shared UI, Platform, Domain Presentation, and Feature Boundaries
 
@@ -183,4 +183,4 @@ A module's frontend ownership mirrors its backend application-service ownership 
 - **Domain Presentation boundary:** renders a domain shape given a view model as props; never fetches its own data, never dispatches a Command directly (it emits an intent its owning Feature handles).
 - **Feature boundary:** the smallest unit that owns a Command dispatch or a Query invocation; every Feature belongs to exactly one module.
 
-No modificar componentes — this document classifies and targets; it does not touch a single component file.
+No components are modified — this document classifies and targets; it does not touch a single component file.

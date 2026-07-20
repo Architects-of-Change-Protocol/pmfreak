@@ -29,7 +29,7 @@ Superseded by: None
 ## Positive Consequences
 
 - Insulates the frontend from PR5's persistence migration phases entirely — the contract client's shape only changes when PR6's DTOs change, never when a table is renamed or split.
-- Gives authorization review a fixed, enumerable frontend data-access surface (every contract client call maps to a cataloged Command/Query), mirroring `06-canonical-api-contracts.md` §45's fixed API surface benefit one layer up.
+- Gives authorization review a fixed, enumerable frontend data-access surface (every contract client call maps to a cataloged Command/Query), mirroring the fixed, enumerable API surface benefit ADR-PMF-045 already established one layer down.
 
 ## Negative Consequences
 

@@ -41,7 +41,7 @@ Superseded by: None
 
 ## Security and Data Implications
 
-- No new data-access path is introduced — a Command Center's authorization surface is exactly the union of its composing Queries' authorization checks, keeping the authorization-review surface enumerable (`06-canonical-api-contracts.md` §45's benefit, extended to composite screens).
+- No new data-access path is introduced — a Command Center's authorization surface is exactly the union of its composing Queries' authorization checks, keeping the authorization-review surface enumerable (the same fixed-surface benefit ADR-PMF-045 established for the API layer, extended to composite screens).
 
 ## Application Implications
 

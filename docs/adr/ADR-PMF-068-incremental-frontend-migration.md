@@ -8,7 +8,7 @@ Superseded by: None
 
 ## Context
 
-The current frontend (`src/app/(protected)/` with roughly fifty feature folders, `src/lib/` with 145 mixed technical/domain entries, partial `src/features/`/`src/ui-core/`/`src/hooks/` seams, and a working `src/sdk/`/`src/aoc/` contract-client precedent) is a functioning, in-production surface — it is not a blank slate PR7's target architecture (`07-canonical-frontend-architecture.md` through `07-ai-memory-and-intelligence-experience.md`) can simply replace outright. PR4 §7.3 principle 30 already established, for the application layer, that "this document is a target contract for incremental, PR-by-PR convergence" — not license for a rewrite. PR7 must decide whether that same discipline governs the frontend, or whether the scale of the gap between current and target state (documented in `07-frontend-module-boundaries.md` §5 and `07-route-layout-and-navigation-architecture.md` §9) justifies a from-scratch rebuild.
+The current frontend (`src/app/(protected)/` with 54 feature folders, `src/lib/` with 145 mixed technical/domain entries, partial `src/features/`/`src/ui-core/`/`src/hooks/` seams, and a working `src/sdk/`/`src/aoc/` contract-client precedent) is a functioning, in-production surface — it is not a blank slate PR7's target architecture (`07-canonical-frontend-architecture.md` through `07-ai-memory-and-intelligence-experience.md`) can simply replace outright. PR4 §7.3 principle 30 already established, for the application layer, that "this document is a target contract for incremental, PR-by-PR convergence" — not license for a rewrite. PR7 must decide whether that same discipline governs the frontend, or whether the scale of the gap between current and target state (documented in `07-frontend-module-boundaries.md` §5 and `07-route-layout-and-navigation-architecture.md` §9) justifies a from-scratch rebuild.
 
 ## Decision
 
@@ -24,7 +24,7 @@ The current frontend (`src/app/(protected)/` with roughly fifty feature folders,
 
 ## Alternatives Considered
 
-- **A big-bang rewrite of the entire frontend against the target architecture.** Rejected explicitly, per the governing brief's binding decision matrix (`07-canonical-frontend-architecture.md` §14: "Big-bang rewrite — Rejected") and consistent with PR4 §7.3 principle 30's precedent — a simultaneous rewrite of ~53 route folders and 145 `src/lib/` entries would halt feature delivery for an unbounded period and re-introduce exactly the "designed under time pressure" risk PR1 originally documented for the current codebase's own history.
+- **A big-bang rewrite of the entire frontend against the target architecture.** Rejected explicitly, per the governing brief's binding decision matrix (`07-canonical-frontend-architecture.md` §14: "Big-bang rewrite — Rejected") and consistent with PR4 §7.3 principle 30's precedent — a simultaneous rewrite of 54 route folders and 145 `src/lib/` entries would halt feature delivery for an unbounded period and re-introduce exactly the "designed under time pressure" risk PR1 originally documented for the current codebase's own history.
 - **No formal migration strategy — let each future PR decide its own approach to reconciling old and new structure.** Rejected: this is how the current codebase's own inconsistency (three folder-organization styles coexisting today, `07-frontend-module-boundaries.md` §5) arose in the first place; leaving it unformalized a second time would repeat the pattern at the module-boundary level instead of fixing it.
 
 ## Positive Consequences

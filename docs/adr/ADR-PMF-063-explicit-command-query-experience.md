@@ -42,7 +42,7 @@ ADR-PMF-025 (PR4) and ADR-PMF-047 (PR6) already ratify Command/Query separation 
 
 ## Security and Data Implications
 
-- Authorization-before-validation ordering (`06-canonical-api-contracts.md` §15) is preserved in the frontend's error presentation — `AuthorizationError` and `NotFoundError` are never collapsed into an identical presentation that could leak existence information (`07-route-layout-and-navigation-architecture.md` §7).
+- Authorization-before-validation-side-effects ordering (`06-canonical-api-contracts.md` §2, §3 principle 15) is preserved in the frontend's error presentation — `AuthorizationError` and `NotFoundError` are never collapsed into an identical presentation that could leak existence information (`07-route-layout-and-navigation-architecture.md` §7).
 
 ## Application Implications
 

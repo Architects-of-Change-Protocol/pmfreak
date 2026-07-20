@@ -8,7 +8,7 @@ Superseded by: None
 
 ## Context
 
-PR1 through PR6 ratified PMFreak's domain, language, information architecture, application architecture, persistence model, and API contracts without reference to how the one caller every other caller exists to serve — the product's own browser client — is itself organized. `04-canonical-application-architecture.md` §7.2 already named "the UI is not the architecture" as a failure mode to avoid at the API layer; PR7 must decide whether the frontend is built against the same discipline (server-first, feature-oriented, contract-driven) or is left to accrete route-by-route the way PR1's current-state inspection found the persistence layer accreted (423 tables, three PMO representations). The current codebase already shows early signs of this: `src/app/(protected)/` holds roughly fifty feature folders with no consistent screen-to-route discipline, and `src/lib/` holds 145 mixed technical/domain entries with no enforced layer boundary.
+PR1 through PR6 ratified PMFreak's domain, language, information architecture, application architecture, persistence model, and API contracts without reference to how the one caller every other caller exists to serve — the product's own browser client — is itself organized. `04-canonical-application-architecture.md` §7.2 already named "the UI is not the architecture" as a failure mode to avoid at the API layer; PR7 must decide whether the frontend is built against the same discipline (server-first, feature-oriented, contract-driven) or is left to accrete route-by-route the way PR1's current-state inspection found the persistence layer accreted (423 tables, three PMO representations). The current codebase already shows early signs of this: `src/app/(protected)/` holds 54 feature folders with no consistent screen-to-route discipline, and `src/lib/` holds 145 mixed technical/domain entries with no enforced layer boundary.
 
 ## Decision
 
@@ -23,7 +23,7 @@ PR1 through PR6 ratified PMFreak's domain, language, information architecture, a
 
 ## Alternatives Considered
 
-- **A client-first, SPA-style architecture fetching everything from the browser.** Rejected: PMFreak's screens are read-heavy, tenant-scoped Command Centers and Registers (`03-canonical-information-architecture.md` §5) that benefit from server-side session/tenant resolution already being available; a client-first default would duplicate that resolution work in the browser and widen the surface for the tenant-authority leaks ADR-PMF-061 exists to prevent.
+- **A client-first, SPA-style architecture fetching everything from the browser.** Rejected: PMFreak's screens are read-heavy, tenant-scoped Command Centers and Registers (`03-canonical-information-architecture.md` §5, `05-canonical-persistence-architecture.md` §22) that benefit from server-side session/tenant resolution already being available; a client-first default would duplicate that resolution work in the browser and widen the surface for the tenant-authority leaks ADR-PMF-061 exists to prevent.
 - **Organizing the frontend by technical layer only (`components/`, `hooks/`, `utils/`) with no domain alignment.** Rejected: this is the exact pattern the current codebase's `src/lib/` (145 mixed entries) already demonstrates the cost of — no way to answer "which module owns this" without reading every file.
 
 ## Positive Consequences
