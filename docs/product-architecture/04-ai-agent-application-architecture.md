@@ -27,7 +27,7 @@ Authority: same order as the parent document. Governing decision: ADR-PMF-027 (G
 | **Agent Context** | The assembled input for one Agent Run: retrieved Project Memory, Evidence, prior Recommendations, and any explicit actor-supplied input — never raw, unscoped database access. |
 | **Agent Tool Invocation** | One call from an Agent Run to an allowlisted tool, recorded individually within the run. |
 | **Agent Proposal** | The typed, unvalidated-by-humans output of an Agent Run — the only thing an Agent is permitted to produce. |
-| **Agent Recommendation** | An Agent Proposal that has passed Output Validation and been accepted into Recommendation Management's catalog (§13 of the parent document, `GenerateRecommendation`). |
+| **Agent Recommendation** | An Agent Proposal that has passed Output Validation and Human Review and been converted into Recommendation Management's catalog via `ApproveAgentProposal` (§13 of the parent document) — the only command that produces a Recommendation from Agent-originated output. |
 | **Agent Evidence Reference** | A pointer from an Agent Proposal or Recommendation back to the specific Evidence/Project Memory records it used — never inlined, unattributed content. |
 | **Agent Approval** | The human act of accepting an Agent Proposal into a Recommendation, or a Recommendation into a Decision — always a separate Command (`ApproveAgentProposal`, `ApproveRecommendation`). |
 | **Agent Audit Record** | The immutable record of an Agent Run and every Tool Invocation and Policy decision within it, held by Audit and Compliance. |
@@ -116,7 +116,7 @@ An Agent Proposal has no domain effect until `ApproveAgentProposal` converts it 
 
 ## 10. Domain Mutation and Audit
 
-An Agent never issues a Command against an operational aggregate directly. The only Commands an Agent Run itself triggers are `GenerateRecommendation` (producing a Recommendation, still subject to `ApproveRecommendation` before conversion to a Decision) and, indirectly, `RequestAgentRun`/`CancelAgentRun` self-management. Every other Command in `04-canonical-application-architecture.md` §13 that an Agent's suggestion eventually leads to (`RecordRisk`, `RecordIssue`, `RecordDecision`, `CreateActionFromDecision`) is issued by a human actor exercising the approval step, never by the Agent itself. Every stage of the pipeline (§3) writes to the Agent Audit Record, independent of and in addition to the ordinary Command-level audit record each resulting domain Command produces.
+An Agent never issues a Command against an operational aggregate directly. The only Command an Agent Run itself triggers is `RequestAgentRun` (and, for self-management, `CancelAgentRun`) — Proposal creation is an internal pipeline step within that run, not a separate Agent-issuable Command. Producing a Recommendation from that Proposal requires `ApproveAgentProposal`, which is always issued by a human, never by the Agent itself, and which is still subject to `ApproveRecommendation` before any conversion to a Decision. Every other Command in `04-canonical-application-architecture.md` §13 that an Agent's suggestion eventually leads to (`RecordRisk`, `RecordIssue`, `RecordDecision`, `CreateActionFromDecision`) is likewise issued by a human actor exercising the approval step, never by the Agent itself. Every stage of the pipeline (§3) writes to the Agent Audit Record, independent of and in addition to the ordinary Command-level audit record each resulting domain Command produces.
 
 ## 11. Failure Handling, Prompt Injection, and Exfiltration Controls
 

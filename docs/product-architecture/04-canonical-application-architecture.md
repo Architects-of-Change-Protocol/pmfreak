@@ -428,6 +428,13 @@ Full per-command detail (prerequisites, validation, failure modes) lives in `04-
 | CreateProgram | PMO Admin | Program | Key: PMO id + name | No |
 | AssignProjectToProgram | PMO Admin / Program Owner | Program, Project (link only) | Key: project id + program id | No |
 | RemoveProjectFromProgram | PMO Admin / Program Owner | Program, Project (link only) | Key: project id + program id | No |
+| CreateProgramEpic | Program Owner / PMO Admin | Program (Epic) | Key: program id + epic name | No |
+| CreateProgramSprint | Program Owner / PMO Admin | Program (Sprint) | Key: epic id + sprint name | No |
+| CreateProgramCard | Program Owner / PMO Admin | Program (Card) | Key: program id + card fingerprint | No |
+| MoveProgramCard | Program Owner / PMO Admin | Program (Card) | Key: card id + target position | No |
+| SubmitRoadmapSource | Program Owner / PMO Admin | Program (Roadmap Source) | Key: program id + source checksum | No |
+| ParseRoadmapSource | System (workflow step) | Program (Roadmap Source) | Key: source id | No |
+| MaterializeRoadmap | Program Owner / PMO Admin | Program (Epic/Sprint/Card tree) | Key: source id + parse result id | Yes — materializes durable structure from parsed input |
 | CreateProject | Any authorized Workspace/PMO member | Project | Key: requester + workspace id + name | No |
 | UpdateProjectContext | Project member (authorized) | Project | Key: project id + version | No |
 | ArchiveProject | Project Owner / PMO Admin | Project | Key: project id | Yes — destructive |
@@ -449,13 +456,14 @@ Full per-command detail (prerequisites, validation, failure modes) lives in `04-
 | ProposeMemoryRecord | System (workflow step) / Agent | Project Memory Record (candidate) | Key: source event id | No |
 | ApproveMemoryRecord | Project member (authorized) | Project Memory Record | Key: candidate id | Yes — governance gate |
 | RejectMemoryRecord | Project member (authorized) | Project Memory Record (candidate) | Key: candidate id | Yes — governance gate |
-| GenerateRecommendation | Agent (via Agent Orchestration) | Recommendation | Key: agent run id | No — generation itself is not a mutation of authoritative state |
 | ReviewRecommendation | Project member (authorized) | Recommendation | Key: recommendation id | Yes — review is the human step |
 | ApproveRecommendation | Project member (authorized) | Recommendation | Key: recommendation id | Yes |
 | RejectRecommendation | Project member (authorized) | Recommendation | Key: recommendation id | Yes |
 | RecordDecision | Human decision authority (role-gated) | Decision | Key: decision id (client-generated) | Yes — Decision is always human/governed-process authored |
 | RevokeDecision | Original authority / escalated authority | Decision | Key: decision id + revocation reason | Yes |
 | CreateActionFromDecision | Project member (authorized) | Action | Key: decision id + action fingerprint | Per Human-in-the-Loop Matrix (§33) |
+| CompleteAction | Project member (authorized) | Action | Key: action id | No |
+| CancelAction | Project member (authorized) | Action | Key: action id + cancellation reason | No |
 | RecordOutcome | Project member / governed monitoring process | Outcome | Key: action id + observation fingerprint | No — observation, not authorization |
 | ProposeEnterprisePattern | System (workflow step) / Enterprise Intelligence service | Pattern (Candidate) | Key: aggregation batch id | No |
 | RatifyEnterpriseKnowledge | Enterprise Admin (governance role) | Enterprise Knowledge Record | Key: pattern candidate id | Yes — ratification is the gate |
@@ -464,6 +472,8 @@ Full per-command detail (prerequisites, validation, failure modes) lives in `04-
 | CancelAgentRun | Requesting actor / Admin | Agent Run | Key: run id | No |
 | ApproveAgentProposal | Project member (authorized) | Agent Proposal → Recommendation | Key: proposal id | Yes |
 | RejectAgentProposal | Project member (authorized) | Agent Proposal | Key: proposal id | Yes |
+
+`ApproveAgentProposal` is the only command that produces a Recommendation from Agent-originated output — there is no separate, directly Agent-issuable "generate a Recommendation with no approval" command. An earlier draft of this catalog included such a command (`GenerateRecommendation`); it has been removed because it let an Agent identity create a Recommendation without passing through Human Review, contradicting ADR-PMF-027 and ADR-PMF-030 (`04-ai-agent-application-architecture.md` §8: "An Agent Proposal has no domain effect until `ApproveAgentProposal` converts it into a Recommendation").
 
 All commands are documented, none are implemented by this PR.
 
@@ -607,7 +617,7 @@ Conceptual interfaces only — no concrete types are defined by this PR. A repos
 | AgentRunRepository | Agent Run | Append-only | Never deleted, retention-policy archived | Agent Orchestration only |
 | AuditRecordRepository | Audit Record | Append-only, no locking (immutable) | Never deleted, retention-policy archived | Audit and Compliance only (all others may only append via the audit port, §19) |
 
-Every repository above requires a Workspace scope on every operation except EnterpriseRepository and AuditRecordRepository (which is scoped but may aggregate across Workspaces for a single Enterprise's authorized administrators only, per §35).
+Every repository above requires a Workspace scope on every operation except EnterpriseRepository, EnterpriseKnowledgeRepository, and AuditRecordRepository. EnterpriseRepository and AuditRecordRepository are scoped but may aggregate across Workspaces for a single Enterprise's authorized administrators only, per §35. EnterpriseKnowledgeRepository is Enterprise-scoped, not Workspace-scoped, by design — an Enterprise Knowledge Record's whole purpose is to preserve provenance from potentially multiple originating Workspaces (§30); its operations are authorized through the six-part elevation gate and EnterpriseRatificationPolicy (§16) rather than through a single Workspace's membership, and it must never be loaded or persisted under one originating Workspace's scope alone.
 
 ---
 
@@ -644,7 +654,7 @@ A domain event represents a fact that already happened; it is named in the past 
 
 Not every event listed below implies asynchronous delivery — see §21 for the domain/integration distinction and §22 for the sync/async classification.
 
-`EnterpriseCreated` · `WorkspaceCreated` · `WorkspacePolicyChanged` · `PMOCreated` · `PortfolioCreated` · `ProjectAssignedToPortfolio` · `ProgramCreated` · `ProjectAssignedToProgram` · `ProjectCreated` · `ProjectArchived` · `ProjectMethodologyConfigured` · `TaskCreated` · `TaskCompleted` · `MilestoneCompleted` · `RiskRecorded` · `RiskClosed` · `IssueRecorded` · `IssueResolved` · `EvidenceSubmitted` · `EvidenceNormalized` · `MemoryRecordProposed` · `MemoryRecordApproved` · `RecommendationGenerated` · `RecommendationApproved` · `RecommendationRejected` · `DecisionRecorded` · `DecisionRevoked` · `ActionCreated` · `ActionCompleted` · `OutcomeRecorded` · `EnterprisePatternProposed` · `EnterpriseKnowledgeRatified` · `EnterpriseKnowledgeRevoked` · `AgentRunRequested` · `AgentRunStarted` · `AgentRunCompleted` · `AgentRunFailed`
+`EnterpriseCreated` · `WorkspaceCreated` · `WorkspacePolicyChanged` · `PMOCreated` · `PortfolioCreated` · `ProjectAssignedToPortfolio` · `ProgramCreated` · `ProjectAssignedToProgram` · `RoadmapMaterialized` · `ProjectCreated` · `ProjectArchived` · `ProjectMethodologyConfigured` · `TaskCreated` · `TaskCompleted` · `MilestoneCompleted` · `RiskRecorded` · `RiskClosed` · `IssueRecorded` · `IssueResolved` · `EvidenceSubmitted` · `EvidenceNormalized` · `MemoryRecordProposed` · `MemoryRecordApproved` · `RecommendationGenerated` · `RecommendationApproved` · `RecommendationRejected` · `DecisionRecorded` · `DecisionRevoked` · `ActionCreated` · `ActionCompleted` · `OutcomeRecorded` · `EnterprisePatternProposed` · `EnterpriseKnowledgeRatified` · `EnterpriseKnowledgeRevoked` · `AgentRunRequested` · `AgentRunStarted` · `AgentRunCompleted` · `AgentRunFailed`
 
 Full producer/consumer/payload detail lives in `04-command-query-event-catalog.md`.
 
@@ -658,10 +668,11 @@ Full producer/consumer/payload detail lives in `04-command-query-event-catalog.m
 
 | Should stay internal (Domain Event only) | Integration Event candidate |
 | --- | --- |
-| TaskCreated, TaskCompleted, MilestoneCompleted (consumed inside Project Management/Work Execution/Schedule projections) | ProjectCreated (consumed by PMO Governance, Project Memory, Notification, Search) |
-| RiskRecorded, RiskClosed, IssueRecorded, IssueResolved (consumed inside RAID health projections) | EvidenceSubmitted (consumed by Recommendation Management, Project Memory, Audit) |
-| MemoryRecordProposed (internal governance step) | MemoryRecordApproved (consumed by Agent Orchestration, Search) |
-| AgentRunStarted (internal orchestration telemetry) | RecommendationGenerated (consumed by Notification, Project Intelligence Feed projection) |
+| TaskCreated (consumed inside Project Management/Work Execution projections only) | ProjectCreated (consumed by PMO Governance, Project Memory, Notification, Search) |
+| RiskRecorded, RiskClosed, IssueRecorded, IssueResolved (consumed inside RAID health projections) | TaskCompleted, MilestoneCompleted, RoadmapMaterialized (each consumed by Reporting and Analytics, a separate bounded context, in addition to the Project Intelligence Feed projection — ADR-PMF-026 rule 3) |
+| MemoryRecordProposed (internal governance step) | EvidenceSubmitted (consumed by Recommendation Management, Project Memory, Audit) |
+| AgentRunStarted (internal orchestration telemetry) | MemoryRecordApproved (consumed by Agent Orchestration, Search) |
+| — | RecommendationGenerated (consumed by Notification, Project Intelligence Feed projection) |
 | — | DecisionRecorded, DecisionRevoked (consumed by Action and Outcome Management, Audit, Notification) |
 | — | ActionCompleted, OutcomeRecorded (consumed by Enterprise Intelligence pipeline, Reporting) |
 | — | EnterpriseKnowledgeRatified, EnterpriseKnowledgeRevoked (consumed by Enterprise Administration projections, Recommendation Management) |

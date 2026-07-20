@@ -80,7 +80,7 @@ Designing the 11 not-yet-built named agents; choosing a model provider (§55 of 
 
 ## Validation
 
-Validation criteria: (1) `04-canonical-application-architecture.md` §12 lists no aggregate with Agent Orchestration as its mutation authority; (2) every Command in §13 issuable by an Agent identity is limited to `RequestAgentRun`/`CancelAgentRun`/`GenerateRecommendation`; (3) `04-ai-agent-application-architecture.md` §3's pipeline includes a Human Review stage between Proposal Creation and any Domain Command.
+Validation criteria: (1) `04-canonical-application-architecture.md` §12 lists no aggregate with Agent Orchestration as its mutation authority; (2) every Command in §13 issuable by an Agent identity is limited to `RequestAgentRun`/`CancelAgentRun`, with `ApproveAgentProposal` — the only command that produces a Recommendation from Agent-originated output — restricted to human actors; (3) `04-ai-agent-application-architecture.md` §3's pipeline includes a Human Review stage between Proposal Creation and any Domain Command.
 
 ## References
 
