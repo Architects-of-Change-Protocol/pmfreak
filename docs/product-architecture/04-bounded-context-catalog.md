@@ -233,16 +233,16 @@ This catalog gives full per-context detail for the twenty-five bounded contexts 
 - **Ubiquitous language:** Recommendation, Confidence, Review.
 - **Ownership:** Recommendation.
 - **Aggregates:** Recommendation.
-- **Commands:** ReviewRecommendation, ApproveRecommendation, RejectRecommendation. A Recommendation is created only as the effect of Agent Orchestration's `ApproveAgentProposal` (§18 below) converting an already-reviewed Agent Proposal — there is no directly Agent-issuable command that creates a Recommendation without that human-gated conversion (ADR-PMF-027, ADR-PMF-030).
+- **Commands:** CreateRecommendationFromProposal, ReviewRecommendation, ApproveRecommendation, RejectRecommendation. `CreateRecommendationFromProposal` is this context's own command — it is triggered by consuming Agent Orchestration's `AgentProposalApproved` event, never by Agent Orchestration writing to this context's aggregate directly (that would violate ADR-PMF-024's one-owner rule). There is no directly Agent-issuable command that creates a Recommendation without the prior human-gated `ApproveAgentProposal` step (§18 below; ADR-PMF-027, ADR-PMF-030).
 - **Queries:** ListRecommendations, GetRecommendationDetails.
 - **Events:** RecommendationGenerated, RecommendationApproved, RecommendationRejected.
 - **Policies:** RecommendationApprovalPolicy (owner).
-- **Dependencies:** Agent Orchestration (upstream producer, via Agent Proposal → Recommendation contract); Document and Evidence Management (evidence references); Decision Management (downstream).
-- **Prohibited responsibilities:** Must never auto-convert a Recommendation into a Decision — that conversion is always a separate, explicit act (ADR-PMF-008, ADR-PMF-030). Must never accept a Recommendation created by any path other than `ApproveAgentProposal`'s human-gated conversion.
+- **Dependencies:** Agent Orchestration (upstream producer, via the `AgentProposalApproved` → `CreateRecommendationFromProposal` Open Host Service contract); Document and Evidence Management (evidence references); Decision Management (downstream).
+- **Prohibited responsibilities:** Must never auto-convert a Recommendation into a Decision — that conversion is always a separate, explicit act (ADR-PMF-008, ADR-PMF-030). Must never accept a Recommendation created by any path other than its own `CreateRecommendationFromProposal`, and never let another context write to the Recommendation aggregate directly.
 - **Consistency:** Strong.
 - **Security scope:** Standard Project-scoped; governs the human-authority boundary for AI output.
 - **Extraction conditions:** None identified.
-- **Example:** `ApproveAgentProposal` converting a reviewed Proposal — "Consider reallocating budget from Task X to Task Y" — from the Cost Governance Agent into a Recommendation.
+- **Example:** `CreateRecommendationFromProposal`, triggered by Agent Orchestration's `ApproveAgentProposal` approving a reviewed Proposal — "Consider reallocating budget from Task X to Task Y" — from the Cost Governance Agent, materializes it as a Recommendation.
 - **Anti-example:** An Agent writing directly to an authoritative table without a Recommendation/Decision step in between (PR2, Recommendation definition, anti-example).
 
 ## 14. Decision Management
@@ -325,10 +325,10 @@ This catalog gives full per-context detail for the twenty-five bounded contexts 
 - **Aggregates:** Agent Run, Agent Proposal.
 - **Commands:** RequestAgentRun, CancelAgentRun, ApproveAgentProposal, RejectAgentProposal.
 - **Queries:** GetAgentRun, ListAgentRuns.
-- **Events:** AgentRunRequested, AgentRunStarted, AgentRunCompleted, AgentRunFailed.
+- **Events:** AgentRunRequested, AgentRunStarted, AgentRunCompleted, AgentRunFailed, AgentProposalApproved.
 - **Policies:** AgentExecutionPolicy (owner).
-- **Dependencies:** Project Memory (governed retrieval only, ACL); Document and Evidence Management (evidence references); Recommendation Management (downstream, Agent Proposal → Recommendation); AI Model Provider, Embedding Provider ports.
-- **Prohibited responsibilities:** Must never write directly to any authoritative aggregate outside this context — its only output is an Agent Proposal (§12 rule 4, full pipeline in `04-ai-agent-application-architecture.md`).
+- **Dependencies:** Project Memory (governed retrieval only, ACL); Document and Evidence Management (evidence references); Recommendation Management (downstream, via the `AgentProposalApproved` Open Host Service contract — this context never writes to Recommendation Management's aggregate itself, only to the Agent Proposal it owns); AI Model Provider, Embedding Provider ports.
+- **Prohibited responsibilities:** Must never write directly to any authoritative aggregate outside this context — its only output is an Agent Proposal (§12 rule 4, full pipeline in `04-ai-agent-application-architecture.md`). `ApproveAgentProposal` mutates only the Agent Proposal aggregate this context owns; it must never itself create a Recommendation Management-owned Recommendation — that materialization is Recommendation Management's own `CreateRecommendationFromProposal` command, triggered by the `AgentProposalApproved` event this command emits.
 - **Consistency:** Strong (approval gate) / Eventual (run telemetry).
 - **Security scope:** High — this context is the primary prompt-injection and tool-abuse attack surface (§36).
 - **Extraction conditions:** Plausible under a demonstrated compliance need to run agent execution in an isolated blast radius, or under sustained model-call volume the shared deployment cannot absorb.

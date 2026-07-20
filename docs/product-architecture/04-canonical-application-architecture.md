@@ -470,10 +470,11 @@ Full per-command detail (prerequisites, validation, failure modes) lives in `04-
 | RevokeEnterpriseKnowledge | Enterprise Admin (governance role) | Enterprise Knowledge Record | Key: knowledge record id + revocation reason | Yes |
 | RequestAgentRun | Any authorized actor / scheduled trigger | Agent Run | Key: requester + context fingerprint | No |
 | CancelAgentRun | Requesting actor / Admin | Agent Run | Key: run id | No |
-| ApproveAgentProposal | Project member (authorized) | Agent Proposal → Recommendation | Key: proposal id | Yes |
+| ApproveAgentProposal | Project member (authorized) | Agent Proposal | Key: proposal id | Yes |
 | RejectAgentProposal | Project member (authorized) | Agent Proposal | Key: proposal id | Yes |
+| CreateRecommendationFromProposal | Recommendation Management (system, triggered by `AgentProposalApproved`) | Recommendation | Key: agent proposal id | No — the human gate already occurred at `ApproveAgentProposal`; this command deterministically materializes that decision within its owning context |
 
-`ApproveAgentProposal` is the only command that produces a Recommendation from Agent-originated output — there is no separate, directly Agent-issuable "generate a Recommendation with no approval" command. An earlier draft of this catalog included such a command (`GenerateRecommendation`); it has been removed because it let an Agent identity create a Recommendation without passing through Human Review, contradicting ADR-PMF-027 and ADR-PMF-030 (`04-ai-agent-application-architecture.md` §8: "An Agent Proposal has no domain effect until `ApproveAgentProposal` converts it into a Recommendation").
+There is no directly Agent-issuable "generate a Recommendation with no approval" command. An Agent's only output is an Agent Proposal (§12 rule 4); `ApproveAgentProposal` — always issued by a human — transitions that Proposal within Agent Orchestration's own ownership and emits `AgentProposalApproved`; `CreateRecommendationFromProposal` is a separate command, owned and issued by Recommendation Management itself (never by Agent Orchestration reaching into another context's aggregate), that consumes that event to create the Recommendation. This two-command split exists specifically so that no single command crosses two aggregate-ownership boundaries (§12, ADR-PMF-024) while still guaranteeing a Recommendation can never exist without passing through Human Review (ADR-PMF-027, ADR-PMF-030). An earlier draft of this catalog instead let a single Agent-issued command (`GenerateRecommendation`) create a Recommendation with no approval at all; that command was removed for bypassing Human Review, and a subsequent draft collapsed the fix into a single `ApproveAgentProposal` that itself crossed contexts — both are superseded by the split above.
 
 All commands are documented, none are implemented by this PR.
 
@@ -654,7 +655,7 @@ A domain event represents a fact that already happened; it is named in the past 
 
 Not every event listed below implies asynchronous delivery — see §21 for the domain/integration distinction and §22 for the sync/async classification.
 
-`EnterpriseCreated` · `WorkspaceCreated` · `WorkspacePolicyChanged` · `PMOCreated` · `PortfolioCreated` · `ProjectAssignedToPortfolio` · `ProgramCreated` · `ProjectAssignedToProgram` · `RoadmapMaterialized` · `ProjectCreated` · `ProjectArchived` · `ProjectMethodologyConfigured` · `TaskCreated` · `TaskCompleted` · `MilestoneCompleted` · `RiskRecorded` · `RiskClosed` · `IssueRecorded` · `IssueResolved` · `EvidenceSubmitted` · `EvidenceNormalized` · `MemoryRecordProposed` · `MemoryRecordApproved` · `RecommendationGenerated` · `RecommendationApproved` · `RecommendationRejected` · `DecisionRecorded` · `DecisionRevoked` · `ActionCreated` · `ActionCompleted` · `OutcomeRecorded` · `EnterprisePatternProposed` · `EnterpriseKnowledgeRatified` · `EnterpriseKnowledgeRevoked` · `AgentRunRequested` · `AgentRunStarted` · `AgentRunCompleted` · `AgentRunFailed`
+`EnterpriseCreated` · `WorkspaceCreated` · `WorkspacePolicyChanged` · `PMOCreated` · `PortfolioCreated` · `ProjectAssignedToPortfolio` · `ProgramCreated` · `ProjectAssignedToProgram` · `RoadmapMaterialized` · `ProjectCreated` · `ProjectArchived` · `ProjectMethodologyConfigured` · `TaskCreated` · `TaskCompleted` · `MilestoneCompleted` · `RiskRecorded` · `RiskClosed` · `IssueRecorded` · `IssueResolved` · `EvidenceSubmitted` · `EvidenceNormalized` · `MemoryRecordProposed` · `MemoryRecordApproved` · `AgentProposalApproved` · `RecommendationGenerated` · `RecommendationApproved` · `RecommendationRejected` · `DecisionRecorded` · `DecisionRevoked` · `ActionCreated` · `ActionCompleted` · `OutcomeRecorded` · `EnterprisePatternProposed` · `EnterpriseKnowledgeRatified` · `EnterpriseKnowledgeRevoked` · `AgentRunRequested` · `AgentRunStarted` · `AgentRunCompleted` · `AgentRunFailed`
 
 Full producer/consumer/payload detail lives in `04-command-query-event-catalog.md`.
 
@@ -669,9 +670,10 @@ Full producer/consumer/payload detail lives in `04-command-query-event-catalog.m
 | Should stay internal (Domain Event only) | Integration Event candidate |
 | --- | --- |
 | TaskCreated (consumed inside Project Management/Work Execution projections only) | ProjectCreated (consumed by PMO Governance, Project Memory, Notification, Search) |
-| RiskRecorded, RiskClosed, IssueRecorded, IssueResolved (consumed inside RAID health projections) | TaskCompleted, MilestoneCompleted, RoadmapMaterialized (each consumed by Reporting and Analytics, a separate bounded context, in addition to the Project Intelligence Feed projection — ADR-PMF-026 rule 3) |
+| RiskRecorded, RiskClosed, IssueRecorded, IssueResolved (consumed inside RAID health projections) | TaskCompleted, MilestoneCompleted (each consumed by Reporting and Analytics, a separate bounded context, in addition to the Project Intelligence Feed projection — ADR-PMF-026 rule 3); RoadmapMaterialized (consumed by Reporting and Analytics only — it is Program-scoped and, per ADR-PMF-008 rule 9, must never be routed to the Project-scoped Feed) |
 | MemoryRecordProposed (internal governance step) | EvidenceSubmitted (consumed by Recommendation Management, Project Memory, Audit) |
 | AgentRunStarted (internal orchestration telemetry) | MemoryRecordApproved (consumed by Agent Orchestration, Search) |
+| — | AgentProposalApproved (consumed by Recommendation Management to trigger `CreateRecommendationFromProposal` — the cross-context boundary this event exists specifically to mediate) |
 | — | RecommendationGenerated (consumed by Notification, Project Intelligence Feed projection) |
 | — | DecisionRecorded, DecisionRevoked (consumed by Action and Outcome Management, Audit, Notification) |
 | — | ActionCompleted, OutcomeRecorded (consumed by Enterprise Intelligence pipeline, Reporting) |

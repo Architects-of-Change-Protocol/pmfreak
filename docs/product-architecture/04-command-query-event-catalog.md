@@ -176,6 +176,7 @@ Owned by the Stakeholder and Communication Management context (`04-bounded-conte
 | ProposeMemoryRecord | Propose a candidate Project Memory Record | System (workflow step) / Agent | Project Memory Record (candidate) | Source event exists |
 | ApproveMemoryRecord | Approve a candidate into canonical memory | Authorized Project member | Project Memory Record | Candidate exists |
 | RejectMemoryRecord | Reject a candidate | Authorized Project member | Project Memory Record (candidate) | Candidate exists |
+| CreateRecommendationFromProposal | Create a Recommendation from an approved Agent Proposal | System (Recommendation Management, triggered by `AgentProposalApproved`) | Recommendation | Agent Proposal approved via `ApproveAgentProposal` (§5.7) |
 | ReviewRecommendation | Record human review of a Recommendation | Authorized Project member | Recommendation | Recommendation exists |
 | ApproveRecommendation | Approve a Recommendation | Authorized Project member | Recommendation | Recommendation reviewed |
 | RejectRecommendation | Reject a Recommendation | Authorized Project member | Recommendation | Recommendation reviewed |
@@ -196,6 +197,7 @@ Owned by the Stakeholder and Communication Management context (`04-bounded-conte
 | ProposeMemoryRecord | System/Agent identity | source event id | Candidate creation | MemoryRecordProposed | ValidationError | No |
 | ApproveMemoryRecord | Project member role (governance-designated) | candidate id | Single aggregate | MemoryRecordApproved | AuthorizationError, StaleVersionError | Yes — governance gate |
 | RejectMemoryRecord | Project member role (governance-designated) | candidate id | Single aggregate | (none cataloged; rejection is a terminal candidate state) | AuthorizationError | Yes — governance gate |
+| CreateRecommendationFromProposal | Recommendation Management's own authority (system-triggered) | agent proposal id | Recommendation creation | RecommendationGenerated | ValidationError, DataIntegrityError | No — the human gate already occurred at `ApproveAgentProposal` |
 | ReviewRecommendation | Project member role | recommendation id | Single aggregate | (none cataloged; review is a status annotation) | AuthorizationError | Yes — review is the human step |
 | ApproveRecommendation | Project member role; RecommendationApprovalPolicy | recommendation id | Single aggregate | RecommendationApproved | AuthorizationError, PolicyViolation | Yes |
 | RejectRecommendation | Project member role | recommendation id | Single aggregate | RecommendationRejected | AuthorizationError | Yes |
@@ -215,17 +217,17 @@ Owned by the Stakeholder and Communication Management context (`04-bounded-conte
 | --- | --- | --- | --- | --- |
 | RequestAgentRun | Trigger a governed Agent execution | Any authorized actor / scheduled trigger | Agent Run | AgentExecutionPolicy allows |
 | CancelAgentRun | Cancel an in-progress run | Requesting actor / Admin | Agent Run | Run exists, not terminal |
-| ApproveAgentProposal | Approve an Agent Proposal, converting it to a Recommendation | Authorized Project member | Agent Proposal → Recommendation | Proposal exists, validated |
+| ApproveAgentProposal | Approve an Agent Proposal, within Agent Orchestration's own ownership | Authorized Project member | Agent Proposal | Proposal exists, validated |
 | RejectAgentProposal | Reject an Agent Proposal | Authorized Project member | Agent Proposal | Proposal exists |
 
 | Command | Authorization | Idempotency key | Txn boundary | Resulting events | Failure modes | Human approval |
 | --- | --- | --- | --- | --- | --- | --- |
 | RequestAgentRun | AgentExecutionPolicy | requester + context fingerprint | Agent Run creation | AgentRunRequested, AgentRunStarted | PolicyViolation, RateLimitExceeded | No |
 | CancelAgentRun | Requesting actor / Admin role | run id | Single aggregate | (none cataloged; cancellation is a terminal run state) | InvariantViolation (already terminal) | No |
-| ApproveAgentProposal | Project member role | proposal id | Proposal → Recommendation | RecommendationGenerated | AuthorizationError | Yes |
+| ApproveAgentProposal | Project member role | proposal id | Single aggregate (Agent Proposal only) | AgentProposalApproved | AuthorizationError | Yes |
 | RejectAgentProposal | Project member role | proposal id | Single aggregate | (none cataloged) | AuthorizationError | Yes |
 
-`ApproveAgentProposal` is the sole command that produces a Recommendation from Agent-originated output. There is no separate, directly Agent-issuable command that creates a Recommendation without Human Review — an Agent's only output is an Agent Proposal (`04-ai-agent-application-architecture.md` §8), and `RecommendationGenerated` is emitted only when a human approves that Proposal.
+There is no directly Agent-issuable command that creates a Recommendation without Human Review — an Agent's only output is an Agent Proposal (`04-ai-agent-application-architecture.md` §8). `ApproveAgentProposal` is owned by Agent Orchestration and only ever mutates the Agent Proposal aggregate it owns, emitting `AgentProposalApproved`. It never reaches into Recommendation Management's aggregate directly (that would violate ADR-PMF-024's one-owner rule the same way an earlier draft's `AddProjectStakeholder` placement did, §5.3a). The Recommendation itself is created by `CreateRecommendationFromProposal` (§5.6), owned and issued by Recommendation Management, consuming `AgentProposalApproved` as its trigger. This split is what makes `RecommendationGenerated` — not `ApproveAgentProposal` — the actual event a Recommendation's existence depends on.
 
 ---
 
@@ -281,7 +283,7 @@ Queries never mutate state and never trigger automations as a side effect.
 | ProjectAssignedToPortfolio | Portfolio Management | Project Management (read), Reporting | projectId, portfolioId | No |
 | ProgramCreated | Program Management | Reporting, Notification | programId, pmoId, workspaceId | No |
 | ProjectAssignedToProgram | Program Management | Project Management (read), Reporting | projectId, programId | No |
-| RoadmapMaterialized | Program Management | Project Intelligence Feed projection, Reporting | programId, sourceId, epicIds, sprintIds, cardIds | No |
+| RoadmapMaterialized | Program Management | Reporting | programId, sourceId, epicIds, sprintIds, cardIds | No |
 | ProjectCreated | Project Management | PMO Governance, Project Memory, Notification, Search, Audit | projectId, workspaceId, pmoId? | No |
 | ProjectArchived | Project Management | Reporting, Search, Audit | projectId, archivedByActor | No |
 | ProjectMethodologyConfigured | Project Management | Schedule and Milestones, Work Execution | projectId, methodology | No |
@@ -296,6 +298,7 @@ Queries never mutate state and never trigger automations as a side effect.
 | EvidenceNormalized | Document and Evidence Management | Project Memory, Recommendation Management | evidenceId, projectId | No |
 | MemoryRecordProposed | Project Memory | (internal governance queue) | candidateId, projectId | No |
 | MemoryRecordApproved | Project Memory | Agent Orchestration, Search | recordId, projectId | No |
+| AgentProposalApproved | Agent Orchestration | Recommendation Management | agentProposalId, agentRunId, projectId | No |
 | RecommendationGenerated | Recommendation Management | Notification, Project Intelligence Feed | recommendationId, projectId, agentRunId? | No |
 | RecommendationApproved | Recommendation Management | Decision Management (read), Notification | recommendationId, approvedByActor | No |
 | RecommendationRejected | Recommendation Management | Notification | recommendationId, rejectedByActor | No |
@@ -316,4 +319,4 @@ Every event whose consumer sits above the Workspace boundary is explicitly marke
 
 ## 8. Integration Event Candidates
 
-Restating `04-canonical-application-architecture.md` §21: `ProjectCreated`, `TaskCompleted`, `MilestoneCompleted`, `RoadmapMaterialized`, `EvidenceSubmitted`, `MemoryRecordApproved`, `RecommendationGenerated`, `DecisionRecorded`, `DecisionRevoked`, `ActionCompleted`, `OutcomeRecorded`, `EnterpriseKnowledgeRatified`, `EnterpriseKnowledgeRevoked`, `WorkspaceCreated`, `PMOCreated`, `PortfolioCreated`, `ProgramCreated` are the events most likely to require a versioned integration contract, since each already has a consumer in a different bounded context — `TaskCompleted` and `MilestoneCompleted` specifically because §7's catalog names Reporting and Analytics as a consumer of both, and Reporting is a separate bounded context from Work Execution and Schedule and Milestones respectively. Every other event in §7 may remain a purely internal domain event until a second-context consumer is actually designed.
+Restating `04-canonical-application-architecture.md` §21: `ProjectCreated`, `TaskCompleted`, `MilestoneCompleted`, `RoadmapMaterialized`, `EvidenceSubmitted`, `MemoryRecordApproved`, `AgentProposalApproved`, `RecommendationGenerated`, `DecisionRecorded`, `DecisionRevoked`, `ActionCompleted`, `OutcomeRecorded`, `EnterpriseKnowledgeRatified`, `EnterpriseKnowledgeRevoked`, `WorkspaceCreated`, `PMOCreated`, `PortfolioCreated`, `ProgramCreated` are the events most likely to require a versioned integration contract, since each already has a consumer in a different bounded context — `TaskCompleted` and `MilestoneCompleted` specifically because §7's catalog names Reporting and Analytics as a consumer of both, and Reporting is a separate bounded context from Work Execution and Schedule and Milestones respectively. `RoadmapMaterialized` is Program-scoped, not Project-scoped (it carries no `projectId` and a Program may span multiple Projects), so it is deliberately not routed to the Project Intelligence Feed projection (ADR-PMF-008 rule 9 — a Feed entry must belong to exactly one Project); its only consumer is Reporting and Analytics. Every other event in §7 may remain a purely internal domain event until a second-context consumer is actually designed.

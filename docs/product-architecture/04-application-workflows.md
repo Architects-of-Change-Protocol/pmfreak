@@ -47,7 +47,7 @@ Every workflow below is a long-running, explicit-state process (`04-canonical-ap
 - **Actors:** Agent Orchestration (system), consuming actor who requested the run.
 - **States:** `Requested → ContextAssembled → PolicyEvaluated → Retrieved → ModelInvoked → Validated → Proposed → Failed`.
 - **Commands involved:** `RequestAgentRun`. Proposal creation is an internal pipeline step within the run, not a separate top-level Command — there is no directly Agent-issuable command that creates a Recommendation (see the note at the end of `04-command-query-event-catalog.md` §5.7).
-- **Events involved:** `AgentRunRequested`, `AgentRunStarted`, `AgentRunCompleted` / `AgentRunFailed`. This workflow does not itself emit `RecommendationGenerated` — that event is produced only by the separate, human-gated `ApproveAgentProposal` command (Workflow 9), which is what actually triggers Workflow 4.
+- **Events involved:** `AgentRunRequested`, `AgentRunStarted`, `AgentRunCompleted` / `AgentRunFailed`. This workflow does not itself emit `RecommendationGenerated` — that event is produced only after the separate, human-gated `ApproveAgentProposal` command (Workflow 9, emitting `AgentProposalApproved`) is followed by Recommendation Management's own `CreateRecommendationFromProposal`, which is what actually triggers Workflow 4.
 - **Policies:** `AgentExecutionPolicy`.
 - **Retries:** model/tool calls retry per `04-ai-agent-application-architecture.md` §11; the workflow itself does not retry a rejected Proposal.
 - **Timeouts:** per `AgentExecutionPolicy` (a bounded per-Agent-Definition ceiling).
@@ -91,12 +91,12 @@ Every workflow below is a long-running, explicit-state process (`04-canonical-ap
 - **Trigger:** `ActionCreated`.
 - **Actors:** Project member executing the Action; human or governed monitoring process observing the Outcome.
 - **States:** `Draft → Planned → Active → Blocked → Completed → Cancelled`; independently, `Expected → Observed → Validated → Disputed → Superseded` for the associated Outcome(s).
-- **Commands involved:** `RecordOutcome`.
-- **Events involved:** `ActionCompleted`, `OutcomeRecorded`.
+- **Commands involved:** `CompleteAction`, `CancelAction`, `RecordOutcome`.
+- **Events involved:** `ActionCompleted`, `OutcomeRecorded`. `CancelAction` has no cataloged event (cancellation is a terminal Action state, `04-command-query-event-catalog.md` §5.6) — an implementation that needs to notify downstream consumers of cancellation should treat this as an open item for a future PR, not assume `ActionCompleted` covers it.
 - **Policies:** `ActionCreationPolicy` (governs whether the Action itself required approval, per Workflow 5).
 - **Retries:** not applicable to the human-execution steps; monitoring-process observation retries per its own job definition if automated.
 - **Timeouts:** none on Action execution itself; a stale `Active` Action surfaces in Health projections rather than auto-transitioning.
-- **Compensation:** none — Action completion does not imply Outcome success; a `Disputed` Outcome is the corrective mechanism, not a rollback.
+- **Compensation:** none — Action completion does not imply Outcome success; a `Disputed` Outcome is the corrective mechanism, not a rollback. `CancelAction` is the explicit terminal path for an Action that will not complete.
 - **Audit:** Action state transitions and Outcome observation are both recorded independently, preserving the execution/effectiveness distinction (`04-canonical-application-architecture.md` §28).
 - **Security:** standard Project scope.
 - **Terminal states:** Action: `Completed` or `Cancelled`. Outcome: `Validated`, `Disputed`, or `Superseded`.
@@ -137,7 +137,7 @@ Every workflow below is a long-running, explicit-state process (`04-canonical-ap
 - **Actors:** Requesting actor (human or scheduled trigger); Agent Orchestration (system).
 - **States:** per `04-ai-agent-application-architecture.md` §3's full pipeline — `Requested → Authorized → ContextAssembled → PolicyEvaluated → Retrieved → ModelInvoked → ToolsInvoked → Validated → Proposed → Completed | Failed | Cancelled`.
 - **Commands involved:** `RequestAgentRun`, `CancelAgentRun`, `ApproveAgentProposal`, `RejectAgentProposal`.
-- **Events involved:** `AgentRunRequested`, `AgentRunStarted`, `AgentRunCompleted`, `AgentRunFailed`. `ApproveAgentProposal` additionally emits `RecommendationGenerated`, which is what triggers Workflow 4 (Recommendation Review and Approval) — this is the only path by which a Recommendation comes into existence from Agent-originated output.
+- **Events involved:** `AgentRunRequested`, `AgentRunStarted`, `AgentRunCompleted`, `AgentRunFailed`. `ApproveAgentProposal` additionally emits `AgentProposalApproved` — a cross-context signal to Recommendation Management, never a direct write into its aggregate. Recommendation Management's own `CreateRecommendationFromProposal`, triggered by that event, is what actually emits `RecommendationGenerated` and triggers Workflow 4 (Recommendation Review and Approval); this two-command handoff is the only path by which a Recommendation comes into existence from Agent-originated output.
 - **Policies:** `AgentExecutionPolicy`.
 - **Retries:** model/tool call retries only (transient errors); a validation failure is not retried automatically.
 - **Timeouts:** per `AgentExecutionPolicy`'s bound for the given Agent Definition.
