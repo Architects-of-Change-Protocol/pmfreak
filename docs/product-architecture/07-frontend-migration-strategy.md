@@ -32,7 +32,7 @@ All counts were produced with `find`/`grep` against `src/` and `tests/` at repos
 | Files matching `*Provider` naming | `grep -rl "export function.*Provider\|export const.*Provider" src \| wc -l` | 15 — on inspection, every match is an AI/model-provider abstraction (`src/lib/ai/providers/*`, `src/aoc/enterprise/runtime/authority-provider.ts`), not a React Context Provider; combined with the 0 `createContext` result above, this codebase currently has **no React Context-based state provider** |
 | State-management library imports (zustand/redux/jotai/valtio/recoil) | `grep -rl 'from "zustand"\|from "redux"\|from "jotai"\|from "valtio"\|from "recoil"' src \| wc -l` | 0 — no client state-management library is in use today |
 | API-client-shaped directories | Manual inspection | `src/lib/api/` (`http.ts`, `reliability.ts`, `validation.ts`, `error-codes.ts`) and `src/sdk/` (`client.ts`, `errors.ts`, `types.ts`, `index.ts`) — the latter is a working `AocClient` contract-client precedent, scoped to `src/aoc/` today (`07-frontend-module-boundaries.md` §5) |
-| Direct Supabase query calls (`.from(`) in UI route files, excluding `src/app/api` | `grep -rl '\.from(' src/app src/components src/features src/ui-core --include="*.tsx" \| grep -v "/api/" \| wc -l` | 20 — all in `page.tsx`/`layout.tsx` files under `src/app/(protected)/` and the root `(protected)` layout (full list in §4) |
+| Direct Supabase query calls (`.from(`) in UI route files, excluding `src/app/api` and excluding `Array.from` false positives | `grep -rn '\.from(' src/app src/components src/features --include="*.ts" --include="*.tsx" \| grep -v "/api/" \| grep -v "Array\.from"` | 69 occurrences across 26 files — `page.tsx`/`layout.tsx` files under `src/app/(protected)/` plus six colocated `actions.ts` Server Action files (full list in §4). An earlier, narrower pass that searched only `.tsx` files found 20 of the 26 — the six `actions.ts` files (`.ts`, not `.tsx`) were missed by that pass and are included here after independent verification. |
 | Direct Supabase client instantiation (`createClient`) in the same UI dirs | `grep -rl "createClient" src/app src/components src/features src/ui-core \| wc -l` | 0 — the 20 files above consume an already-instantiated server client rather than instantiating their own |
 | `localStorage` usage | `grep -ro "localStorage\." src \| wc -l` | 24 occurrences |
 | `sessionStorage` usage | `grep -ro "sessionStorage\." src \| wc -l` | 0 |
@@ -76,32 +76,38 @@ Full classification: `07-route-layout-and-navigation-architecture.md` §9. Of th
 - **Near match, needs remapping:** `command-center` (bare, not entity-qualified — the exact anti-pattern ADR-PMF-014 Rule 6 warns against; PR1 §11 already flagged today's `/command-center` as mixing Project- and Workspace-level data on one screen), `pmo-command-center`, `create-command-center`, `create-pmo`.
 - **No canonical counterpart yet:** `playground`, `debug-session`, `change-detection`, `follow-up-dashboard`, `message-nudges`, `pilot-agreement`, `founder-circle`, `founder-program`, `early-access`, `trial-inactive`, `getting-started`, `input-hub`, `operational-memory`, `trust`, `political-risk`, `stakeholder-intel`, `escalation-guide`, `meetings`, `copilot`.
 
-The twenty files performing direct Supabase queries at the page/layout level (§2 above) are:
+The twenty-six files performing direct Supabase queries at the page/layout/Server-Action level (§2 above) are:
 
 ```
-src/app/(protected)/executive/page.tsx
-src/app/(protected)/projects/[id]/page.tsx
-src/app/(protected)/projects/[id]/chat/page.tsx
-src/app/(protected)/projects/[id]/settings/page.tsx
-src/app/(protected)/projects/page.tsx
-src/app/(protected)/team/page.tsx
-src/app/(protected)/command-center/page.tsx
-src/app/(protected)/governance/page.tsx
-src/app/(protected)/policies/page.tsx
 src/app/(protected)/audit/page.tsx
+src/app/(protected)/capabilities/actions.ts
 src/app/(protected)/capabilities/page.tsx
 src/app/(protected)/chat/page.tsx
+src/app/(protected)/command-center/actions.ts
+src/app/(protected)/command-center/page.tsx
+src/app/(protected)/dashboard/page.tsx
+src/app/(protected)/early-access/page.tsx
+src/app/(protected)/executive/page.tsx
+src/app/(protected)/founder-circle/page.tsx
+src/app/(protected)/governance/page.tsx
+src/app/(protected)/layout.tsx
+src/app/(protected)/playground/actions.ts
+src/app/(protected)/playground/page.tsx
 src/app/(protected)/pmos/[pmoId]/page.tsx
 src/app/(protected)/pmos/[pmoId]/reports/page.tsx
+src/app/(protected)/policies/actions.ts
+src/app/(protected)/policies/page.tsx
+src/app/(protected)/projects/[id]/chat/page.tsx
+src/app/(protected)/projects/[id]/page.tsx
+src/app/(protected)/projects/[id]/settings/page.tsx
+src/app/(protected)/projects/actions.ts
+src/app/(protected)/projects/page.tsx
+src/app/(protected)/team/page.tsx
+src/app/(protected)/trust/agents/actions.ts
 src/app/(protected)/trust/agents/page.tsx
-src/app/(protected)/layout.tsx
-src/app/(protected)/playground/page.tsx
-src/app/(protected)/dashboard/page.tsx
-src/app/(protected)/founder-circle/page.tsx
-src/app/(protected)/early-access/page.tsx
 ```
 
-These twenty are the concrete, named instances of the ADR-PMF-060 gap ("no component queries Supabase directly") — every one is a named migration item, not a hypothetical risk.
+These twenty-six are the concrete, named instances of the ADR-PMF-060 gap ("no component queries Supabase directly") — every one is a named migration item, not a hypothetical risk. Six of the twenty-six are colocated `actions.ts` Server Action files (not `page.tsx`/`layout.tsx`), confirming the gap exists in the mutation path, not only the read path.
 
 ## 5. Current-to-Target Map
 
@@ -109,7 +115,7 @@ These twenty are the concrete, named instances of the ADR-PMF-060 gap ("no compo
 | --- | --- | --- |
 | 54 mixed `(protected)` route folders | Canonical route map, one segment per `03-screen-catalog.md` screen | `07-route-layout-and-navigation-architecture.md` §2 |
 | `src/lib/` (145 mixed entries) + `src/components/` + `src/features/` | Domain-aligned module catalog (`src/modules/*`) | `07-frontend-module-boundaries.md` §2, §6 |
-| 20 files with direct `.from(` Supabase calls | Contract-client-only data access | `07-frontend-state-and-data-architecture.md` §8, ADR-PMF-060 |
+| 26 files (69 call sites) with direct `.from(` Supabase calls | Contract-client-only data access | `07-frontend-state-and-data-architecture.md` §8, ADR-PMF-060 |
 | 0 React Context providers / 0 state-management library | Five-kind state taxonomy, global state exceptional | `07-frontend-state-and-data-architecture.md` §1–§7, ADR-PMF-059 |
 | No `middleware.ts`, tenant resolution inline per page | Server-side tenant-context resolution flow | `07-route-layout-and-navigation-architecture.md` §5, ADR-PMF-061 |
 | 27 hand-rolled `<form>` usages, 1 `react-hook-form` usage | Consistent Command-dispatch form pattern | `07-command-query-and-error-experience.md` §2, §4 |
