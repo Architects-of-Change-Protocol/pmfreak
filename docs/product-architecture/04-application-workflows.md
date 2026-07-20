@@ -46,15 +46,15 @@ Every workflow below is a long-running, explicit-state process (`04-canonical-ap
 - **Trigger:** `RequestAgentRun`, or a scheduled Agent Configuration trigger.
 - **Actors:** Agent Orchestration (system), consuming actor who requested the run.
 - **States:** `Requested → ContextAssembled → PolicyEvaluated → Retrieved → ModelInvoked → Validated → Proposed → Failed`.
-- **Commands involved:** `RequestAgentRun`, `GenerateRecommendation`.
-- **Events involved:** `AgentRunRequested`, `AgentRunStarted`, `AgentRunCompleted` / `AgentRunFailed`, `RecommendationGenerated`.
+- **Commands involved:** `RequestAgentRun`. Proposal creation is an internal pipeline step within the run, not a separate top-level Command — there is no directly Agent-issuable command that creates a Recommendation (see the note at the end of `04-command-query-event-catalog.md` §5.7).
+- **Events involved:** `AgentRunRequested`, `AgentRunStarted`, `AgentRunCompleted` / `AgentRunFailed`. This workflow does not itself emit `RecommendationGenerated` — that event is produced only by the separate, human-gated `ApproveAgentProposal` command (Workflow 9), which is what actually triggers Workflow 4.
 - **Policies:** `AgentExecutionPolicy`.
 - **Retries:** model/tool calls retry per `04-ai-agent-application-architecture.md` §11; the workflow itself does not retry a rejected Proposal.
 - **Timeouts:** per `AgentExecutionPolicy` (a bounded per-Agent-Definition ceiling).
 - **Compensation:** a failed run produces `AgentRunFailed` with no domain effect — nothing to compensate.
 - **Audit:** full Agent Run record (`04-ai-agent-application-architecture.md` §4).
 - **Security:** context assembly is Workspace/Project-scoped only; tool invocations are allowlist-checked at each step.
-- **Terminal states:** `Proposed` (awaiting Human Review, handed to Workflow 4), `Failed`.
+- **Terminal states:** `Proposed` (an Agent Proposal awaiting `ApproveAgentProposal`/`RejectAgentProposal` per Workflow 9 — only approval hands off to Workflow 4), `Failed`.
 
 ## 4. Recommendation Review and Approval
 
@@ -137,7 +137,7 @@ Every workflow below is a long-running, explicit-state process (`04-canonical-ap
 - **Actors:** Requesting actor (human or scheduled trigger); Agent Orchestration (system).
 - **States:** per `04-ai-agent-application-architecture.md` §3's full pipeline — `Requested → Authorized → ContextAssembled → PolicyEvaluated → Retrieved → ModelInvoked → ToolsInvoked → Validated → Proposed → Completed | Failed | Cancelled`.
 - **Commands involved:** `RequestAgentRun`, `CancelAgentRun`, `ApproveAgentProposal`, `RejectAgentProposal`.
-- **Events involved:** `AgentRunRequested`, `AgentRunStarted`, `AgentRunCompleted`, `AgentRunFailed`.
+- **Events involved:** `AgentRunRequested`, `AgentRunStarted`, `AgentRunCompleted`, `AgentRunFailed`. `ApproveAgentProposal` additionally emits `RecommendationGenerated`, which is what triggers Workflow 4 (Recommendation Review and Approval) — this is the only path by which a Recommendation comes into existence from Agent-originated output.
 - **Policies:** `AgentExecutionPolicy`.
 - **Retries:** model/tool call retries only (transient errors); a validation failure is not retried automatically.
 - **Timeouts:** per `AgentExecutionPolicy`'s bound for the given Agent Definition.

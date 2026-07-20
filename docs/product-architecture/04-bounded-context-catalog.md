@@ -107,9 +107,9 @@ This catalog gives full per-context detail for the twenty-five bounded contexts 
 - **Ubiquitous language:** Program, Primary Program, Roadmap, Epic, Sprint, Card (Program-tree-internal).
 - **Ownership:** Program, and the Program-internal roadmap tree (Epic/Sprint/Card).
 - **Aggregates:** Program.
-- **Commands:** CreateProgram, AssignProjectToProgram, RemoveProjectFromProgram.
+- **Commands:** CreateProgram, AssignProjectToProgram, RemoveProjectFromProgram, CreateProgramEpic, CreateProgramSprint, CreateProgramCard, MoveProgramCard, SubmitRoadmapSource, ParseRoadmapSource, MaterializeRoadmap. The roadmap-tree commands (`04-command-query-event-catalog.md` §5.2a) exist specifically because this context's ownership already includes the Epic/Sprint/Card tree and the roadmap-parsing pipeline — a real, implemented capability (PR1 §19, §29–31) that the original catalog omitted, leaving it an uncatalogued write path in violation of ADR-PMF-025.
 - **Queries:** GetProgramOverview, GetProgramHealth.
-- **Events:** ProgramCreated, ProjectAssignedToProgram.
+- **Events:** ProgramCreated, ProjectAssignedToProgram, RoadmapMaterialized.
 - **Policies:** ProgramMembershipPolicy (owner — enforces "at most one primary Program per Project," PR1.1 invariant 17).
 - **Dependencies:** PMO Governance (parent); Portfolio Management (optional parent); Project Management (children).
 - **Prohibited responsibilities:** Must not be deleted or treated as dead weight for being currently disconnected from Project/PMO in the existing implementation — PR1.1 explicitly classifies this as "incomplete integration," not duplication (PR1 §19, PR1.1 §13 Contract).
@@ -125,7 +125,7 @@ This catalog gives full per-context detail for the twenty-five bounded contexts 
 - **Ubiquitous language:** Project, Project Owner, Project Context, Methodology.
 - **Ownership:** Project.
 - **Aggregates:** Project.
-- **Commands:** CreateProject, UpdateProjectContext, ArchiveProject, ConfigureProjectMethodology, AddProjectStakeholder.
+- **Commands:** CreateProject, UpdateProjectContext, ArchiveProject, ConfigureProjectMethodology.
 - **Queries:** GetProjectOverview, GetProjectCommandCenter, GetProjectHealth.
 - **Events:** ProjectCreated, ProjectArchived, ProjectMethodologyConfigured.
 - **Policies:** ProjectAssignmentPolicy (owner), ProjectHealthPolicy (owner, consumed by Reporting).
@@ -197,7 +197,7 @@ This catalog gives full per-context detail for the twenty-five bounded contexts 
 - **Ubiquitous language:** Stakeholder, Communication.
 - **Ownership:** Stakeholder record.
 - **Aggregates:** Stakeholder record.
-- **Commands:** AddProjectStakeholder (issued through Project Management's catalog since it targets the Project aggregate's stakeholder list — see §13 note on shared commands).
+- **Commands:** AddProjectStakeholder. This context, not Project Management, exposes and handles the command — it targets the Stakeholder record aggregate this context owns (§12 of the parent document), not the Project aggregate itself, per ADR-PMF-024's rule that a cross-context mutation is directed to the owning context.
 - **Queries:** (surfaced via GetProjectCommandCenter).
 - **Events:** (none in the top-level catalog; internal to this context today, integration-event candidate once external communication channels are wired — §44).
 - **Policies:** (none owned).
@@ -233,16 +233,16 @@ This catalog gives full per-context detail for the twenty-five bounded contexts 
 - **Ubiquitous language:** Recommendation, Confidence, Review.
 - **Ownership:** Recommendation.
 - **Aggregates:** Recommendation.
-- **Commands:** GenerateRecommendation, ReviewRecommendation, ApproveRecommendation, RejectRecommendation.
+- **Commands:** ReviewRecommendation, ApproveRecommendation, RejectRecommendation. A Recommendation is created only as the effect of Agent Orchestration's `ApproveAgentProposal` (§18 below) converting an already-reviewed Agent Proposal — there is no directly Agent-issuable command that creates a Recommendation without that human-gated conversion (ADR-PMF-027, ADR-PMF-030).
 - **Queries:** ListRecommendations, GetRecommendationDetails.
 - **Events:** RecommendationGenerated, RecommendationApproved, RecommendationRejected.
 - **Policies:** RecommendationApprovalPolicy (owner).
 - **Dependencies:** Agent Orchestration (upstream producer, via Agent Proposal → Recommendation contract); Document and Evidence Management (evidence references); Decision Management (downstream).
-- **Prohibited responsibilities:** Must never auto-convert a Recommendation into a Decision — that conversion is always a separate, explicit act (ADR-PMF-008, ADR-PMF-030).
+- **Prohibited responsibilities:** Must never auto-convert a Recommendation into a Decision — that conversion is always a separate, explicit act (ADR-PMF-008, ADR-PMF-030). Must never accept a Recommendation created by any path other than `ApproveAgentProposal`'s human-gated conversion.
 - **Consistency:** Strong.
 - **Security scope:** Standard Project-scoped; governs the human-authority boundary for AI output.
 - **Extraction conditions:** None identified.
-- **Example:** GenerateRecommendation "Consider reallocating budget from Task X to Task Y" from the Cost Governance Agent.
+- **Example:** `ApproveAgentProposal` converting a reviewed Proposal — "Consider reallocating budget from Task X to Task Y" — from the Cost Governance Agent into a Recommendation.
 - **Anti-example:** An Agent writing directly to an authoritative table without a Recommendation/Decision step in between (PR2, Recommendation definition, anti-example).
 
 ## 14. Decision Management
@@ -269,7 +269,7 @@ This catalog gives full per-context detail for the twenty-five bounded contexts 
 - **Ubiquitous language:** Action, Outcome, Observation, Effectiveness.
 - **Ownership:** Action, Outcome.
 - **Aggregates:** Action, Outcome.
-- **Commands:** CreateActionFromDecision, RecordOutcome.
+- **Commands:** CreateActionFromDecision, CompleteAction, CancelAction, RecordOutcome.
 - **Queries:** ListActions, ListOutcomes.
 - **Events:** ActionCreated, ActionCompleted, OutcomeRecorded.
 - **Policies:** ActionCreationPolicy (owner).
