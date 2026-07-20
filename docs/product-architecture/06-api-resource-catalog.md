@@ -185,26 +185,47 @@ Action status-transition and cancellation endpoints (completion, cancellation) a
 
 ## 15. Agent
 
+PR5 §8 already names three distinct component record groups under the Agent Run storage unit — `agent_definitions`, `_versions`, and `_configurations`, alongside `agent_runs` itself. This catalog gives those three already-named concepts distinct API treatment rather than collapsing them into one ambiguous "Agent" resource — it introduces no new aggregate, only resolves an ambiguity the original resource catalog left flat.
+
+**Agent Definition** — the agent's logical identity: purpose, capabilities, supported tools, policy requirements, and version history (`agent_definitions` + `_versions`). Read-only at the API boundary; not an end-user-mutable resource.
+
 | | |
 |---|---|
-| Collection | `GET /agents` (Agent Definitions, Workspace- or platform-scoped) |
+| Collection | `GET /agents` |
 | Resource | `GET /agents/{agentId}` |
+| Sub-resource | `GET /agents/{agentId}/versions` |
 | Search | Not applicable |
-| Actions | Agent Definition/version/configuration management is not covered by a client-facing Command in the PR4 catalog — Agent Definitions are treated as platform/admin configuration, not an end-user-mutable resource, until a future PR establishes otherwise |
+| Actions | Not covered by a client-facing Command in the PR4 catalog — Agent Definitions are platform/admin configuration until a future PR establishes otherwise |
 | Permissions | Read: Workspace member with Agent visibility; Write: not yet defined (open, §33 of the parent document) |
 | Commands | None catalogued |
-| Queries | Not individually catalogued in `04-command-query-event-catalog.md` beyond Agent Run-level Queries below — recorded as an open gap |
+| Queries | Not individually catalogued in `04-command-query-event-catalog.md` — recorded as an open gap |
+
+**Agent Configuration** — the scoped, applied configuration of an Agent Definition for a Workspace or Project: enabled state, model policy, tool policy, applicability (`agent_configurations`).
+
+| | |
+|---|---|
+| Collection | `GET /workspaces/{workspaceId}/agent-configurations` |
+| Resource | `GET /agent-configurations/{configurationId}` |
+| Search | Not applicable |
+| Actions | Not covered by a client-facing Command in the PR4 catalog — recorded as an open gap, deferred to PR9+ |
+| Permissions | Workspace Owner/Admin for write; Workspace member for read |
+| Commands | None catalogued |
+| Queries | Not individually catalogued — recorded as an open gap |
+
+**Binding rule, restated from ADR-PMF-027 and made explicit here:** neither Agent Definition nor Agent Configuration ever exposes a generic mutation endpoint (e.g., no `POST /agents/{agentId}:execute-domain-mutation`). Every domain mutation an Agent's activity leads to follows exactly one path — **Agent Run → Agent Proposal → Review/Policy → Domain Command → Audit** — enforced at the Agent Run resource below, never bypassed via the Agent Definition or Agent Configuration resources.
 
 ## 16. Agent Run
+
+The operational resource for a concrete Agent execution (`agent_runs` + `_inputs` + `_outputs` + `agent_tool_invocations` + `agent_proposals` + `_evidence` + `_approvals` + `_costs`, PR5 §8). Its Response DTO carries: **status** (pipeline state per PR4 workflow 9), **version** (optimistic concurrency where applicable), **evidence references** (inputs/context consumed), **tool invocations** (which permitted tools were called, per PR4 AI-agent doc §6's Tool Policy), **output** (model output reference), **proposal** (the resulting Agent Proposal, if any), **approval** (the human review/approval state via `ApproveAgentProposal`/`RejectAgentProposal`), and **audit** (append-only run history, PR5 §19).
 
 | | |
 |---|---|
 | Collection | `GET /workspaces/{workspaceId}/agent-runs?agent_id=&status=` and `GET /agents/{agentId}/runs` |
 | Resource | `GET /agent-runs/{agentRunId}` |
 | Search | Not applicable — use `ListAgentRuns` filters |
-| Actions | `POST /agent-runs:request`, `POST /agent-runs/{id}:cancel` |
-| Permissions | Requesting actor's own scope (never broader, PR4 §34); Agent identity itself may only call `RequestAgentRun`/`CancelAgentRun` for its own run, per ADR-PMF-027 |
-| Commands | `RequestAgentRun`, `CancelAgentRun` |
+| Actions | `POST /agent-runs:request`, `POST /agent-runs/{id}:cancel`, `POST /agent-proposals/{id}:approve`, `POST /agent-proposals/{id}:reject` |
+| Permissions | Requesting actor's own scope (never broader, PR4 §34); Agent identity itself may only call `RequestAgentRun`/`CancelAgentRun`/`ApproveAgentProposal`/`RejectAgentProposal` — the complete ADR-PMF-027 allowlist, and never any other Command |
+| Commands | `RequestAgentRun`, `CancelAgentRun`, `ApproveAgentProposal`, `RejectAgentProposal` |
 | Queries | `GetAgentRun`, `ListAgentRuns` |
 
 ## 17. Audit
@@ -221,15 +242,38 @@ Action status-transition and cancellation endpoints (completion, cancellation) a
 
 ## 18. Notification
 
+PR5 §8 names three distinct component record groups under Notification Management — `notification_intents`, `notification_deliveries`, `notification_preferences` — kept distinct here rather than collapsed into one "Notification" resource, since they answer different questions (what was decided to notify, what actually reached a channel, what a user has opted into).
+
+**Notification Intent** — the fact that a notification-worthy event occurred and was queued for delivery (`notification_intents`), produced entirely by Workflow 14's `IntentCreated` state, never by a client-invoked Command.
+
 | | |
 |---|---|
-| Collection | `GET /me/notifications` (self-scoped) |
-| Resource | `GET /notifications/{notificationId}` |
-| Search | Not applicable |
-| Actions | Notification delivery is entirely event-driven (Workflow 14, triggered by `RecommendationGenerated`/`DecisionRecorded`/`ActionCompleted`/`OutcomeRecorded`); no client-invoked "create notification" Command exists. A future preference-update Command (`UpdateNotificationPreferences`) is not yet catalogued in PR4 — recorded as an open gap |
-| Permissions | Self-scoped by default; no cross-user notification access |
+| Collection | `GET /me/notification-intents` (self-scoped) |
+| Resource | `GET /notification-intents/{intentId}` |
+| Actions | None — event-driven only (Workflow 14, triggered by `RecommendationGenerated`/`DecisionRecorded`/`ActionCompleted`/`OutcomeRecorded`); no client-invoked "create notification" Command exists |
 | Commands | None catalogued |
-| Queries | Not individually catalogued in `04-command-query-event-catalog.md` — recorded as an open gap; `GetProjectIntelligenceFeed`/`GetEnterpriseHealth`-style feeds partially substitute today |
+| Queries | Not individually catalogued in `04-command-query-event-catalog.md` — recorded as an open gap |
+
+**Notification Delivery** — the per-channel delivery record for an Intent (`notification_deliveries`), reflecting Workflow 14's `ChannelResolved → Sending → Delivered | Failed` states independently per channel.
+
+| | |
+|---|---|
+| Collection | `GET /notification-intents/{intentId}/deliveries` |
+| Resource | `GET /notification-deliveries/{deliveryId}` |
+| Actions | None — system-written only, per Workflow 14 |
+| Commands | None catalogued |
+| Queries | Not individually catalogued — recorded as an open gap; `GetProjectIntelligenceFeed`/`GetEnterpriseHealth`-style feeds partially substitute today |
+
+**Notification Preference** — the user's per-channel opt-in/opt-out configuration (`notification_preferences`), consulted by Workflow 14's channel-resolution policy but not itself part of the delivery pipeline.
+
+| | |
+|---|---|
+| Collection | `GET /me/notification-preferences` (self-scoped) |
+| Resource | `PATCH /me/notification-preferences` |
+| Actions | A preference-update Command (`UpdateNotificationPreferences`) is not yet catalogued in PR4 — recorded as an open gap, not invented here |
+| Permissions | Self-scoped by default; no cross-user notification access to any of the three resources above |
+| Commands | None catalogued |
+| Queries | Not individually catalogued — recorded as an open gap |
 
 ## 19. Integration
 

@@ -67,7 +67,7 @@ Authentication (identity verification: is this a valid, unexpired, correctly-sig
 
 ## 5. Per-Command and Per-Query Failure Modes
 
-Each Command in `06-command-catalog.md` and each Query in `06-query-catalog.md` documents, in its own row/section, which categories from §1 it is expected to return — an endpoint returning a category outside what it documents is itself a contract defect to fix in implementation, not a case this document tries to enumerate exhaustively in advance for all fifty-plus operations.
+Each Command in `06-command-catalog.md` and each Query in `06-query-catalog.md` documents, in its own row/section, which categories from §1 it is expected to return — an endpoint returning a category outside what it documents is itself a contract defect to fix in implementation, not a case this document tries to enumerate exhaustively in advance for all fifty Commands and twenty-seven Queries individually.
 
 ---
 

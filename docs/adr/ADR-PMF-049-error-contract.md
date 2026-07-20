@@ -25,13 +25,13 @@ PR4 already ratified fourteen canonical error categories at the application laye
 
 ## Alternatives Considered
 
-- **Let each endpoint define its own ad hoc error shape.** Rejected: with fifty-plus Commands and twenty-five-plus Queries, ad hoc per-endpoint error shapes would make client-side error handling combinatorially complex and defeat the purpose of having a canonical category catalog at all.
+- **Let each endpoint define its own ad hoc error shape.** Rejected: with fifty Commands and twenty-seven Queries (`04-command-query-event-catalog.md` §5–§6), ad hoc per-endpoint error shapes would make client-side error handling combinatorially complex and defeat the purpose of having a canonical category catalog at all.
 - **Collapse authentication and authorization into a single category.** Rejected: PR4 §38 already treats these as distinct layers in the authorization chain; conflating "who are you" (401) with "you're not entitled to this" (403/`AuthorizationError`) would blur a distinction PR5's defense-in-depth model (ADR-PMF-042) also depends on being kept separate.
 - **Include full stack traces or internal error detail in non-production environments only, via a flag.** Rejected: an environment-conditional error contract is itself a source of contract drift and a plausible path to accidental production leakage; the contract is the same in every environment, with verbose diagnostic detail available only through server-side observability tooling (ADR-PMF-053), never the API response.
 
 ## Positive Consequences
 
-- Gives any client — first-party or external — one error-handling code path instead of fifty-plus bespoke ones.
+- Gives any client — first-party or external — one error-handling code path instead of a bespoke shape per endpoint across the full seventy-seven-operation Command and Query surface.
 - Makes it possible to reason about retry safety mechanically from the category alone (`06-error-model.md` §3).
 
 ## Negative Consequences

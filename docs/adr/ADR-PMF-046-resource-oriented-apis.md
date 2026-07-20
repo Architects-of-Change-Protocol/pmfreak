@@ -8,7 +8,7 @@ Superseded by: None
 
 ## Context
 
-PR4's ADR-PMF-025 (API Implications) already anticipates that "REST would naturally map Commands to POST/PUT/PATCH/DELETE and Queries to GET," and `04-canonical-application-architecture.md` §55 explicitly left the API transport as an open decision for PR6. Twenty PR1/PR4-ratified concepts (Enterprise, Workspace, PMO, Portfolio, Program, Project, Recommendation, Decision, Action, Outcome, Evidence, Project Memory, Enterprise Knowledge, Workflow, Agent, Agent Run, Audit, Notification, Integration, plus cross-cutting Search) need a consistent, learnable shape at the wire boundary, and fifty-plus Commands and twenty-five-plus Queries (`04-command-query-event-catalog.md`) need a mapping that does not require inventing a new pattern per endpoint.
+PR4's ADR-PMF-025 (API Implications) already anticipates that "REST would naturally map Commands to POST/PUT/PATCH/DELETE and Queries to GET," and `04-canonical-application-architecture.md` §55 explicitly left the API transport as an open decision for PR6. Twenty PR1/PR4-ratified concepts (Enterprise, Workspace, PMO, Portfolio, Program, Project, Recommendation, Decision, Action, Outcome, Evidence, Project Memory, Enterprise Knowledge, Workflow, Agent, Agent Run, Audit, Notification, Integration, plus cross-cutting Search) need a consistent, learnable shape at the wire boundary, and the fifty Commands and twenty-seven Queries catalogued in `04-command-query-event-catalog.md` §5–§6 (counted directly from those tables' rows) need a mapping that does not require inventing a new pattern per endpoint.
 
 ## Decision
 
@@ -26,12 +26,12 @@ PR4's ADR-PMF-025 (API Implications) already anticipates that "REST would natura
 ## Alternatives Considered
 
 - **GraphQL as the primary API style from the start.** Rejected: nothing in PMFreak's ratified domain requires a single flexible query language at the edge; REST's fixed shapes map more directly onto the already-ratified Command/Query separation and require no new client-side query runtime for PR7.
-- **RPC-style APIs (one endpoint per operation, no resource model).** Rejected: with fifty-plus Commands and twenty-five-plus Queries, an RPC-only style would forfeit REST's cacheability and the learnability a consistent resource model provides, and risks re-accreting the same kind of unstructured surface PR5's current-state inspection found in persistence.
+- **RPC-style APIs (one endpoint per operation, no resource model).** Rejected: with fifty Commands and twenty-seven Queries, an RPC-only style would forfeit REST's cacheability and the learnability a consistent resource model provides, and risks re-accreting the same kind of unstructured surface PR5's current-state inspection found in persistence.
 - **CRUD-first design (every table gets a generic REST interface).** Rejected: several aggregates deliberately restrict which mutations are legal (e.g., Decision's rationale is never destructively edited, ADR-PMF-036) — a generic CRUD template would either violate those invariants or require constant special-casing; the Command catalog is the correct source of truth instead.
 
 ## Positive Consequences
 
-- Gives PR7 and any external integration a single, learnable pattern across twenty resource types instead of fifty-plus bespoke endpoint shapes.
+- Gives PR7 and any external integration a single, learnable pattern across twenty resource types instead of seventy-seven (fifty Command plus twenty-seven Query) independently shaped endpoints.
 - REST's native cacheability benefits `GET`-mapped Queries without additional design work.
 - Leaves GraphQL available without having foreclosed it — adoption is evidence-gated, not permanently rejected.
 

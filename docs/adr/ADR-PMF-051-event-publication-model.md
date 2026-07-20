@@ -8,11 +8,11 @@ Superseded by: None
 
 ## Context
 
-PR5's ADR-PMF-037 already ratified the transactional outbox as the durable publication mechanism for domain and integration events, with an explicit API Implication: "Not directly API-facing; PR6 may expose a read-only 'event history' or 'integration log' endpoint... if a product need for it is identified." PR4's `04-command-query-event-catalog.md` §8 already names fourteen events as Integration Event candidates, distinct from the other twenty-two which are Domain-Event-only. PR6 needs to fix how these categories surface (or don't) at the API boundary without inventing new event names or changing which events PR4 already classified as integration-eligible.
+PR5's ADR-PMF-037 already ratified the transactional outbox as the durable publication mechanism for domain and integration events, with an explicit API Implication: "Not directly API-facing; PR6 may expose a read-only 'event history' or 'integration log' endpoint... if a product need for it is identified." PR4's `04-command-query-event-catalog.md` §7 catalogues thirty-seven Domain Events (counted directly from that table's rows); §8 names fourteen of them as Integration Event candidates, distinct from the other twenty-three which are Domain-Event-only. PR6 needs to fix how these categories surface (or don't) at the API boundary without inventing new event names or changing which events PR4 already classified as integration-eligible.
 
 ## Decision
 
-**All thirty-six PR4-catalogued events are published via the existing transactional outbox (ADR-PMF-037) to internal consumers. The fourteen events PR4 already flagged as Integration Event candidates are, additionally, the only events eligible for external delivery (webhooks, ADR-PMF-052). The API layer never publishes an event directly — it only triggers the Command whose handler writes the outbox record in the same transaction as the aggregate mutation.**
+**All thirty-seven PR4-catalogued events are published via the existing transactional outbox (ADR-PMF-037) to internal consumers. The fourteen events PR4 already flagged as Integration Event candidates are, additionally, the only events eligible for external delivery (webhooks, ADR-PMF-052). The API layer never publishes an event directly — it only triggers the Command whose handler writes the outbox record in the same transaction as the aggregate mutation.**
 
 ## API Rules
 
@@ -43,7 +43,7 @@ PR5's ADR-PMF-037 already ratified the transactional outbox as the durable publi
 
 ## Security and Data Implications
 
-- Restricting external delivery to the fourteen-event allowlist bounds what an external subscriber can ever learn about internal domain activity — narrower than the full thirty-six-event internal set, consistent with PR5's data-classification discipline (never exposing more externally than a stated need requires).
+- Restricting external delivery to the fourteen-event allowlist bounds what an external subscriber can ever learn about internal domain activity — narrower than the full thirty-seven-event internal set, consistent with PR5's data-classification discipline (never exposing more externally than a stated need requires).
 
 ## Application Implications
 
@@ -51,7 +51,7 @@ PR5's ADR-PMF-037 already ratified the transactional outbox as the durable publi
 
 ## Frontend Implications
 
-- PR7 may consume any of the thirty-six Domain Events for internal, first-party purposes (e.g., real-time UI updates) through whatever internal event-consumption mechanism PR7 designs — the fourteen-event restriction applies to external/webhook delivery only, not first-party internal consumption.
+- PR7 may consume any of the thirty-seven Domain Events for internal, first-party purposes (e.g., real-time UI updates) through whatever internal event-consumption mechanism PR7 designs — the fourteen-event restriction applies to external/webhook delivery only, not first-party internal consumption.
 
 ## Migration Implications
 
@@ -68,7 +68,7 @@ PR5's ADR-PMF-037 already ratified the transactional outbox as the durable publi
 
 ## Validation
 
-Validation criteria: (1) `06-event-catalog.md` §1's thirty-six events and their Integration Event flags match `04-command-query-event-catalog.md` exactly; (2) no event is published to an external subscriber outside the fourteen-event allowlist; (3) every event's `correlationId`/`causationId` propagation is documented as inherited from its triggering Command.
+Validation criteria: (1) `06-event-catalog.md` §1's thirty-seven events and their Integration Event flags match `04-command-query-event-catalog.md` exactly; (2) no event is published to an external subscriber outside the fourteen-event allowlist; (3) every event's `correlationId`/`causationId` propagation is documented as inherited from its triggering Command.
 
 ## References
 
