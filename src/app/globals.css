@@ -19,6 +19,46 @@
   }
 }
 
+/*
+ * PR9 Enterprise Component tokens (08-design-system.md §2).
+ * Governed: every semantic color here carries a redundant icon/text signal
+ * at the component layer (src/platform/components) — this file fixes color
+ * only, per 08-accessibility-guidelines.md §4's table. No component may
+ * hardcode a hex value outside this set (08-design-system.md §5 rule 2).
+ */
+:root {
+  --pmf-severity-critical: #dc2626;
+  --pmf-severity-critical-bg: rgb(220 38 38 / 0.1);
+  --pmf-severity-warning: #d97706;
+  --pmf-severity-warning-bg: rgb(217 119 6 / 0.1);
+  --pmf-severity-ok: #059669;
+  --pmf-severity-ok-bg: rgb(5 150 105 / 0.1);
+  --pmf-severity-neutral: #64748b;
+  --pmf-severity-neutral-bg: rgb(100 116 139 / 0.1);
+
+  --pmf-health-band-strong: var(--pmf-severity-ok);
+  --pmf-health-band-watch: var(--pmf-severity-warning);
+  --pmf-health-band-at-risk: var(--pmf-severity-critical);
+
+  --pmf-ai-accent: #7c3aed;
+  --pmf-ai-accent-bg: rgb(124 58 237 / 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --pmf-severity-critical: #f87171;
+    --pmf-severity-critical-bg: rgb(248 113 113 / 0.14);
+    --pmf-severity-warning: #fbbf24;
+    --pmf-severity-warning-bg: rgb(251 191 36 / 0.14);
+    --pmf-severity-ok: #34d399;
+    --pmf-severity-ok-bg: rgb(52 211 153 / 0.14);
+    --pmf-severity-neutral: #94a3b8;
+    --pmf-severity-neutral-bg: rgb(148 163 184 / 0.14);
+    --pmf-ai-accent: #a78bfa;
+    --pmf-ai-accent-bg: rgb(167 139 250 / 0.14);
+  }
+}
+
 * {
   border-color: rgb(148 163 184 / 0.2);
 }
