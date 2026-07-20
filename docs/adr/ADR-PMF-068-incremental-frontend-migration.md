@@ -29,7 +29,7 @@ The current frontend (`src/app/(protected)/` with 54 feature folders, `src/lib/`
 
 ## Positive Consequences
 
-- Keeps the product shippable and the current ~fifty routes functioning throughout migration — no feature-delivery freeze.
+- Keeps the product shippable and the current 82 routes functioning throughout migration — no feature-delivery freeze.
 - Gives every migration unit (module or route) an independent, revertible cutover point, bounding the blast radius of any single migration step's defect.
 
 ## Negative Consequences
