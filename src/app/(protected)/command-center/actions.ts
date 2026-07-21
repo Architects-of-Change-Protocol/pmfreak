@@ -6,6 +6,8 @@ import { canCreateMoreProjects } from "@/lib/feature-gates";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveWriteWorkspace } from "@/lib/workspaces/resolve-write-workspace";
 import { ensureDefaultPmo } from "@/lib/pmos/pmo-service";
+import { generateAndPersistOperationalGovernanceBrief } from "@/lib/projects/first-insight";
+import { ingestProjectSetupContext } from "@/lib/projects/ingest-project-setup-context";
 
 const asField = (value: FormDataEntryValue | null) => String(value ?? "").trim();
 
@@ -54,5 +56,44 @@ export async function activateContextAction(formData: FormData) {
     redirect(`/command-center?error=${encodeURIComponent(error?.message ?? "Unable to activate context")}`);
   }
 
-  redirect(`/command-center?projectId=${data.id}&from=onboarding`);
+  // Feed the founder's setup context into the real intelligence loop (vault
+  // RAID extraction + operational evidence chain) so the Command Center they
+  // land on reflects what they just told us. Best-effort: creation survives
+  // any downstream failure.
+  if (description) {
+    await ingestProjectSetupContext({
+      supabase,
+      workspaceId: ensured.workspaceId,
+      projectId: data.id,
+      userId: user.id,
+      companyId: user.companyId,
+      role: ensured.role,
+      projectName: name,
+      content: description,
+    });
+  }
+
+  // First governance brief — generated after ingestion so detected RAID items
+  // are part of it (parity with the other project-creation flows).
+  let briefFailed = false;
+  try {
+    const briefResult = await generateAndPersistOperationalGovernanceBrief({
+      workspaceId: ensured.workspaceId,
+      projectId: data.id,
+      projectOnboardingPayload: {
+        identity: { projectName: name, clientOrganization: sponsor, projectType: "other", pmAssigned: user.email ?? user.id },
+        deliveryContext: { problemStatement: descriptionInput, mainDeliverable: name, scopeType: "discovery" },
+        discovery: { unknowns: risk, pendingClientDependencies: "" },
+        setup: { sponsor, phase, timeline, risk, stakeholders },
+        createdAt: new Date().toISOString(),
+      },
+      createdBy: user.id,
+      supabase,
+    });
+    briefFailed = !briefResult.ok;
+  } catch {
+    briefFailed = true;
+  }
+
+  redirect(`/command-center?projectId=${data.id}&from=onboarding${briefFailed ? "&briefGeneration=failed" : ""}`);
 }

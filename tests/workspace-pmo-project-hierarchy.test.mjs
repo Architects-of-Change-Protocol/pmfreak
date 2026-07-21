@@ -195,12 +195,12 @@ test("new routes are registered in the route access policy", () => {
   }
 });
 
-// ─── Project opens on Overview (Change 9) ─────────────────────────────────────
+// ─── Project creation lands in the Command Center (Founder Loop sprint) ──────
 
-test("project creation lands on the project overview, not a chat", () => {
-  assert.ok(projectsAction.includes("redirect(`/projects/${data.id}"));
+test("project creation lands in the command center scoped to the new project", () => {
+  assert.ok(projectsAction.includes("redirect(`/command-center?projectId=${data.id}"));
   const wizard = fs.readFileSync("src/components/pmfreak/projects/create-project-wizard.tsx", "utf8");
-  assert.ok(wizard.includes("router.push(`/projects/${result.projectId}"));
+  assert.ok(wizard.includes("router.push(`/command-center?projectId=${result.projectId}"));
 });
 
 test("project overview exposes chat as one tab among many", () => {

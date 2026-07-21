@@ -16,6 +16,7 @@ type RecommendedActionRow = {
   id: string;
   workspace_id: string;
   project_id: string;
+  raid_item_id?: string | null;
   status: string;
   decision_reason: string | null;
   decided_by: string | null;
@@ -54,7 +55,7 @@ export async function decideRecommendedAction(
 
   const { data: action, error: loadError } = await supabase
     .from("recommended_actions")
-    .select("id,workspace_id,project_id,status,decision_reason,decided_by,decided_at,deferred_until,converted_task_id,decision_metadata,updated_at,governance_event_id")
+    .select("id,workspace_id,project_id,raid_item_id,status,decision_reason,decided_by,decided_at,deferred_until,converted_task_id,decision_metadata,updated_at,governance_event_id")
     .eq("id", input.actionId)
     .maybeSingle<RecommendedActionRow>();
 
@@ -153,6 +154,42 @@ export async function decideRecommendedAction(
     decidedBy: userId,
     decisionId: decisionRow.id,
   });
+
+  // Reconcile the source RAID item so triage decisions update project state:
+  // accepting (or converting) an action means the item is being managed;
+  // rejecting the last live action for an item means it was dismissed.
+  if (action.raid_item_id) {
+    try {
+      if (input.decision === "accepted" || input.decision === "converted_to_task") {
+        await supabase
+          .from("raid_items")
+          .update({ status: "monitoring" })
+          .eq("id", action.raid_item_id)
+          .eq("status", "open");
+      } else if (input.decision === "rejected") {
+        const { data: liveSiblings, error: siblingsError } = await supabase
+          .from("recommended_actions")
+          .select("id")
+          .eq("raid_item_id", action.raid_item_id)
+          .neq("id", action.id)
+          .in("status", ["proposed", "accepted", "deferred", "converted_to_task"])
+          .limit(1);
+        if (!siblingsError && (liveSiblings ?? []).length === 0) {
+          await supabase
+            .from("raid_items")
+            .update({ status: "closed" })
+            .eq("id", action.raid_item_id)
+            .in("status", ["open", "monitoring"]);
+        }
+      }
+    } catch (reconcileError) {
+      console.error("recommended_actions.raid_reconciliation_failed", {
+        actionId: action.id,
+        raidItemId: action.raid_item_id,
+        error: reconcileError instanceof Error ? reconcileError.message : "unknown",
+      });
+    }
+  }
 
   return { ok: true, action: updatedAction, decisionId: decisionRow.id };
 }
