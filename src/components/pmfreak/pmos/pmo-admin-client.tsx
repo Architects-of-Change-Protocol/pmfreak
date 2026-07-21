@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { EmptyPMO } from "@/components/pmfreak/empty-states";
 
 export type PmoAdminProject = { id: string; name: string; status: string };
 export type PmoAdminPmo = {
@@ -221,8 +222,8 @@ export function PmoAdminClient({ initialPmos }: { initialPmos: PmoAdminPmo[] }) 
 
       <div className="grid gap-3 md:grid-cols-2">
         {pmos.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-700 md:col-span-2">
-            No PMOs yet. A PMO groups and governs a set of projects — create one to get started.
+          <div className="md:col-span-2">
+            <EmptyPMO />
           </div>
         ) : (
           pmos.map((pmo) => (
