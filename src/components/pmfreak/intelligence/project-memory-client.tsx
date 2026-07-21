@@ -3,6 +3,7 @@
 
 import useSWR from "swr";
 import type { AIResponseEnvelope, MemoryEvent } from "@/lib/ai/types";
+import { WorkspaceEmptyState } from "@/components/pmfreak/empty-states";
 
 const fetcher = async <T,>(url: string): Promise<T> => {
   const response = await fetch(url);
@@ -35,6 +36,16 @@ export function ProjectMemoryClient({ endpoint }: { endpoint: string }) {
   }
 
   if (!data) return null;
+
+  if (data.data.length === 0) {
+    return (
+      <WorkspaceEmptyState
+        title="No memory events yet"
+        description="Project memory builds automatically as decisions, risks, and escalations are captured."
+        testId="empty-project-memory"
+      />
+    );
+  }
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
