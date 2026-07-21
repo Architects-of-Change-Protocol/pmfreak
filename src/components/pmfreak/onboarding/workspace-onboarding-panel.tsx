@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
+import { AddTaskCta } from "@/components/pmfreak/empty-states/add-task-cta";
 import type {
   WorkspaceActivationPhase,
   WorkspaceActivationResult,
@@ -138,13 +139,20 @@ function StepRow({
         )}
         {showRestricted && <p className="mt-0.5 text-xs text-slate-400">{copy.restrictedNote}</p>}
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          {showCta && (
-            <Link
-              href={step.route as string}
+          {showCta && step.id === "task_created" ? (
+            <AddTaskCta
+              label={copy.ctaLabel as string}
               className="inline-flex rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800"
-            >
-              {copy.ctaLabel}
-            </Link>
+            />
+          ) : (
+            showCta && (
+              <Link
+                href={step.route as string}
+                className="inline-flex rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800"
+              >
+                {copy.ctaLabel}
+              </Link>
+            )
           )}
           {!isCompleted && !isBlocked && !step.required && (
             <button

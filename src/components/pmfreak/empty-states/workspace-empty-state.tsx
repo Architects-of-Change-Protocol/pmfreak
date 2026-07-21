@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { CreateProjectCta } from "./create-project-cta";
+import { AddTaskCta } from "./add-task-cta";
 
 /** Shared visual language for workspace zero states: a calm, enterprise-grade
  *  invitation to begin. An empty workspace is a valid state, never an error —
@@ -9,6 +11,7 @@ export function WorkspaceEmptyState({
   description,
   secondary,
   cta,
+  ctaSlot,
   testId,
 }: {
   eyebrow?: string;
@@ -16,6 +19,10 @@ export function WorkspaceEmptyState({
   description: string;
   secondary?: string;
   cta?: { label: string; href: string };
+  /** A pre-rendered CTA (e.g. a client component opening a modal) — takes
+   *  precedence over `cta` when both are supplied. Lets a server-rendered
+   *  empty state offer a modal-based action without becoming client itself. */
+  ctaSlot?: React.ReactNode;
   testId?: string;
 }) {
   return (
@@ -30,14 +37,16 @@ export function WorkspaceEmptyState({
         <h2 className="text-lg font-semibold tracking-tight text-slate-900">{title}</h2>
         <p className="text-sm leading-relaxed text-slate-500">{description}</p>
         {secondary && <p className="text-xs leading-relaxed text-slate-400">{secondary}</p>}
-        {cta && (
+        {(ctaSlot || cta) && (
           <div className="pt-2">
-            <Link
-              href={cta.href}
-              className="inline-flex rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_-12px_rgba(15,23,42,0.6)] transition hover:bg-slate-800"
-            >
-              {cta.label}
-            </Link>
+            {ctaSlot ?? (
+              <Link
+                href={cta!.href}
+                className="inline-flex rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_-12px_rgba(15,23,42,0.6)] transition hover:bg-slate-800"
+              >
+                {cta!.label}
+              </Link>
+            )}
           </div>
         )}
       </div>
@@ -58,7 +67,7 @@ export function EmptyDashboard({ canCreate = true }: { canCreate?: boolean }) {
       title="No project data available yet."
       description="Your workspace dashboard will populate automatically as projects and operational activity are added."
       secondary={canCreate ? undefined : RESTRICTED_CREATE_PROJECT_NOTE}
-      cta={canCreate ? { label: "Create your first project", href: "/command-center" } : undefined}
+      ctaSlot={canCreate ? <CreateProjectCta label="Create your first project" /> : undefined}
       testId="empty-dashboard"
     />
   );
@@ -82,7 +91,7 @@ export function EmptyProjects({ canCreate = true }: { canCreate?: boolean }) {
       title="No projects yet"
       description="Create your first project to begin organizing delivery."
       secondary={canCreate ? undefined : RESTRICTED_CREATE_PROJECT_NOTE}
-      cta={canCreate ? { label: "Create your first project", href: "/command-center" } : undefined}
+      ctaSlot={canCreate ? <CreateProjectCta label="Create your first project" /> : undefined}
       testId="empty-projects"
     />
   );
@@ -91,33 +100,40 @@ export function EmptyProjects({ canCreate = true }: { canCreate?: boolean }) {
 export function EmptyExecution({
   hasProject,
   canCreate = true,
+  projectId,
 }: {
   /** When known, drives the contextual onboarding CTA: with a project the
    *  next real action is adding a task; without one it is creating the
    *  project first. Omitted → neutral empty state (no CTA). */
   hasProject?: boolean;
   canCreate?: boolean;
+  /** Preselects the project in the Add Task modal when this empty state is
+   *  already scoped to one project. */
+  projectId?: string;
 }) {
-  const contextual =
+  const secondary =
     hasProject === undefined || !canCreate
-      ? { secondary: canCreate ? undefined : RESTRICTED_CREATE_PROJECT_NOTE, cta: undefined }
+      ? canCreate
+        ? undefined
+        : RESTRICTED_CREATE_PROJECT_NOTE
       : hasProject
-        ? {
-            secondary: "Add your first task to begin tracking project execution.",
-            cta: { label: "Add task", href: "/command-center" },
-          }
-        : {
-            secondary: "Create a project before adding execution work.",
-            cta: { label: "Create project", href: "/projects/new" },
-          };
+        ? "Add your first task to begin tracking project execution."
+        : "Create a project before adding execution work.";
+
+  const ctaSlot =
+    hasProject === undefined || !canCreate
+      ? undefined
+      : hasProject
+        ? <AddTaskCta label="Add task" projectId={projectId} />
+        : <CreateProjectCta label="Create project" />;
 
   return (
     <WorkspaceEmptyState
       eyebrow="Execution"
       title="No execution data yet"
       description="Execution metrics will appear once work begins."
-      secondary={contextual.secondary}
-      cta={contextual.cta}
+      secondary={secondary}
+      ctaSlot={ctaSlot}
       testId="empty-execution"
     />
   );
@@ -130,7 +146,7 @@ export function EmptyPortfolio({ canCreate = true }: { canCreate?: boolean }) {
       title="No projects yet"
       description="Create your first project to begin tracking portfolio health."
       secondary={canCreate ? undefined : RESTRICTED_CREATE_PROJECT_NOTE}
-      cta={canCreate ? { label: "Create your first project", href: "/command-center" } : undefined}
+      ctaSlot={canCreate ? <CreateProjectCta label="Create your first project" /> : undefined}
       testId="empty-portfolio"
     />
   );
