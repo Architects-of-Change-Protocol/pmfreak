@@ -8,6 +8,7 @@ import { getPortfolioIntelligence } from "@/lib/portfolio/repository";
 import { PortfolioOverviewPanel } from "@/components/pmfreak/executive/portfolio-overview-panel";
 import Link from "next/link";
 import { WorkspaceContextBanner } from "@/components/pmfreak/workspace/workspace-context-banner";
+import { EmptyExecutiveDashboard } from "@/components/pmfreak/empty-states";
 
 async function safelyBuildSynthesis(
   companyId: string,
@@ -90,9 +91,10 @@ export default async function ExecutivePage({
           <h1 className="mt-2 text-2xl font-semibold text-slate-900">Executive</h1>
         </header>
         <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.05] p-6">
-          <p className="text-sm font-semibold text-amber-800">Intelligence synthesis unavailable</p>
+          <p className="text-sm font-semibold text-amber-800">Unable to load executive intelligence</p>
           <p className="mt-1 text-xs text-slate-600">
-            Executive synthesis is unavailable.
+            A technical error prevented the executive synthesis from loading. This is not related to
+            how much data your workspace contains — retry, or contact support if it persists.
           </p>
           {synthError && (
             <p className="mt-2 rounded border border-slate-200 bg-white px-3 py-2 font-mono text-[10px] text-slate-500">
@@ -113,6 +115,35 @@ export default async function ExecutivePage({
   }
 
   const weakest = snapshot.weakestDomains[0];
+  // Zero operational memory records means there is nothing real to synthesize:
+  // render the executive empty state instead of a health score computed from
+  // no data and a "within normal thresholds" insight over 0 domains.
+  const hasOperationalData = snapshot.recordsProcessed > 0;
+  const hasPortfolioProjects = portfolioResult.ok && portfolioResult.data.projects.length > 0;
+
+  if (!hasOperationalData) {
+    return (
+      <main className="space-y-6 pb-8">
+        <WorkspaceContextBanner lens="Executive" />
+        <header className="rounded-2xl border border-slate-200 bg-white p-6">
+          <p className="text-xs uppercase tracking-[0.25em] text-slate-600">Executive</p>
+          <h1 className="mt-2 text-3xl font-semibold text-slate-900">Executive</h1>
+          <p className="mt-2 text-sm text-slate-700">Intervention and escalation view.</p>
+          <p className="mt-1 text-xs text-slate-500">{scopeLabel}</p>
+        </header>
+        <EmptyExecutiveDashboard />
+        {hasPortfolioProjects && (
+          <PortfolioOverviewPanel
+            summary={portfolioResult.data.summary}
+            projects={portfolioResult.data.projects}
+            bottlenecks={portfolioResult.data.bottlenecks}
+            dependencyRisks={portfolioResult.data.dependencyRisks}
+            executiveAttention={portfolioResult.data.executiveAttention}
+          />
+        )}
+      </main>
+    );
+  }
 
   return (
     <main className="space-y-6 pb-8">
@@ -137,7 +168,7 @@ export default async function ExecutivePage({
 
       <ExecutiveDashboard snapshot={snapshot} />
 
-      {portfolioResult.ok && (
+      {hasPortfolioProjects && portfolioResult.ok && (
         <PortfolioOverviewPanel
           summary={portfolioResult.data.summary}
           projects={portfolioResult.data.projects}
