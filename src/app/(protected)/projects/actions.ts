@@ -2,47 +2,27 @@
 
 import { redirect } from "next/navigation";
 import { requireAuthUser } from "@/lib/auth";
-import { canCreateMoreProjects } from "@/lib/feature-gates";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { resolveWriteWorkspace } from "@/lib/workspaces/resolve-write-workspace";
-import { ensureDefaultPmo, getPmoById } from "@/lib/pmos/pmo-service";
+import { createMinimalProject } from "@/lib/projects/create-minimal-project";
 import { generateAndPersistOperationalGovernanceBrief } from "@/lib/projects/first-insight";
 import { ingestProjectSetupContext } from "@/lib/projects/ingest-project-setup-context";
 
+/**
+ * Thin wrapper around the canonical createMinimalProject() service — see
+ * src/lib/projects/create-minimal-project.ts, which is also used by
+ * POST /api/projects (the create-project modal). This wrapper owns only
+ * what's specific to this redirect-based form: building the onboarding
+ * payload and triggering the best-effort intelligence side effects
+ * (RAID context ingestion, first governance brief) before redirecting into
+ * the Command Center.
+ */
 export async function createProjectAction(formData: FormData) {
   const user = await requireAuthUser();
-  const supabase = await createSupabaseServerClient();
 
   const name = String(formData.get("name") ?? "").trim();
   const descriptionRaw = String(formData.get("description") ?? "").trim();
   const description = descriptionRaw.length > 0 ? descriptionRaw : null;
-
-  if (!name) {
-    redirect("/projects?error=Project+name+is+required");
-  }
-
-  const projectAccess = await canCreateMoreProjects(user.id);
-  if (!projectAccess.ok) {
-    redirect(`/projects?error=${encodeURIComponent("upgrade_required")}&feature=${encodeURIComponent(projectAccess.feature)}&requiredPlan=${projectAccess.requiredPlan}`);
-  }
-
-  const ensured = await resolveWriteWorkspace(user.id);
-
-  // Every project belongs to a PMO (Workspace → PMO → Project). Honor an
-  // explicit selection from the form; otherwise attach to the workspace's
-  // default PMO, creating it when this is the first project ever.
-  const requestedPmoId = String(formData.get("pmoId") ?? "").trim();
-  let pmoId: string;
-  if (requestedPmoId) {
-    const requestedPmo = await getPmoById(ensured.workspaceId, requestedPmoId);
-    if (!requestedPmo) {
-      redirect("/projects?error=Selected+PMO+was+not+found");
-    }
-    pmoId = requestedPmo.id;
-  } else {
-    const defaultPmo = await ensureDefaultPmo(ensured.workspaceId, user.id);
-    pmoId = defaultPmo.id;
-  }
+  const pmoId = String(formData.get("pmoId") ?? "").trim() || null;
 
   const onboardingPayload = {
     identity: { projectName: name, clientOrganization: "", projectType: "other", contractCode: "", pmAssigned: user.email ?? user.id, technicalLead: "", targetDeliveryDate: "" },
@@ -52,26 +32,28 @@ export async function createProjectAction(formData: FormData) {
     createdAt: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase
-    .from("projects")
-    .insert({ user_id: user.id, workspace_id: ensured.workspaceId, pmo_id: pmoId, name, description, onboarding_payload: onboardingPayload })
-    .select("id")
-    .single<{ id: string }>();
+  const result = await createMinimalProject({ userId: user.id, name, description, pmoId, onboardingPayload });
 
-  if (error || !data?.id) {
-    redirect(`/projects?error=${encodeURIComponent(error?.message ?? "Unable to create project")}`);
+  if (!result.ok) {
+    if (result.failureClass === "upgrade_required") {
+      redirect(`/projects?error=${encodeURIComponent("upgrade_required")}`);
+    }
+    redirect(`/projects?error=${encodeURIComponent(result.error)}`);
   }
+
+  const { project, workspaceId, role } = result;
+  const supabase = await createSupabaseServerClient();
 
   // Feed the typed description into the intelligence loop before generating
   // the first brief, so detected RAID items are part of it. Best-effort.
   if (description) {
     await ingestProjectSetupContext({
       supabase,
-      workspaceId: ensured.workspaceId,
-      projectId: data.id,
+      workspaceId,
+      projectId: project.id,
       userId: user.id,
       companyId: user.companyId,
-      role: ensured.role,
+      role,
       projectName: name,
       content: description,
     });
@@ -80,8 +62,8 @@ export async function createProjectAction(formData: FormData) {
   let briefGeneration = "";
   try {
     const briefResult = await generateAndPersistOperationalGovernanceBrief({
-      workspaceId: ensured.workspaceId,
-      projectId: data.id,
+      workspaceId,
+      projectId: project.id,
       projectOnboardingPayload: onboardingPayload,
       createdBy: user.id,
       supabase,
@@ -93,5 +75,5 @@ export async function createProjectAction(formData: FormData) {
 
   // New projects land in the Command Center, already showing the operational
   // intelligence derived from the context typed at creation.
-  redirect(`/command-center?projectId=${data.id}${briefGeneration}`);
+  redirect(`/command-center?projectId=${project.id}${briefGeneration}`);
 }
