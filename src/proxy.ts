@@ -26,6 +26,19 @@ import {
 // Assets/_next         → excluded by matcher; never reach this function
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Every redirect must carry the cookies updateSession wrote to the passthrough
+// response. Supabase ROTATES the refresh token server-side when it refreshes a
+// session, so building a fresh redirect response silently drops the Set-Cookie
+// headers holding the new token pair — the browser keeps the old, already
+// consumed refresh token, and the session intermittently dies on the next
+// refresh ("Invalid Refresh Token: Already Used" → protected-area error →
+// bounce to /login).
+const redirectPreservingSession = (destination: URL, sessionResponse: NextResponse) => {
+  const redirect = NextResponse.redirect(destination);
+  sessionResponse.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+  return redirect;
+};
+
 export async function proxy(request: NextRequest) {
   const { response, user } = await updateSession(request);
   const pathname = request.nextUrl.pathname;
@@ -38,7 +51,7 @@ export async function proxy(request: NextRequest) {
 
   // Debug routes blocked in production
   if (isInternalDebugRoute(pathname) && process.env.NODE_ENV === "production") {
-    return NextResponse.redirect(new URL("/command-center", request.url));
+    return redirectPreservingSession(new URL("/command-center", request.url), response);
   }
 
   // Unauthenticated access to protected route → /login?next=<path>
@@ -46,7 +59,7 @@ export async function proxy(request: NextRequest) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
+    return redirectPreservingSession(loginUrl, response);
   }
 
   if (user) {
@@ -64,12 +77,12 @@ export async function proxy(request: NextRequest) {
         requestedRoute,
         isRequestedRouteSafe: requestedRoute ? isSafeContinuationRoute(requestedRoute) : false,
       });
-      return NextResponse.redirect(new URL(decision.destination, request.url));
+      return redirectPreservingSession(new URL(decision.destination, request.url), response);
     }
 
     // Completed onboarding user on setup route → /command-center
     if (isSetupRoute(pathname) && onboardingCompleted) {
-      return NextResponse.redirect(new URL("/command-center", request.url));
+      return redirectPreservingSession(new URL("/command-center", request.url), response);
     }
 
     // Incomplete onboarding on workspace route → state-specific redirect
@@ -77,14 +90,14 @@ export async function proxy(request: NextRequest) {
       const dest = getOnboardingRedirect(onboardingState);
       // Guard: never redirect to the current path (loop prevention)
       if (dest !== pathname) {
-        return NextResponse.redirect(new URL(dest, request.url));
+        return redirectPreservingSession(new URL(dest, request.url), response);
       }
     }
 
     // Quarantine the legacy dark /workspace shell — always bounce authenticated
     // users to the premium light Command Center instead of rendering it.
     if (pathname === "/workspace") {
-      return NextResponse.redirect(new URL("/command-center", request.url));
+      return redirectPreservingSession(new URL("/command-center", request.url), response);
     }
   }
 

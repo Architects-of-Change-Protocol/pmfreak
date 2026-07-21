@@ -45,7 +45,32 @@ export const updateSession = async (request: NextRequest) => {
 
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
 
-  return { response, user };
+  if (user) {
+    return { response, user };
+  }
+
+  // Distinguish a genuine auth rejection (401/403) from a transient network or
+  // API error, mirroring assertRuntimeAuthContinuity. Without this, a momentary
+  // Supabase hiccup makes the proxy treat an authenticated user as anonymous
+  // and bounce them to /login even though their session is still valid.
+  const errorStatus = (error as { status?: number } | null)?.status;
+  const isAuthRejection = errorStatus === 401 || errorStatus === 403;
+  if (error && !isAuthRejection) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const sessionExpiresAt = session?.expires_at ?? 0;
+    if (session?.user && sessionExpiresAt * 1000 > Date.now()) {
+      console.warn(
+        "[proxy] getUser failed with a non-auth error; using unexpired local session fallback.",
+        { pathname: request.nextUrl.pathname, errorStatus: errorStatus ?? "n/a", message: error.message }
+      );
+      return { response, user: session.user };
+    }
+  }
+
+  return { response, user: null };
 };
