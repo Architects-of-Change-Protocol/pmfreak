@@ -12,6 +12,7 @@ export const NAVIGATION_HIERARCHY: NavigationNode[] = [
   // Workspace block (Change 8): the workspace is the root of the
   // Workspace → PMO → Project hierarchy.
   { label: "Workspace Chat", href: "/chat", tier: "primary", visibleByDefault: true },
+  { label: "Daily Execution", href: "/execution", tier: "primary", visibleByDefault: true },
   { label: "Create Center", href: "/create-command-center", tier: "primary", visibleByDefault: true },
   { label: "New Project", href: "/projects/new", tier: "primary", visibleByDefault: true },
 
