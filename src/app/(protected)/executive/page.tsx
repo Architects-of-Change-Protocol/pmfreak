@@ -9,6 +9,7 @@ import { PortfolioOverviewPanel } from "@/components/pmfreak/executive/portfolio
 import Link from "next/link";
 import { WorkspaceContextBanner } from "@/components/pmfreak/workspace/workspace-context-banner";
 import { EmptyExecutiveDashboard } from "@/components/pmfreak/empty-states";
+import { MarkInsightsViewed } from "@/components/pmfreak/onboarding/mark-insights-viewed";
 
 async function safelyBuildSynthesis(
   companyId: string,
@@ -147,6 +148,9 @@ export default async function ExecutivePage({
 
   return (
     <main className="space-y-6 pb-8">
+      {/* Populated branch only: opening an EMPTY executive screen never
+          records the insights-reviewed onboarding event. */}
+      <MarkInsightsViewed />
       <WorkspaceContextBanner lens="Executive" />
       <header className="rounded-2xl border border-slate-700 bg-white p-6">
         <p className="text-xs uppercase tracking-[0.25em] text-slate-600">Executive</p>

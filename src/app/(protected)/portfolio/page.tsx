@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import useSWR from "swr";
 import { WorkspaceContextBanner } from "@/components/pmfreak/workspace/workspace-context-banner";
 import { EmptyPortfolio } from "@/components/pmfreak/empty-states";
+import type { WorkspaceActivationResult } from "@/lib/workspace-activation/types";
 
 type PortfolioProject = {
   projectId: string;
@@ -29,11 +31,24 @@ const healthBadge = (healthScore: number) => {
   return "bg-emerald-300/20 text-emerald-900 border-emerald-300/40";
 };
 
+const activationFetcher = async (url: string) => {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) throw new Error(`Failed ${url}`);
+  return response.json() as Promise<{ ok: boolean; data?: { activation: WorkspaceActivationResult } }>;
+};
+
 export default function PortfolioPage() {
   const [projects, setProjects] = useState<PortfolioProject[]>([]);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // The activation contract already carries per-step permission (real
+  // membership role, resolved server-side) — reuse it so a viewer never sees
+  // a create CTA they cannot execute.
+  const activation = useSWR("/api/workspace-activation", activationFetcher);
+  const projectStep = activation.data?.data?.activation.steps.find((s) => s.id === "project_created");
+  const canCreateProjects = projectStep ? projectStep.actionAllowed : true;
 
   useEffect(() => {
     const load = async () => {
@@ -109,7 +124,7 @@ export default function PortfolioPage() {
         {isLoading ? <p className="text-sm text-slate-700">Loading portfolio...</p> : null}
         {error ? <p className="text-sm text-rose-800">{error}</p> : null}
 
-        {isEmpty ? <EmptyPortfolio /> : null}
+        {isEmpty ? <EmptyPortfolio canCreate={canCreateProjects} /> : null}
 
         {!isLoading && !error && projects.length > 0 ? (
           <section className="space-y-3">
