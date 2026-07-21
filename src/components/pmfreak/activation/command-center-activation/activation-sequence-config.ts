@@ -30,46 +30,50 @@ export type InitializationStageConfig = {
   enabled: boolean;
 };
 
+// Every label below describes a real setup/configuration operation — never
+// live inference or synthesis that isn't actually happening in these
+// seconds. If a stage's real backing operation ever changes, update its copy
+// to match rather than reaching for more dramatic phrasing.
 export const INITIALIZATION_STAGES: InitializationStageConfig[] = [
   {
     id: "context",
     label: "Reading Context Seed…",
-    completeLabel: "Context Loaded",
+    completeLabel: "Context Seed Loaded",
     durationMs: 900,
     enabled: true,
   },
   {
     id: "graph",
-    label: "Building Operational Graph…",
-    completeLabel: "Operational Graph Ready",
+    label: "Provisioning Workspace Structure…",
+    completeLabel: "Workspace Structure Ready",
     durationMs: 900,
     enabled: true,
   },
   {
     id: "memory",
-    label: "Loading Organizational Memory…",
-    completeLabel: "Workspace Memory Synchronized",
+    label: "Preparing Memory Store…",
+    completeLabel: "Memory Store Ready",
     durationMs: 900,
     enabled: true,
   },
   {
     id: "agents",
-    label: "Activating Intelligence Network…",
-    completeLabel: "Intelligence Network Online",
+    label: "Activating Governance Agents…",
+    completeLabel: "Governance Agents Online",
     durationMs: 0,
     enabled: true,
   },
   {
     id: "signals",
-    label: "Indexing Operational Context…",
-    completeLabel: "Operational Context Indexed",
+    label: "Registering Delivery Configuration…",
+    completeLabel: "Delivery Configuration Registered",
     durationMs: 1100,
     enabled: true,
   },
   {
     id: "executive-picture",
-    label: "Generating Executive Picture…",
-    completeLabel: "Executive Picture Ready",
+    label: "Configuring Executive Reporting…",
+    completeLabel: "Executive Reporting Ready",
     durationMs: 900,
     enabled: true,
   },

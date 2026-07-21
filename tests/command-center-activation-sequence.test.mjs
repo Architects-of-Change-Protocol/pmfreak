@@ -113,6 +113,15 @@ const FORBIDDEN_FABRICATIONS = [
   /Knowledge Objects Indexed/i,
 ];
 
+// Stage copy must describe real setup/configuration operations, never analysis
+// or synthesis that isn't actually happening in those seconds.
+const FORBIDDEN_ANALYSIS_LANGUAGE = [
+  /Building Operational Graph/,
+  /Generating Executive Picture/,
+  /Analyzing/i,
+  /Intelligence Network/,
+];
+
 test("no fabricated metrics appear in the transition overlay", () => {
   for (const pattern of FORBIDDEN_FABRICATIONS) {
     assert.doesNotMatch(transitionOverlay, pattern, `TransitionOverlay must not contain fabricated metric: ${pattern}`);
@@ -123,6 +132,14 @@ test("no fabricated metrics appear anywhere in the activation module", () => {
   for (const source of [sequence, config, hook, timerSource]) {
     for (const pattern of FORBIDDEN_FABRICATIONS) {
       assert.doesNotMatch(source, pattern, `must not contain fabricated metric: ${pattern}`);
+    }
+  }
+});
+
+test("stage copy describes real setup operations, never live analysis/synthesis", () => {
+  for (const source of [config, sequence, transitionOverlay]) {
+    for (const pattern of FORBIDDEN_ANALYSIS_LANGUAGE) {
+      assert.doesNotMatch(source, pattern, `must not imply live analysis: ${pattern}`);
     }
   }
 });
