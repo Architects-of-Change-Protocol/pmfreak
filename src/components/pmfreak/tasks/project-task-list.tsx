@@ -3,6 +3,8 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { AddTaskCta } from "@/components/pmfreak/empty-states/add-task-cta";
+import { TaskDetailDrawer } from "@/components/pmfreak/execution/task-detail-drawer";
+import type { AssignableMemberOption } from "@/components/pmfreak/execution/task-assignee-control";
 import { isValidStatusTransition } from "@/lib/execution-tasks/lifecycle";
 import { TASK_PRIORITY_LABELS, TASK_STATUS_LABELS } from "@/lib/execution-tasks/task-labels";
 import type { ExecutionTaskRow, ExecutionTaskStatus } from "@/lib/db/database-contract";
@@ -17,7 +19,17 @@ const fetcher = async (url: string) => {
 
 const NEXT_STATUSES: ExecutionTaskStatus[] = ["not_started", "in_progress", "blocked", "completed", "cancelled"];
 
-function TaskRow({ task, canEdit, onStatusChanged }: { task: ExecutionTaskRow; canEdit: boolean; onStatusChanged: () => void }) {
+function TaskRow({
+  task,
+  canEdit,
+  onStatusChanged,
+  onOpenDetail,
+}: {
+  task: ExecutionTaskRow;
+  canEdit: boolean;
+  onStatusChanged: () => void;
+  onOpenDetail: (taskId: string) => void;
+}) {
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,7 +63,14 @@ function TaskRow({ task, canEdit, onStatusChanged }: { task: ExecutionTaskRow; c
       data-testid={`project-task-${task.id}`}
     >
       <div className="min-w-0">
-        <p className="text-sm font-medium text-slate-900">{task.title}</p>
+        <button
+          type="button"
+          onClick={() => onOpenDetail(task.id)}
+          className="text-left text-sm font-medium text-slate-900 hover:text-cyan-800 hover:underline"
+          data-testid={`project-task-open-${task.id}`}
+        >
+          {task.title}
+        </button>
         <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
           {task.owner_name && <span>{task.owner_name}</span>}
           {task.due_date && <span>Due {new Date(task.due_date).toLocaleDateString()}</span>}
@@ -95,6 +114,12 @@ export function ProjectTaskList({ projectId, canCreateTask }: { projectId: strin
     `/api/execution-tasks?projectId=${projectId}`,
     fetcher,
   );
+  const { data: membersData } = useSWR<{ ok: boolean; data?: AssignableMemberOption[] }>(
+    `/api/workspace-team/members?projectId=${projectId}`,
+    fetcher,
+  );
+  const members = membersData?.data ?? [];
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -145,7 +170,13 @@ export function ProjectTaskList({ projectId, canCreateTask }: { projectId: strin
     <div className="space-y-3" data-testid="project-task-list">
       <ul className="space-y-2">
         {tasks.map((task) => (
-          <TaskRow key={task.id} task={task} canEdit={canCreateTask} onStatusChanged={() => void revalidate()} />
+          <TaskRow
+            key={task.id}
+            task={task}
+            canEdit={canCreateTask}
+            onStatusChanged={() => void revalidate()}
+            onOpenDetail={setOpenTaskId}
+          />
         ))}
       </ul>
       {canCreateTask && (
@@ -153,6 +184,14 @@ export function ProjectTaskList({ projectId, canCreateTask }: { projectId: strin
           label="Add another task"
           projectId={projectId}
           className="text-xs font-medium text-cyan-800 underline-offset-2 hover:underline"
+        />
+      )}
+      {openTaskId && (
+        <TaskDetailDrawer
+          taskId={openTaskId}
+          members={members}
+          onClose={() => setOpenTaskId(null)}
+          onTaskUpdated={() => void revalidate()}
         />
       )}
     </div>
