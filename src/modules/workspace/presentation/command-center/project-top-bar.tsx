@@ -3,21 +3,24 @@
 import Link from "next/link";
 import type { ProjectListItem } from "./types";
 import { StatusBadge } from "./status-badge";
-import { MenuIcon, ReportIcon, ShareIcon, UploadIcon } from "./icons";
+import { MenuIcon, UploadIcon } from "./icons";
 
 export function ProjectTopBar({
   project,
   onOpenProjects,
   onOpenAgents,
+  lastUpdatedLabel,
 }: {
   project: ProjectListItem;
   onOpenProjects: () => void;
   onOpenAgents: () => void;
+  /** Human-readable timestamp of the newest real operational record. Omitted when no data exists. */
+  lastUpdatedLabel?: string;
 }) {
   const warnings = project.badges.find((b) => b.tone === "danger")?.label;
   const tasks = project.badges.find((b) => b.tone === "task")?.label;
   const approvals = project.badges.find((b) => b.tone === "approval")?.label;
-  const healthLabel = project.healthy ? "Healthy" : warnings ? "At Risk" : project.hasIntelligence ? "On Track" : "Monitoring";
+  const healthLabel = project.healthy ? "Healthy" : warnings ? "At Risk" : project.hasIntelligence ? "On Track" : "Awaiting data";
   const healthTone = project.healthy ? "success" : warnings ? "danger" : "info";
 
   return (
@@ -40,7 +43,7 @@ export function ProjectTopBar({
             {warnings && <StatusBadge tone="danger">{warnings} warnings</StatusBadge>}
             {tasks && <StatusBadge tone="task">{tasks} tasks</StatusBadge>}
             {approvals && <StatusBadge tone="approval">{approvals} approval</StatusBadge>}
-            <span className="text-[11px] text-slate-400">Last updated: 8 min ago</span>
+            {lastUpdatedLabel && <span className="text-[11px] text-slate-400">Last updated: {lastUpdatedLabel}</span>}
           </div>
         </div>
       </div>
@@ -52,18 +55,6 @@ export function ProjectTopBar({
         >
           <UploadIcon className="h-3.5 w-3.5" /> Upload
         </Link>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-        >
-          <ReportIcon className="h-3.5 w-3.5" /> Generate Report
-        </button>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-        >
-          <ShareIcon className="h-3.5 w-3.5" /> Share
-        </button>
         <button
           type="button"
           onClick={onOpenAgents}

@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Agent, ChatMessage, DrawerContent, NeedsYouItem, ProjectListItem } from "../../presentation/command-center/types";
-import { DEMO_AGENTS, DEMO_CHAT, DEMO_MEMORY, DEMO_NEEDS_YOU, DEMO_REPOSITORY } from "../../presentation/command-center/demo-data";
+import type { OperationalSummary } from "@/lib/operational-flow/types";
+import type { Agent, ChatMessage, DrawerContent, MemoryItem, NeedsYouItem, ProjectListItem } from "../../presentation/command-center/types";
 import { deriveAgents, deriveNeedsYou, deriveRepository, postOperationalFlow, useOperationalFlow } from "../../presentation/command-center/operational-data";
 import type { DecisionStatus } from "../../presentation/command-center/operational-data";
 import { chatMessagesToConversationTurns, conversationResultToAssistantMessage, postConversationMessage } from "../../presentation/command-center/conversation-data";
@@ -17,6 +17,41 @@ import { CloseIcon } from "../../presentation/command-center/icons";
 
 function nextId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Memory categories backed by real operational records only — empty when nothing is recorded. */
+function deriveMemory(data: OperationalSummary | undefined): MemoryItem[] {
+  if (!data) return [];
+  const decisions = data.decisions.length;
+  const risks = data.risksIssues.length;
+  const commitments = data.decisions.filter((d) => d.decision_status === "accepted").length;
+  return [
+    decisions > 0 ? { id: "decisions", label: `Decisions · ${decisions}` } : null,
+    risks > 0 ? { id: "risks", label: `Risks · ${risks}` } : null,
+    commitments > 0 ? { id: "commitments", label: `Commitments · ${commitments}` } : null,
+  ].filter(Boolean) as MemoryItem[];
+}
+
+/** Newest timestamp across real operational records, as a human-readable relative label.
+ *  Returns undefined when there is no data — the UI then shows no timestamp at all. */
+function deriveLastUpdatedLabel(data: OperationalSummary | undefined): string | undefined {
+  if (!data) return undefined;
+  let latest = 0;
+  for (const record of [...data.evidence, ...data.signals, ...data.decisions]) {
+    for (const key of ["updated_at", "created_at"]) {
+      const raw = record[key];
+      if (typeof raw !== "string") continue;
+      const time = Date.parse(raw);
+      if (!Number.isNaN(time) && time > latest) latest = time;
+    }
+  }
+  if (latest === 0) return undefined;
+  const minutes = Math.floor((Date.now() - latest) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  return new Date(latest).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function buildRealMessages(project: ProjectListItem, needsYou: NeedsYouItem[]): ChatMessage[] {
@@ -100,9 +135,9 @@ export function CommandCenterLayout({
 
   const { data: flowData, mutate: mutateFlow } = useOperationalFlow(workspaceId, selectedProject?.id ?? "");
   const hasRealData = Boolean(flowData && flowData.evidence.length > 0);
+  const flowLoading = flowData === undefined;
 
-  const [messages, setMessages] = useState<ChatMessage[]>(DEMO_CHAT);
-  const [isPreviewChat, setIsPreviewChat] = useState(true);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userInteracted, setUserInteracted] = useState(false);
   // Tracks whether the chat has been seeded from the first real operational-flow load for this
   // mount (a fresh mount — and fresh seeding — happens automatically whenever the active project
@@ -113,9 +148,15 @@ export function CommandCenterLayout({
     setSeededFromFlowData(flowData);
     if (hasRealData) {
       setMessages(buildRealMessages(selectedProject, deriveNeedsYou(flowData, () => {})));
-      setIsPreviewChat(false);
     } else {
-      setIsPreviewChat(true);
+      // Honest first message: no invented findings, no fake sources — just the real state.
+      setMessages([
+        {
+          id: "welcome",
+          role: "assistant",
+          content: `${selectedProject.fullName} has no recorded project data yet. Add your first notes and I'll start tracking risks, commitments, and decisions from them.`,
+        },
+      ]);
     }
   }
 
@@ -144,10 +185,13 @@ export function CommandCenterLayout({
   const needsYouReal = useMemo(() => deriveNeedsYou(flowData, handleDecide), [flowData]); // eslint-disable-line react-hooks/exhaustive-deps
   const repositoryReal = useMemo(() => deriveRepository(flowData), [flowData]);
   const agentsReal = useMemo(() => deriveAgents(flowData, hasBrief), [flowData, hasBrief]);
+  const memoryReal = useMemo(() => deriveMemory(flowData), [flowData]);
+  const lastUpdatedLabel = useMemo(() => deriveLastUpdatedLabel(flowData), [flowData]);
 
-  const needsYouItems = hasRealData ? needsYouReal : DEMO_NEEDS_YOU;
-  const repositoryItems = hasRealData ? repositoryReal : DEMO_REPOSITORY;
-  const agentItems = hasRealData ? agentsReal : DEMO_AGENTS;
+  // Real data or nothing: sections render honest empty states instead of fixtures.
+  const needsYouItems = hasRealData ? needsYouReal : [];
+  const repositoryItems = repositoryReal;
+  const agentItems = hasRealData ? agentsReal : [];
 
   const handleSendMessage = (text: string) => {
     setUserInteracted(true);
@@ -181,16 +225,10 @@ export function CommandCenterLayout({
       });
   };
 
+  // Suggested-action chips post the action through the real gateway — no faked
+  // "starting on..." confirmation for work nothing is actually doing.
   const handleActionClick = (action: string) => {
-    setUserInteracted(true);
-    setMessages((current) => [
-      ...current,
-      {
-        id: nextId("assistant"),
-        role: "assistant",
-        content: `Okay — starting on "${action}". Anything that reaches your client or team is routed to you for approval first.`,
-      },
-    ]);
+    handleSendMessage(action);
   };
 
   const handleSourceClick = (source: string) => {
@@ -220,7 +258,12 @@ export function CommandCenterLayout({
       data-shell="pmfreak-light-command-center"
       className="overflow-hidden rounded-[28px] border border-slate-200 bg-[#FCFBF9] shadow-[0_40px_90px_-60px_rgba(15,23,42,0.35)]"
     >
-      <ProjectTopBar project={selectedProject} onOpenProjects={() => setLeftOpen(true)} onOpenAgents={() => setRightOpen(true)} />
+      <ProjectTopBar
+        project={selectedProject}
+        onOpenProjects={() => setLeftOpen(true)}
+        onOpenAgents={() => setRightOpen(true)}
+        lastUpdatedLabel={lastUpdatedLabel}
+      />
 
       <div className="flex min-h-[600px] xl:h-[calc(100vh-190px)]">
         <aside className="hidden w-[280px] shrink-0 border-r border-slate-200 bg-white/60 xl:block">
@@ -230,8 +273,8 @@ export function CommandCenterLayout({
             selectedProjectId={selectedProject.id}
             onSelectProject={handleSelectProject}
             repository={repositoryItems}
-            memory={DEMO_MEMORY}
-            repositoryPreview={!hasRealData}
+            memory={memoryReal}
+            onAddNotes={() => setNotesOpen(true)}
           />
         </aside>
 
@@ -253,14 +296,13 @@ export function CommandCenterLayout({
               onSourceClick={handleSourceClick}
               onActionClick={handleActionClick}
               onOpenNotes={() => setNotesOpen((v) => !v)}
-              preview={isPreviewChat}
             />
           </div>
         </main>
 
         <aside className="hidden w-[320px] shrink-0 space-y-6 overflow-y-auto border-l border-slate-200 bg-white/60 p-4 xl:block">
-          <NeedsYouQueue items={needsYouItems} onSelect={handleNeedsYouSelect} preview={!hasRealData} />
-          <AgentDock agents={agentItems} onSelect={handleAgentSelect} preview={!hasRealData} />
+          <NeedsYouQueue items={needsYouItems} onSelect={handleNeedsYouSelect} loading={flowLoading} onAddNotes={() => setNotesOpen(true)} />
+          <AgentDock agents={agentItems} onSelect={handleAgentSelect} loading={flowLoading} onAddContext={() => setNotesOpen(true)} />
         </aside>
       </div>
 
@@ -274,15 +316,34 @@ export function CommandCenterLayout({
             setLeftOpen(false);
           }}
           repository={repositoryItems}
-          memory={DEMO_MEMORY}
-          repositoryPreview={!hasRealData}
+          memory={memoryReal}
+          onAddNotes={() => {
+            setNotesOpen(true);
+            setLeftOpen(false);
+          }}
         />
       </MobileOverlay>
 
       <MobileOverlay open={rightOpen} onClose={() => setRightOpen(false)} side="right">
         <div className="space-y-6 overflow-y-auto p-4">
-          <NeedsYouQueue items={needsYouItems} onSelect={handleNeedsYouSelect} preview={!hasRealData} />
-          <AgentDock agents={agentItems} onSelect={handleAgentSelect} preview={!hasRealData} />
+          <NeedsYouQueue
+            items={needsYouItems}
+            onSelect={handleNeedsYouSelect}
+            loading={flowLoading}
+            onAddNotes={() => {
+              setNotesOpen(true);
+              setRightOpen(false);
+            }}
+          />
+          <AgentDock
+            agents={agentItems}
+            onSelect={handleAgentSelect}
+            loading={flowLoading}
+            onAddContext={() => {
+              setNotesOpen(true);
+              setRightOpen(false);
+            }}
+          />
         </div>
       </MobileOverlay>
 

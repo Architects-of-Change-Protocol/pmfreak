@@ -12,7 +12,7 @@ export function ProjectSidebar({
   onSelectProject,
   repository,
   memory,
-  repositoryPreview = false,
+  onAddNotes,
 }: {
   workspaceName: string;
   projects: ProjectListItem[];
@@ -20,7 +20,8 @@ export function ProjectSidebar({
   onSelectProject: (id: string) => void;
   repository: RepositoryItem[];
   memory: MemoryItem[];
-  repositoryPreview?: boolean;
+  /** Opens the notes intake — surfaced by the repository/memory empty states. */
+  onAddNotes?: () => void;
 }) {
   const [memoryOpen, setMemoryOpen] = useState(false);
 
@@ -67,8 +68,8 @@ export function ProjectSidebar({
         </ul>
       </nav>
 
-      <ProjectRepository items={repository} preview={repositoryPreview} />
-      <ProjectMemory items={memory} open={memoryOpen} onToggle={() => setMemoryOpen((v) => !v)} />
+      <ProjectRepository items={repository} onAddNotes={onAddNotes} />
+      <ProjectMemory items={memory} open={memoryOpen} onToggle={() => setMemoryOpen((v) => !v)} onAddNotes={onAddNotes} />
     </div>
   );
 }

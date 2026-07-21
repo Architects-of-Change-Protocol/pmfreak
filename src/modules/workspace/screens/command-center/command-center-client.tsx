@@ -114,7 +114,7 @@ export function CommandCenterClient({
         </div>
       )}
       <CommandCenterLayout
-        workspaceName={companyName ?? "Demo PMO"}
+        workspaceName={companyName ?? "Your workspace"}
         workspaceId={workspaceId}
         projects={projectListItems}
         activeProjectId={projectId}
