@@ -288,6 +288,15 @@ test("createMinimalProject rejects a PMO not found in the resolved workspace", (
   assert.match(createProjectService, /Selected PMO was not found/);
 });
 
+test("createMinimalProject rejects a viewer — the projects INSERT RLS policy alone permits any workspace member", () => {
+  assert.match(createProjectService, /!ensured\.role \|\| ensured\.role === "viewer"/);
+  assert.match(createProjectService, /failureClass:\s*"unauthorized"/);
+});
+
+test("projects route maps createMinimalProject's unauthorized failure to HTTP 403", () => {
+  assert.match(projectsRoute, /unauthorized:\s*403/);
+});
+
 test("createMinimalProject does not fabricate budget, governance, health score, or risk fields", () => {
   // Field-like (colon-suffixed) usage only — the module's own doc comment
   // legitimately names these fields as things it deliberately excludes.
@@ -315,6 +324,26 @@ test("listWorkspaceMembersForAssignment reads real workspace_memberships, not th
   const fnBody = workspaceTeam.slice(workspaceTeam.indexOf("export async function listWorkspaceMembersForAssignment"));
   assert.match(fnBody, /workspace_memberships/);
   assert.ok(!fnBody.includes("pm-registry") && !fnBody.includes("pm_registry"));
+});
+
+test("listWorkspaceMembersForAssignment reads the roster via the service role, not the caller's RLS-scoped client", () => {
+  // workspace_memberships SELECT RLS only lets a non-admin read their OWN
+  // row (users_can_read_own_workspace_memberships) — a PM reading through
+  // the RLS-scoped client would see only themself.
+  const fnBody = workspaceTeam.slice(workspaceTeam.indexOf("export async function listWorkspaceMembersForAssignment"));
+  assert.match(fnBody, /admin\s*\n?\s*\.from\("workspace_memberships"\)/);
+  assert.ok(!/(?<!admin\s{0,20})supabase\s*\n?\s*\.from\("workspace_memberships"\)/.test(fnBody));
+});
+
+test("createExecutionTaskDirect verifies the assignee via the service role, gated by prior project write authorization", () => {
+  assert.match(createTaskService, /verifyAssignee/);
+  const assigneeCheck = createTaskService.slice(createTaskService.indexOf("if (input.assigneeId)"));
+  assert.match(assigneeCheck, /createSupabaseServiceRoleClient/);
+});
+
+test("privileged-access registry documents the assignee-verification service-role usage", () => {
+  const registry = read("src/lib/security/privileged-access-registry.ts");
+  assert.match(registry, /src\/lib\/execution-tasks\/create-execution-task\.ts/);
 });
 
 test("privileged-access registry documents the new listWorkspaceMembersForAssignment usage", () => {
@@ -360,8 +389,13 @@ test("project landing page renders the real task list, not a new board route", (
   assert.match(projectDetailPage, /ProjectTaskList/);
 });
 
-test("project landing computes canCreateTask from real membership role, same pattern as the projects list page", () => {
-  assert.match(projectDetailPage, /role !== null && workspaceResolution\.role !== "viewer"/);
+test("project landing computes canCreateTask from real membership role, scoped to this project's own workspace", () => {
+  assert.match(projectDetailPage, /projectRole !== null && projectRole !== "viewer"/);
+  // Must resolve against project.workspace_id, not the caller's globally
+  // preferred workspace — a multi-workspace user could otherwise see the
+  // wrong permission state on a project outside their preferred workspace.
+  assert.match(projectDetailPage, /\.eq\("workspace_id", project\.workspace_id\)/);
+  assert.ok(!projectDetailPage.includes("resolvePreferredWorkspace"));
 });
 
 test("project task list distinguishes empty, loading, and error states (never silently downgrades error to empty)", () => {
@@ -381,6 +415,18 @@ test("project task list omits unset fields rather than printing placeholder nois
 
 test("project task list constrains status changes to isValidStatusTransition", () => {
   assert.match(projectTaskList, /isValidStatusTransition/);
+});
+
+test("formatTaskDueDate displays the selected calendar day regardless of viewer timezone", () => {
+  // A bare-date <input type="date"> value is stored as UTC midnight; without
+  // pinning the display timezone, toLocaleDateString() re-interprets it in
+  // the viewer's local zone and can roll the shown day back for anyone west
+  // of UTC (e.g. a July 21 due date rendering as July 20).
+  const taskLabels = read("src/lib/execution-tasks/task-labels.ts");
+  assert.match(taskLabels, /export function formatTaskDueDate/);
+  assert.match(taskLabels, /timeZone:\s*"UTC"/);
+  assert.match(projectTaskList, /formatTaskDueDate\(task\.due_date\)/);
+  assert.ok(!projectTaskList.includes(".toLocaleDateString()"), "must not format due_date without a pinned timezone");
 });
 
 test("project task list shows a restricted note (no dead CTA) when the viewer cannot create tasks", () => {

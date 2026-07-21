@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { requireAuthenticatedUser, requireProjectAccess } from "@/lib/security/server-authorization";
 import { AccessDeniedError } from "@/lib/security/access-guards";
 import type { ExecutionTaskPriority, ExecutionTaskRow } from "@/lib/db/database-contract";
@@ -166,9 +167,23 @@ export async function createExecutionTaskDirect(rawInput: unknown): Promise<Crea
   }
 
   // Assignee must be a real member of this project's workspace — never a
-  // foreign-workspace user, never a fabricated name.
+  // foreign-workspace user, never a fabricated name. This existence check
+  // must use the service-role client, not the caller's RLS-scoped one:
+  // workspace_memberships' SELECT policies only let a non-admin read their
+  // OWN row, so a PM checking a colleague's membership would otherwise get
+  // a false "not found" for a real member (20260515100000_rls_governance_fixes.sql).
+  // Safe here because requireProjectAccess("write") above already
+  // authorized the caller for this project.
   if (input.assigneeId) {
-    const { data: membership, error: membershipError } = await supabase
+    const admin = createSupabaseServiceRoleClient({
+      routeId: "lib.execution-tasks.create-execution-task.verifyAssignee",
+      operation: "verify_assignee_membership",
+      reason: "assignee_validation",
+      systemActor: "system",
+      workspaceId: project.workspace_id,
+      actorUserId: userId,
+    });
+    const { data: membership, error: membershipError } = await admin
       .from("workspace_memberships")
       .select("user_id")
       .eq("workspace_id", project.workspace_id)

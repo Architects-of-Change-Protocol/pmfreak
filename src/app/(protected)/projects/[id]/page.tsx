@@ -7,7 +7,7 @@ import { resolveCanonicalProject } from "@/lib/projects/canonical-project-resolv
 import { redirect } from "next/navigation";
 import { ProjectPMAssignment } from "@/components/pmfreak/ProjectPMAssignment";
 import { ProjectTaskList } from "@/components/pmfreak/tasks/project-task-list";
-import { resolvePreferredWorkspace } from "@/lib/workspaces/preferred-workspace";
+import { normalizeWorkspaceRole } from "@/lib/workspace-access";
 import { ProjectTabNav } from "./project-tab-nav";
 
 type Props = { params: Promise<{ id: string }> };
@@ -38,9 +38,19 @@ export default async function ProjectDetailPage({ params }: Props) {
 
   // Real membership role drives whether the task CTAs render — a viewer sees
   // who can add work instead of a dead-end button (same pattern as
-  // src/app/(protected)/projects/page.tsx's canCreateProjects).
-  const workspaceResolution = await resolvePreferredWorkspace(user.id);
-  const canCreateTask = workspaceResolution.role !== null && workspaceResolution.role !== "viewer";
+  // src/app/(protected)/projects/page.tsx's canCreateProjects). Resolved
+  // against THIS project's own workspace_id, not the caller's globally
+  // preferred workspace: a multi-workspace user viewing a project outside
+  // their currently preferred workspace would otherwise see the wrong
+  // permission state (a dead CTA, or a hidden one they could actually use).
+  const { data: membership } = await supabase
+    .from("workspace_memberships")
+    .select("role")
+    .eq("workspace_id", project.workspace_id)
+    .eq("user_id", user.id)
+    .maybeSingle<{ role: string }>();
+  const projectRole = normalizeWorkspaceRole(membership?.role);
+  const canCreateTask = projectRole !== null && projectRole !== "viewer";
 
   const { data: analyses } = await supabase
     .from("onboarding_analyses")

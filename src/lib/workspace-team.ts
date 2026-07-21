@@ -362,21 +362,21 @@ export type AssignableWorkspaceMember = {
 /**
  * Lists real members of a workspace for use in an assignee selector — never
  * a fabricated directory. Requires the caller to already be a member of the
- * workspace being listed (requireWorkspaceMember), then resolves each
- * member's display name/email via the service-role client's
- * auth.admin.getUserById — the only source for another user's auth
- * metadata, since this codebase has no `profiles` table (see
- * getCompanyIdByUserId in feature-gates.ts for the same pattern).
+ * workspace being listed (requireWorkspaceMember) as the authorization gate,
+ * then reads the roster and resolves display name/email via the
+ * service-role client. The roster read itself must also go through the
+ * service-role client, not the caller's RLS-scoped one: workspace_memberships'
+ * SELECT policies only let a non-admin read their OWN row
+ * (users_can_read_own_workspace_memberships) — owners/admins can read the
+ * full roster, everyone else cannot (20260515100000_rls_governance_fixes.sql).
+ * A PM (the activation step's minimumActionRole for adding tasks) would
+ * otherwise see only themself here. auth.admin.getUserById is likewise the
+ * only source for another user's display name/email, since this codebase
+ * has no `profiles` table (see getCompanyIdByUserId in feature-gates.ts for
+ * the same pattern).
  */
 export async function listWorkspaceMembersForAssignment(workspaceId: string): Promise<AssignableWorkspaceMember[]> {
   await requireWorkspaceMember(workspaceId);
-
-  const supabase = await createSupabaseServerClient();
-  const { data: memberships, error } = await supabase
-    .from("workspace_memberships")
-    .select("user_id, role")
-    .eq("workspace_id", workspaceId);
-  if (error || !memberships) return [];
 
   const admin = createSupabaseServiceRoleClient({
     routeId: "lib.workspace-team.listWorkspaceMembersForAssignment",
@@ -385,6 +385,12 @@ export async function listWorkspaceMembersForAssignment(workspaceId: string): Pr
     systemActor: "system",
     workspaceId,
   });
+
+  const { data: memberships, error } = await admin
+    .from("workspace_memberships")
+    .select("user_id, role")
+    .eq("workspace_id", workspaceId);
+  if (error || !memberships) return [];
 
   const resolved = await Promise.all(
     memberships.map(async (membership) => {

@@ -4,7 +4,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { AddTaskCta } from "@/components/pmfreak/empty-states/add-task-cta";
 import { isValidStatusTransition } from "@/lib/execution-tasks/lifecycle";
-import { TASK_PRIORITY_LABELS, TASK_STATUS_LABELS } from "@/lib/execution-tasks/task-labels";
+import { TASK_PRIORITY_LABELS, TASK_STATUS_LABELS, formatTaskDueDate } from "@/lib/execution-tasks/task-labels";
 import type { ExecutionTaskRow, ExecutionTaskStatus } from "@/lib/db/database-contract";
 
 type TaskListEnvelope = { ok: boolean; tasks?: ExecutionTaskRow[] };
@@ -54,7 +54,7 @@ function TaskRow({ task, canEdit, onStatusChanged }: { task: ExecutionTaskRow; c
         <p className="text-sm font-medium text-slate-900">{task.title}</p>
         <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
           {task.owner_name && <span>{task.owner_name}</span>}
-          {task.due_date && <span>Due {new Date(task.due_date).toLocaleDateString()}</span>}
+          {task.due_date && <span>Due {formatTaskDueDate(task.due_date)}</span>}
           <span>{TASK_PRIORITY_LABELS[task.priority]}</span>
         </p>
         {error && <p className="mt-1 text-xs text-rose-700">{error}</p>}

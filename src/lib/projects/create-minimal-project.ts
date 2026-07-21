@@ -97,6 +97,17 @@ export async function createMinimalProject(
   }
 
   const ensured = await resolveWriteWorkspace(userId);
+
+  // resolveWriteWorkspace only resolves *which* workspace a write lands in —
+  // it does not gate *whether* this caller may create a project there. The
+  // projects table's INSERT RLS policy permits any workspace member, so
+  // without this check a viewer could POST directly to /api/projects and
+  // create a project, bypassing the PM-or-higher restriction the UI (and
+  // the project_created activation step's minimumActionRole) already imply.
+  if (!ensured.role || ensured.role === "viewer") {
+    return { ok: false, error: "You do not have permission to create a project in this workspace.", failureClass: "unauthorized" };
+  }
+
   const supabase = await createSupabaseServerClient();
 
   let resolvedPmoId: string;

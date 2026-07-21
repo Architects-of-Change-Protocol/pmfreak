@@ -11,6 +11,19 @@ type PrivilegedAccessEntry = {
 
 export const PRIVILEGED_ACCESS_REGISTRY: readonly PrivilegedAccessEntry[] = [
   {
+    file: "src/lib/execution-tasks/create-execution-task.ts",
+    purpose: "Assignee membership verification for direct (\"Quick Add Task\") execution task creation: confirms a supplied assigneeId is a real member of the project's workspace before allowing the assignment. Must use the service role because workspace_memberships' SELECT RLS policies only let a non-owner/non-admin actor read their OWN membership row (20260515100000_rls_governance_fixes.sql) — a PM (the minimum role permitted to create tasks) checking a colleague's membership via the RLS-scoped client would get a false negative for a real member.",
+    riskLevel: "MEDIUM",
+    mitigations: [
+      "Only reached after requireProjectAccess(project.id, \"write\") has already authorized the caller for this specific project",
+      "Query is scoped to the project's own workspace_id (resolved server-side from the project row, never a client-supplied value) and the exact candidate assigneeId — never a broader roster read",
+      "Read-only: SELECT of user_id only, no membership mutation",
+      "A missing/errored membership row still fails closed (rejects the assignment) — the service-role client only removes the RLS visibility gap, it does not relax the membership requirement itself",
+    ],
+    strictCriteriaMet: "L1",
+    needsRlsBeforeSwap: false,
+  },
+  {
     file: "src/lib/security/agent-attestation.ts",
     purpose: "Nonce-based replay protection for agent tokens: nonces are written on first use and checked before processing to prevent token reuse. Must bypass user RLS because a compromised token could be used to defeat its own revocation check.",
     riskLevel: "HIGH",

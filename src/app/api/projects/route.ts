@@ -34,6 +34,7 @@ export async function GET() {
 
 const CREATE_FAILURE_STATUS: Record<string, number> = {
   validation_failed: 400,
+  unauthorized: 403,
   upgrade_required: 402,
   persistence_failed: 500,
 };
@@ -41,9 +42,11 @@ const CREATE_FAILURE_STATUS: Record<string, number> = {
 /**
  * Minimal project creation for the create-project modal — writes through
  * the same createMinimalProject() service used by the /projects inline
- * form's server action. Tenancy is enforced by construction:
+ * form's server action. Workspace scope is enforced by construction:
  * resolveWriteWorkspace(userId) only ever resolves to a workspace the
- * authenticated caller actually belongs to.
+ * authenticated caller actually belongs to. Role is enforced explicitly
+ * inside createMinimalProject (viewers are rejected) — the projects table's
+ * INSERT RLS policy alone permits any workspace member.
  */
 export async function POST(request: NextRequest) {
   let user;
