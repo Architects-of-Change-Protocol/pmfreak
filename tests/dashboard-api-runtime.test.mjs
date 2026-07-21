@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 
 import { validateDashboardApiRequest } from '../src/lib/dashboard/api-runtime/request-validator.ts'
 import { resolveDashboardSourceData } from '../src/lib/dashboard/api-runtime/source-data-resolver.ts'
-import { buildDashboardApiResponse, buildFallbackDTO } from '../src/lib/dashboard/api-runtime/dashboard-api-response-builder.ts'
+import { buildDashboardApiResponse } from '../src/lib/dashboard/api-runtime/dashboard-api-response-builder.ts'
 import { buildDashboardApiErrorResponse } from '../src/lib/dashboard/api-runtime/dashboard-api-error-handler.ts'
 import { runDashboardApiRuntime } from '../src/lib/dashboard/api-runtime/dashboard-api-runtime.ts'
 
@@ -287,51 +287,35 @@ test('builds partial response when warnings present with populated data', () => 
 })
 
 // ──────────────────────────────────────────────
-// 7. API response fallback when executiveDashboardReport missing
+// 7. API response empty state when executiveDashboardReport missing
 // ──────────────────────────────────────────────
 
 test('builds empty status response when executiveDashboardReport is absent', () => {
   const response = buildDashboardApiResponse({
     request: { tenantId: 'tenant-abc' },
     sourceData: {},
-    warnings: ['Executive dashboard report unavailable; returning fallback dashboard DTO.'],
+    warnings: ['Executive dashboard report unavailable; dashboard remains empty until workspace data exists.'],
   })
   assert.equal(response.status, 'empty')
 })
 
-test('fallback response portfolioHealthPanel has score 0 and critical status', () => {
+test('empty response carries null data — never a fabricated dashboard DTO', () => {
   const response = buildDashboardApiResponse({
     request: { tenantId: 'tenant-abc' },
     sourceData: {},
     warnings: [],
   })
-  assert.equal(response.data.portfolioHealthPanel.score, 0)
-  assert.equal(response.data.portfolioHealthPanel.status, 'critical')
+  assert.equal(response.data, null)
 })
 
-test('fallback response includes source unavailable alert', () => {
+test('empty response still includes metadata and warnings for diagnostics', () => {
   const response = buildDashboardApiResponse({
-    request: { tenantId: 'tenant-abc' },
+    request: { tenantId: 'tenant-abc', includeMetadata: true },
     sourceData: {},
-    warnings: [],
+    warnings: ['Executive dashboard report unavailable; dashboard remains empty until workspace data exists.'],
   })
-  const alert = response.data.alertPanel.find(
-    (a) => a.id === 'alert-dashboard-source-unavailable',
-  )
-  assert.ok(alert)
-  assert.equal(alert.severity, 'critical')
-  assert.equal(alert.type, 'source_data')
-})
-
-test('fallback response has empty arrays for tables and queues', () => {
-  const response = buildDashboardApiResponse({
-    request: { tenantId: 'tenant-abc' },
-    sourceData: {},
-    warnings: [],
-  })
-  assert.equal(response.data.topRisksTable.length, 0)
-  assert.equal(response.data.decisionsWidget.length, 0)
-  assert.equal(response.data.interventionsQueue.length, 0)
+  assert.ok(response.metadata)
+  assert.equal(response.warnings.length, 1)
 })
 
 // ──────────────────────────────────────────────
@@ -355,12 +339,11 @@ test('error response maps error messages to warnings', () => {
   assert.equal(response.warnings[1], 'workspaceId must be a string')
 })
 
-test('error response includes fallback DTO with portfolioHealthPanel', () => {
+test('error response carries null data — never a fabricated dashboard DTO', () => {
   const response = buildDashboardApiErrorResponse([
     { code: 'missing_tenant_id', message: 'tenantId is required', recoverable: false },
   ])
-  assert.ok(response.data.portfolioHealthPanel)
-  assert.equal(response.data.portfolioHealthPanel.score, 0)
+  assert.equal(response.data, null)
 })
 
 // ──────────────────────────────────────────────
@@ -469,10 +452,9 @@ test('runtime returns error status for empty object input', () => {
   assert.equal(result.status, 'error')
 })
 
-test('runtime error response includes fallback DTO', () => {
+test('runtime error response carries null data', () => {
   const result = runDashboardApiRuntime({})
-  assert.ok(result.data.portfolioHealthPanel)
-  assert.equal(result.data.portfolioHealthPanel.score, 0)
+  assert.equal(result.data, null)
 })
 
 test('runtime returns empty status when request valid but no source data provided', () => {
@@ -481,34 +463,11 @@ test('runtime returns empty status when request valid but no source data provide
 })
 
 // ──────────────────────────────────────────────
-// 12. Deterministic fallback alert generation
+// 12. Empty state never fabricates dashboard content
 // ──────────────────────────────────────────────
 
-test('fallback DTO is deterministic across multiple calls', () => {
-  const first = buildFallbackDTO()
-  const second = buildFallbackDTO()
-  assert.equal(first.alertPanel[0].id, second.alertPanel[0].id)
-  assert.equal(first.portfolioHealthPanel.score, second.portfolioHealthPanel.score)
-  assert.equal(first.portfolioHealthPanel.status, second.portfolioHealthPanel.status)
-})
-
-test('fallback alert has required fields: id, title, type, severity, description', () => {
-  const fallback = buildFallbackDTO()
-  const alert = fallback.alertPanel[0]
-  assert.ok(alert.id)
-  assert.ok(alert.title)
-  assert.ok(alert.type)
-  assert.ok(alert.severity)
-  assert.ok(alert.description)
-})
-
-test('fallback executiveSummaryCard recommendation advises connecting source data', () => {
-  const fallback = buildFallbackDTO()
-  assert.ok(fallback.executiveSummaryCard.recommendation.includes('portfolio runtime source data'))
-})
-
-test('runtime empty result and direct buildFallbackDTO produce identical alertPanel ids', () => {
-  const runtimeResult = runDashboardApiRuntime({ tenantId: 'tenant-abc' })
-  const directFallback = buildFallbackDTO()
-  assert.equal(runtimeResult.data.alertPanel[0].id, directFallback.alertPanel[0].id)
+test('runtime empty result carries null data — no fabricated alerts, health, or summary', () => {
+  const result = runDashboardApiRuntime({ tenantId: 'tenant-abc' })
+  assert.equal(result.status, 'empty')
+  assert.equal(result.data, null)
 })

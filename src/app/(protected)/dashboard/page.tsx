@@ -7,6 +7,7 @@ import { runDashboardConsumptionRuntime } from "@/lib/dashboard/consumption";
 import { deriveDashboardPresentation } from "@/lib/dashboard/consumption/dashboard-honest-labels";
 import { runDashboardActionCenter } from "@/lib/dashboard/action-center";
 import { ExecutiveDashboardActionCenter } from "@/components/dashboard/action-center";
+import { EmptyDashboard } from "@/components/pmfreak/empty-states";
 import { WorkspaceContextBanner } from "@/components/pmfreak/workspace/workspace-context-banner";
 import { CommandCenterContextBanner } from "@/components/pmfreak/workspace/command-center-context-banner";
 import { resolvePreferredWorkspace } from "@/lib/workspaces/preferred-workspace";
@@ -31,6 +32,11 @@ export default async function DashboardPage({
   // workspace data or from the fallback DTO — never claim "Live" on fallback.
   const presentation = deriveDashboardPresentation(dashboardViewModel);
   const actionCenterReport = runDashboardActionCenter({ dashboardViewModel });
+  // Three mutually exclusive dashboard states: empty (no workspace data yet —
+  // a clean invitation, never an error), error (technical failure only), and
+  // populated (real workspace-derived metrics).
+  const isDashboardEmpty = dashboardViewModel.status === "empty" || dashboardViewModel.status === "idle";
+  const isDashboardError = dashboardViewModel.status === "error";
   const withProjectScope = (href: string) =>
     currentProjectId ? `${href}?projectId=${currentProjectId}` : href;
 
@@ -104,55 +110,66 @@ export default async function DashboardPage({
             </Link>
           ))}
         </section>
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-cyan-700">{presentation.snapshotHeading}</p>
-          {presentation.fallbackNotice && (
-            <p className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-xs text-yellow-800" data-testid="dashboard-fallback-notice">
-              {presentation.fallbackNotice}
+        {isDashboardEmpty ? (
+          <EmptyDashboard />
+        ) : isDashboardError ? (
+          <section className="rounded-3xl border border-rose-200 bg-rose-50/60 p-5" data-testid="dashboard-error-state">
+            <p className="text-xs uppercase tracking-[0.2em] text-rose-700">{presentation.snapshotHeading}</p>
+            <p className="mt-2 text-sm text-rose-800">
+              {presentation.fallbackNotice ?? "Unable to load portfolio data."}
             </p>
-          )}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
-              <p className="text-2xl font-bold text-cyan-800">{dashboardViewModel.healthScore}</p>
-              <p className="mt-1 text-xs text-slate-600">Health Score</p>
-              {dashboardViewModel.healthLabel && (
-                <p className="mt-1 text-xs text-cyan-700">{dashboardViewModel.healthLabel}</p>
-              )}
+          </section>
+        ) : (
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-700">{presentation.snapshotHeading}</p>
+            {presentation.fallbackNotice && (
+              <p className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-xs text-yellow-800" data-testid="dashboard-fallback-notice">
+                {presentation.fallbackNotice}
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
+                <p className="text-2xl font-bold text-cyan-800">{dashboardViewModel.healthScore}</p>
+                <p className="mt-1 text-xs text-slate-600">Health Score</p>
+                {dashboardViewModel.healthLabel && (
+                  <p className="mt-1 text-xs text-cyan-700">{dashboardViewModel.healthLabel}</p>
+                )}
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
+                <p className="text-2xl font-bold text-cyan-800">{dashboardViewModel.risksCount}</p>
+                <p className="mt-1 text-xs text-slate-600">Risks</p>
+                {dashboardViewModel.criticalRisksCount > 0 && (
+                  <p className="mt-1 text-xs text-red-600">{dashboardViewModel.criticalRisksCount} critical</p>
+                )}
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
+                <p className="text-2xl font-bold text-cyan-800">{dashboardViewModel.decisionsCount}</p>
+                <p className="mt-1 text-xs text-slate-600">Decisions</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
+                <p className="text-2xl font-bold text-cyan-800">{dashboardViewModel.interventionsCount}</p>
+                <p className="mt-1 text-xs text-slate-600">Interventions</p>
+              </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
-              <p className="text-2xl font-bold text-cyan-800">{dashboardViewModel.risksCount}</p>
-              <p className="mt-1 text-xs text-slate-600">Risks</p>
-              {dashboardViewModel.criticalRisksCount > 0 && (
-                <p className="mt-1 text-xs text-red-600">{dashboardViewModel.criticalRisksCount} critical</p>
-              )}
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
-              <p className="text-2xl font-bold text-cyan-800">{dashboardViewModel.decisionsCount}</p>
-              <p className="mt-1 text-xs text-slate-600">Decisions</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
-              <p className="text-2xl font-bold text-cyan-800">{dashboardViewModel.interventionsCount}</p>
-              <p className="mt-1 text-xs text-slate-600">Interventions</p>
-            </div>
-          </div>
-          {dashboardViewModel.executiveSummary && (
-            <p className="text-sm text-slate-800">{dashboardViewModel.executiveSummary}</p>
-          )}
-          {dashboardViewModel.portfolioRecommendation && (
-            <p className="text-sm text-cyan-900 border-l-2 border-cyan-400 pl-3">{dashboardViewModel.portfolioRecommendation}</p>
-          )}
-          {dashboardViewModel.warnings.length > 0 && (
-            <ul className="space-y-1">
-              {dashboardViewModel.warnings.map((w, i) => (
-                <li key={i} className="text-xs text-yellow-700">{w}</li>
-              ))}
-            </ul>
-          )}
-          {dashboardViewModel.alertsCount > 0 && (
-            <p className="text-xs text-slate-600">{dashboardViewModel.alertsCount} alert{dashboardViewModel.alertsCount !== 1 ? "s" : ""} active</p>
-          )}
-        </section>
-        <ExecutiveDashboardActionCenter report={actionCenterReport} />
+            {dashboardViewModel.executiveSummary && (
+              <p className="text-sm text-slate-800">{dashboardViewModel.executiveSummary}</p>
+            )}
+            {dashboardViewModel.portfolioRecommendation && (
+              <p className="text-sm text-cyan-900 border-l-2 border-cyan-400 pl-3">{dashboardViewModel.portfolioRecommendation}</p>
+            )}
+            {dashboardViewModel.warnings.length > 0 && (
+              <ul className="space-y-1">
+                {dashboardViewModel.warnings.map((w, i) => (
+                  <li key={i} className="text-xs text-yellow-700">{w}</li>
+                ))}
+              </ul>
+            )}
+            {dashboardViewModel.alertsCount > 0 && (
+              <p className="text-xs text-slate-600">{dashboardViewModel.alertsCount} alert{dashboardViewModel.alertsCount !== 1 ? "s" : ""} active</p>
+            )}
+          </section>
+        )}
+        {!isDashboardError && <ExecutiveDashboardActionCenter report={actionCenterReport} />}
       </ModuleShell>
     </>
   );

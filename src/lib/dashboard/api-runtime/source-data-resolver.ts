@@ -8,7 +8,7 @@ export function resolveDashboardSourceData(
   const raw = preloadedSourceData ?? {}
 
   if (!raw.executiveDashboardReport) {
-    warnings.push('Executive dashboard report unavailable; returning fallback dashboard DTO.')
+    warnings.push('Executive dashboard report unavailable; dashboard remains empty until workspace data exists.')
   }
 
   if (!raw.interventionReport) {

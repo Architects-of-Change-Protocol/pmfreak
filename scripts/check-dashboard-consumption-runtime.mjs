@@ -49,20 +49,15 @@ if (errorViewModel.error.code !== 'dashboard_api_network_error') throw new Error
 
 const emptyApiResponse = {
   status: 'empty',
-  data: {
-    portfolioHealthPanel: { score: 0, status: 'critical', label: 'No data', trend: '' },
-    executiveSummaryCard: { title: '', summary: 'No data available.', status: 'critical', recommendation: '' },
-    topRisksTable: [],
-    decisionsWidget: [],
-    interventionsQueue: [],
-    alertPanel: [{ id: 'alert-dashboard-source-unavailable', title: 'Source unavailable', type: 'system', severity: 'critical', description: '' }],
-  },
-  warnings: ['Executive dashboard report unavailable.'],
+  data: null,
+  warnings: ['Executive dashboard report unavailable; dashboard remains empty until workspace data exists.'],
 }
 const emptyViewModel = adaptDashboardViewModel({ apiResponse: emptyApiResponse })
 if (emptyViewModel.status !== 'empty') throw new Error(`expected empty status, got ${emptyViewModel.status}`)
 if (emptyViewModel.risksCount !== 0) throw new Error(`expected 0 risks in empty state, got ${emptyViewModel.risksCount}`)
-if (emptyViewModel.warnings.length !== 1) throw new Error(`expected 1 warning, got ${emptyViewModel.warnings.length}`)
+if (emptyViewModel.alertsCount !== 0) throw new Error(`expected 0 alerts in empty state, got ${emptyViewModel.alertsCount}`)
+if (emptyViewModel.hasCriticalAttention) throw new Error('empty state must never flag critical attention')
+if (emptyViewModel.warnings.length !== 0) throw new Error(`empty view model must carry no warnings-as-content, got ${emptyViewModel.warnings.length}`)
 
 // ── Validate: partial API response adapts ─────────────────────────────────────
 

@@ -26,7 +26,7 @@ export function buildDashboardHydrationRecoveryPlan(result: DashboardHydrationRe
     fallbackMode = 'empty'
   }
 
-  if (fallbackMode !== 'none') actions.push('Use fallback dashboard DTO until required source is available.')
+  if (fallbackMode !== 'none') actions.push('Serve the explicit dashboard empty state until required source is available.')
 
   return { recoveryRequired: actions.length > 0, actions, fallbackMode }
 }

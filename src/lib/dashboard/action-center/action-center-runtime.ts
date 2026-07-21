@@ -5,7 +5,7 @@ import type { DashboardActionCenterInput, DashboardActionCenterReport } from './
 export function runDashboardActionCenter(input: DashboardActionCenterInput): DashboardActionCenterReport {
   const actions = prioritizeDashboardActions(generateDashboardActions(input))
   if (!actions.length) return {
-    totalActions: 0, criticalActions: 0, escalationRequiredCount: 0, actionsByExecutionLane: {}, actionsByOwnerLane: {}, actions: [], executiveSummary: 'No dashboard actions are currently required. Continue monitoring portfolio health and cache freshness.',
+    totalActions: 0, criticalActions: 0, escalationRequiredCount: 0, actionsByExecutionLane: {}, actionsByOwnerLane: {}, actions: [], executiveSummary: 'No operational actions yet. Operational recommendations will appear automatically as projects begin generating real execution data.',
   }
   const actionsByExecutionLane: Record<string, number> = {}
   const actionsByOwnerLane: Record<string, number> = {}

@@ -20,7 +20,8 @@ export function generateDashboardActions(input: DashboardActionCenterInput): Das
   for (const c of (cacheResult?.refreshPlan?.actions ?? []) as Row[]) actions.push(mk(`refresh-${c.id}`,'refresh_dashboard_source',String(c.title ?? ''),String(c.description ?? ''),'cache_refresh_plan',String(c.id ?? ''),{refreshPriority:c.priority,severity:c.priority},[],String(c.reason ?? ''),['Refresh reason','Source kind','Refresh completion timestamp','Rehydration confirmation']))
   for (const [idx,h] of (hydrationResult?.recoveryPlan?.actions ?? []).entries()) actions.push(mk(`hydration-${idx}`,'recover_dashboard_hydration',`Recover hydration: ${h}`,h,'hydration_recovery_plan',String(idx),{hydrationRisk:hydrationResult?.riskLevel,severity:hydrationResult?.riskLevel},[],h,['Recovery action completed','Source regenerated','Fallback mode cleared','Hydration risk reduced']))
 
-  const warn1 = vm?.warnings ?? []; if (warn1.length <= 10) warn1.forEach((w: string, i: number)=>actions.push(mk(`warn-d-${i}`,'acknowledge_warning',`Acknowledge dashboard warning ${i+1}`,w,'dashboard_warning',String(i),{severity:'warning',warningKind:'operational'},[],w,['Warning acknowledgement','Owner acknowledgement note'])))
+  // Dashboard view-model warnings describe missing/unavailable sources — they
+  // are diagnostics, never operational work, so they must not become actions.
   const warn2 = cacheResult?.metadata?.warnings ?? []; if (warn2.length <= 10) warn2.forEach((w: string, i: number)=>actions.push(mk(`warn-c-${i}`,'acknowledge_warning',`Acknowledge cache warning ${i+1}`,w,'cache_metadata_warning',String(i),{severity:'warning',warningKind:'operational'},[],w,['Warning acknowledgement','Owner acknowledgement note'])))
 
   const extra: DashboardAction[] = []
