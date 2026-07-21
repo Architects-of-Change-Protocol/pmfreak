@@ -1,19 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Agent, ChatMessage, DrawerContent, NeedsYouItem, ProjectListItem } from "./types";
-import { DEMO_AGENTS, DEMO_CHAT, DEMO_MEMORY, DEMO_NEEDS_YOU, DEMO_REPOSITORY } from "./demo-data";
-import { deriveAgents, deriveNeedsYou, deriveRepository, postOperationalFlow, useOperationalFlow } from "./operational-data";
-import type { DecisionStatus } from "./operational-data";
-import { chatMessagesToConversationTurns, conversationResultToAssistantMessage, postConversationMessage } from "./conversation-data";
-import { ProjectSidebar } from "./project-sidebar";
-import { ProjectTopBar } from "./project-top-bar";
-import { CommandFeed } from "./command-feed";
-import { NeedsYouQueue } from "./needs-you-queue";
-import { AgentDock } from "./agent-dock";
-import { DetailDrawer } from "./detail-drawer";
-import { VaultIntakePanel } from "./vault-intake-panel";
-import { CloseIcon } from "./icons";
+import type { Agent, ChatMessage, DrawerContent, NeedsYouItem, ProjectListItem } from "../../presentation/command-center/types";
+import { DEMO_AGENTS, DEMO_CHAT, DEMO_MEMORY, DEMO_NEEDS_YOU, DEMO_REPOSITORY } from "../../presentation/command-center/demo-data";
+import { deriveAgents, deriveNeedsYou, deriveRepository, postOperationalFlow, useOperationalFlow } from "../../presentation/command-center/operational-data";
+import type { DecisionStatus } from "../../presentation/command-center/operational-data";
+import { chatMessagesToConversationTurns, conversationResultToAssistantMessage, postConversationMessage } from "../../presentation/command-center/conversation-data";
+import { ProjectSidebar } from "../../presentation/command-center/project-sidebar";
+import { ProjectTopBar } from "../../presentation/command-center/project-top-bar";
+import { CommandFeed } from "../../presentation/command-center/command-feed";
+import { NeedsYouQueue } from "../../presentation/command-center/needs-you-queue";
+import { AgentDock } from "../../presentation/command-center/agent-dock";
+import { DetailDrawer } from "../../presentation/command-center/detail-drawer";
+import { VaultIntakePanel } from "../../presentation/command-center/vault-intake-panel";
+import { CloseIcon } from "../../presentation/command-center/icons";
 
 function nextId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

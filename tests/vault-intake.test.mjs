@@ -9,7 +9,7 @@ const storage = fs.readFileSync("src/lib/vault/intake/storage.ts", "utf8");
 const pipeline = fs.readFileSync("src/lib/vault/intake/pipeline.ts", "utf8");
 const extraction = fs.readFileSync("src/lib/vault/intake/signal-extraction.ts", "utf8");
 const route = fs.readFileSync("src/app/api/vault/intake/route.ts", "utf8");
-const vaultIntakePanel = fs.readFileSync("src/features/command-center/vault-intake-panel.tsx", "utf8");
+const vaultIntakePanel = fs.readFileSync("src/modules/workspace/presentation/command-center/vault-intake-panel.tsx", "utf8");
 
 const runtimeProbe = String.raw`
 import assert from "node:assert/strict";

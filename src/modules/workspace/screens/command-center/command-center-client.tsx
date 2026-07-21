@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { OperationalGovernanceBrief } from "@/lib/projects/first-insight";
 import { CommandCenterLayout } from "./command-center-layout";
-import type { ProjectListItem, ToneBadge } from "./types";
+import type { ProjectListItem, ToneBadge } from "../../presentation/command-center/types";
 
 type UserProject = { id: string; name: string };
 

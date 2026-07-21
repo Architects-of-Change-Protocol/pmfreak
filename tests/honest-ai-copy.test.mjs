@@ -24,7 +24,7 @@ test("command-center chat route remains deterministic (no LLM imports)", () => {
 });
 
 test("command-center chat input discloses the deterministic nature", () => {
-  const src = read("src/features/command-center/command-feed.tsx");
+  const src = read("src/modules/workspace/presentation/command-center/command-feed.tsx");
   assert.ok(src.includes("chat-determinism-disclosure"), "determinism disclosure removed from chat input");
   assert.ok(/deterministic rules/.test(src), "disclosure copy must say responses are rule-based");
   assert.ok(!/Ask this project anything/.test(src), "open-ended placeholder implies generative AI");

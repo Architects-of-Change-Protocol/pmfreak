@@ -13,8 +13,8 @@ const vaultStorage = fs.readFileSync("src/lib/vault/intake/storage.ts", "utf8");
 const briefTypes = fs.readFileSync("src/lib/projects/first-insight/operational-governance-brief-types.ts", "utf8");
 const briefEngine = fs.readFileSync("src/lib/projects/first-insight/operational-governance-brief-engine.ts", "utf8");
 const briefOrchestrator = fs.readFileSync("src/lib/projects/first-insight/operational-governance-brief-orchestrator.ts", "utf8");
-const commandCenter = fs.readFileSync("src/features/command-center/command-center-client.tsx", "utf8");
-const vaultIntakePanel = fs.readFileSync("src/features/command-center/vault-intake-panel.tsx", "utf8");
+const commandCenter = fs.readFileSync("src/modules/workspace/screens/command-center/command-center-client.tsx", "utf8");
+const vaultIntakePanel = fs.readFileSync("src/modules/workspace/presentation/command-center/vault-intake-panel.tsx", "utf8");
 
 const runtimeProbe = String.raw`
 import assert from "node:assert/strict";
