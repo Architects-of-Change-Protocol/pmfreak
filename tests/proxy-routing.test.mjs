@@ -85,7 +85,30 @@ test("root proxy.ts does not exist (legacy deleted)", () => {
   assert.equal(existsSync("proxy.ts"), false, "root proxy.ts must be deleted");
 });
 
-// ─── 10. resolveOnboardingStateFromJwt is the only onboarding resolver in proxy ─
+// ─── 10. Session cookies survive redirects ───────────────────────────────────
+// Supabase rotates the refresh token when updateSession refreshes a session.
+// A bare NextResponse.redirect() drops the Set-Cookie headers carrying the new
+// token pair, stranding the browser with a consumed refresh token — the cause
+// of intermittent "protected-area error" + forced re-login.
+test("every proxy redirect carries the refreshed session cookies", () => {
+  assert.match(proxy, /redirectPreservingSession/);
+  assert.match(proxy, /sessionResponse\.cookies\.getAll\(\)\.forEach/);
+  // No redirect may bypass the helper: the only NextResponse.redirect call
+  // allowed in the file is the one inside redirectPreservingSession itself.
+  const bareRedirects = (proxy.match(/NextResponse\.redirect\(/g) ?? []).length;
+  assert.equal(bareRedirects, 1, "all redirects must go through redirectPreservingSession");
+});
+
+test("updateSession does not treat transient Supabase errors as logged-out", () => {
+  const supabaseProxy = readFileSync("src/lib/supabase/proxy.ts", "utf8");
+  // Auth rejections (401/403) log the user out; anything else falls back to a
+  // still-unexpired local session instead of bouncing to /login.
+  assert.match(supabaseProxy, /errorStatus === 401 \|\| errorStatus === 403/);
+  assert.match(supabaseProxy, /getSession\(\)/);
+  assert.match(supabaseProxy, /expires_at/);
+});
+
+// ─── 11. resolveOnboardingStateFromJwt is the only onboarding resolver in proxy ─
 test("proxy uses resolveOnboardingStateFromJwt exclusively (no inline onboarding logic)", () => {
   assert.match(proxy, /resolveOnboardingStateFromJwt/);
   // No hardcoded onboarding state checks
