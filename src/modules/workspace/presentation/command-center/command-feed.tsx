@@ -3,7 +3,13 @@
 import { useState } from "react";
 import type { ChatMessage } from "./types";
 import { AttachmentIcon, SendIcon } from "./icons";
-import { SUGGESTED_PROMPTS } from "./demo-data";
+
+// Honest prompt suggestions for the real deterministic chat gateway — not demo content.
+const SUGGESTED_PROMPTS = [
+  "What changed since yesterday?",
+  "What risks need attention?",
+  "Prepare a client update.",
+];
 
 function AssistantBubble({
   message,
@@ -105,14 +111,12 @@ export function CommandFeed({
   onSourceClick,
   onActionClick,
   onOpenNotes,
-  preview = false,
 }: {
   messages: ChatMessage[];
   onSendMessage: (text: string) => void;
   onSourceClick: (source: string) => void;
   onActionClick: (action: string) => void;
   onOpenNotes?: () => void;
-  preview?: boolean;
 }) {
   const [draft, setDraft] = useState("");
 
@@ -126,11 +130,6 @@ export function CommandFeed({
   return (
     <div className="flex h-full min-w-0 flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
-        {preview && (
-          <div className="flex items-center justify-between gap-2 rounded-xl border border-violet-200 bg-violet-50/60 px-3 py-2 text-xs text-violet-700">
-            <span>This is an example conversation. Paste your first notes to make it real.</span>
-          </div>
-        )}
         {messages.map((message) =>
           message.role === "assistant" ? (
             <AssistantBubble key={message.id} message={message} onSourceClick={onSourceClick} onActionClick={onActionClick} />

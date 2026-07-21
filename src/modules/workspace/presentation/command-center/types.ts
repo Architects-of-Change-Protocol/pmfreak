@@ -40,7 +40,7 @@ export type DrawerContent = {
   why: string;
   evidence: string[];
   nextStep: string;
-  /** Real actions (e.g. Accept/Reject/Defer a recommendation). Falls back to static example buttons when omitted. */
+  /** Real actions (e.g. Accept/Reject/Defer a recommendation). No buttons are shown when omitted. */
   actions?: DrawerAction[];
   /** e.g. "Requires an authorized decision-maker for: ..." shown below the actions. */
   note?: string;

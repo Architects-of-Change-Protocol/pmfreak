@@ -116,12 +116,12 @@ export function CommandCenterEmptyState({
         <aside className="hidden shrink-0 space-y-3 border-l border-slate-200 bg-white/60 p-4 xl:block">
           <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Command feed</p>
           <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs leading-relaxed text-slate-400">
-            Ask this project anything once context is available.
+            The command feed activates once your first project exists.
           </div>
           <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 opacity-60">
             <input
               disabled
-              placeholder="Ask this project anything…"
+              placeholder="Ask about status, risks, actions, decisions..."
               className="flex-1 bg-transparent text-sm text-slate-400 outline-none"
             />
           </div>

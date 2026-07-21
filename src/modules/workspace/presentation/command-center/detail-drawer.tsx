@@ -1,14 +1,7 @@
 "use client";
 
-import type { DrawerAction, DrawerContent } from "./types";
+import type { DrawerContent } from "./types";
 import { CloseIcon } from "./icons";
-
-const DEFAULT_ACTIONS: DrawerAction[] = [
-  { label: "Draft update", onClick: () => {} },
-  { label: "Create task", onClick: () => {} },
-  { label: "Mark reviewed", onClick: () => {} },
-  { label: "Ask agent", onClick: () => {} },
-];
 
 export function DetailDrawer({ content, onClose }: { content: DrawerContent | null; onClose: () => void }) {
   const open = content !== null;
@@ -61,25 +54,29 @@ export function DetailDrawer({ content, onClose }: { content: DrawerContent | nu
               <p className="mt-1.5 text-sm leading-relaxed text-slate-700">{content.nextStep}</p>
             </div>
 
-            <div className="mt-auto flex flex-wrap gap-2 pt-6">
-              {(content.actions ?? DEFAULT_ACTIONS).map((action, i) => (
-                <button
-                  key={action.label}
-                  type="button"
-                  onClick={action.onClick}
-                  disabled={action.disabled}
-                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                    i === 0
-                      ? "border-rose-200 bg-rose-50/60 text-rose-700 hover:bg-rose-50"
-                      : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
+            {(content.actions ?? []).length > 0 && (
+              <div className="mt-auto flex flex-wrap gap-2 pt-6">
+                {(content.actions ?? []).map((action, i) => (
+                  <button
+                    key={action.label}
+                    type="button"
+                    onClick={action.onClick}
+                    disabled={action.disabled}
+                    className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      i === 0
+                        ? "border-rose-200 bg-rose-50/60 text-rose-700 hover:bg-rose-50"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            )}
             {content.note && <p className="mt-3 text-[11px] text-amber-700">{content.note}</p>}
-            <p className="mt-3 text-[11px] text-slate-400">Sensitive actions are routed for approval.</p>
+            {(content.actions ?? []).length > 0 && (
+              <p className="mt-3 text-[11px] text-slate-400">Sensitive actions are routed for approval.</p>
+            )}
           </div>
         )}
       </aside>

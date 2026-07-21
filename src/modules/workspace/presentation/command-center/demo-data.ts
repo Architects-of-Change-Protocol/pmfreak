@@ -1,3 +1,12 @@
+/**
+ * DEMO FIXTURES — NOT PRODUCTION DATA.
+ *
+ * Every value in this file is invented (names, counts, dates, warnings,
+ * conversations). Nothing here may be imported by the production Command
+ * Center render path: when a project has no real operational data the UI
+ * must show honest empty states, never these fixtures. Kept only for demo
+ * environments, storybook-style previews, and tests.
+ */
 import type { Agent, ChatMessage, MemoryItem, NeedsYouItem, ProjectListItem, RepositoryItem } from "./types";
 
 export const DEMO_WORKSPACE_NAME = "Demo PMO";

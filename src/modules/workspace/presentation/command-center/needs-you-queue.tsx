@@ -1,25 +1,33 @@
 import type { NeedsYouItem } from "./types";
-import { PreviewTag, StatusBadge } from "./status-badge";
+import { StatusBadge } from "./status-badge";
+import { SectionEmptyState, SectionLoadingState } from "./section-empty-state";
 
 export function NeedsYouQueue({
   items,
   onSelect,
-  preview = false,
+  loading = false,
+  onAddNotes,
 }: {
   items: NeedsYouItem[];
   onSelect: (item: NeedsYouItem) => void;
-  preview?: boolean;
+  /** True while the operational flow for the active project is still loading. */
+  loading?: boolean;
+  /** Opens the notes intake — the real way to generate project signals. */
+  onAddNotes?: () => void;
 }) {
   return (
     <div>
       <div className="flex items-center justify-between gap-2 px-1">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Needs You</p>
-        {preview && <PreviewTag />}
       </div>
-      {items.length === 0 && !preview && (
-        <p className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-400">
-          Nothing needs your attention right now.
-        </p>
+      {loading && items.length === 0 && <SectionLoadingState label="Checking for open decisions..." />}
+      {!loading && items.length === 0 && (
+        <SectionEmptyState
+          title="Nothing requires your attention yet"
+          description="When project evidence produces a recommendation that needs a human decision, it appears here."
+          ctaLabel="Add project notes"
+          onCta={onAddNotes}
+        />
       )}
       <ul className="mt-2 space-y-1.5">
         {items.map((item) => (
