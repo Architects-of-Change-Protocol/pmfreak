@@ -12,6 +12,10 @@ const pmoService = fs.readFileSync("src/lib/pmos/pmo-service.ts", "utf8");
 const onboardingState = fs.readFileSync("src/lib/auth/resolve-onboarding-state.ts", "utf8");
 const savePmoTenant = fs.readFileSync("src/lib/pmo/save-pmo-tenant.ts", "utf8");
 const projectsAction = fs.readFileSync("src/app/(protected)/projects/actions.ts", "utf8");
+// First Execution Experience sprint: projects/actions.ts now delegates
+// project creation (including PMO attachment) to this shared service, also
+// used by POST /api/projects.
+const createMinimalProject = fs.readFileSync("src/lib/projects/create-minimal-project.ts", "utf8");
 const saveProjectOnboarding = fs.readFileSync("src/lib/projects/save-project-onboarding.ts", "utf8");
 const operationalShell = fs.readFileSync("src/components/pmfreak/operational-shell.tsx", "utf8");
 const routePolicy = fs.readFileSync("src/lib/auth/route-policy-registry.ts", "utf8");
@@ -152,7 +156,7 @@ test("project admin API supports update, move, delete, duplicate", () => {
 // ─── Creation flows (Change 1) ────────────────────────────────────────────────
 
 test("every project creation path attaches a PMO", () => {
-  assert.ok(projectsAction.includes("pmo_id: pmoId"));
+  assert.ok(createMinimalProject.includes("pmo_id: resolvedPmoId"), "projects/actions.ts (via createMinimalProject) must attach a PMO");
   assert.ok(saveProjectOnboarding.includes("pmo_id: pmoId"));
   const commandCenterAction = fs.readFileSync("src/app/(protected)/command-center/actions.ts", "utf8");
   assert.ok(commandCenterAction.includes("pmo_id: defaultPmo.id"));
@@ -198,7 +202,7 @@ test("new routes are registered in the route access policy", () => {
 // ─── Project creation lands in the Command Center (Founder Loop sprint) ──────
 
 test("project creation lands in the command center scoped to the new project", () => {
-  assert.ok(projectsAction.includes("redirect(`/command-center?projectId=${data.id}"));
+  assert.ok(projectsAction.includes("redirect(`/command-center?projectId=${project.id}"));
   const wizard = fs.readFileSync("src/components/pmfreak/projects/create-project-wizard.tsx", "utf8");
   assert.ok(wizard.includes("router.push(`/command-center?projectId=${result.projectId}"));
 });

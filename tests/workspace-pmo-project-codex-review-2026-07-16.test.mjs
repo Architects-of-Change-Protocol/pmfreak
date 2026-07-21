@@ -25,6 +25,10 @@ const resolveWriteWorkspace = fs.readFileSync("src/lib/workspaces/resolve-write-
 const pmoService = fs.readFileSync("src/lib/pmos/pmo-service.ts", "utf8");
 const saveProjectOnboarding = fs.readFileSync("src/lib/projects/save-project-onboarding.ts", "utf8");
 const projectsActions = fs.readFileSync("src/app/(protected)/projects/actions.ts", "utf8");
+// First Execution Experience sprint: projects/actions.ts now delegates
+// project creation to this shared service (also used by POST /api/projects),
+// so its workspace resolution lives there rather than being duplicated here.
+const createMinimalProject = fs.readFileSync("src/lib/projects/create-minimal-project.ts", "utf8");
 const commandCenterActions = fs.readFileSync("src/app/(protected)/command-center/actions.ts", "utf8");
 const gettingStarted = fs.readFileSync("src/app/api/getting-started/route.ts", "utf8");
 const onboardingState = fs.readFileSync("src/lib/auth/resolve-onboarding-state.ts", "utf8");
@@ -166,7 +170,7 @@ test("every project/PMO write entry point resolves its workspace via resolveWrit
   for (const [name, src] of [
     ["save-project-onboarding.ts", saveProjectOnboarding],
     ["save-pmo-tenant.ts", savePmoTenant],
-    ["projects/actions.ts", projectsActions],
+    ["projects/actions.ts (via createMinimalProject)", projectsActions + createMinimalProject],
     ["command-center/actions.ts", commandCenterActions],
     ["api/getting-started/route.ts", gettingStarted],
   ]) {

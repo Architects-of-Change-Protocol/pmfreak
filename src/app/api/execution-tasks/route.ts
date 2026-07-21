@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
 import { requireProjectAccess } from "@/lib/security/server-authorization";
 import { AccessDeniedError } from "@/aoc/runtime-consumer";
+import { createExecutionTaskDirect } from "@/lib/execution-tasks/create-execution-task";
 import type { ExecutionTaskRow } from "@/lib/db/database-contract";
 
 const PRIORITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -62,4 +63,40 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   });
 
   return NextResponse.json({ ok: true, tasks });
+}
+
+const FAILURE_STATUS: Record<string, number> = {
+  unauthenticated: 401,
+  unauthorized: 403,
+  not_found: 404,
+  validation_failed: 400,
+  invalid_state: 409,
+  persistence_failed: 500,
+};
+
+/**
+ * Direct ("Quick Add Task") task creation — writes the same canonical
+ * execution_tasks row the RAID → Recommended Action → Task Draft conversion
+ * path writes, without requiring that chain. See
+ * src/lib/execution-tasks/create-execution-task.ts.
+ */
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ ok: false, error: "Invalid JSON.", failureClass: "validation_failed" }, { status: 400 });
+  }
+
+  const result = await createExecutionTaskDirect(body);
+
+  if (!result.ok) {
+    const status = FAILURE_STATUS[result.failureClass] ?? 500;
+    return NextResponse.json(
+      { ok: false, error: result.error, failureClass: result.failureClass, fieldErrors: result.fieldErrors },
+      { status },
+    );
+  }
+
+  return NextResponse.json({ ok: true, task: result.task }, { status: 201 });
 }

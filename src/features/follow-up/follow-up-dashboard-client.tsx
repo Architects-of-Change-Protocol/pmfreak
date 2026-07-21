@@ -96,6 +96,7 @@ export function FollowUpDashboardClient({ projectId }: { projectId?: string }) {
             <EmptyExecution
               hasProject={projectStep ? projectStep.status === "completed" : undefined}
               canCreate={taskStep ? taskStep.actionAllowed : true}
+              projectId={projectId}
             />
           );
         })()

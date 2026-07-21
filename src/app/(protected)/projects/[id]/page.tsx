@@ -6,12 +6,14 @@ import { evaluateCapabilityAccess } from "@/lib/security/capability-flow";
 import { resolveCanonicalProject } from "@/lib/projects/canonical-project-resolver";
 import { redirect } from "next/navigation";
 import { ProjectPMAssignment } from "@/components/pmfreak/ProjectPMAssignment";
+import { ProjectTaskList } from "@/components/pmfreak/tasks/project-task-list";
+import { resolvePreferredWorkspace } from "@/lib/workspaces/preferred-workspace";
 import { ProjectTabNav } from "./project-tab-nav";
 
 type Props = { params: Promise<{ id: string }> };
 
 export default async function ProjectDetailPage({ params }: Props) {
-  await requireAuthUser();
+  const user = await requireAuthUser();
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
@@ -33,6 +35,12 @@ export default async function ProjectDetailPage({ params }: Props) {
   }
 
   await evaluateCapabilityAccess({ workspaceId: project.workspace_id, projectId: project.id, permission: "read" });
+
+  // Real membership role drives whether the task CTAs render — a viewer sees
+  // who can add work instead of a dead-end button (same pattern as
+  // src/app/(protected)/projects/page.tsx's canCreateProjects).
+  const workspaceResolution = await resolvePreferredWorkspace(user.id);
+  const canCreateTask = workspaceResolution.role !== null && workspaceResolution.role !== "viewer";
 
   const { data: analyses } = await supabase
     .from("onboarding_analyses")
@@ -66,6 +74,11 @@ export default async function ProjectDetailPage({ params }: Props) {
           <ProjectTabNav projectId={project.id} active="overview" />
         </div>
       </div>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-slate-900">Execution</h2>
+        <ProjectTaskList projectId={project.id} canCreateTask={canCreateTask} />
+      </section>
 
       <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
