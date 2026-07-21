@@ -60,6 +60,8 @@ export type EscalationRecommendation = {
 export type InterventionSnapshot = {
   projectId: string | null;
   generatedAt: string;
+  /** 'empty' when no execution memory exists yet — no interventions or escalations are inferred. */
+  state: "empty" | "populated";
   interventionRequired: boolean;
   interventionUrgency: InterventionSeverity;
   escalationProbability: number;
@@ -298,6 +300,41 @@ export function generateEscalationRecommendations(input: { escalationProbability
 // for autonomous escalation agents, AI-driven intervention orchestration, PM coaching systems,
 // portfolio-wide intervention prioritization, organizational execution graphs, and AI execution governance.
 export function buildInterventionSnapshot(projectId: string | null, snapshot: ProjectMemorySnapshot | null, adaptiveProfile?: AdaptiveOperationalProfile | null): InterventionSnapshot {
+  if (!snapshot) {
+    // No execution memory yet: return an explicit empty snapshot instead of
+    // inferring silence/drift signals from the absence of data.
+    const emptySignal = { severity: "none" as const, instabilityScore: 0, unstableCadence: false, executionInstabilityAcrossSignals: false, unresolvedBlockersIncreasing: false, noRecentExecutionUpdates: false };
+    return {
+      projectId,
+      generatedAt: new Date().toISOString(),
+      state: "empty",
+      interventionRequired: false,
+      interventionUrgency: "none",
+      escalationProbability: 0,
+      deliveryBreakdownRisk: 0,
+      organizationalDrift: 0,
+      recommendedInterventionType: "capacity_protection",
+      escalationTarget: "none",
+      machineOutput: {
+        intervention_required: false,
+        escalation_probability: 0,
+        delivery_breakdown_risk: 0,
+        organizational_drift: 0,
+        recommended_intervention_type: "capacity_protection",
+        escalation_target: "none",
+      },
+      commentary: [],
+      deliveryInstability: emptySignal,
+      operationalDriftSignal: { severity: "none", driftScore: 0, organizationalDrift: false, repeatedEscalationWithoutResolution: false, organizationalSilenceAfterEscalation: false, pressureConfidenceDivergence: false },
+      stakeholderBreakdown: false,
+      executionDeadlock: false,
+      triggers: [],
+      interventions: [],
+      escalations: [],
+      coordinationCollapse: detectCoordinationCollapseRisk({ daysSilent: 0, unresolvedDependencies: 0, repeatedEscalationWithoutResolution: false, blockerCount: 0, stalledDecisions: 0, executionDeadlock: false }),
+    };
+  }
+
   const executionRisk = buildExecutionRiskSnapshot(projectId, snapshot);
   const stakeholderIntel = buildStakeholderRelationshipSnapshot(projectId, snapshot);
   const deliveryInstability = detectDeliveryInstability(snapshot);
@@ -436,6 +473,7 @@ export function buildInterventionSnapshot(projectId: string | null, snapshot: Pr
   return {
     projectId,
     generatedAt: new Date().toISOString(),
+    state: "populated",
     interventionRequired,
     interventionUrgency,
     escalationProbability,
