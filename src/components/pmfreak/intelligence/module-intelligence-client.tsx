@@ -3,6 +3,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import type { AIResponseCard, AIResponseEnvelope } from "@/lib/ai/types";
+import { WorkspaceEmptyState } from "@/components/pmfreak/empty-states";
 
 const fetcher = async <T,>(url: string): Promise<T> => {
   const response = await fetch(url);
@@ -37,6 +38,16 @@ export function ModuleIntelligenceClient({ endpoint }: { endpoint: string }) {
 
   if (!data) {
     return null;
+  }
+
+  if (data.data.length === 0) {
+    return (
+      <WorkspaceEmptyState
+        title="No insights yet"
+        description="Insights will appear automatically as this workspace generates real project data."
+        testId="empty-module-intelligence"
+      />
+    );
   }
 
   return (

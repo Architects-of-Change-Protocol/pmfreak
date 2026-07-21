@@ -57,6 +57,12 @@ export function adaptDashboardViewModel(input: DashboardConsumptionInput): Dashb
   const data = ((apiResponse.data ?? {}) as Record<string, unknown>)
   const warnings: string[] = Array.isArray(apiResponse.warnings) ? apiResponse.warnings as string[] : []
 
+  // Empty is a valid state, not a degraded dashboard: no counts, no alerts,
+  // no warnings-as-content. The UI renders a dedicated empty state instead.
+  if (apiResponse.status === 'empty' || (apiResponse.data == null && apiResponse.status !== 'error')) {
+    return { ...base, status: 'empty' }
+  }
+
   if (apiResponse.status === 'error') {
     const firstWarning = warnings[0] ?? 'Dashboard data unavailable'
     const error: DashboardConsumptionError = {

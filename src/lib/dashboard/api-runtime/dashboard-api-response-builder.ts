@@ -8,37 +8,6 @@ import type {
 
 const RUNTIME_VERSION = '8.2.0'
 
-export function buildFallbackDTO() {
-  return {
-    portfolioHealthPanel: {
-      score: 0,
-      status: 'critical',
-      label: 'Portfolio Health Unavailable',
-      trend: 'Dashboard source data unavailable',
-    },
-    executiveSummaryCard: {
-      title: 'Portfolio Executive Summary',
-      summary: 'Portfolio executive dashboard data is not available yet.',
-      status: 'critical',
-      recommendation:
-        'Connect portfolio runtime source data before using executive dashboard decisions.',
-    },
-    topRisksTable: [],
-    decisionsWidget: [],
-    interventionsQueue: [],
-    alertPanel: [
-      {
-        id: 'alert-dashboard-source-unavailable',
-        title: 'Dashboard source data unavailable',
-        type: 'source_data',
-        severity: 'critical',
-        description:
-          'Executive dashboard aggregation output is required to hydrate the PMO dashboard.',
-      },
-    ],
-  }
-}
-
 export function buildDashboardApiResponse({
   request,
   sourceData,
@@ -70,10 +39,12 @@ export function buildDashboardApiResponse({
     runtimeVersion: RUNTIME_VERSION,
   }
 
+  // Absence of workspace data is a first-class empty state: data stays null
+  // so no layer downstream can mistake fabricated placeholders for metrics.
   if (!sourceData.executiveDashboardReport) {
     return {
       status: 'empty',
-      data: buildFallbackDTO(),
+      data: null,
       ...(shouldIncludeMetadata && { metadata }),
       warnings,
     }

@@ -1,6 +1,6 @@
 import { validateDashboardApiRequest } from '../src/lib/dashboard/api-runtime/request-validator.ts'
 import { resolveDashboardSourceData } from '../src/lib/dashboard/api-runtime/source-data-resolver.ts'
-import { buildDashboardApiResponse, buildFallbackDTO } from '../src/lib/dashboard/api-runtime/dashboard-api-response-builder.ts'
+import { buildDashboardApiResponse } from '../src/lib/dashboard/api-runtime/dashboard-api-response-builder.ts'
 import { buildDashboardApiErrorResponse } from '../src/lib/dashboard/api-runtime/dashboard-api-error-handler.ts'
 import { runDashboardApiRuntime } from '../src/lib/dashboard/api-runtime/dashboard-api-runtime.ts'
 
@@ -152,13 +152,6 @@ const { sourceData: emptySourceData, warnings: missingWarnings } = resolveDashbo
 if (missingWarnings.length !== 4) throw new Error(`expected 4 warnings for empty source data, got ${missingWarnings.length}`)
 if (!missingWarnings[0].includes('Executive dashboard report unavailable')) throw new Error('expected executive dashboard report warning')
 
-// Validate fallback DTO structure
-const fallback = buildFallbackDTO()
-if (fallback.portfolioHealthPanel.score !== 0) throw new Error('fallback health panel score should be 0')
-if (fallback.portfolioHealthPanel.status !== 'critical') throw new Error('fallback status should be critical')
-if (fallback.alertPanel.length !== 1) throw new Error('fallback alert panel should have 1 alert')
-if (fallback.alertPanel[0].id !== 'alert-dashboard-source-unavailable') throw new Error('fallback alert id mismatch')
-
 // Validate API response with populated source data
 const populatedResponse = buildDashboardApiResponse({
   request: { tenantId: 'tenant-abc', includeMetadata: true },
@@ -170,16 +163,16 @@ if (!populatedResponse.data.portfolioHealthPanel) throw new Error('response miss
 if (!populatedResponse.metadata) throw new Error('response should include metadata when includeMetadata is true')
 if (!populatedResponse.metadata.sourceSignals.executiveDashboardReport) throw new Error('source signal should be true')
 
-// Validate API response fallback when executiveDashboardReport missing
-const fallbackResponse = buildDashboardApiResponse({
+// Validate API response empty state when executiveDashboardReport missing
+const emptyResponse = buildDashboardApiResponse({
   request: { tenantId: 'tenant-abc', includeMetadata: true },
   sourceData: emptySourceData,
   warnings: missingWarnings,
 })
-if (fallbackResponse.status !== 'empty') throw new Error(`expected empty status, got ${fallbackResponse.status}`)
-if (fallbackResponse.data.portfolioHealthPanel.score !== 0) throw new Error('fallback response should have score 0')
-if (!fallbackResponse.metadata) throw new Error('fallback response should include metadata')
-if (fallbackResponse.metadata.sourceSignals.executiveDashboardReport) throw new Error('source signal should be false')
+if (emptyResponse.status !== 'empty') throw new Error(`expected empty status, got ${emptyResponse.status}`)
+if (emptyResponse.data !== null) throw new Error('empty response must carry null data, never a fabricated DTO')
+if (!emptyResponse.metadata) throw new Error('empty response should include metadata')
+if (emptyResponse.metadata.sourceSignals.executiveDashboardReport) throw new Error('source signal should be false')
 
 // Validate partial status when warnings present with populated data
 const partialResponse = buildDashboardApiResponse({
@@ -195,7 +188,7 @@ const errorResponse = buildDashboardApiErrorResponse([
 ])
 if (errorResponse.status !== 'error') throw new Error('error response should have error status')
 if (errorResponse.warnings[0] !== 'tenantId is required') throw new Error('error response warnings mismatch')
-if (!errorResponse.data.alertPanel) throw new Error('error response should include fallback DTO')
+if (errorResponse.data !== null) throw new Error('error response must carry null data, never a fabricated DTO')
 
 // Validate metadata excluded when includeMetadata is false
 const noMetaResponse = buildDashboardApiResponse({
@@ -221,9 +214,9 @@ const runtimeInvalid = runDashboardApiRuntime({})
 if (runtimeInvalid.status !== 'error') throw new Error(`expected error from invalid runtime, got ${runtimeInvalid.status}`)
 if (!runtimeInvalid.warnings.length) throw new Error('invalid runtime result should have warnings')
 
-// Validate runtime with no preloaded data returns empty status
+// Validate runtime with no preloaded data returns an explicit empty state
 const runtimeEmpty = runDashboardApiRuntime({ tenantId: 'tenant-abc' })
 if (runtimeEmpty.status !== 'empty') throw new Error(`expected empty status from runtime with no data, got ${runtimeEmpty.status}`)
-if (runtimeEmpty.data.alertPanel[0].id !== 'alert-dashboard-source-unavailable') throw new Error('runtime empty result missing fallback alert')
+if (runtimeEmpty.data !== null) throw new Error('runtime empty result must carry null data, never a fabricated alert')
 
 console.log('[ok] dashboard api runtime valid')

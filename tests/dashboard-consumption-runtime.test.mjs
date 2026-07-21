@@ -114,27 +114,21 @@ test('adaptDashboardViewModel returns error state when fetchError provided', () 
   assert.equal(result.error?.recoverable, false)
 })
 
-// ── 9. adaptDashboardViewModel — empty fallback DTO ───────────────────────────
+// ── 9. adaptDashboardViewModel — empty state (null data) ──────────────────────
 
-test('adaptDashboardViewModel maps empty API response safely', () => {
+test('adaptDashboardViewModel maps empty API response to a truly empty view model', () => {
   const apiResponse = {
     status: 'empty',
-    data: {
-      portfolioHealthPanel: { score: 0, status: 'critical', label: 'No data', trend: '' },
-      executiveSummaryCard: { title: '', summary: 'No data available.', status: 'critical', recommendation: '' },
-      topRisksTable: [],
-      decisionsWidget: [],
-      interventionsQueue: [],
-      alertPanel: [{ id: 'alert-dashboard-source-unavailable', title: 'No data', type: 'system', severity: 'critical', description: '' }],
-    },
-    warnings: ['Executive dashboard report unavailable.'],
+    data: null,
+    warnings: ['Executive dashboard report unavailable; dashboard remains empty until workspace data exists.'],
   }
   const result = adaptDashboardViewModel({ apiResponse })
   assert.equal(result.status, 'empty')
   assert.equal(result.healthScore, 0)
   assert.equal(result.risksCount, 0)
-  assert.equal(result.alertsCount, 1)
-  assert.deepEqual(result.warnings, ['Executive dashboard report unavailable.'])
+  assert.equal(result.alertsCount, 0)
+  assert.equal(result.hasCriticalAttention, false)
+  assert.deepEqual(result.warnings, [], 'empty state must not surface diagnostics as content')
 })
 
 // ── 10. adaptDashboardViewModel — partial response ────────────────────────────

@@ -25,6 +25,7 @@ export interface DashboardApiMetadata {
 
 export interface DashboardApiResponse {
   status: DashboardApiRuntimeStatus
+  /** Populated DTO only for 'ok'/'partial'; always null for 'empty' and 'error'. */
   data: unknown
   metadata?: DashboardApiMetadata
   warnings: string[]

@@ -26,7 +26,7 @@ runDashboardApiRuntime(
 ```typescript
 {
   status: 'ok' | 'partial' | 'empty' | 'error'
-  data: PortfolioExecutiveDashboardDTO | FallbackDTO
+  data: PortfolioExecutiveDashboardDTO | null
   metadata?: DashboardApiMetadata
   warnings: string[]
 }
@@ -38,8 +38,8 @@ runDashboardApiRuntime(
 |---|---|
 | `ok` | Full DTO built, no warnings |
 | `partial` | Full DTO built, some source inputs were absent |
-| `empty` | No executiveDashboardReport available; fallback DTO returned |
-| `error` | Request validation failed; fallback DTO returned |
+| `empty` | No executiveDashboardReport available; `data` is `null` (explicit empty state) |
+| `error` | Request validation failed; `data` is `null` |
 
 ---
 
@@ -82,31 +82,29 @@ Unknown fields are silently ignored.
 
 | Missing field | Warning |
 |---|---|
-| `executiveDashboardReport` | `"Executive dashboard report unavailable; returning fallback dashboard DTO."` |
+| `executiveDashboardReport` | `"Executive dashboard report unavailable; dashboard remains empty until workspace data exists."` |
 | `interventionReport` | `"PMO intervention report unavailable."` |
 | `decisionSimulationReports` | `"Decision simulation reports unavailable."` |
 | `conflictReport` | `"Conflict report unavailable."` |
 
 ---
 
-## Fallback DTO Behavior
+## Empty State Behavior
 
-When `executiveDashboardReport` is absent, the response builder returns a safe fallback:
+When `executiveDashboardReport` is absent, the response builder returns an explicit empty state:
 
 ```typescript
 {
-  portfolioHealthPanel: { score: 0, status: 'critical', label: 'Portfolio Health Unavailable', trend: 'Dashboard source data unavailable' },
-  executiveSummaryCard: { title: 'Portfolio Executive Summary', status: 'critical', ... },
-  topRisksTable: [],
-  decisionsWidget: [],
-  interventionsQueue: [],
-  alertPanel: [
-    { id: 'alert-dashboard-source-unavailable', type: 'source_data', severity: 'critical', ... }
-  ]
+  status: 'empty',
+  data: null,
+  metadata?: DashboardApiMetadata,
+  warnings: string[]
 }
 ```
 
-The fallback is deterministic — same shape on every call. Response status is `"empty"`.
+Absence of workspace data is a first-class state — the runtime never fabricates a
+dashboard DTO (no placeholder health scores, no synthetic alerts). Consumers render
+a dedicated empty-state UI when `status === 'empty'`.
 
 ---
 
@@ -115,7 +113,7 @@ The fallback is deterministic — same shape on every call. Response status is `
 `buildDashboardApiErrorResponse(errors)` returns a `DashboardApiResponse` with:
 
 - `status: "error"`
-- `data`: same fallback DTO as the empty-source path
+- `data`: `null` — error responses never carry a fabricated DTO
 - `warnings`: error messages from the validation errors array
 
 This ensures all error paths produce a safe, structured response rather than throwing.

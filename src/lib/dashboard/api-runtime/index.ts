@@ -9,6 +9,6 @@ export type {
 
 export { validateDashboardApiRequest } from './request-validator'
 export { resolveDashboardSourceData } from './source-data-resolver'
-export { buildDashboardApiResponse, buildFallbackDTO } from './dashboard-api-response-builder'
+export { buildDashboardApiResponse } from './dashboard-api-response-builder'
 export { buildDashboardApiErrorResponse } from './dashboard-api-error-handler'
 export { runDashboardApiRuntime } from './dashboard-api-runtime'

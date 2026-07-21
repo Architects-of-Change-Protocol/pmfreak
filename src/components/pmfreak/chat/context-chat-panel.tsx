@@ -122,7 +122,8 @@ export function ContextChatPanel(props: Props) {
           <p className="text-sm text-slate-600">Loading conversation…</p>
         ) : messages.length === 0 ? (
           <div className="space-y-3">
-            <p className="text-sm text-slate-600">No messages yet in this context. This conversation is private to this {props.contextType}.</p>
+            <p className="text-sm font-semibold text-slate-800">Start your first conversation.</p>
+            <p className="text-xs text-slate-500">This conversation is private to this {props.contextType}.</p>
             {suggestions && suggestions.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {suggestions.map((s) => (

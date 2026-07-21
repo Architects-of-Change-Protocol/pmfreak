@@ -42,6 +42,8 @@ export type DependencyRiskSignal = ExecutionSignal & { category: RiskCategory.De
 export type ExecutionRiskSnapshot = {
   projectId: string | null;
   generatedAt: string;
+  /** 'empty' when no execution memory exists yet — signals are honest zeros, never inferred risk. */
+  state: "empty" | "populated";
   deliveryConfidence: ProjectRiskLevel;
   stakeholderPressure: ProjectRiskLevel;
   executionStability: "stable" | "watching" | "degrading";
@@ -82,7 +84,8 @@ const normalizeDaysSinceUpdate = (lastUpdatedAt: string | null): number => {
 
 export const calculateDeliveryConfidence = (snapshot: ProjectMemorySnapshot | null): DeliveryConfidenceSignal => {
   if (!snapshot) {
-    return { category: RiskCategory.DeliveryConfidence, score: 55, level: ProjectRiskLevel.Medium, severity: EscalationSeverity.Watch, summary: "Delivery confidence is uncertain because execution memory is still empty.", blockerLoad: 0 };
+    // No execution memory yet: absence of data is not risk, so the signal stays at zero.
+    return { category: RiskCategory.DeliveryConfidence, score: 0, level: ProjectRiskLevel.Low, severity: EscalationSeverity.None, summary: "No execution data yet.", blockerLoad: 0 };
   }
 
   const blockerLoad = snapshot.project.blockers.length + snapshot.project.unresolvedIssues.length;
@@ -99,7 +102,7 @@ export const calculateDeliveryConfidence = (snapshot: ProjectMemorySnapshot | nu
 
 export const detectStakeholderPressure = (snapshot: ProjectMemorySnapshot | null): StakeholderPressureSignal => {
   if (!snapshot) {
-    return { category: RiskCategory.StakeholderPressure, score: 35, level: ProjectRiskLevel.Low, severity: EscalationSeverity.None, summary: "Stakeholder pressure cannot be inferred yet due to missing project interactions.", pressureMentions: 0 };
+    return { category: RiskCategory.StakeholderPressure, score: 0, level: ProjectRiskLevel.Low, severity: EscalationSeverity.None, summary: "No stakeholder interaction data yet.", pressureMentions: 0 };
   }
 
   const pressureMentions = snapshot.stakeholders.reduce((sum: number, item: StakeholderMemory) => sum + item.pressurePatterns.length + item.sentimentSignals.length, 0);
@@ -117,7 +120,12 @@ export const detectStakeholderPressure = (snapshot: ProjectMemorySnapshot | null
 };
 
 export const detectProjectSilence = (snapshot: ProjectMemorySnapshot | null): SilenceRiskSignal => {
-  const daysSilent = normalizeDaysSinceUpdate(snapshot?.lastUpdatedAt ?? null);
+  if (!snapshot) {
+    // A workspace with no memory records has no momentum to lose — silence risk
+    // only exists once execution activity has been recorded.
+    return { category: RiskCategory.ProjectSilence, score: 0, level: ProjectRiskLevel.Low, severity: EscalationSeverity.None, summary: "No execution activity recorded yet.", daysSilent: 0 };
+  }
+  const daysSilent = normalizeDaysSinceUpdate(snapshot.lastUpdatedAt ?? null);
   const riskScore = clamp(daysSilent * 6);
   return {
     category: RiskCategory.ProjectSilence,
@@ -238,6 +246,7 @@ export const buildExecutionRiskSnapshot = (projectId: string | null, snapshot: P
   return {
     projectId,
     generatedAt: new Date().toISOString(),
+    state: snapshot ? "populated" : "empty",
     deliveryConfidence,
     stakeholderPressure,
     executionStability,
@@ -249,7 +258,11 @@ export const buildExecutionRiskSnapshot = (projectId: string | null, snapshot: P
       execution_stability: executionStability,
       active_escalation_risk: escalationSignal.severity,
     },
-    commentary: commentary.length > 0 ? commentary : ["Execution signals are present but no major escalation patterns are active."],
+    commentary: commentary.length > 0
+      ? commentary
+      : snapshot
+        ? ["Execution signals are present but no major escalation patterns are active."]
+        : [],
     signals,
   };
 };
