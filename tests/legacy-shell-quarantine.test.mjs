@@ -11,8 +11,8 @@ const workspacePage = read("src/app/(protected)/workspace/page.tsx");
 const workspaceSetupPage = read("src/app/(protected)/workspace/setup/page.tsx");
 const gettingStartedFlow = read("src/components/pmfreak/activation/getting-started-flow.tsx");
 const commandCenterPage = read("src/app/(protected)/command-center/page.tsx");
-const commandCenterLayout = read("src/features/command-center/command-center-layout.tsx");
-const commandCenterEmptyState = read("src/features/command-center/command-center-empty-state.tsx");
+const commandCenterLayout = read("src/modules/workspace/screens/command-center/command-center-layout.tsx");
+const commandCenterEmptyState = read("src/modules/workspace/screens/command-center/command-center-empty-state.tsx");
 const operationalShell = read("src/components/pmfreak/operational-shell.tsx");
 const routeDebug = read("src/app/api/route-debug/route.ts");
 

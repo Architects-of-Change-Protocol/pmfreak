@@ -9,8 +9,8 @@ const types = readFileSync(join(ROOT, "src/lib/projects/first-insight/operationa
 const store = readFileSync(join(ROOT, "src/lib/projects/first-insight/operational-governance-brief-store.ts"), "utf8");
 const orchestrator = readFileSync(join(ROOT, "src/lib/projects/first-insight/operational-governance-brief-orchestrator.ts"), "utf8");
 const commandCenterPage = readFileSync(join(ROOT, "src/app/(protected)/command-center/page.tsx"), "utf8");
-const commandCenterClient = readFileSync(join(ROOT, "src/features/command-center/command-center-client.tsx"), "utf8");
-const commandCenterLayout = readFileSync(join(ROOT, "src/features/command-center/command-center-layout.tsx"), "utf8");
+const commandCenterClient = readFileSync(join(ROOT, "src/modules/workspace/screens/command-center/command-center-client.tsx"), "utf8");
+const commandCenterLayout = readFileSync(join(ROOT, "src/modules/workspace/screens/command-center/command-center-layout.tsx"), "utf8");
 const saveProject = readFileSync(join(ROOT, "src/lib/projects/save-project-onboarding.ts"), "utf8");
 
 function assertEngineHasRisk(domain, expectedTitleFragment) {

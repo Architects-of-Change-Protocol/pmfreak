@@ -6,7 +6,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 const migration = readFileSync("supabase/migrations/20260611000000_operational_evidence_decision_loop.sql", "utf8");
 const service = readFileSync("src/lib/operational-flow/operational-flow-service.ts", "utf8");
 const route = readFileSync("src/app/api/operational-flow/route.ts", "utf8");
-const ui = readFileSync("src/features/command-center/operational-decision-loop.tsx", "utf8");
+const ui = readFileSync("src/modules/workspace/presentation/command-center/operational-decision-loop.tsx", "utf8");
 const seed = readFileSync("scripts/seed-operational-flow-demo.mjs", "utf8");
 const dbVerifier = readFileSync("scripts/check-operational-flow-db.mjs", "utf8");
 const legacyWorkflow = readFileSync("src/lib/recommended-actions/decision-workflow.ts", "utf8");

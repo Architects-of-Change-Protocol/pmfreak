@@ -6,12 +6,12 @@ import { runConversationChat } from "../src/lib/command-center/conversation-chat
 import {
   chatMessagesToConversationTurns,
   conversationResultToAssistantMessage,
-} from "../src/features/command-center/conversation-data.ts";
+} from "../src/modules/workspace/presentation/command-center/conversation-data.ts";
 
 const route = fs.readFileSync("src/app/api/command-center/chat/route.ts", "utf8");
-const layout = fs.readFileSync("src/features/command-center/command-center-layout.tsx", "utf8");
-const feed = fs.readFileSync("src/features/command-center/command-feed.tsx", "utf8");
-const types = fs.readFileSync("src/features/command-center/types.ts", "utf8");
+const layout = fs.readFileSync("src/modules/workspace/screens/command-center/command-center-layout.tsx", "utf8");
+const feed = fs.readFileSync("src/modules/workspace/presentation/command-center/command-feed.tsx", "utf8");
+const types = fs.readFileSync("src/modules/workspace/presentation/command-center/types.ts", "utf8");
 
 // ─── Wiring (static) — the chat UI must go through the gateway, not a mock/rigid path ──────────
 
