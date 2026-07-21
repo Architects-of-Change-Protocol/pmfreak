@@ -54,12 +54,16 @@ test("runInitializationSequence is only called after the success guard", () => {
   assert.ok(initIdx > guardIdx, "initialization must be triggered after the success guard");
 });
 
-test("wizard still redirects to /pmo/invite-team exactly once, after savePmoTenant", () => {
+test("wizard redirects straight into the Command Center exactly once, after savePmoTenant", () => {
   const saveIdx = wizard.indexOf("await savePmoTenant(tenant)");
-  const pushIdx = wizard.indexOf('router.push("/pmo/invite-team")');
+  const pushIdx = wizard.indexOf('router.push("/command-center?from=onboarding")');
   assert.ok(saveIdx > 0 && pushIdx > saveIdx, "redirect must come after savePmoTenant");
-  const allPushes = [...wizard.matchAll(/router\.push\("\/pmo\/invite-team"\)/g)];
-  assert.equal(allPushes.length, 1, "redirect to invite-team must appear exactly once");
+  const allPushes = [...wizard.matchAll(/router\.push\("\/command-center\?from=onboarding"\)/g)];
+  assert.equal(allPushes.length, 1, "redirect to the Command Center must appear exactly once");
+});
+
+test("wizard no longer redirects to the standalone /pmo/invite-team page", () => {
+  assert.doesNotMatch(wizard, /router\.push\("\/pmo\/invite-team"\)/);
 });
 
 test("failure branch hands control back to the existing error UI via activation.reset()", () => {

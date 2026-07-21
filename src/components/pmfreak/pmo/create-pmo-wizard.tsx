@@ -843,8 +843,11 @@ export function CreatePmoWizard() {
     void activation.runInitializationSequence(agents.filter((a) => a.enabled).map((a) => a.agentId));
   };
 
-  const handleContinueToInviteTeam = () => {
-    router.push("/pmo/invite-team");
+  const handleContinueToCommandCenter = () => {
+    // Land the user directly in their new Command Center — onboarding actions
+    // (invite team, create first project, etc.) live there as recommended
+    // next actions, not as a separate page blocking arrival.
+    router.push("/command-center?from=onboarding");
   };
 
   const handleRetryAfterTimeout = () => {
@@ -894,7 +897,7 @@ export function CreatePmoWizard() {
         hasContextSeed={Boolean(contextSeed.strategicObjective || contextSeed.successDefinition)}
         onKeepWaiting={activation.keepWaiting}
         onRetryTimeout={handleRetryAfterTimeout}
-        onContinue={handleContinueToInviteTeam}
+        onContinue={handleContinueToCommandCenter}
       />
 
       {/* Stepper */}

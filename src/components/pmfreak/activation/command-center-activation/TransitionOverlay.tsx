@@ -55,7 +55,7 @@ export function TransitionOverlay({
         onClick={onContinue}
         className="rounded-xl border border-cyan-200/30 bg-cyan-400/[0.1] px-6 py-2.5 text-sm font-semibold text-cyan-900 transition hover:bg-cyan-400/[0.18]"
       >
-        Continue →
+        Enter Command Center →
       </button>
     </motion.div>
   );

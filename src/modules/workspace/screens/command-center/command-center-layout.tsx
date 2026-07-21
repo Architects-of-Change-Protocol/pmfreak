@@ -23,6 +23,7 @@ import { AgentDock } from "../../presentation/command-center/agent-dock";
 import { DetailDrawer } from "../../presentation/command-center/detail-drawer";
 import { VaultIntakePanel } from "../../presentation/command-center/vault-intake-panel";
 import { CloseIcon } from "../../presentation/command-center/icons";
+import { WorkspaceOnboardingPanel } from "@/components/pmfreak/onboarding/workspace-onboarding-panel";
 
 function nextId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -339,6 +340,7 @@ export function CommandCenterLayout({
         </main>
 
         <aside className="hidden w-[320px] shrink-0 space-y-6 overflow-y-auto border-l border-slate-200 bg-white/60 p-4 xl:block">
+          <WorkspaceOnboardingPanel surface="dashboard" />
           <NeedsYouQueue items={needsYouItems} onSelect={handleNeedsYouSelect} loading={flowLoading} onAddNotes={() => setNotesOpen(true)} />
           <AgentDock agents={agentItems} onSelect={handleAgentSelect} loading={flowLoading} onAddContext={() => setNotesOpen(true)} />
         </aside>
@@ -364,6 +366,7 @@ export function CommandCenterLayout({
 
       <MobileOverlay open={rightOpen} onClose={() => setRightOpen(false)} side="right">
         <div className="space-y-6 overflow-y-auto p-4">
+          <WorkspaceOnboardingPanel surface="dashboard" />
           <NeedsYouQueue
             items={needsYouItems}
             onSelect={handleNeedsYouSelect}
