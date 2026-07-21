@@ -10720,4 +10720,40 @@ export const PLAYBOOK_AUDIT_EVENT_SELECTABLE_COLUMNS = [
   "created_at",
 ] as const satisfies ReadonlyArray<keyof PlaybookAuditEventRow>;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// workspace_onboarding_preferences
+// Source: 20260829000000_workspace_onboarding_preferences.sql
+//
+// Per-user, per-workspace DISPLAY preferences for the guided onboarding
+// panel (collapse / dismiss / skipped optional steps / version seen) plus
+// the insights first-view interaction event. Never stores derived
+// activation progress — progress is always computed from real rows.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type WorkspaceOnboardingPreferenceRow = {
+  id: string;                        // uuid
+  workspace_id: string;              // uuid references workspaces
+  user_id: string;                   // uuid references auth.users
+  onboarding_version: number;        // integer not null default 1
+  collapsed: boolean;                // boolean not null default false
+  dismissed_at: string | null;       // timestamptz
+  skipped_step_ids: string[];        // text[] not null default '{}' (max 32)
+  insights_first_viewed_at: string | null; // timestamptz
+  created_at: string;                // timestamptz
+  updated_at: string;                // timestamptz
+};
+
+export const WORKSPACE_ONBOARDING_PREFERENCE_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "user_id",
+  "onboarding_version",
+  "collapsed",
+  "dismissed_at",
+  "skipped_step_ids",
+  "insights_first_viewed_at",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof WorkspaceOnboardingPreferenceRow>;
+
 export const DATABASE_CONTRACT_VERSION ="2026-06-18-platform-events-execution-tasks-decision-effectiveness-pattern-extraction-foundation-personal-pm-patterns-personal-pm-effectiveness-personal-pattern-extraction-foundation-constitutional-brief-executive-brief-governance-brief-operational-brief-portfolio-brief-constitutional-dashboard-constitutional-workspace-execution-augmentation-constitutional-intelligence-context-engine-constitutional-intelligence-intelligence-bridge-constitutional-intelligence-intelligence-bridge-2026-06-24-project-constitution-amendment-governance-2026-06-25-project-constitutional-decision-governance-2026-06-26-constitutional-ratification-framework-2026-06-27-authority-registry-governance-2026-06-19-constitutional-digest-engine-2026-06-28-programs-2026-06-29-program-hierarchy-2026-06-21-program-roadmap-sources-2026-06-30-program-roadmap-parse-results-2026-07-02-program-execution-board-2026-07-03-program-card-context-projection-2026-06-22-constitutional-learning-engine-2026-06-22-sovereign-recommendation-engine-2026-06-22-recommendation-effectiveness-engine-2026-07-04-governance-signal-engine-2026-07-05-governance-action-engine-2026-07-06-governance-commitment-engine-2026-07-07-execution-projection-engine-2026-07-08-execution-reality-engine-2026-07-09-project-operating-system-2026-07-10-operational-command-center-2026-07-11-operational-consequence-engine-2026-07-12-operational-decision-engine-2026-07-13-operational-decision-outcome-engine-2026-07-15-pm-performance-engine-2026-07-17-pmo-governance-compliance-engine-2026-07-18-pmo-command-center-2026-07-19-pmo-intervention-action-loop-2026-07-25-pmo-executive-reporting-2026-07-26-agent-tool-registry-2026-07-27-agent-permission-approval-layer-2026-07-28-agent-memory-context-layer-2026-07-29-agent-observability-audit-trail-2026-07-30-agent-execution-request-runtime-agent-tool-execution-adapter-layer-agent-execution-results-evidence-layer-agent-human-review-action-inbox-controlled-action-conversion-approval-bridge-controlled-execution-finalization-adapter-dispatch-gate-controlled-execution-result-reconciliation-human-outcome-review-controlled-execution-learning-signals-governance-feedback-loop-controlled-pmo-governance-intelligence-dashboard-pmo-governance-proposal-review-controlled-policy-change-backlog-controlled-governance-policy-simulation-report-pmo-approval-pack-controlled-policy-implementation-planning-workspace-controlled-policy-implementation-gate-dry-run-change-executor-controlled-policy-version-activation-rollback-gate-controlled-project-intelligence-handoff-end-to-end-governance-runtime-integration-production-hardening-beta-onboarding-demo-data-tenant-readiness-2026-08-16-playbook-engine-materialization-phase1" as const;

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAuthUser } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { EmptyProjects } from "@/components/pmfreak/empty-states";
+import { resolvePreferredWorkspace } from "@/lib/workspaces/preferred-workspace";
 import { createProjectAction } from "./actions";
 
 type ProjectRow = {
@@ -23,6 +24,12 @@ export default async function ProjectsPage() {
     .order("created_at", { ascending: false });
 
   const projects = (data ?? []) as ProjectRow[];
+
+  // Real membership role drives which CTAs render — a viewer is shown who
+  // can create instead of a button they cannot use. Server actions and RLS
+  // remain the authoritative enforcement.
+  const workspaceResolution = await resolvePreferredWorkspace(user.id);
+  const canCreateProjects = workspaceResolution.role !== null && workspaceResolution.role !== "viewer";
 
   return (
     <section className="space-y-6 rounded-3xl border border-slate-200 bg-[#FCFBF9] p-6 md:p-10">
@@ -51,10 +58,11 @@ export default async function ProjectsPage() {
 
         {projects.length === 0 ? (
           <div className="mt-6">
-            <EmptyProjects />
+            <EmptyProjects canCreate={canCreateProjects} />
           </div>
         ) : (
           <>
+        {canCreateProjects && (
         <form action={createProjectAction} className="mt-6 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1.2fr_1.8fr_auto] md:items-end">
           <label className="space-y-1.5 text-xs uppercase tracking-[0.14em] text-slate-500">
             Project Name
@@ -66,6 +74,7 @@ export default async function ProjectsPage() {
           </label>
           <button type="submit" className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800">Create Project</button>
         </form>
+        )}
 
         <div className="mt-5 grid gap-3 md:grid-cols-2">
           {projects.map((project) => (

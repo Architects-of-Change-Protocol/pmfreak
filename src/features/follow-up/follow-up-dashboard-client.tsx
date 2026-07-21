@@ -42,6 +42,9 @@ export function FollowUpDashboardClient({ projectId }: { projectId?: string }) {
   const [selectedMode, setSelectedMode] = useState<DashboardMode>("pm");
   const scoped = projectId ? `?projectId=${projectId}` : "";
   const risk = useSWR(`/api/intelligence/execution-risk${scoped}`, fetcher, { refreshInterval: 25000 });
+  // Activation evidence drives the contextual CTA on the empty state: with a
+  // real project the next action is adding a task; without one, creating it.
+  const activation = useSWR(`/api/workspace-activation`, fetcher, { refreshInterval: 30000 });
   const stakeholders = useSWR(`/api/intelligence/stakeholders${scoped}`, fetcher, { refreshInterval: 25000 });
   const interventions = useSWR(`/api/intelligence/interventions${scoped}`, fetcher, { refreshInterval: 25000 });
   const coordination = useSWR(`/api/intelligence/coordination${scoped}`, fetcher, { refreshInterval: 25000 });
@@ -81,7 +84,21 @@ export function FollowUpDashboardClient({ projectId }: { projectId?: string }) {
       {loading ? <div className="rounded-xl border border-slate-200 p-4 text-slate-700">Loading dashboard intelligence...</div> : null}
 
       {isEmpty ? (
-        <EmptyExecution />
+        (() => {
+          const steps = (activation.data?.data?.activation?.steps ?? []) as {
+            id: string;
+            status: string;
+            actionAllowed: boolean;
+          }[];
+          const projectStep = steps.find((s) => s.id === "project_created");
+          const taskStep = steps.find((s) => s.id === "task_created");
+          return (
+            <EmptyExecution
+              hasProject={projectStep ? projectStep.status === "completed" : undefined}
+              canCreate={taskStep ? taskStep.actionAllowed : true}
+            />
+          );
+        })()
       ) : !loading ? (
         <>
           <DashboardCard title="A) Executive Status Summary"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{insight("Overall status", risk.data?.overallRisk, "execution-risk", "Risk synthesis from execution telemetry.", risk.data?.generatedAt)}{insight("Delivery confidence", risk.data?.deliveryConfidence, "execution-risk", "Confidence decays with blocker and cadence instability.", risk.data?.generatedAt)}{insight("Escalation probability", intervention?.escalationProbability, "interventions", "Intervention engine predicts chain escalation.", interventions.data?.generatedAt)}{insight("Stakeholder pressure", stakeholders.data?.executivePressure, "stakeholders", "Pressure inferred from power+alignment signals.", stakeholders.data?.generatedAt)}{insight("Intervention urgency", intervention?.interventionUrgency, "interventions", "Urgency raised by drift and deadlock markers.", interventions.data?.generatedAt)}</div></DashboardCard>

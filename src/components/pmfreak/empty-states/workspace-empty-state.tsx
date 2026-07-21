@@ -45,13 +45,20 @@ export function WorkspaceEmptyState({
   );
 }
 
-export function EmptyDashboard() {
+/** Copy shown instead of a creation CTA when the member's real workspace
+ *  role cannot create projects (e.g. viewer). Lack of permission is never
+ *  presented as a data problem. */
+const RESTRICTED_CREATE_PROJECT_NOTE =
+  "A workspace administrator or project manager must create the first project.";
+
+export function EmptyDashboard({ canCreate = true }: { canCreate?: boolean }) {
   return (
     <WorkspaceEmptyState
       eyebrow="Summary"
       title="No project data available yet."
       description="Your workspace dashboard will populate automatically as projects and operational activity are added."
-      cta={{ label: "Create your first project", href: "/command-center" }}
+      secondary={canCreate ? undefined : RESTRICTED_CREATE_PROJECT_NOTE}
+      cta={canCreate ? { label: "Create your first project", href: "/command-center" } : undefined}
       testId="empty-dashboard"
     />
   );
@@ -68,36 +75,62 @@ export function EmptyExecutiveDashboard() {
   );
 }
 
-export function EmptyProjects() {
+export function EmptyProjects({ canCreate = true }: { canCreate?: boolean }) {
   return (
     <WorkspaceEmptyState
       eyebrow="Projects"
       title="No projects yet"
-      description="Create your first project to begin tracking portfolio health."
-      cta={{ label: "Create your first project", href: "/command-center" }}
+      description="Create your first project to begin organizing delivery."
+      secondary={canCreate ? undefined : RESTRICTED_CREATE_PROJECT_NOTE}
+      cta={canCreate ? { label: "Create your first project", href: "/command-center" } : undefined}
       testId="empty-projects"
     />
   );
 }
 
-export function EmptyExecution() {
+export function EmptyExecution({
+  hasProject,
+  canCreate = true,
+}: {
+  /** When known, drives the contextual onboarding CTA: with a project the
+   *  next real action is adding a task; without one it is creating the
+   *  project first. Omitted → neutral empty state (no CTA). */
+  hasProject?: boolean;
+  canCreate?: boolean;
+}) {
+  const contextual =
+    hasProject === undefined || !canCreate
+      ? { secondary: canCreate ? undefined : RESTRICTED_CREATE_PROJECT_NOTE, cta: undefined }
+      : hasProject
+        ? {
+            secondary: "Add your first task to begin tracking project execution.",
+            cta: { label: "Add task", href: "/command-center" },
+          }
+        : {
+            secondary: "Create a project before adding execution work.",
+            cta: { label: "Create project", href: "/projects/new" },
+          };
+
   return (
     <WorkspaceEmptyState
       eyebrow="Execution"
       title="No execution data yet"
       description="Execution metrics will appear once work begins."
+      secondary={contextual.secondary}
+      cta={contextual.cta}
       testId="empty-execution"
     />
   );
 }
 
-export function EmptyPortfolio() {
+export function EmptyPortfolio({ canCreate = true }: { canCreate?: boolean }) {
   return (
     <WorkspaceEmptyState
       eyebrow="Portfolio"
       title="No projects yet"
       description="Create your first project to begin tracking portfolio health."
-      cta={{ label: "Create your first project", href: "/command-center" }}
+      secondary={canCreate ? undefined : RESTRICTED_CREATE_PROJECT_NOTE}
+      cta={canCreate ? { label: "Create your first project", href: "/command-center" } : undefined}
       testId="empty-portfolio"
     />
   );

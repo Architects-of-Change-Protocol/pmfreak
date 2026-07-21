@@ -8,6 +8,7 @@ import { deriveDashboardPresentation } from "@/lib/dashboard/consumption/dashboa
 import { runDashboardActionCenter } from "@/lib/dashboard/action-center";
 import { ExecutiveDashboardActionCenter } from "@/components/dashboard/action-center";
 import { EmptyDashboard } from "@/components/pmfreak/empty-states";
+import { WorkspaceOnboardingPanel } from "@/components/pmfreak/onboarding/workspace-onboarding-panel";
 import { WorkspaceContextBanner } from "@/components/pmfreak/workspace/workspace-context-banner";
 import { CommandCenterContextBanner } from "@/components/pmfreak/workspace/command-center-context-banner";
 import { resolvePreferredWorkspace } from "@/lib/workspaces/preferred-workspace";
@@ -90,6 +91,8 @@ export default async function DashboardPage({
         {idleCopy && (
           <p className="text-xs text-slate-500">{idleCopy}</p>
         )}
+        <WorkspaceOnboardingPanel surface="dashboard" />
+
         <section className="rounded-3xl border border-slate-200 bg-white p-5">
           <p className="text-xs uppercase tracking-[0.2em] text-cyan-700">Summary</p>
           <p className="mt-2 text-sm text-slate-800">Capture signal, preserve memory, execute next action.</p>
@@ -111,7 +114,9 @@ export default async function DashboardPage({
           ))}
         </section>
         {isDashboardEmpty ? (
-          <EmptyDashboard />
+          <EmptyDashboard
+            canCreate={workspaceResolution?.role != null && workspaceResolution.role !== "viewer"}
+          />
         ) : isDashboardError ? (
           <section className="rounded-3xl border border-rose-200 bg-rose-50/60 p-5" data-testid="dashboard-error-state">
             <p className="text-xs uppercase tracking-[0.2em] text-rose-700">{presentation.snapshotHeading}</p>
