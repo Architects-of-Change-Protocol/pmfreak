@@ -3,7 +3,16 @@
 import { useMemo, useState } from "react";
 import type { OperationalSummary } from "@/lib/operational-flow/types";
 import type { Agent, ChatMessage, DrawerContent, MemoryItem, NeedsYouItem, ProjectListItem } from "../../presentation/command-center/types";
-import { deriveAgents, deriveNeedsYou, deriveRepository, postOperationalFlow, useOperationalFlow } from "../../presentation/command-center/operational-data";
+import {
+  deriveAgents,
+  deriveNeedsYou,
+  deriveRaidNeedsYou,
+  deriveRepository,
+  postOperationalFlow,
+  postRaidActionDecision,
+  useOperationalFlow,
+  useRaidRecommendedActions,
+} from "../../presentation/command-center/operational-data";
 import type { DecisionStatus } from "../../presentation/command-center/operational-data";
 import { chatMessagesToConversationTurns, conversationResultToAssistantMessage, postConversationMessage } from "../../presentation/command-center/conversation-data";
 import { ProjectSidebar } from "../../presentation/command-center/project-sidebar";
@@ -17,6 +26,11 @@ import { CloseIcon } from "../../presentation/command-center/icons";
 
 function nextId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Default "remind me later" horizon for deferring a RAID-derived suggested action. */
+function deferralDate(): string {
+  return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 }
 
 /** Memory categories backed by real operational records only — empty when nothing is recorded. */
@@ -134,6 +148,7 @@ export function CommandCenterLayout({
   );
 
   const { data: flowData, mutate: mutateFlow } = useOperationalFlow(workspaceId, selectedProject?.id ?? "");
+  const { data: raidActions, mutate: mutateRaidActions } = useRaidRecommendedActions(selectedProject?.id ?? "");
   const hasRealData = Boolean(flowData && flowData.evidence.length > 0);
   const flowLoading = flowData === undefined;
 
@@ -182,14 +197,36 @@ export function CommandCenterLayout({
     }
   };
 
+  // Triage for RAID-derived suggestions: accepting/rejecting/deferring goes through
+  // /api/recommended-actions/decision (these are ungoverned actions — the governed
+  // operational-flow recommendations above use record_decision instead).
+  const handleRaidDecide = async (actionId: string, status: DecisionStatus) => {
+    try {
+      await postRaidActionDecision({
+        actionId,
+        decision: status,
+        reason: `Suggested action ${status} from the Command Center.`,
+        ...(status === "deferred" ? { deferredUntil: deferralDate() } : {}),
+      });
+      await Promise.all([mutateRaidActions(), mutateFlow()]);
+      onEvidenceAdded?.();
+      setDrawerContent(null);
+    } catch {
+      // Leave the drawer open so the user can retry.
+    }
+  };
+
   const needsYouReal = useMemo(() => deriveNeedsYou(flowData, handleDecide), [flowData]); // eslint-disable-line react-hooks/exhaustive-deps
+  const raidNeedsYou = useMemo(() => deriveRaidNeedsYou(raidActions, handleRaidDecide), [raidActions]); // eslint-disable-line react-hooks/exhaustive-deps
   const repositoryReal = useMemo(() => deriveRepository(flowData), [flowData]);
   const agentsReal = useMemo(() => deriveAgents(flowData, hasBrief), [flowData, hasBrief]);
   const memoryReal = useMemo(() => deriveMemory(flowData), [flowData]);
   const lastUpdatedLabel = useMemo(() => deriveLastUpdatedLabel(flowData), [flowData]);
 
   // Real data or nothing: sections render honest empty states instead of fixtures.
-  const needsYouItems = hasRealData ? needsYouReal : [];
+  // RAID-derived suggestions are real extracted intelligence, so they show even
+  // when the evidence chain is still empty.
+  const needsYouItems = [...(hasRealData ? needsYouReal : []), ...raidNeedsYou];
   const repositoryItems = repositoryReal;
   const agentItems = hasRealData ? agentsReal : [];
 
@@ -247,6 +284,7 @@ export function CommandCenterLayout({
     setUserInteracted(true);
     setMessages((current) => [...current, { id: nextId("assistant"), role: "assistant", content: summary }]);
     void mutateFlow();
+    void mutateRaidActions();
     onEvidenceAdded?.();
   };
 

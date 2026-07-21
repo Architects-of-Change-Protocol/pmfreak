@@ -42,7 +42,58 @@ export async function postVaultIntake(params: { workspaceId: string; projectId: 
     raidItemsCreated: number;
     raidItemsUpdated: number;
     executiveSynthesisUpdated: boolean;
+    recommendedActionsCreated?: number;
   };
+}
+
+/** A RAID-derived recommended action (governance_event_id is null for these — they are
+ *  decided through /api/recommended-actions/decision, not the governed operational flow). */
+export type RaidRecommendedAction = {
+  id: string;
+  raid_item_id: string | null;
+  title: string;
+  description: string;
+  recommended_action_type: string;
+  status: string;
+  confidence_score: number;
+  impact_level: string;
+  recommended_owner: string | null;
+  recommended_due_window: string | null;
+  evidence_summary: Record<string, unknown> | null;
+  created_at: string;
+};
+
+const raidActionsFetcher = async (url: string) => {
+  const response = await fetch(url, { cache: "no-store" });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? "Unable to load recommended actions.");
+  return (payload.recommendedActions ?? []) as RaidRecommendedAction[];
+};
+
+/** Proposed recommended actions materialized from RAID items extracted out of the
+ *  project's real notes/documents — the triage queue for extracted intelligence. */
+export function useRaidRecommendedActions(projectId: string) {
+  const endpoint = `/api/recommended-actions?projectId=${encodeURIComponent(projectId)}&status=proposed`;
+  return useSWR<RaidRecommendedAction[]>(projectId ? endpoint : null, raidActionsFetcher, {
+    refreshInterval: 30000,
+    revalidateOnFocus: true,
+  });
+}
+
+export async function postRaidActionDecision(payload: {
+  actionId: string;
+  decision: DecisionStatus;
+  reason?: string;
+  deferredUntil?: string;
+}) {
+  const response = await fetch("/api/recommended-actions/decision", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error ?? "Unable to record the decision.");
+  return result;
 }
 
 function severityTone(severity: unknown): StatusTone {
@@ -107,6 +158,56 @@ export function deriveNeedsYou(
         recommendationId,
       } satisfies NeedsYouItem;
     });
+}
+
+/** Builds Needs You cards from RAID-derived recommended actions awaiting triage.
+ *  One card per RAID item (the highest-confidence proposed action), so a single
+ *  extracted risk doesn't flood the queue. `onDecide` receives the action id. */
+export function deriveRaidNeedsYou(
+  actions: RaidRecommendedAction[] | undefined,
+  onDecide: (actionId: string, status: DecisionStatus) => void
+): NeedsYouItem[] {
+  if (!actions || actions.length === 0) return [];
+  const bestPerRaidItem = new Map<string, RaidRecommendedAction>();
+  for (const action of actions) {
+    if (action.status !== "proposed") continue;
+    const key = action.raid_item_id ?? action.id;
+    const current = bestPerRaidItem.get(key);
+    if (!current || Number(action.confidence_score) > Number(current.confidence_score)) {
+      bestPerRaidItem.set(key, action);
+    }
+  }
+  return [...bestPerRaidItem.values()].map((action) => {
+    const impact = String(action.impact_level);
+    const tone: StatusTone = impact === "critical" || impact === "high" ? "danger" : "task";
+    const summary = (action.evidence_summary ?? {}) as Record<string, unknown>;
+    const raidTitle = typeof summary.raidTitle === "string" ? summary.raidTitle : null;
+    const raidCategory = typeof summary.raidCategory === "string" ? summary.raidCategory : null;
+    const evidenceLines = [
+      raidTitle ? `Detected from your project notes: "${raidTitle}"` : null,
+      raidCategory ? `RAID category: ${raidCategory}` : null,
+    ].filter(Boolean) as string[];
+    const nextStepParts = [
+      action.recommended_owner ? `Suggested owner: ${action.recommended_owner}.` : null,
+      action.recommended_due_window ? `Suggested timing: ${action.recommended_due_window}.` : null,
+    ].filter(Boolean);
+    return {
+      id: `raid-action-${action.id}`,
+      title: action.title,
+      badge: { tone, label: tone === "danger" ? "Warning" : "Suggested" },
+      drawer: {
+        title: action.title,
+        why: action.description,
+        evidence: evidenceLines.length ? evidenceLines : ["Extracted from the project's recorded notes."],
+        nextStep: nextStepParts.length ? nextStepParts.join(" ") : "Accept, reject, or defer this suggested action.",
+        actions: [
+          { label: "Accept", onClick: () => onDecide(action.id, "accepted") },
+          { label: "Reject", onClick: () => onDecide(action.id, "rejected") },
+          { label: "Defer", onClick: () => onDecide(action.id, "deferred") },
+        ],
+      },
+    } satisfies NeedsYouItem;
+  });
 }
 
 export function deriveRepository(data: OperationalSummary | undefined): RepositoryItem[] {

@@ -7,6 +7,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveWriteWorkspace } from "@/lib/workspaces/resolve-write-workspace";
 import { ensureDefaultPmo, getPmoById } from "@/lib/pmos/pmo-service";
 import { generateAndPersistOperationalGovernanceBrief } from "@/lib/projects/first-insight";
+import { ingestProjectSetupContext } from "@/lib/projects/ingest-project-setup-context";
 
 export async function createProjectAction(formData: FormData) {
   const user = await requireAuthUser();
@@ -61,6 +62,21 @@ export async function createProjectAction(formData: FormData) {
     redirect(`/projects?error=${encodeURIComponent(error?.message ?? "Unable to create project")}`);
   }
 
+  // Feed the typed description into the intelligence loop before generating
+  // the first brief, so detected RAID items are part of it. Best-effort.
+  if (description) {
+    await ingestProjectSetupContext({
+      supabase,
+      workspaceId: ensured.workspaceId,
+      projectId: data.id,
+      userId: user.id,
+      companyId: user.companyId,
+      role: ensured.role,
+      projectName: name,
+      content: description,
+    });
+  }
+
   let briefGeneration = "";
   try {
     const briefResult = await generateAndPersistOperationalGovernanceBrief({
@@ -75,6 +91,7 @@ export async function createProjectAction(formData: FormData) {
     briefGeneration = "&briefGeneration=failed";
   }
 
-  // Projects open on their Overview (the chat is one view among many).
-  redirect(`/projects/${data.id}${briefGeneration ? `?${briefGeneration.slice(1)}` : ""}`);
+  // New projects land in the Command Center, already showing the operational
+  // intelligence derived from the context typed at creation.
+  redirect(`/command-center?projectId=${data.id}${briefGeneration}`);
 }

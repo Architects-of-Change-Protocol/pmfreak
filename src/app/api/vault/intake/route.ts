@@ -5,6 +5,7 @@ import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { safeInternalErrorResponse } from "@/lib/security/safe-route-error";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseVaultIntakeStore, ingestVaultDocument, type VaultDocumentSourceType } from "@/lib/vault/intake";
+import { materializeRecommendedActions } from "@/lib/recommended-actions";
 
 const ROUTE_ID = "/api/vault/intake";
 
@@ -25,6 +26,7 @@ export type VaultIntakeDeps = {
   requireWorkspaceMember: typeof requireWorkspaceMember;
   createSupabaseServerClient: typeof createSupabaseServerClient;
   ingestVaultDocument: typeof ingestVaultDocument;
+  materializeRecommendedActions: typeof materializeRecommendedActions;
 };
 
 const defaultDeps: VaultIntakeDeps = {
@@ -32,6 +34,7 @@ const defaultDeps: VaultIntakeDeps = {
   requireWorkspaceMember,
   createSupabaseServerClient,
   ingestVaultDocument,
+  materializeRecommendedActions,
 };
 
 /**
@@ -89,8 +92,24 @@ export async function handleVaultIntake(request: Request, depsOverride: Partial<
     store: createSupabaseVaultIntakeStore(supabase),
   });
 
+  // Extracted RAID items become recommended actions (Accept/Reject/Defer in
+  // the Command Center "Needs You" queue). Best-effort: intake already
+  // succeeded, so a materialization failure must not fail the request.
+  let recommendedActionsCreated = 0;
+  if (projectId && result.ingestionStatus !== "document_persistence_failed" && result.ingestionStatus !== "extraction_failed") {
+    try {
+      const materialization = await deps.materializeRecommendedActions({ workspaceId, projectId, supabase });
+      recommendedActionsCreated = materialization.created;
+    } catch (error) {
+      console.error("vault_intake.recommended_actions_failed", {
+        projectId,
+        error: error instanceof Error ? error.message : "unknown",
+      });
+    }
+  }
+
   const status = result.ingestionStatus === "document_persistence_failed" ? 500 : 200;
-  return NextResponse.json(result, { status });
+  return NextResponse.json({ ...result, recommendedActionsCreated }, { status });
 }
 
 export async function POST(request: Request) {

@@ -49,8 +49,9 @@ export function VaultIntakePanel({
         dependencies ? `${dependencies} dependenc${dependencies === 1 ? "y" : "ies"}` : null,
         assumptions ? `${assumptions} assumption${assumptions === 1 ? "" : "s"}` : null,
       ].filter(Boolean);
+      const actionsCreated = vaultResult.recommendedActionsCreated ?? 0;
       const summary = parts.length
-        ? `Notes added. I found ${parts.join(", ")}.`
+        ? `Notes added. I found ${parts.join(", ")}.${actionsCreated > 0 ? " Suggested next steps are waiting for your decision in Needs You." : ""}`
         : "Notes added. Nothing new to flag from this update.";
 
       onIntakeComplete(summary);

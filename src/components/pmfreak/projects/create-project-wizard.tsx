@@ -799,12 +799,13 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
       return;
     }
 
-    // Persistence confirmed — safe to clear draft and navigate.
-    // Projects open on their Overview; chat/execution are views inside it.
+    // Persistence confirmed — safe to clear draft and navigate. New projects
+    // land in the Command Center, already showing the operational intelligence
+    // derived from the onboarding context.
     clearDraft();
-    const briefParam = result.briefStatus === "generation_failed" ? "?briefGeneration=failed" : "";
+    const briefParam = result.briefStatus === "generation_failed" ? "&briefGeneration=failed" : "";
     navigationCommittedRef.current = true;
-    router.push(`/projects/${result.projectId}${briefParam}`);
+    router.push(`/command-center?projectId=${result.projectId}${briefParam}`);
   };
 
   const handleRetry = () => {

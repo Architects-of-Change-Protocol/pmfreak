@@ -6,6 +6,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveWriteWorkspace } from "@/lib/workspaces/resolve-write-workspace";
 import { ensureDefaultPmo, getPmoById } from "@/lib/pmos/pmo-service";
 import { generateAndPersistOperationalGovernanceBrief } from "@/lib/projects/first-insight";
+import { ingestProjectSetupContext } from "@/lib/projects/ingest-project-setup-context";
+import type { ResolvedWriteWorkspace } from "@/lib/workspaces/resolve-write-workspace";
 import type { ProjectOnboardingPayload } from "./project-onboarding-types";
 
 export type ProjectSaveResult =
@@ -96,7 +98,7 @@ export async function saveProjectOnboarding(
       };
     }
 
-    let ensured: { workspaceId: string };
+    let ensured: ResolvedWriteWorkspace;
     try {
       ensured = await resolveWriteWorkspace(user.id);
     } catch (wsErr) {
@@ -177,6 +179,32 @@ export async function saveProjectOnboarding(
 
     // Insert confirmed — project creation must survive first-insight failures.
     insertedProjectId = data.id;
+
+    // Feed the onboarding context into the intelligence loop (vault RAID
+    // extraction + operational evidence chain) before generating the first
+    // brief, so detected RAID items are part of it. Best-effort by design.
+    const contextLines = [
+      payload.deliveryContext.problemStatement ? `Problem statement: ${payload.deliveryContext.problemStatement}` : null,
+      payload.deliveryContext.externalDependencies ? `External dependencies: ${payload.deliveryContext.externalDependencies}` : null,
+      payload.deliveryContext.contractualMilestones ? `Contractual milestones: ${payload.deliveryContext.contractualMilestones}` : null,
+      payload.discovery?.unknowns ? `Known unknowns: ${payload.discovery.unknowns}` : null,
+      payload.discovery?.pendingClientDependencies ? `Pending client dependencies: ${payload.discovery.pendingClientDependencies}` : null,
+      payload.discovery?.pendingAccesses ? `Pending accesses: ${payload.discovery.pendingAccesses}` : null,
+      payload.discovery?.vendorDependencies ? `Vendor dependencies: ${payload.discovery.vendorDependencies}` : null,
+      payload.discovery?.financialBlockers ? `Financial blockers: ${payload.discovery.financialBlockers}` : null,
+    ].filter(Boolean) as string[];
+    if (contextLines.length > 0) {
+      await ingestProjectSetupContext({
+        supabase,
+        workspaceId: ensured.workspaceId,
+        projectId: data.id,
+        userId: user.id,
+        companyId: user.companyId,
+        role: ensured.role ?? null,
+        projectName: payload.identity.projectName,
+        content: contextLines.join("\n"),
+      });
+    }
 
     let briefStatus: "generated" | "generation_failed" = "generated";
     let briefError: string | undefined;
