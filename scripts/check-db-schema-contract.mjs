@@ -68,6 +68,7 @@ const CONTRACT = {
   playbook_snapshots: extractDeclaredColumns("PLAYBOOK_SNAPSHOT_SELECTABLE_COLUMNS"),
   playbook_recommendations: extractDeclaredColumns("PLAYBOOK_RECOMMENDATION_SELECTABLE_COLUMNS"),
   playbook_audit_events: extractDeclaredColumns("PLAYBOOK_AUDIT_EVENT_SELECTABLE_COLUMNS"),
+  workspace_onboarding_preferences: extractDeclaredColumns("WORKSPACE_ONBOARDING_PREFERENCE_SELECTABLE_COLUMNS"),
 };
 
 // ─── Known-drift patterns that MUST NOT appear in runtime code ───────────────
