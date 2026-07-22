@@ -13,6 +13,7 @@ import { WorkspaceContextBanner } from "@/components/pmfreak/workspace/workspace
 import { loadLatestOperationalGovernanceBrief } from "@/lib/projects/first-insight";
 import { noteFounderCommandCenterVisit } from "@/lib/founder-program/checkpoints";
 import { toProjectBrainOnboardingSnapshot } from "@/lib/projects/onboarding-snapshot";
+import { readInitialIngestionStatus, resolveCommandCenterLanding } from "@/lib/projects/initial-ingestion-state";
 import { summarizePortfolio } from "./portfolio-summary";
 
 export default async function CommandCenterPage({
@@ -101,12 +102,12 @@ export default async function CommandCenterPage({
             >
               Try again
             </a>
-            <a
+            <Link
               href="/pmos"
               className="inline-block rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
             >
               Go to PMOs
-            </a>
+            </Link>
           </div>
         </div>
       </div>
@@ -172,6 +173,17 @@ export default async function CommandCenterPage({
   const projectCreatedAt = activeProjectRow?.created_at ?? new Date(0).toISOString();
   const onboardingSnapshot = toProjectBrainOnboardingSnapshot(activeProjectRow?.onboarding_payload ?? null);
 
+  // Which view this Command Center opens with, derived from DURABLE state on
+  // the project row above (no extra query — onboarding_payload is already
+  // selected). `brainJustActivated` is only an advisory hand-off hint now: it
+  // can force the ingestion experience open, but a refresh or a later return
+  // no longer loses the guided first experience, because the marker persists.
+  const initialIngestionStatus = readInitialIngestionStatus(activeProjectRow?.onboarding_payload ?? null);
+  const landingView = resolveCommandCenterLanding({
+    ingestionStatus: initialIngestionStatus,
+    activationHint: brainJustActivated,
+  });
+
   // Operations strip: the Command Center is the workspace's operations
   // console, so it surfaces the full PMO portfolio, not just one project.
   // When the portfolio load failed the strip says so plainly — it must never
@@ -198,7 +210,7 @@ export default async function CommandCenterPage({
       </div>
       <CommandCenterClient
         key={resolution.project!.id}
-        firstRun={brainJustActivated}
+        firstRun={landingView === "ingestion"}
         projectId={resolution.project!.id}
         projectName={resolution.project!.name}
         projectCreatedAt={projectCreatedAt}
