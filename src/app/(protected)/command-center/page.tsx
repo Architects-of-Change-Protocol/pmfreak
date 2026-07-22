@@ -16,7 +16,7 @@ import { noteFounderCommandCenterVisit } from "@/lib/founder-program/checkpoints
 export default async function CommandCenterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; projectId?: string; briefGeneration?: string; error?: string }>;
+  searchParams: Promise<{ from?: string; projectId?: string; briefGeneration?: string; error?: string; brainActivated?: string }>;
 }) {
   const user = await requireAuthUser();
   // Honor the user's active-workspace selection; fall back to the bootstrap
@@ -85,6 +85,12 @@ export default async function CommandCenterPage({
     );
   }
 
+  // Distinct from `fromOnboarding` above: this only fires when the wizard's
+  // own redirect just activated *this exact* project's brain — not for the
+  // PMO activation or invite-team flows, which also use `from=onboarding`
+  // but never set `brainActivated` and often carry no projectId at all.
+  const brainJustActivated = params.brainActivated === "1" && params.projectId === resolution.project!.id;
+
   const initialBrief = await loadLatestOperationalGovernanceBrief(resolution.project!.id, supabase);
 
   // Operations strip: the Command Center is the workspace's operations
@@ -107,7 +113,7 @@ export default async function CommandCenterPage({
       </div>
       <CommandCenterClient
         key={resolution.project!.id}
-        firstRun={fromOnboarding}
+        firstRun={brainJustActivated}
         projectId={resolution.project!.id}
         projectName={resolution.project!.name}
         workspaceId={workspace.workspaceId}

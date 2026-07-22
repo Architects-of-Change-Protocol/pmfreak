@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { EVIDENCE_SOURCE_CATEGORIES, type EvidenceSourceCategoryId } from "./intelligence-inbox-icons";
+import { EVIDENCE_SOURCE_CATEGORIES, NotesIcon, type EvidenceSourceCategoryId } from "./intelligence-inbox-icons";
+
+// "note" is a valid sourceType (manual paste/note captures) but deliberately
+// isn't one of the droppable categories in EVIDENCE_SOURCE_CATEGORIES — that
+// list represents what the drop zone accepts, not what a manual capture is
+// labeled. Handled here instead of folding it into the drop-zone catalog.
+const NOTE_CATEGORY = { id: "note" as const, label: "Notes", Icon: NotesIcon };
 
 // The Project Brain's reasoning pass over one piece of evidence — not a file
 // upload status. "learned" and "failed" are terminal; everything else is a
@@ -10,6 +16,8 @@ export type EvidenceProcessingState = "receiving" | "reading" | "extracting" | "
 
 export type EvidenceTimelineItem = {
   id: string;
+  /** The server-side project_evidence row id, when this item is backed by a real upload — used to poll its real processing status. Absent for manual text captures, which are already fully processed by the time they're added. */
+  evidenceId?: string;
   sourceType: EvidenceSourceCategoryId;
   title: string;
   uploader: string;
@@ -50,7 +58,10 @@ function formatTimestamp(ms: number): string {
 
 export function EvidenceTimelineCard({ item }: { item: EvidenceTimelineItem }) {
   const [showReserved, setShowReserved] = useState(false);
-  const category = EVIDENCE_SOURCE_CATEGORIES.find((c) => c.id === item.sourceType) ?? EVIDENCE_SOURCE_CATEGORIES[1];
+  const category =
+    item.sourceType === "note"
+      ? NOTE_CATEGORY
+      : (EVIDENCE_SOURCE_CATEGORIES.find((c) => c.id === item.sourceType) ?? EVIDENCE_SOURCE_CATEGORIES[1]);
   const Icon = category.Icon;
   const isThinking = item.processingState !== "learned" && item.processingState !== "failed";
 

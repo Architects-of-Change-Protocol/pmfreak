@@ -807,7 +807,10 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
     clearDraft();
     const briefParam = result.briefStatus === "generation_failed" ? "&briefGeneration=failed" : "";
     navigationCommittedRef.current = true;
-    setBootSequenceTarget(`/command-center?projectId=${result.projectId}${briefParam}&from=onboarding`);
+    // A dedicated marker (not the generic `from=onboarding` used by the PMO
+    // activation and invite-team flows) so only the project actually just
+    // activated here shows the Project Intelligence Inbox landing.
+    setBootSequenceTarget(`/command-center?projectId=${result.projectId}${briefParam}&brainActivated=1`);
   };
 
   const handleRetry = () => {

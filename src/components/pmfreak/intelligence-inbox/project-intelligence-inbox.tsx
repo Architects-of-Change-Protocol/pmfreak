@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { EVIDENCE_SOURCE_CATEGORIES, BrainPulseIcon, type EvidenceSourceCategoryId } from "./intelligence-inbox-icons";
 import { EvidenceTimelineCard, type EvidenceTimelineItem, type EvidenceProcessingState } from "./evidence-timeline-card";
@@ -25,31 +25,97 @@ function extensionOf(fileName: string): string {
   return idx === -1 ? "" : fileName.slice(idx).toLowerCase();
 }
 
+function sourceTypeFromFileType(fileType: string): EvidenceSourceCategoryId {
+  const normalized = fileType.toLowerCase();
+  if (normalized.includes("pdf")) return "pdf";
+  if (normalized.includes("xlsx") || normalized.includes("sheet")) return "spreadsheet";
+  if (normalized.includes("pptx") || normalized.includes("presentation")) return "presentation";
+  return "document";
+}
+
+type ServerEvidenceStatus = "uploaded" | "processing" | "processed" | "failed";
+
+// project_evidence.status names the real pipeline stage; "reading"/"updating"
+// are just where that maps in the thinking-stage vocabulary the UI already
+// uses — no synthetic progress, only a relabeling of real server state.
+function processingStateFromServerStatus(status: string): EvidenceProcessingState {
+  if (status === "processed") return "learned";
+  if (status === "failed") return "failed";
+  if (status === "processing") return "updating";
+  return "reading"; // "uploaded" — persisted but extraction hasn't started yet
+}
+
 let localIdCounter = 0;
 function nextLocalId(): string {
   localIdCounter += 1;
   return `local-${localIdCounter}`;
 }
 
-// The Project Brain's reasoning pass, walked automatically after any evidence
-// arrives. Every label names a real stage of what happens to evidence server
-// side (receipt, extraction, memory update) — not fake progress theater.
-const THINKING_STAGES: EvidenceProcessingState[] = ["receiving", "reading", "extracting", "updating", "learned"];
+// The Project Brain's cosmetic reasoning pass, walked automatically after any
+// evidence arrives. Ends at "updating", not "learned" — the terminal state is
+// never fabricated on a timer; it comes from the real server-side status
+// (see pollEvidenceStatus) or, for manual text captures, from the fact that
+// postOperationalFlow's run_chain call already completed synchronously.
+const THINKING_STAGES: EvidenceProcessingState[] = ["receiving", "reading", "extracting", "updating"];
 const THINKING_STAGE_MS = 550;
 
-function advanceThinking(
+function advanceCosmeticThinking(
   itemId: string,
   stageIndex: number,
   setItems: React.Dispatch<React.SetStateAction<EvidenceTimelineItem[]>>,
-  onLearned: () => void
+  onCosmeticDone: () => void
 ) {
   const nextIndex = stageIndex + 1;
-  if (nextIndex >= THINKING_STAGES.length) return;
+  if (nextIndex >= THINKING_STAGES.length) {
+    onCosmeticDone();
+    return;
+  }
   setTimeout(() => {
     setItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, processingState: THINKING_STAGES[nextIndex] } : item)));
-    if (THINKING_STAGES[nextIndex] === "learned") onLearned();
-    else advanceThinking(itemId, nextIndex, setItems, onLearned);
+    advanceCosmeticThinking(itemId, nextIndex, setItems, onCosmeticDone);
   }, THINKING_STAGE_MS);
+}
+
+const POLL_INTERVAL_MS = 2500;
+const MAX_POLL_ATTEMPTS = 20; // ~50s — after that, the card honestly stays on "updating" rather than claiming completion
+
+async function fetchProjectEvidenceRows(projectId: string): Promise<Array<{ id: string; file_name: string; file_type: string; uploaded_at: string; status: ServerEvidenceStatus }>> {
+  const response = await fetch(`/api/project-evidence?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+  if (!response.ok) return [];
+  const result = await response.json();
+  return (result.evidence ?? []) as Array<{ id: string; file_name: string; file_type: string; uploaded_at: string; status: ServerEvidenceStatus }>;
+}
+
+// Polls the real project_evidence row until the background extractor lands
+// on a terminal status. Never advances an item to "learned" on its own —
+// that only happens once the server actually confirms "processed".
+function pollEvidenceStatus(
+  itemId: string,
+  evidenceId: string,
+  projectId: string,
+  attempt: number,
+  setItems: React.Dispatch<React.SetStateAction<EvidenceTimelineItem[]>>,
+  onLearned: () => void
+) {
+  if (attempt >= MAX_POLL_ATTEMPTS) return;
+  setTimeout(async () => {
+    try {
+      const rows = await fetchProjectEvidenceRows(projectId);
+      const row = rows.find((r) => r.id === evidenceId);
+      if (row?.status === "processed") {
+        setItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, processingState: "learned" } : item)));
+        onLearned();
+        return;
+      }
+      if (row?.status === "failed") {
+        setItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, processingState: "failed" } : item)));
+        return;
+      }
+    } catch {
+      // Transient network hiccup — keep polling rather than giving up early.
+    }
+    pollEvidenceStatus(itemId, evidenceId, projectId, attempt + 1, setItems, onLearned);
+  }, POLL_INTERVAL_MS);
 }
 
 type QuickAction = {
@@ -99,10 +165,54 @@ export function ProjectIntelligenceInbox({
     }, 2600);
   };
 
+  // Load the project's already-persisted evidence on arrival — otherwise a
+  // refresh (or revisiting this screen) would falsely claim the brain knows
+  // nothing when /api/upload already saved evidence in an earlier visit.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const rows = await fetchProjectEvidenceRows(projectId);
+      if (cancelled || rows.length === 0) return;
+      const loaded: EvidenceTimelineItem[] = rows.map((row) => ({
+        id: row.id,
+        evidenceId: row.id,
+        sourceType: sourceTypeFromFileType(row.file_type),
+        title: row.file_name,
+        uploader: "Project team",
+        timestampMs: new Date(row.uploaded_at).getTime(),
+        processingState: processingStateFromServerStatus(row.status),
+      }));
+      setItems((prev) => {
+        const existingEvidenceIds = new Set(prev.map((item) => item.evidenceId).filter(Boolean));
+        const fresh = loaded.filter((item) => !existingEvidenceIds.has(item.evidenceId));
+        return [...prev, ...fresh].sort((a, b) => b.timestampMs - a.timestampMs);
+      });
+      for (const item of loaded) {
+        if (item.processingState !== "learned" && item.processingState !== "failed") {
+          pollEvidenceStatus(item.id, item.evidenceId!, projectId, 0, setItems, () => {});
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
   const beginLearning = (newItems: EvidenceTimelineItem[]) => {
     setItems((prev) => [...newItems, ...prev]);
     for (const item of newItems) {
-      advanceThinking(item.id, 0, setItems, () => triggerMomentum(item.title));
+      advanceCosmeticThinking(item.id, 0, setItems, () => {
+        if (item.evidenceId) {
+          // A real upload — only the server's own background extractor gets
+          // to decide when this is actually learned.
+          pollEvidenceStatus(item.id, item.evidenceId, projectId, 0, setItems, () => triggerMomentum(item.title));
+        } else {
+          // Manual text capture — postOperationalFlow's run_chain call has
+          // already completed synchronously by the time we got a result.
+          setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, processingState: "learned" } : i)));
+          triggerMomentum(item.title);
+        }
+      });
     }
     onEvidenceAdded?.();
   };
@@ -139,8 +249,9 @@ export function ProjectIntelligenceInbox({
         return;
       }
 
-      const newItems: EvidenceTimelineItem[] = result.files.map((f: { fileName: string }) => ({
+      const newItems: EvidenceTimelineItem[] = result.files.map((f: { fileName: string; evidenceId: string }) => ({
         id: nextLocalId(),
+        evidenceId: f.evidenceId,
         sourceType: SUPPORTED_EXTENSIONS[extensionOf(f.fileName)] ?? "document",
         title: f.fileName,
         uploader: "You",
