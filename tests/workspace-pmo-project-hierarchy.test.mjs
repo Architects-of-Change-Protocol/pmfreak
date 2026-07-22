@@ -204,11 +204,7 @@ test("new routes are registered in the route access policy", () => {
 test("project creation lands in the command center scoped to the new project", () => {
   assert.ok(projectsAction.includes("redirect(`/command-center?projectId=${project.id}"));
   const wizard = fs.readFileSync("src/components/pmfreak/projects/create-project-wizard.tsx", "utf8");
-  // Navigation is deferred through the brain boot sequence rather than an
-  // immediate router.push, but it still ultimately lands on the new
-  // project's Command Center once the sequence completes.
-  assert.ok(wizard.includes("/command-center?projectId=${result.projectId}"));
-  assert.ok(wizard.includes("router.push(bootSequenceTarget)"));
+  assert.ok(wizard.includes("router.push(`/command-center?projectId=${result.projectId}"));
 });
 
 test("project overview exposes chat as one tab among many", () => {
