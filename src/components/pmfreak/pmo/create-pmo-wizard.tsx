@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type {
   PmoTenant,
@@ -21,6 +21,7 @@ import { COMMAND_CENTER_TYPES } from "@/lib/command-center/command-center-types"
 import {
   CommandCenterActivationSequence,
   useCommandCenterActivation,
+  SUCCESS_CONFIRMATION_DURATION_MS,
 } from "@/components/pmfreak/activation/command-center-activation";
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
@@ -715,6 +716,8 @@ export function CreatePmoWizard() {
   const [createCorrelationId, setCreateCorrelationId] = useState<string | null>(null);
   const [showErrorDetails, setShowErrorDetails] = useState(false);
   const activation = useCommandCenterActivation();
+  // Guards against a second savePmoTenant going in flight beside the first.
+  const inFlightRef = useRef(false);
 
   const [identity, setIdentityState] = useState<PmoTenantIdentity>(() => {
     const draft = loadDraft();
@@ -802,14 +805,19 @@ export function CreatePmoWizard() {
   };
 
   const handleCreate = async () => {
-    activation.markStarted();
+    // Single duplicate-submission guard: without it, Retry or a double click
+    // could put a second savePmoTenant in flight alongside the first.
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+
     if (createError) {
       console.info(JSON.stringify({ event: "pmo.create.retry", timestamp: new Date().toISOString() }));
     }
     setCreating(true);
     setCreateError(null);
     setCreateErrorClass(null);
-    activation.markRequestSent();
+    // Synchronous, so the overlay reflects the in-flight request immediately.
+    activation.markSubmitting();
 
     const tenant: PmoTenant = {
       identity,
@@ -821,39 +829,69 @@ export function CreatePmoWizard() {
       updatedAt: new Date().toISOString(),
     };
 
-    const result = await savePmoTenant(tenant);
-
-    if (result.status !== "success") {
-      // Persistence failed — block navigation, preserve draft, surface error.
-      setCreateError(result.error);
-      setCreateErrorClass(result.status);
-      setCreateCorrelationId(result.correlationId);
-      setCreating(false);
-      activation.reset();
-      // Draft intentionally preserved so the user does not lose their work.
-      return;
-    }
-
-    // Persistence confirmed — safe to cache locally, clear draft, and navigate.
     try {
-      localStorage.setItem("pmfreak.pmo.tenant", JSON.stringify(tenant));
-    } catch {}
-    clearDraft();
+      const result = await savePmoTenant(tenant);
 
-    void activation.runInitializationSequence(agents.filter((a) => a.enabled).map((a) => a.agentId));
+      if (result.status !== "success") {
+        // Persistence failed — block navigation, preserve draft, surface error.
+        setCreateError(result.error);
+        setCreateErrorClass(result.status);
+        setCreateCorrelationId(result.correlationId);
+        activation.markFailure(result.error);
+        // Draft intentionally preserved so the user does not lose their work.
+        return;
+      }
+
+      // Persistence confirmed — safe to cache locally and clear the draft.
+      try {
+        localStorage.setItem("pmfreak.pmo.tenant", JSON.stringify(tenant));
+      } catch {}
+      clearDraft();
+
+      activation.markSuccess();
+    } catch (err) {
+      // A rejected server action (transport failure, redirected POST, dropped
+      // connection) must never strand the overlay mid-flight. Before this
+      // catch existed, a rejection escaped handleCreate and pinned the UI on
+      // "Creating Command Center..." indefinitely — the reported UAT hang.
+      const message =
+        "We couldn't reach the server to finish creating your Command Center. Your setup has been preserved, so you can try again.";
+      console.error(
+        JSON.stringify({
+          event: "pmo.create.request_rejected",
+          reason: err instanceof Error ? err.message : "unknown",
+        }),
+      );
+      setCreateError(message);
+      setCreateErrorClass("recoverable_failure");
+      activation.markFailure(message);
+    } finally {
+      setCreating(false);
+      inFlightRef.current = false;
+    }
   };
 
-  const handleContinueToCommandCenter = () => {
-    // Land the user directly in their new Command Center — onboarding actions
-    // (invite team, create first project, etc.) live there as recommended
-    // next actions, not as a separate page blocking arrival.
-    router.push("/command-center?from=onboarding");
-  };
-
-  const handleRetryAfterTimeout = () => {
-    activation.reset();
+  /**
+   * Retry after a confirmed failure. Starts a genuinely new savePmoTenant
+   * attempt — safe to repeat because savePmoTenant upserts
+   * workspace_governance on workspace_id and guards its pmos insert with an
+   * existence check, so retrying cannot create a duplicate Command Center.
+   */
+  const handleRetryActivation = () => {
     void handleCreate();
   };
+
+  // Automatic navigation after a brief success confirmation. The delay only
+  // acknowledges that activation completed; no work is running during it.
+  // /command-center opens the Project Intelligence Inbox on its own, from the
+  // durable initial-ingestion marker — no brainActivated=1 needed.
+  useEffect(() => {
+    if (activation.state.status !== "success") return;
+    const timer = setTimeout(() => {
+      router.push("/command-center?from=onboarding");
+    }, SUCCESS_CONFIRMATION_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [activation.state.status, router]);
 
   const renderStep = () => {
     switch (step) {
@@ -895,9 +933,7 @@ export function CreatePmoWizard() {
         pmoName={identity.pmoName}
         deliveryChallengeCount={contextSeed.deliveryChallenges.length}
         hasContextSeed={Boolean(contextSeed.strategicObjective || contextSeed.successDefinition)}
-        onKeepWaiting={activation.keepWaiting}
-        onRetryTimeout={handleRetryAfterTimeout}
-        onContinue={handleContinueToCommandCenter}
+        onRetry={handleRetryActivation}
       />
 
       {/* Stepper */}

@@ -169,13 +169,25 @@ test("wizard shows blocking error banner when persistence fails", () => {
   assert.match(wizard, /Command Center activation failed/, "blocking error title must be rendered");
 });
 
-test("wizard sets creating=false and returns early on failure", () => {
+test("wizard always clears the creating spinner and returns early on failure", () => {
   const guardStart = wizard.indexOf('result.status !== "success"');
   const guardEnd = wizard.indexOf("// Persistence confirmed");
   assert.ok(guardStart > 0 && guardEnd > guardStart, "failure branch boundaries must be identifiable");
   const failureBranch = wizard.slice(guardStart, guardEnd);
-  assert.match(failureBranch, /setCreating\(false\)/, "must reset creating spinner on failure");
   assert.match(failureBranch, /return/, "must return early on failure");
+
+  // setCreating(false) moved out of the failure branch and into finally, so it
+  // now runs on EVERY path - including a rejected server action, which
+  // previously escaped handleCreate entirely and stranded the spinner (and the
+  // activation overlay) forever. This is a stronger guarantee than the old
+  // branch-local assertion, not a weaker one.
+  const start = wizard.indexOf("const handleCreate = async");
+  const body = wizard.slice(start, wizard.indexOf("const handleRetryActivation"));
+  assert.match(
+    body,
+    /finally\s*\{[\s\S]*setCreating\(false\)/,
+    "the creating spinner must be cleared in finally, on every path",
+  );
 });
 
 test("Activate button is disabled while createError is set", () => {

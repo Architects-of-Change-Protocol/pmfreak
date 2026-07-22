@@ -1,76 +1,43 @@
-import type { AgentId } from "@/lib/pmo/pmo-tenant-types";
-
-// ─── State machine vocabulary ──────────────────────────────────────────────
+// ─── Activation state machine ──────────────────────────────────────────────
 //
-// Error/timeout/cancelled are intentionally NOT terminal statuses here.
-// create-pmo-wizard.tsx already owns error handling (createError /
-// createErrorClass) with its own tested contract — this machine only models
-// the "things are going well" path (click → server confirms → initialize →
-// ready) plus a timeout flag layered on top of "request_sent". On failure,
-// the wizard calls reset() and its existing inline error UI takes over.
+// Every visible state here corresponds to a real system state.
+//
+// savePmoTenant is a single synchronous server action: it either completes all
+// of its writes and returns success, or it catches, rolls back its governance
+// upsert, and returns a typed failure. There is no queue, no worker, and no
+// post-persistence initialization phase — so there is nothing to poll and
+// nothing to "keep waiting" for.
+//
+// The previous machine modelled created -> initializing -> ready driven by
+// setTimeout, animating provisioning/memory/agent stages that no backend
+// operation performed. That has been removed entirely rather than relabelled:
+// simulated progress is indistinguishable from a lie to the user, and it hid a
+// real hang (a rejected save stranded the UI in request_sent forever).
+//
+// Persisted domain state remains exactly two values — not activated, and
+// activated (workspace_governance row + workspaces.command_center_type). None
+// of the statuses below are persisted; they describe only this client's own
+// in-flight request.
 
 export type ActivationStatus =
   | "idle"
-  | "activation_started"
-  | "request_sent"
-  | "created"
-  | "initializing"
-  | "ready";
-
-export type InitializationStageId =
-  | "context"
-  | "graph"
-  | "memory"
-  | "agents"
-  | "signals"
-  | "executive-picture"
-  | "dashboard-prep";
-
-export type AgentConnectionStatus = "dormant" | "connecting" | "online";
+  /** The server action is in flight. The only truthful "working" state. */
+  | "submitting"
+  /** The server action returned success. Brief confirmation, then navigation. */
+  | "success"
+  /** The attempt failed or never resolved. Recoverable — Retry starts a new attempt. */
+  | "failure";
 
 export type ActivationState = {
   status: ActivationStatus;
-  /** The stage currently in progress (in the "initializing" status only). */
-  currentStageId: InitializationStageId | null;
-  /** Stages that have already finished, in completion order — lets a rendered list show checkmarks for prior stages while the current one animates. */
-  completedStageIds: InitializationStageId[];
-  /** Per-agent connection status, keyed by AgentId, for the "agents" stage. Only enabled agents ever appear here. */
-  agentStatuses: Partial<Record<AgentId, AgentConnectionStatus>>;
-  /** True while "request_sent" has exceeded the configured timeout — an overlay flag, not a new status. */
-  timedOut: boolean;
+  /** Honest, user-facing reason shown in the failure state. Null unless status is "failure". */
+  error: string | null;
+  /** 1 for the first attempt, incremented per retry. Diagnostics only — never implies progress. */
+  attempt: number;
 };
 
 export const INITIAL_ACTIVATION_STATE: ActivationState = {
   status: "idle",
-  currentStageId: null,
-  completedStageIds: [],
-  agentStatuses: {},
-  timedOut: false,
-};
-
-// ─── Progress events ────────────────────────────────────────────────────────
-//
-// Any progress source (timer-driven today, SSE/WebSocket-driven in the
-// future) emits this same event shape. Nothing downstream needs to change
-// when the source changes.
-
-export type ActivationProgressEvent =
-  | { type: "stage-start"; stageId: InitializationStageId }
-  | { type: "stage-complete"; stageId: InitializationStageId }
-  | { type: "agent-connecting"; agentId: AgentId }
-  | { type: "agent-online"; agentId: AgentId }
-  | { type: "sequence-complete" };
-
-export type ActivationProgressListener = (event: ActivationProgressEvent) => void;
-
-/**
- * Anything that can drive the initialization sequence. `createTimerProgressSource`
- * is the only implementation today. A future `createSseProgressSource(correlationId)`
- * could subscribe to server-pushed events and emit this same event shape —
- * the hook and every component below are agnostic to where events come from.
- */
-export type ProgressSource = {
-  start(context: { enabledAgentIds: AgentId[] }): void;
-  subscribe(listener: ActivationProgressListener): () => void;
-  stop(): void;
+  error: null,
+  attempt: 0,
 };

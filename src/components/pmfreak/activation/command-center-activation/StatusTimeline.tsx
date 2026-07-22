@@ -1,45 +1,36 @@
 import type { ActivationStatus } from "./types";
 
+// Two steps, because there are two real ones. The former five-step timeline
+// (Started / Creating / Created / Initializing / Ready) advertised backend
+// phases that did not exist.
 const STEPS: { status: ActivationStatus; label: string }[] = [
-  { status: "activation_started", label: "Started" },
-  { status: "request_sent", label: "Creating" },
-  { status: "created", label: "Created" },
-  { status: "initializing", label: "Initializing" },
-  { status: "ready", label: "Ready" },
+  { status: "submitting", label: "Creating" },
+  { status: "success", label: "Created" },
 ];
 
 const ORDER: ActivationStatus[] = STEPS.map((s) => s.status);
 
-/** Compact top-of-overlay indicator: which real step of the activation is currently active. */
 export function StatusTimeline({ status }: { status: ActivationStatus }) {
   const currentIndex = ORDER.indexOf(status);
 
   return (
     <div className="flex items-center gap-1.5" role="status" aria-label={`Activation status: ${status}`}>
-      {STEPS.map((step, i) => {
-        const isDone = i < currentIndex;
-        const isActive = i === currentIndex;
+      {STEPS.map((step, index) => {
+        const reached = currentIndex >= index && currentIndex !== -1;
         return (
           <div key={step.status} className="flex flex-1 items-center gap-1.5">
-            <div className="flex-1">
-              <div className="h-px overflow-hidden rounded-full bg-slate-200">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    isDone || isActive
-                      ? "bg-gradient-to-r from-cyan-500 via-sky-400 to-cyan-400"
-                      : "bg-transparent"
-                  }`}
-                  style={{ width: isDone ? "100%" : isActive ? "60%" : "0%" }}
-                />
-              </div>
-              <p
-                className={`mt-1.5 text-[9px] uppercase tracking-[0.16em] transition-colors duration-300 ${
-                  isActive ? "text-cyan-700" : isDone ? "text-slate-400" : "text-slate-300"
-                }`}
-              >
-                {step.label}
-              </p>
-            </div>
+            <span
+              className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${
+                reached ? "bg-cyan-500" : "bg-slate-300"
+              }`}
+            />
+            <span
+              className={`text-[10px] uppercase tracking-[0.14em] transition-colors ${
+                reached ? "text-slate-900" : "text-slate-400"
+              }`}
+            >
+              {step.label}
+            </span>
           </div>
         );
       })}

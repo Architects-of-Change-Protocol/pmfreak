@@ -1,37 +1,20 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import type { AgentId } from "@/lib/pmo/pmo-tenant-types";
-import type { ActivationState, InitializationStageId } from "./types";
-import { activeInitializationStages } from "./activation-sequence-config";
+import type { ActivationState } from "./types";
 import { StatusTimeline } from "./StatusTimeline";
-import { InitializationStage } from "./InitializationStage";
-import { AgentActivationList } from "./AgentActivationList";
-import { ActivationTimeoutState } from "./ActivationTimeoutState";
+import { ActivationFailureState } from "./ActivationFailureState";
 import { TransitionOverlay } from "./TransitionOverlay";
 
-const HEADLINE_BY_STATUS: Partial<Record<ActivationState["status"], string>> = {
-  activation_started: "Activation Started",
-  request_sent: "Creating Command Center…",
-  created: "Command Center Created",
-  initializing: "Setting up your Command Center",
-};
-
-function stagePhase(
-  stageId: InitializationStageId,
-  state: ActivationState
-): "pending" | "active" | "complete" {
-  if (state.completedStageIds.includes(stageId)) return "complete";
-  if (state.currentStageId === stageId) return "active";
-  return "pending";
-}
-
 /**
- * Full-screen overlay orchestrating the whole "things are going well" journey:
- * click received -> request sent -> created -> initializing (per-stage, with
- * agents connecting individually) -> ready. Error states are NOT rendered
- * here — create-pmo-wizard.tsx's existing inline error UI takes over once the
- * caller calls activation.reset().
+ * Full-screen overlay for the real activation lifecycle:
+ *
+ *   submitting -> success (brief confirmation, then the caller navigates)
+ *   submitting -> failure (recoverable, Retry starts a new attempt)
+ *
+ * There is no simulated provisioning, agent activation, or memory preparation:
+ * savePmoTenant does all of its work in one synchronous call, so "submitting"
+ * is the only truthful in-progress state this can show.
  */
 export function CommandCenterActivationSequence({
   state,
@@ -39,22 +22,16 @@ export function CommandCenterActivationSequence({
   pmoName,
   deliveryChallengeCount,
   hasContextSeed,
-  onKeepWaiting,
-  onRetryTimeout,
-  onContinue,
+  onRetry,
 }: {
   state: ActivationState;
-  enabledAgentIds: AgentId[];
+  enabledAgentIds: string[];
   pmoName: string;
   deliveryChallengeCount: number;
   hasContextSeed: boolean;
-  onKeepWaiting: () => void;
-  onRetryTimeout: () => void;
-  onContinue: () => void;
+  onRetry: () => void;
 }) {
   if (state.status === "idle") return null;
-
-  const showTimeout = state.status === "request_sent" && state.timedOut;
 
   return (
     <AnimatePresence>
@@ -68,53 +45,38 @@ export function CommandCenterActivationSequence({
         <div className="pointer-events-none absolute -inset-32 bg-[radial-gradient(ellipse_at_center,rgba(56,189,248,0.10),transparent_65%)]" />
 
         <div className="relative w-full max-w-lg px-6">
-          {state.status === "ready" ? (
+          {state.status === "success" ? (
             <TransitionOverlay
               pmoName={pmoName}
               enabledAgentCount={enabledAgentIds.length}
               deliveryChallengeCount={deliveryChallengeCount}
               hasContextSeed={hasContextSeed}
-              onContinue={onContinue}
             />
+          ) : state.status === "failure" ? (
+            <div className="space-y-7">
+              <div className="space-y-4 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-cyan-600">
+                  PMFreak Activation
+                </p>
+                <h2 className="text-2xl font-semibold text-slate-900">Activation didn&apos;t complete</h2>
+              </div>
+              <ActivationFailureState
+                message={state.error ?? "Something went wrong while creating your Command Center."}
+                onRetry={onRetry}
+                retrying={false}
+              />
+            </div>
           ) : (
             <div className="space-y-7">
               <div className="space-y-4 text-center">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-cyan-600">
                   PMFreak Activation
                 </p>
-                <h2 className="text-2xl font-semibold text-slate-900">{HEADLINE_BY_STATUS[state.status]}</h2>
+                <h2 className="text-2xl font-semibold text-slate-900">Creating Command Center…</h2>
                 <StatusTimeline status={state.status} />
+                {/* Truthful: one request is in flight. No background work is implied. */}
+                <p className="text-sm text-zinc-500">Saving your Command Center configuration.</p>
               </div>
-
-              {showTimeout && (
-                <ActivationTimeoutState onKeepWaiting={onKeepWaiting} onRetry={onRetryTimeout} />
-              )}
-
-              {state.status === "initializing" && (
-                <div className="space-y-2">
-                  {activeInitializationStages().map((stage) => {
-                    const phase = stagePhase(stage.id, state);
-                    if (stage.id === "agents" && phase !== "pending") {
-                      return (
-                        <div key={stage.id} className="space-y-2">
-                          <p
-                            className={`px-1 text-sm font-medium ${
-                              phase === "active" ? "text-slate-900" : "text-slate-500"
-                            }`}
-                          >
-                            {phase === "complete" ? stage.completeLabel : stage.label}
-                          </p>
-                          <AgentActivationList
-                            enabledAgentIds={enabledAgentIds}
-                            agentStatuses={state.agentStatuses}
-                          />
-                        </div>
-                      );
-                    }
-                    return <InitializationStage key={stage.id} stage={stage} phase={phase} />;
-                  })}
-                </div>
-              )}
             </div>
           )}
         </div>

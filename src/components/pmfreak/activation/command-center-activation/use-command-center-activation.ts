@@ -1,139 +1,81 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
-import type { AgentId } from "@/lib/pmo/pmo-tenant-types";
-import type { ActivationState, ProgressSource } from "./types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ActivationState } from "./types";
 import { INITIAL_ACTIVATION_STATE } from "./types";
-import { CREATED_CONFIRMATION_DURATION_MS, DEFAULT_TIMEOUT_MS } from "./activation-sequence-config";
-import { createTimerProgressSource } from "./timer-progress-source";
+import { SUBMIT_TIMEOUT_MS } from "./activation-sequence-config";
+
+export const ACTIVATION_TIMEOUT_MESSAGE =
+  "We didn't get a response while creating your Command Center. Nothing was partially created — you can try again.";
 
 /**
- * Drives the "things are going well" activation state machine:
- * idle -> activation_started -> request_sent -> created -> initializing -> ready.
+ * Drives the real request lifecycle around savePmoTenant:
  *
- * Deliberately does not own error handling — the caller (create-pmo-wizard.tsx)
- * keeps its own tested createError/createErrorClass contract and calls reset()
- * on failure so this overlay steps aside.
+ *   idle -> submitting -> success | failure
+ *                            ^         |
+ *                            +-- retry +
+ *
+ * The timeout exists ONLY as protection against a promise that never settles.
+ * It is a single setTimeout (never a repeating interval), it resolves to a
+ * terminal `failure` the user can act on, it is cancelled on success, failure,
+ * retry, reset and unmount, and it never claims that work continues in the
+ * background — because none does.
  */
-export function useCommandCenterActivation(options?: {
-  timeoutMs?: number;
-  createProgressSource?: () => ProgressSource;
-}) {
-  const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const createProgressSource = options?.createProgressSource ?? createTimerProgressSource;
+export function useCommandCenterActivation(options?: { timeoutMs?: number }) {
+  const timeoutMs = options?.timeoutMs ?? SUBMIT_TIMEOUT_MS;
 
   const [state, setState] = useState<ActivationState>(INITIAL_ACTIVATION_STATE);
-  const timeoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const sourceRef = useRef<ProgressSource | null>(null);
-  const pendingTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const clearTimeoutTimer = useCallback(() => {
-    if (timeoutTimerRef.current) {
-      clearInterval(timeoutTimerRef.current);
-      timeoutTimerRef.current = null;
+  const clearPendingTimeout = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
   }, []);
 
-  const clearPendingTimers = useCallback(() => {
-    pendingTimersRef.current.forEach(clearTimeout);
-    pendingTimersRef.current = [];
-  }, []);
-
-  /** Estado 1 — click received. Synchronous, renders before any network call starts. */
-  const markStarted = useCallback(() => {
-    setState({ ...INITIAL_ACTIVATION_STATE, status: "activation_started" });
-  }, []);
-
-  /** Estado 2 — request sent, waiting on the real server action. Arms the timeout overlay. */
-  const markRequestSent = useCallback(() => {
-    setState((s) => ({ ...s, status: "request_sent", timedOut: false }));
-    clearTimeoutTimer();
-    timeoutTimerRef.current = setInterval(() => {
-      setState((s) => (s.status === "request_sent" ? { ...s, timedOut: true } : s));
-    }, timeoutMs);
-  }, [timeoutMs, clearTimeoutTimer]);
-
-  /** "Keep Waiting" from the timeout overlay — dismiss it, keep awaiting the same in-flight request. */
-  const keepWaiting = useCallback(() => {
-    setState((s) => ({ ...s, timedOut: false }));
-  }, []);
-
-  /** Hands control back to the caller's own error UI, or aborts a run in progress. */
-  const reset = useCallback(() => {
-    clearTimeoutTimer();
-    clearPendingTimers();
-    sourceRef.current?.stop();
-    sourceRef.current = null;
-    setState(INITIAL_ACTIVATION_STATE);
-  }, [clearTimeoutTimer, clearPendingTimers]);
+  // A timer must never outlive the component that armed it.
+  useEffect(() => clearPendingTimeout, [clearPendingTimeout]);
 
   /**
-   * Estado 3 onward — call only after the backend has confirmed creation.
-   * Resolves once status reaches "ready". enabledAgentIds must be the real,
-   * user-selected agent list (never a hardcoded roster).
+   * Enters `submitting` and arms the single unresolved-promise guard. Called
+   * synchronously on click so the UI reflects the request immediately.
    */
-  const runInitializationSequence = useCallback(
-    (enabledAgentIds: AgentId[]) => {
-      clearTimeoutTimer();
-      return new Promise<void>((resolve) => {
-        setState((s) => ({
-          ...s,
-          status: "created",
-          currentStageId: null,
-          completedStageIds: [],
-          agentStatuses: {},
-          timedOut: false,
-        }));
+  const markSubmitting = useCallback(() => {
+    clearPendingTimeout();
+    setState((s) => ({ status: "submitting", error: null, attempt: s.attempt + 1 }));
+    timeoutRef.current = setTimeout(() => {
+      timeoutRef.current = null;
+      // Only a still-submitting attempt can time out; a settled one is terminal.
+      setState((s) =>
+        s.status === "submitting" ? { ...s, status: "failure", error: ACTIVATION_TIMEOUT_MESSAGE } : s,
+      );
+    }, timeoutMs);
+  }, [timeoutMs, clearPendingTimeout]);
 
-        const startTimer = setTimeout(() => {
-          const source = createProgressSource();
-          sourceRef.current = source;
+  /** The server action confirmed persistence. */
+  const markSuccess = useCallback(() => {
+    clearPendingTimeout();
+    setState((s) => ({ ...s, status: "success", error: null }));
+  }, [clearPendingTimeout]);
 
-          const unsubscribe = source.subscribe((event) => {
-            switch (event.type) {
-              case "stage-start":
-                setState((s) => ({ ...s, status: "initializing", currentStageId: event.stageId }));
-                break;
-              case "stage-complete":
-                setState((s) => ({
-                  ...s,
-                  completedStageIds: s.completedStageIds.includes(event.stageId)
-                    ? s.completedStageIds
-                    : [...s.completedStageIds, event.stageId],
-                }));
-                break;
-              case "agent-connecting":
-                setState((s) => ({
-                  ...s,
-                  agentStatuses: { ...s.agentStatuses, [event.agentId]: "connecting" },
-                }));
-                break;
-              case "agent-online":
-                setState((s) => ({
-                  ...s,
-                  agentStatuses: { ...s.agentStatuses, [event.agentId]: "online" },
-                }));
-                break;
-              case "sequence-complete":
-                setState((s) => ({ ...s, status: "ready", currentStageId: null }));
-                unsubscribe();
-                sourceRef.current = null;
-                resolve();
-                break;
-            }
-          });
-
-          source.start({ enabledAgentIds });
-        }, CREATED_CONFIRMATION_DURATION_MS);
-
-        pendingTimersRef.current.push(startTimer);
-      });
+  /** The attempt failed. Terminal but recoverable — Retry calls markSubmitting again. */
+  const markFailure = useCallback(
+    (error: string) => {
+      clearPendingTimeout();
+      setState((s) => ({ ...s, status: "failure", error }));
     },
-    [clearTimeoutTimer, createProgressSource]
+    [clearPendingTimeout],
   );
 
+  /** Full teardown back to idle (e.g. the overlay is dismissed entirely). */
+  const reset = useCallback(() => {
+    clearPendingTimeout();
+    setState(INITIAL_ACTIVATION_STATE);
+  }, [clearPendingTimeout]);
+
   return useMemo(
-    () => ({ state, markStarted, markRequestSent, keepWaiting, reset, runInitializationSequence }),
-    [state, markStarted, markRequestSent, keepWaiting, reset, runInitializationSequence]
+    () => ({ state, markSubmitting, markSuccess, markFailure, reset }),
+    [state, markSubmitting, markSuccess, markFailure, reset],
   );
 }
