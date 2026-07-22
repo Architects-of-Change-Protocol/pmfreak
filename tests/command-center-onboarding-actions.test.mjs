@@ -49,7 +49,11 @@ test("page loads the real PMO portfolio before branching, so the empty state can
   const emptyStateIdx = page.indexOf("<CommandCenterEmptyState");
   assert.ok(pmoFetchIdx > 0, "must fetch the PMO portfolio");
   assert.ok(emptyStateIdx > pmoFetchIdx, "PMO portfolio must be loaded before rendering the empty state");
-  assert.match(page, /pmoName=\{pmoPortfolio\[0\]\?\.name \?\? null\}/);
+  // The portfolio load is now failure-tolerant (see portfolio-summary.ts), so
+  // the name comes from the summarized "available" variant. Intent is
+  // unchanged: a real PMO name or null — never a fabricated placeholder, and
+  // never a name invented after a failed portfolio read.
+  assert.match(page, /pmoName=\{portfolio\.status === "available" \? portfolio\.firstPmoName : null\}/);
 });
 
 test("the invite nudge only renders with a real fromOnboarding flag and a real pmoName, never a fabricated default", () => {

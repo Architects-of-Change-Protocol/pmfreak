@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth";
 import { ensureUserWorkspace } from "@/lib/workspaces";
 import { resolvePreferredWorkspace } from "@/lib/workspaces/preferred-workspace";
-import { listPmosWithProjects } from "@/lib/pmos/pmo-service";
+import { listPmosWithProjects, type PmoWithProjects } from "@/lib/pmos/pmo-service";
 import { CommandCenterClient, CommandCenterEmptyState } from "@/features/command-center";
 import { resolveActiveProject } from "@/lib/resolve-active-project";
 import { getCompanySubscription } from "@/lib/billing";
@@ -13,6 +13,7 @@ import { WorkspaceContextBanner } from "@/components/pmfreak/workspace/workspace
 import { loadLatestOperationalGovernanceBrief } from "@/lib/projects/first-insight";
 import { noteFounderCommandCenterVisit } from "@/lib/founder-program/checkpoints";
 import { toProjectBrainOnboardingSnapshot } from "@/lib/projects/onboarding-snapshot";
+import { summarizePortfolio } from "./portfolio-summary";
 
 export default async function CommandCenterPage({
   searchParams,
@@ -36,7 +37,7 @@ export default async function CommandCenterPage({
   const capabilities = getPlanCapabilities(subscription.plan);
   const briefGenerationFailed = params.briefGeneration === "failed";
 
-  const { data: projects } = await supabase
+  const { data: projects, error: projectsError } = await supabase
     .from("projects")
     .select("id,name")
     .eq("workspace_id", workspace.workspaceId)
@@ -46,7 +47,71 @@ export default async function CommandCenterPage({
   // just activated a Command Center but hasn't created a project yet can
   // still see a real, honest "invite your team to {pmoName}" nudge in the
   // empty state instead of generic copy.
-  const pmoPortfolio = await listPmosWithProjects(workspace.workspaceId);
+  //
+  // Deliberately non-fatal. The PMO portfolio is contextual, not load-bearing:
+  // this screen renders from `projects` alone. listPmosWithProjects throws on
+  // any Supabase error (pmo-service.ts:35,48) and this call sits *before* the
+  // empty-state guard below, so an unhandled failure here took down the whole
+  // Command Center — including the empty state a brand-new account is meant
+  // to land on. A failure now degrades this one strip and nothing else.
+  //
+  // Workspace isolation is unchanged: the query is still scoped to
+  // workspace.workspaceId, and failing yields *less* data, never another
+  // workspace's.
+  let pmoPortfolio: PmoWithProjects[] | null = null;
+  try {
+    pmoPortfolio = await listPmosWithProjects(workspace.workspaceId);
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "command_center.pmo_portfolio_unavailable",
+        workspaceId: workspace.workspaceId,
+        reason: error instanceof Error ? error.message : "unknown",
+      }),
+    );
+  }
+  const portfolio = summarizePortfolio(pmoPortfolio);
+
+  // A failed projects read is "we could not load your projects", not "you
+  // have none". Falling through to the empty state would tell an established
+  // workspace to create its first project — a false claim about their data.
+  // Classified explicitly rather than silently swallowed, and recoverable:
+  // retry plus safe navigation.
+  if (projectsError) {
+    console.error(
+      JSON.stringify({
+        event: "command_center.projects_unavailable",
+        workspaceId: workspace.workspaceId,
+        reason: projectsError.message,
+      }),
+    );
+    return (
+      <div className="space-y-4">
+        <WorkspaceContextBanner lens="Command Center" />
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-6">
+          <p className="text-sm font-semibold text-amber-900">We couldn&apos;t load your projects</p>
+          <p className="mt-1 text-xs text-amber-700/80">
+            This is a temporary problem reading your workspace, not a permissions issue. Nothing has
+            been changed or lost. Please try again in a moment.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a
+              href="/command-center"
+              className="inline-block rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Try again
+            </a>
+            <a
+              href="/pmos"
+              className="inline-block rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Go to PMOs
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if ((projects ?? []).length === 0) {
     return (
@@ -56,7 +121,7 @@ export default async function CommandCenterPage({
           activateAction={activateContextAction}
           errorMessage={params.error}
           fromOnboarding={fromOnboarding}
-          pmoName={pmoPortfolio[0]?.name ?? null}
+          pmoName={portfolio.status === "available" ? portfolio.firstPmoName : null}
         />
       </div>
     );
@@ -109,16 +174,22 @@ export default async function CommandCenterPage({
 
   // Operations strip: the Command Center is the workspace's operations
   // console, so it surfaces the full PMO portfolio, not just one project.
-  const portfolioProjects = pmoPortfolio.reduce((sum, pmo) => sum + pmo.projects.length, 0);
-  const portfolioActive = pmoPortfolio.reduce((sum, pmo) => sum + pmo.projects.filter((p) => p.status === "active").length, 0);
+  // When the portfolio load failed the strip says so plainly — it must never
+  // render "0 PMOs · 0 projects", which would assert a count we do not have.
 
   return (
     <div className="space-y-4">
       <WorkspaceContextBanner lens="Command Center" />
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/80 px-4 py-3">
         <p className="text-xs text-slate-600">
-          Operating across <span className="font-semibold text-slate-900">{pmoPortfolio.length}</span> PMO{pmoPortfolio.length === 1 ? "" : "s"} ·{" "}
-          <span className="font-semibold text-slate-900">{portfolioProjects}</span> project{portfolioProjects === 1 ? "" : "s"} ({portfolioActive} active)
+          {portfolio.status === "available" ? (
+            <>
+              Operating across <span className="font-semibold text-slate-900">{portfolio.pmoCount}</span> PMO{portfolio.pmoCount === 1 ? "" : "s"} ·{" "}
+              <span className="font-semibold text-slate-900">{portfolio.projectCount}</span> project{portfolio.projectCount === 1 ? "" : "s"} ({portfolio.activeProjectCount} active)
+            </>
+          ) : (
+            "Portfolio overview is temporarily unavailable. The projects below are unaffected."
+          )}
         </p>
         <div className="flex gap-2 text-xs font-medium">
           <Link href="/pmos" className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-slate-700 transition hover:bg-slate-50">Manage PMOs</Link>
