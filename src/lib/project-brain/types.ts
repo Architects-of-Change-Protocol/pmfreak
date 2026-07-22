@@ -41,7 +41,7 @@ export type SourceAuthorityLevel = "primary" | "secondary" | "unverified";
  */
 export type ProjectBrainSourceReference = {
   evidenceId: string;
-  sourceSystem: "project_evidence" | "evidence_items";
+  sourceSystem: "project_evidence" | "evidence_items" | "project_configuration";
   title: string;
   evidenceType: string;
   recordedAt: string;
@@ -110,12 +110,23 @@ export type ProjectBrainStatement = {
   constitutionVersion: string;
 };
 
+export type KnowledgeGapPriority = "critical" | "high" | "medium" | "low";
+
 export type ProjectBrainKnowledgeGap = {
   id: string;
   scope: ProjectContextScope;
-  /** First-person, e.g. "I don't yet know who owns delivery." — see constitution.ts voice guidance. */
+  /** UNKNOWN when nothing points toward an answer; OPEN_QUESTION when the question itself is identified but unresolved. */
+  epistemicStatus: Extract<EpistemicType, "UNKNOWN" | "OPEN_QUESTION">;
+  /** Short label, e.g. "Approved delivery timeline". */
+  title: string;
+  /** First-person, e.g. "I have not identified an approved delivery timeline." — see constitution.ts KNOWLEDGE_GAP_VOICE. */
   question: string;
-  relatedTopic?: string | null;
+  /** Why it matters — never omitted; an unexplained gap reads as arbitrary. */
+  reason: string;
+  priority: KnowledgeGapPriority;
+  suggestedEvidenceTypes: string[];
+  /** Source references (evidenceId) this gap was derived from, e.g. an onboarding field that was left empty. Empty when the gap is a generic starting recommendation. */
+  sourceIds: string[];
   identifiedAt: string;
 };
 

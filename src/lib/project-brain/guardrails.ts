@@ -237,8 +237,23 @@ export function validateResponse(response: ProjectBrainResponse): GuardrailResul
   }
 
   for (const gap of response.knowledgeGaps) {
+    if (!gap.title.trim()) {
+      failures.push({ code: "empty_knowledge_gap_title", message: `Knowledge gap "${gap.id}" has empty title.` });
+    }
     if (!gap.question.trim()) {
       failures.push({ code: "empty_knowledge_gap", message: `Knowledge gap "${gap.id}" has empty question text.` });
+    }
+    if (!gap.reason.trim()) {
+      failures.push({
+        code: "knowledge_gap_without_reason",
+        message: `Knowledge gap "${gap.id}" must explain why it matters — an unexplained gap reads as arbitrary.`,
+      });
+    }
+    if (gap.epistemicStatus !== "UNKNOWN" && gap.epistemicStatus !== "OPEN_QUESTION") {
+      failures.push({
+        code: "invalid_knowledge_gap_epistemic_status",
+        message: `Knowledge gap "${gap.id}" must be UNKNOWN or OPEN_QUESTION, found "${gap.epistemicStatus}".`,
+      });
     }
     if (gap.scope.workspaceId !== response.scope.workspaceId || gap.scope.projectId !== response.scope.projectId) {
       failures.push({

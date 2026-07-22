@@ -103,3 +103,44 @@ export function sourceReferenceFromProjectEvidence(
     projectId: row.project_id,
   };
 }
+
+// ─── Pipeline C: `projects` (project setup / onboarding state) ────────────
+// Not an evidence pipeline — this is the project's own configuration record.
+// A fact about the configuration itself (the project exists, a field was
+// set) is primary: the row is the system of record for its own state. A
+// claim about the world that a user typed into a setup field (e.g. "external
+// dependencies") is not independently verified and must be reported as
+// REPORTED, not FACT — see derive-initial-response.ts.
+
+export type ProjectConfigurationFieldRow = {
+  projectId: string;
+  workspaceId: string;
+  /** Stable slug identifying which setup field this references, e.g. "identity.targetDeliveryDate". */
+  fieldKey: string;
+  /** Human label shown as the source title, e.g. "Project setup — Problem statement". */
+  fieldLabel: string;
+  recordedAt: string;
+  /** Who filled out the setup form, when known (e.g. the assigned PM). */
+  author?: string | null;
+};
+
+export function sourceReferenceFromProjectConfiguration(
+  row: ProjectConfigurationFieldRow,
+  opts?: { authorityLevel?: SourceAuthorityLevel },
+): ProjectBrainSourceReference {
+  const authorityLevel = opts?.authorityLevel ?? "primary";
+  return {
+    evidenceId: `project-configuration:${row.projectId}:${row.fieldKey}`,
+    sourceSystem: "project_configuration",
+    title: row.fieldLabel,
+    evidenceType: "project_setup_field",
+    recordedAt: row.recordedAt,
+    excerpt: null,
+    author: row.author ?? null,
+    authorityLevel,
+    isPrimary: authorityLevel === "primary",
+    href: null,
+    workspaceId: row.workspaceId,
+    projectId: row.projectId,
+  };
+}

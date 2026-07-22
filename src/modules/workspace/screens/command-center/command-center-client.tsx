@@ -7,6 +7,7 @@ import { CommandCenterLayout } from "./command-center-layout";
 import type { ProjectListItem, ToneBadge } from "../../presentation/command-center/types";
 import { ProjectBrainOnlineHero } from "@/components/pmfreak/intelligence-inbox/project-brain-online-hero";
 import { ProjectIntelligenceInbox } from "@/components/pmfreak/intelligence-inbox/project-intelligence-inbox";
+import type { ProjectOnboardingSnapshot } from "@/lib/project-brain/derive-initial-response";
 
 type UserProject = { id: string; name: string };
 
@@ -51,6 +52,8 @@ export function CommandCenterClient({
   firstRun = false,
   projectId,
   projectName,
+  projectCreatedAt,
+  onboarding = null,
   workspaceId,
   projects,
   companyName,
@@ -60,6 +63,10 @@ export function CommandCenterClient({
   firstRun?: boolean;
   projectId: string;
   projectName: string;
+  /** ISO timestamp the project was created — feeds Project Brain source references. */
+  projectCreatedAt: string;
+  /** The project's onboarding payload, when one exists. */
+  onboarding?: ProjectOnboardingSnapshot | null;
   workspaceId: string;
   projects: UserProject[];
   companyName?: string;
@@ -76,9 +83,11 @@ export function CommandCenterClient({
   const [brief, setBrief] = useState(initialBrief ?? null);
   const [briefFailed, setBriefFailed] = useState(briefGenerationFailed && !initialBrief);
   const [retryingBrief, setRetryingBrief] = useState(false);
-  // The one-time arrival right after Project Brain activation: the Project
-  // Intelligence Inbox is the landing screen instead of the regular
-  // dashboard, until the user explicitly steps into the Command Center.
+  // The full-screen Project Intelligence Inbox is the landing screen right
+  // after activation, but it is never the *only* way back to Project
+  // Memory — the "Project Brain" button in the regular dashboard header
+  // below re-opens it on any later visit, so this being false after the
+  // first visit never means Project Memory becomes unreachable.
   const [showIntelligenceInbox, setShowIntelligenceInbox] = useState(firstRun);
 
   const projectListItems = useMemo(() => {
@@ -112,6 +121,9 @@ export function CommandCenterClient({
         <ProjectIntelligenceInbox
           projectId={projectId}
           workspaceId={workspaceId}
+          projectName={projectName}
+          createdAt={projectCreatedAt}
+          onboarding={onboarding}
           onEvidenceAdded={() => { void retryBrief(); }}
           onEnterCommandCenter={() => setShowIntelligenceInbox(false)}
         />
@@ -121,6 +133,16 @@ export function CommandCenterClient({
 
   return (
     <div>
+      <div className="mb-3 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setShowIntelligenceInbox(true)}
+          className="flex items-center gap-1.5 rounded-xl border border-cyan-200/60 bg-cyan-400/[0.08] px-3.5 py-1.5 text-xs font-semibold text-cyan-900 transition hover:bg-cyan-400/[0.16]"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          Project Brain
+        </button>
+      </div>
       {briefFailed && (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3">
           <p className="text-sm text-amber-900">Project created. We couldn&apos;t generate the first governance brief yet.</p>

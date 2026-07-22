@@ -12,6 +12,7 @@ import { getPlanCapabilities } from "@/lib/feature-gates";
 import { WorkspaceContextBanner } from "@/components/pmfreak/workspace/workspace-context-banner";
 import { loadLatestOperationalGovernanceBrief } from "@/lib/projects/first-insight";
 import { noteFounderCommandCenterVisit } from "@/lib/founder-program/checkpoints";
+import { toProjectBrainOnboardingSnapshot } from "@/lib/projects/onboarding-snapshot";
 
 export default async function CommandCenterPage({
   searchParams,
@@ -93,6 +94,19 @@ export default async function CommandCenterPage({
 
   const initialBrief = await loadLatestOperationalGovernanceBrief(resolution.project!.id, supabase);
 
+  // Scoped by workspace_id in addition to id, matching the project list
+  // query above — the active project id was already resolved against this
+  // workspace's own project list, so this can never read another
+  // workspace's project row.
+  const { data: activeProjectRow } = await supabase
+    .from("projects")
+    .select("created_at,onboarding_payload")
+    .eq("id", resolution.project!.id)
+    .eq("workspace_id", workspace.workspaceId)
+    .maybeSingle<{ created_at: string; onboarding_payload: unknown }>();
+  const projectCreatedAt = activeProjectRow?.created_at ?? new Date(0).toISOString();
+  const onboardingSnapshot = toProjectBrainOnboardingSnapshot(activeProjectRow?.onboarding_payload ?? null);
+
   // Operations strip: the Command Center is the workspace's operations
   // console, so it surfaces the full PMO portfolio, not just one project.
   const portfolioProjects = pmoPortfolio.reduce((sum, pmo) => sum + pmo.projects.length, 0);
@@ -116,6 +130,8 @@ export default async function CommandCenterPage({
         firstRun={brainJustActivated}
         projectId={resolution.project!.id}
         projectName={resolution.project!.name}
+        projectCreatedAt={projectCreatedAt}
+        onboarding={onboardingSnapshot}
         workspaceId={workspace.workspaceId}
         projects={projectList}
         companyName={user.companyName}
