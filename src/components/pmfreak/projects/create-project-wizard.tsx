@@ -17,6 +17,7 @@ import {
 } from "@/lib/projects/project-onboarding-types";
 import { saveProjectOnboarding } from "@/lib/projects/save-project-onboarding";
 import type { ProjectSaveResult } from "@/lib/projects/save-project-onboarding";
+import { BrainBootSequence } from "./brain-boot-sequence";
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
 
@@ -699,6 +700,19 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
   const activationInFlightRef = useRef(false);
   const navigationCommittedRef = useRef(false);
   const [correlationId] = useState(() => `proj_${Date.now()}`);
+  const [showBootSequence, setShowBootSequence] = useState(false);
+  const bootSequenceCompleteRef = useRef<(() => void) | null>(null);
+
+  // Resolves once BrainBootSequence's onComplete fires, so handleActivate can
+  // await the animation before navigating — the navigation call itself stays
+  // a single, literal router.push keyed off the confirmed result.projectId.
+  const waitForBootSequence = useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        bootSequenceCompleteRef.current = resolve;
+      }),
+    []
+  );
 
   const [identity, setIdentity] = useState<ProjectIdentity>(() => {
     const d = loadDraft();
@@ -799,13 +813,19 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
       return;
     }
 
-    // Persistence confirmed — safe to clear draft and navigate. New projects
-    // land in the Command Center, already showing the operational intelligence
-    // derived from the onboarding context.
+    // Persistence confirmed — safe to clear draft and navigate. Navigation
+    // itself waits for the brain boot sequence to finish playing; new
+    // projects land in the Command Center showing the Project Intelligence
+    // Inbox first.
     clearDraft();
     const briefParam = result.briefStatus === "generation_failed" ? "&briefGeneration=failed" : "";
     navigationCommittedRef.current = true;
-    router.push(`/command-center?projectId=${result.projectId}${briefParam}`);
+    setShowBootSequence(true);
+    await waitForBootSequence();
+    // A dedicated `brainActivated` marker (not the generic `from=onboarding`
+    // used by the PMO activation and invite-team flows) so only the project
+    // actually just activated here shows the Project Intelligence Inbox.
+    router.push(`/command-center?projectId=${result.projectId}${briefParam}&brainActivated=1`);
   };
 
   const handleRetry = () => {
@@ -952,6 +972,13 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
             Back
           </button>
         </div>
+      )}
+
+      {showBootSequence && (
+        <BrainBootSequence
+          projectName={identity.projectName}
+          onComplete={() => bootSequenceCompleteRef.current?.()}
+        />
       )}
     </div>
   );
