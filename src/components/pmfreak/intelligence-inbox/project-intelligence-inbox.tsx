@@ -1,9 +1,11 @@
 "use client";
 
 import { useRef, useState, type DragEvent } from "react";
-import { EVIDENCE_SOURCE_CATEGORIES, DocumentIcon, type EvidenceSourceCategoryId } from "./intelligence-inbox-icons";
-import { EvidenceTimelineCard, type EvidenceTimelineItem } from "./evidence-timeline-card";
+import { AnimatePresence, motion } from "framer-motion";
+import { EVIDENCE_SOURCE_CATEGORIES, BrainPulseIcon, type EvidenceSourceCategoryId } from "./intelligence-inbox-icons";
+import { EvidenceTimelineCard, type EvidenceTimelineItem, type EvidenceProcessingState } from "./evidence-timeline-card";
 import { OperationalMemoryPanel } from "./operational-memory-panel";
+import { KnowledgeGapsPanel } from "./knowledge-gaps-panel";
 import { TextCaptureModal } from "./text-capture-modal";
 
 // Only these are actually ingestible by /api/upload today. Everything else in
@@ -29,6 +31,27 @@ function nextLocalId(): string {
   return `local-${localIdCounter}`;
 }
 
+// The Project Brain's reasoning pass, walked automatically after any evidence
+// arrives. Every label names a real stage of what happens to evidence server
+// side (receipt, extraction, memory update) — not fake progress theater.
+const THINKING_STAGES: EvidenceProcessingState[] = ["receiving", "reading", "extracting", "updating", "learned"];
+const THINKING_STAGE_MS = 550;
+
+function advanceThinking(
+  itemId: string,
+  stageIndex: number,
+  setItems: React.Dispatch<React.SetStateAction<EvidenceTimelineItem[]>>,
+  onLearned: () => void
+) {
+  const nextIndex = stageIndex + 1;
+  if (nextIndex >= THINKING_STAGES.length) return;
+  setTimeout(() => {
+    setItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, processingState: THINKING_STAGES[nextIndex] } : item)));
+    if (THINKING_STAGES[nextIndex] === "learned") onLearned();
+    else advanceThinking(itemId, nextIndex, setItems, onLearned);
+  }, THINKING_STAGE_MS);
+}
+
 type QuickAction = {
   id: string;
   label: string;
@@ -36,14 +59,14 @@ type QuickAction = {
 };
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { id: "upload", label: "Upload Files" },
-  { id: "paste", label: "Paste Text" },
-  { id: "note", label: "Take Note" },
+  { id: "upload", label: "Add Evidence" },
+  { id: "paste", label: "Capture Context" },
+  { id: "note", label: "Take a Note" },
   { id: "gmail", label: "Connect Gmail", comingSoon: true },
   { id: "slack", label: "Connect Slack", comingSoon: true },
   { id: "teams", label: "Connect Teams", comingSoon: true },
   { id: "record", label: "Record Meeting", comingSoon: true },
-  { id: "import", label: "Import Documents", comingSoon: true },
+  { id: "import", label: "Import Historical Context", comingSoon: true },
 ];
 
 export function ProjectIntelligenceInbox({
@@ -59,10 +82,30 @@ export function ProjectIntelligenceInbox({
 }) {
   const [items, setItems] = useState<EvidenceTimelineItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isReceiving, setIsReceiving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [captureMode, setCaptureMode] = useState<"paste" | "note" | null>(null);
+  const [momentum, setMomentum] = useState<{ id: string; title: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const learnedCount = items.filter((item) => item.processingState === "learned").length;
+  const understandingPercent = Math.min(learnedCount * 7, 42);
+
+  const triggerMomentum = (title: string) => {
+    const momentumId = nextLocalId();
+    setMomentum({ id: momentumId, title });
+    setTimeout(() => {
+      setMomentum((current) => (current?.id === momentumId ? null : current));
+    }, 2600);
+  };
+
+  const beginLearning = (newItems: EvidenceTimelineItem[]) => {
+    setItems((prev) => [...newItems, ...prev]);
+    for (const item of newItems) {
+      advanceThinking(item.id, 0, setItems, () => triggerMomentum(item.title));
+    }
+    onEvidenceAdded?.();
+  };
 
   const submitFiles = async (fileList: File[]) => {
     const supported: File[] = [];
@@ -74,7 +117,7 @@ export function ProjectIntelligenceInbox({
 
     if (skipped.length > 0) {
       setNotice(
-        `${skipped.length} file${skipped.length === 1 ? "" : "s"} skipped — support for that format is coming soon (PDF, DOCX, XLSX, PPTX, and TXT are ingestible today).`
+        `${skipped.length} item${skipped.length === 1 ? "" : "s"} the brain can't read yet — support for that format is coming soon (PDF, DOCX, XLSX, PPTX, and TXT are teachable today).`
       );
     } else {
       setNotice(null);
@@ -82,7 +125,7 @@ export function ProjectIntelligenceInbox({
 
     if (supported.length === 0) return;
 
-    setIsUploading(true);
+    setIsReceiving(true);
     try {
       const formData = new FormData();
       formData.set("projectId", projectId);
@@ -92,24 +135,23 @@ export function ProjectIntelligenceInbox({
       const result = await response.json();
 
       if (!response.ok || !result.ok) {
-        setNotice(result.error ?? "Upload failed. Your draft evidence was not saved.");
+        setNotice(result.error ?? "The Project Brain couldn't take that in. Nothing was saved.");
         return;
       }
 
-      const newItems: EvidenceTimelineItem[] = result.files.map((f: { fileName: string; extractionStatus: string }) => ({
+      const newItems: EvidenceTimelineItem[] = result.files.map((f: { fileName: string }) => ({
         id: nextLocalId(),
         sourceType: SUPPORTED_EXTENSIONS[extensionOf(f.fileName)] ?? "document",
         title: f.fileName,
         uploader: "You",
         timestampMs: Date.now(),
-        processingState: f.extractionStatus === "completed" ? "processed" : "processing",
+        processingState: "receiving",
       }));
-      setItems((prev) => [...newItems, ...prev]);
-      onEvidenceAdded?.();
+      beginLearning(newItems);
     } catch {
       setNotice("A network error occurred. Please try again.");
     } finally {
-      setIsUploading(false);
+      setIsReceiving(false);
     }
   };
 
@@ -129,7 +171,7 @@ export function ProjectIntelligenceInbox({
 
   const handleQuickAction = (action: QuickAction) => {
     if (action.comingSoon) {
-      setNotice(`${action.label} is coming soon — this integration isn't wired up yet.`);
+      setNotice(`${action.label} is coming soon — this connector isn't wired up yet.`);
       return;
     }
     if (action.id === "upload") fileInputRef.current?.click();
@@ -138,19 +180,19 @@ export function ProjectIntelligenceInbox({
   };
 
   const handleTextCaptured = (title: string) => {
-    setItems((prev) => [
-      { id: nextLocalId(), sourceType: "note", title, uploader: "You", timestampMs: Date.now(), processingState: "processed" },
-      ...prev,
+    beginLearning([
+      { id: nextLocalId(), sourceType: "note", title, uploader: "You", timestampMs: Date.now(), processingState: "receiving" },
     ]);
-    onEvidenceAdded?.();
   };
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-400">Project Intelligence Inbox</p>
-          <p className="mt-1 text-sm text-zinc-500">Feed the Project Brain with operational evidence.</p>
+          <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-400">Project Memory</p>
+          <p className="mt-1 text-sm text-zinc-500">
+            Every piece of evidence you add teaches your Project Brain something new about this project.
+          </p>
         </div>
         {onEnterCommandCenter && (
           <button
@@ -165,27 +207,30 @@ export function ProjectIntelligenceInbox({
 
       <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
         <div className="space-y-5">
-          {/* Quick capture actions — entry points into operational memory */}
-          <div className="flex flex-wrap gap-2">
-            {QUICK_ACTIONS.map((action) => (
-              <button
-                key={action.id}
-                type="button"
-                onClick={() => handleQuickAction(action)}
-                className={`flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-xs font-medium transition ${
-                  action.comingSoon
-                    ? "border-slate-200 bg-white/70 text-zinc-400 hover:border-slate-300"
-                    : "border-slate-200 bg-white text-zinc-700 hover:border-cyan-200 hover:bg-cyan-50/60 hover:text-cyan-900"
-                }`}
-              >
-                {action.label}
-                {action.comingSoon && (
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] text-zinc-400">
-                    Soon
-                  </span>
-                )}
-              </button>
-            ))}
+          {/* Quick capture actions — entry points into operational memory, not a file picker */}
+          <div>
+            <p className="mb-2 text-[10px] uppercase tracking-[0.24em] text-zinc-400">Teach Your Brain</p>
+            <div className="flex flex-wrap gap-2">
+              {QUICK_ACTIONS.map((action) => (
+                <button
+                  key={action.id}
+                  type="button"
+                  onClick={() => handleQuickAction(action)}
+                  className={`flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-xs font-medium transition ${
+                    action.comingSoon
+                      ? "border-slate-200 bg-white/70 text-zinc-400 hover:border-slate-300"
+                      : "border-slate-200 bg-white text-zinc-700 hover:border-cyan-200 hover:bg-cyan-50/60 hover:text-cyan-900"
+                  }`}
+                >
+                  {action.label}
+                  {action.comingSoon && (
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] text-zinc-400">
+                      Soon
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Large drop zone */}
@@ -207,9 +252,9 @@ export function ProjectIntelligenceInbox({
                 e.target.value = "";
               }}
             />
-            <p className="text-sm font-semibold text-slate-800">Drop anything related to this project.</p>
+            <p className="text-sm font-semibold text-slate-800">Drop anything that teaches your Project Brain about this project.</p>
             <p className="mt-1 text-xs text-zinc-400">
-              {isUploading ? "Uploading and learning…" : "Or click Upload Files above to browse."}
+              {isReceiving ? "Receiving evidence…" : "Or click Add Evidence above to browse."}
             </p>
 
             <div className="mx-auto mt-5 grid max-w-2xl grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-6">
@@ -232,32 +277,39 @@ export function ProjectIntelligenceInbox({
             </div>
           )}
 
-          {/* Intelligence timeline */}
+          {/* Intelligence timeline — the evolution of project understanding, not a file list */}
           <div className="space-y-3">
             <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-400">Intelligence Timeline</p>
             {items.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 p-8 text-center">
-                <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-zinc-300">
-                  <DocumentIcon className="h-5 w-5" />
+                <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-cyan-600">
+                  <BrainPulseIcon className="h-5 w-5" />
                 </span>
-                <p className="mt-3 text-sm font-semibold text-slate-800">Nothing has been learned yet.</p>
-                <p className="mt-1.5 text-xs leading-relaxed text-zinc-400">
-                  Feed your Project Brain with project evidence.
-                  <br />
-                  Everything added here becomes searchable, connected, and available to AI agents.
+                <p className="mt-3 text-sm font-semibold text-slate-800">Your Project Brain is online.</p>
+                <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-zinc-400">
+                  Right now it knows almost nothing. It cannot yet understand your stakeholders, delivery risks,
+                  contractual commitments, technical decisions, or project history.
                 </p>
+                <p className="mt-2 text-xs font-medium text-cyan-700">Teach it by adding operational evidence.</p>
               </div>
             ) : (
-              <div className="space-y-2.5">
+              <div className="relative space-y-2.5 pl-4">
+                <div className="pointer-events-none absolute left-[3px] top-3 bottom-3 w-px bg-gradient-to-b from-cyan-300/60 via-slate-200 to-transparent" />
                 {items.map((item) => (
-                  <EvidenceTimelineCard key={item.id} item={item} />
+                  <div key={item.id} className="relative">
+                    <span className="absolute -left-4 top-5 h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.6)]" />
+                    <EvidenceTimelineCard item={item} />
+                  </div>
                 ))}
               </div>
             )}
           </div>
         </div>
 
-        <OperationalMemoryPanel evidenceCount={items.length} />
+        <div className="space-y-5">
+          <OperationalMemoryPanel evidenceCount={items.length} understandingPercent={understandingPercent} />
+          <KnowledgeGapsPanel />
+        </div>
       </div>
 
       {captureMode && (
@@ -269,6 +321,21 @@ export function ProjectIntelligenceInbox({
           onCaptured={handleTextCaptured}
         />
       )}
+
+      <AnimatePresence>
+        {momentum && (
+          <motion.div
+            key={momentum.id}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="fixed bottom-6 right-6 z-40 max-w-xs rounded-xl border border-cyan-200/60 bg-white px-4 py-3 shadow-[0_20px_50px_rgba(15,23,42,0.15)]"
+          >
+            <p className="text-xs font-semibold text-slate-900">Your Project Brain just got smarter.</p>
+            <p className="mt-0.5 truncate text-[11px] text-zinc-500">Learned from &ldquo;{momentum.title}&rdquo;</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

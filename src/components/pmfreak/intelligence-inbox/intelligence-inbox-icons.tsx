@@ -82,6 +82,19 @@ export function PresentationIcon({ className = base }: IconProps) {
   );
 }
 
+export function BrainPulseIcon({ className = base }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className={className} aria-hidden>
+      <circle cx="12" cy="12" r="7.5" />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      <path
+        d="M12 4.5v3M12 16.5v3M4.5 12h3M16.5 12h3M6.8 6.8l2 2M15.2 15.2l2 2M6.8 17.2l2-2M15.2 8.8l2-2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export { MailIcon, DocumentIcon, NotesIcon, ChatIcon };
 
 export type EvidenceSourceCategoryId =

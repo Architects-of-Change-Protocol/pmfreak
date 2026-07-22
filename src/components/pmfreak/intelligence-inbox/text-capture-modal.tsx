@@ -8,14 +8,14 @@ type CaptureMode = "paste" | "note";
 
 const COPY: Record<CaptureMode, { title: string; placeholder: string; cta: string }> = {
   paste: {
-    title: "Paste text",
-    placeholder: "Paste an email thread, a document excerpt, or any text evidence relevant to this project…",
-    cta: "Add to Project Brain",
+    title: "Capture operational context",
+    placeholder: "Paste an email thread, a meeting recap, or any text evidence relevant to this project…",
+    cta: "Teach the Project Brain",
   },
   note: {
     title: "Take a note",
     placeholder: "The supplier confirmed delivery will slip to next Friday. Maria will follow up…",
-    cta: "Add to Project Brain",
+    cta: "Teach the Project Brain",
   },
 };
 
@@ -69,7 +69,8 @@ export function TextCaptureModal({
   return (
     <Modal title={copy.title} onClose={onClose}>
       <p className="text-xs text-slate-400">
-        Everything you add here becomes searchable, connected, and available to your project&apos;s AI agents.
+        This becomes part of your project&apos;s operational memory — searchable, connected, and available to your
+        project&apos;s AI agents.
       </p>
       <textarea
         value={content}
