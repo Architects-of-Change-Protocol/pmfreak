@@ -1,78 +1,78 @@
-// "Project Understanding" is the one metric tied to something real (how many
-// items the Project Brain has finished thinking about) — everything below it
-// is an honest placeholder until extraction ships. None of these are file or
-// storage statistics; they describe what the brain does and doesn't grasp.
-const CONFIDENCE_METRICS = [
-  "Decision Coverage",
-  "Stakeholder Confidence",
-  "Timeline Confidence",
-  "Governance Confidence",
-  "Delivery Confidence",
-];
-
-const AWARENESS_SIGNALS = [
-  "Detected Risks",
-  "Detected Decisions",
-  "Known Stakeholders",
-  "Known Systems",
-  "Known Vendors",
-  "Known Milestones",
-  "Known Deliverables",
-];
+// Every number here is a real count from either the evidence table or the
+// validated ProjectBrainResponse — no heuristic percentage, no "Not yet
+// known" placeholder dressed up as an analysis result. When there is
+// genuinely nothing to report (operational analysis), that's stated plainly
+// instead of being papered over with a fabricated metric.
+import type { ProjectBrainResponse } from "@/lib/project-brain/types";
+import type { ProjectEpisode } from "@/lib/project-brain/episodic-memory/types";
 
 export function OperationalMemoryPanel({
   evidenceCount,
-  understandingPercent,
+  response,
+  episodes,
 }: {
   evidenceCount: number;
-  understandingPercent: number;
+  /** null while the derivation/guardrail pipeline hasn't produced a safe response yet. */
+  response: ProjectBrainResponse | null;
+  /** Empty while the episode pipeline hasn't produced a safe result yet — never shown as a nonzero placeholder. */
+  episodes?: ProjectEpisode[];
 }) {
+  const knownCount = response?.statements.filter((s) => s.epistemicType === "FACT" || s.epistemicType === "REPORTED").length ?? 0;
+  const unresolvedCount = response?.statements.filter((s) => s.epistemicType === "UNKNOWN" || s.epistemicType === "OPEN_QUESTION").length ?? 0;
+  const episodeCount = episodes?.length ?? 0;
+  const supersededCount = episodes?.filter((e) => e.status === "superseded").length ?? 0;
+
   return (
-    <aside className="h-fit space-y-5 rounded-2xl border border-slate-200 bg-white/90 p-5">
+    <aside className="h-fit space-y-4 rounded-2xl border border-slate-200 bg-white/90 p-5">
       <div>
-        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-400">Project Understanding</p>
-        <div className="mt-2 flex items-baseline gap-2">
-          <span className="text-3xl font-semibold tabular-nums text-slate-900 transition-all duration-700">
-            {understandingPercent}%
-          </span>
-          <span className="text-xs text-zinc-400">{evidenceCount === 0 ? "Not started" : "Growing"}</span>
-        </div>
-        <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-indigo-400 transition-[width] duration-700 ease-out"
-            style={{ width: `${understandingPercent}%` }}
-          />
-        </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-zinc-400">
-          {evidenceCount === 0
-            ? "Your Project Brain knows almost nothing yet."
-            : "Grows as your Project Brain reviews more evidence — not a real confidence score yet."}
+        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-400">Project Memory</p>
+        <p className="mt-1.5 text-sm font-semibold text-slate-900">
+          {evidenceCount} evidence item{evidenceCount === 1 ? "" : "s"} stored
         </p>
       </div>
 
       <div className="border-t border-slate-100 pt-4">
-        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-400">Operational Confidence</p>
-        <dl className="mt-2.5 space-y-2">
-          {CONFIDENCE_METRICS.map((label) => (
-            <div key={label} className="flex items-center justify-between">
-              <dt className="text-xs text-zinc-500">{label}</dt>
-              <dd className="text-[11px] font-medium uppercase tracking-[0.08em] text-zinc-300">Not yet known</dd>
-            </div>
-          ))}
-        </dl>
+        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-400">Project Brain Status</p>
+        <p className="mt-1.5 flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          Online
+        </p>
       </div>
 
       <div className="border-t border-slate-100 pt-4">
-        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-400">Operational Awareness</p>
-        <dl className="mt-2.5 space-y-2">
-          {AWARENESS_SIGNALS.map((label) => (
-            <div key={label} className="flex items-center justify-between">
-              <dt className="text-xs text-zinc-500">{label}</dt>
-              <dd className="text-[11px] font-medium uppercase tracking-[0.08em] text-zinc-300">Not yet known</dd>
-            </div>
-          ))}
+        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-400">Operational Analysis</p>
+        <p className="mt-1.5 text-xs text-zinc-500">Not available yet.</p>
+      </div>
+
+      <div className="border-t border-slate-100 pt-4">
+        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-400">Current Knowledge</p>
+        <dl className="mt-2 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <dt className="text-xs text-zinc-500">Setup facts</dt>
+            <dd className="text-xs font-medium text-slate-700">{knownCount}</dd>
+          </div>
+          <div className="flex items-center justify-between">
+            <dt className="text-xs text-zinc-500">Unresolved questions</dt>
+            <dd className="text-xs font-medium text-slate-700">{unresolvedCount}</dd>
+          </div>
         </dl>
       </div>
+
+      {episodes && (
+        <div className="border-t border-slate-100 pt-4">
+          <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-400">Project Memory Timeline</p>
+          <dl className="mt-2 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <dt className="text-xs text-zinc-500">Episodes recorded</dt>
+              <dd className="text-xs font-medium text-slate-700">{episodeCount}</dd>
+            </div>
+            <div className="flex items-center justify-between">
+              <dt className="text-xs text-zinc-500">Superseded memories</dt>
+              <dd className="text-xs font-medium text-slate-700">{supersededCount}</dd>
+            </div>
+          </dl>
+        </div>
+      )}
     </aside>
   );
 }

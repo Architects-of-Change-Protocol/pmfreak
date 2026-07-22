@@ -9,14 +9,18 @@ import { EVIDENCE_SOURCE_CATEGORIES, NotesIcon, type EvidenceSourceCategoryId } 
 // labeled. Handled here instead of folding it into the drop-zone catalog.
 const NOTE_CATEGORY = { id: "note" as const, label: "Notes", Icon: NotesIcon };
 
-// The Project Brain's reasoning pass over one piece of evidence — not a file
-// upload status. "learned" and "failed" are terminal; everything else is a
-// transient "thinking" stage the UI walks through automatically.
-export type EvidenceProcessingState = "receiving" | "reading" | "extracting" | "updating" | "learned" | "failed";
+// Every state here maps 1:1 to a real, persisted backend fact — never a
+// fixed-timer simulation. "uploading" is the in-flight fetch to /api/upload.
+// "stored"/"processing"/"processed"/"failed" mirror project_evidence.status
+// exactly (see evidence-processor.ts). There is no "learned" state: the
+// system has never run — and does not yet claim to run — any operation that
+// identifies decisions, risks, or stakeholders from evidence content, so no
+// UI label may imply that it has.
+export type EvidenceProcessingState = "uploading" | "stored" | "processing" | "processed" | "failed";
 
 export type EvidenceTimelineItem = {
   id: string;
-  /** The server-side project_evidence row id, when this item is backed by a real upload — used to poll its real processing status. Absent for manual text captures, which are already fully processed by the time they're added. */
+  /** The server-side project_evidence row id, when this item is backed by a real upload — used to poll its real processing status. Absent for manual text captures, which are already fully persisted by the time they're added. */
   evidenceId?: string;
   sourceType: EvidenceSourceCategoryId;
   title: string;
@@ -25,27 +29,24 @@ export type EvidenceTimelineItem = {
   processingState: EvidenceProcessingState;
 };
 
-const THINKING_LABEL: Partial<Record<EvidenceProcessingState, string>> = {
-  receiving: "Receiving evidence…",
-  reading: "Reading…",
-  extracting: "Extracting operational signals…",
-  updating: "Updating project memory…",
+// Exported so project-intelligence-inbox.tsx can show the same live-status
+// wording on an evidence_stored episode card while it is still processing —
+// one vocabulary for "what's happening to this evidence right now", not two.
+export const EVIDENCE_STATUS_LABEL: Record<EvidenceProcessingState, string> = {
+  uploading: "Uploading…",
+  stored: "Stored in Project Memory",
+  processing: "Reading contents…",
+  processed: "Content extracted",
+  failed: "Failed",
 };
 
-// The story categories shown by default once the brain finishes with an
-// item, plus the reserved ones tucked behind a toggle. No extraction runs
-// yet, so every value is "—" — this only reserves the shape for later.
-const STORY_CATEGORIES = ["Decisions", "Action Items", "Risks", "Stakeholders"];
-const RESERVED_CATEGORIES = [
-  "Dependencies",
-  "Milestones",
-  "Deadlines",
-  "Financial Signals",
-  "Governance Signals",
-  "Questions",
-  "Unknowns",
-  "References",
-];
+const STATUS_TONE: Record<EvidenceProcessingState, string> = {
+  uploading: "border-cyan-200 bg-cyan-50 text-cyan-700",
+  stored: "border-slate-200 bg-slate-50 text-slate-600",
+  processing: "border-cyan-200 bg-cyan-50 text-cyan-700",
+  processed: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  failed: "border-rose-200 bg-rose-50 text-rose-700",
+};
 
 function formatTimestamp(ms: number): string {
   return new Date(ms).toLocaleString(undefined, {
@@ -57,13 +58,13 @@ function formatTimestamp(ms: number): string {
 }
 
 export function EvidenceTimelineCard({ item }: { item: EvidenceTimelineItem }) {
-  const [showReserved, setShowReserved] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(false);
   const category =
     item.sourceType === "note"
       ? NOTE_CATEGORY
       : (EVIDENCE_SOURCE_CATEGORIES.find((c) => c.id === item.sourceType) ?? EVIDENCE_SOURCE_CATEGORIES[1]);
   const Icon = category.Icon;
-  const isThinking = item.processingState !== "learned" && item.processingState !== "failed";
+  const isPersisted = item.processingState === "stored" || item.processingState === "processing" || item.processingState === "processed";
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_2px_10px_rgba(15,23,42,0.04)]">
@@ -79,69 +80,32 @@ export function EvidenceTimelineCard({ item }: { item: EvidenceTimelineItem }) {
             </p>
           </div>
         </div>
-        <span
-          className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${
-            item.processingState === "learned"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : item.processingState === "failed"
-                ? "border-rose-200 bg-rose-50 text-rose-700"
-                : "border-cyan-200 bg-cyan-50 text-cyan-700"
-          }`}
-        >
-          {item.processingState === "learned" ? "Learned" : item.processingState === "failed" ? "Failed" : "Thinking"}
+        <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${STATUS_TONE[item.processingState]}`}>
+          {EVIDENCE_STATUS_LABEL[item.processingState]}
         </span>
       </div>
 
-      {isThinking && (
-        <div className="mt-3 flex items-center gap-2 rounded-xl border border-cyan-100 bg-cyan-400/[0.04] px-3 py-2">
-          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-cyan-400" />
-          <p className="text-xs font-medium text-cyan-800">{THINKING_LABEL[item.processingState]}</p>
-        </div>
-      )}
-
-      {item.processingState === "learned" && (
-        <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
-          <p className="text-[11px] text-zinc-400">Project Brain is learning from this evidence:</p>
-
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {STORY_CATEGORIES.map((label) => (
-              <div key={label} className="rounded-lg border border-dashed border-slate-200 bg-slate-50/60 px-2.5 py-2">
-                <p className="text-[9px] uppercase tracking-[0.1em] text-zinc-400">{label}</p>
-                <p className="mt-0.5 text-xs text-zinc-300">—</p>
-              </div>
-            ))}
-          </div>
-
+      {isPersisted && (
+        <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
           <button
             type="button"
-            onClick={() => setShowReserved((v) => !v)}
+            onClick={() => setShowAnalysis((v) => !v)}
             className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-400 transition hover:text-cyan-700"
           >
-            <span className={`inline-block transition-transform ${showReserved ? "rotate-90" : ""}`}>›</span>
-            {showReserved ? "Hide reserved signals" : "Show more reserved signals"}
+            <span className={`inline-block transition-transform ${showAnalysis ? "rotate-90" : ""}`}>›</span>
+            Project Brain Analysis
           </button>
-
-          {showReserved && (
-            <div className="grid gap-2 sm:grid-cols-4">
-              {RESERVED_CATEGORIES.map((label) => (
-                <div key={label} className="rounded-lg border border-dashed border-slate-200 bg-slate-50/60 px-2.5 py-2">
-                  <p className="text-[9px] uppercase tracking-[0.1em] text-zinc-400">{label}</p>
-                  <p className="mt-0.5 text-xs text-zinc-300">—</p>
-                </div>
-              ))}
-            </div>
+          {showAnalysis && (
+            <p className="text-xs text-zinc-400">
+              No operational analysis is available for this evidence yet.
+            </p>
           )}
-
-          <p className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-700">
-            <span className="text-emerald-500">✓</span>
-            Project Memory Updated
-          </p>
         </div>
       )}
 
       {item.processingState === "failed" && (
         <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-rose-600">
-          The Project Brain couldn&apos;t process this evidence. Try adding it again.
+          The evidence was stored, but its contents could not be read.
         </p>
       )}
     </div>
