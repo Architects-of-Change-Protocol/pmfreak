@@ -18,6 +18,10 @@ import {
 } from "@/lib/pmo/pmo-tenant-types";
 import { savePmoTenant } from "@/lib/pmo/save-pmo-tenant";
 import { COMMAND_CENTER_TYPES } from "@/lib/command-center/command-center-types";
+import {
+  CommandCenterActivationSequence,
+  useCommandCenterActivation,
+} from "@/components/pmfreak/activation/command-center-activation";
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
@@ -708,6 +712,9 @@ export function CreatePmoWizard() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createErrorClass, setCreateErrorClass] = useState<"recoverable_failure" | "fatal_failure" | null>(null);
+  const [createCorrelationId, setCreateCorrelationId] = useState<string | null>(null);
+  const [showErrorDetails, setShowErrorDetails] = useState(false);
+  const activation = useCommandCenterActivation();
 
   const [identity, setIdentityState] = useState<PmoTenantIdentity>(() => {
     const draft = loadDraft();
@@ -795,12 +802,14 @@ export function CreatePmoWizard() {
   };
 
   const handleCreate = async () => {
+    activation.markStarted();
     if (createError) {
       console.info(JSON.stringify({ event: "pmo.create.retry", timestamp: new Date().toISOString() }));
     }
     setCreating(true);
     setCreateError(null);
     setCreateErrorClass(null);
+    activation.markRequestSent();
 
     const tenant: PmoTenant = {
       identity,
@@ -818,7 +827,9 @@ export function CreatePmoWizard() {
       // Persistence failed — block navigation, preserve draft, surface error.
       setCreateError(result.error);
       setCreateErrorClass(result.status);
+      setCreateCorrelationId(result.correlationId);
       setCreating(false);
+      activation.reset();
       // Draft intentionally preserved so the user does not lose their work.
       return;
     }
@@ -829,7 +840,19 @@ export function CreatePmoWizard() {
     } catch {}
     clearDraft();
 
-    router.push("/pmo/invite-team");
+    void activation.runInitializationSequence(agents.filter((a) => a.enabled).map((a) => a.agentId));
+  };
+
+  const handleContinueToCommandCenter = () => {
+    // Land the user directly in their new Command Center — onboarding actions
+    // (invite team, create first project, etc.) live there as recommended
+    // next actions, not as a separate page blocking arrival.
+    router.push("/command-center?from=onboarding");
+  };
+
+  const handleRetryAfterTimeout = () => {
+    activation.reset();
+    void handleCreate();
   };
 
   const renderStep = () => {
@@ -866,6 +889,17 @@ export function CreatePmoWizard() {
 
   return (
     <div className="space-y-6">
+      <CommandCenterActivationSequence
+        state={activation.state}
+        enabledAgentIds={agents.filter((a) => a.enabled).map((a) => a.agentId)}
+        pmoName={identity.pmoName}
+        deliveryChallengeCount={contextSeed.deliveryChallenges.length}
+        hasContextSeed={Boolean(contextSeed.strategicObjective || contextSeed.successDefinition)}
+        onKeepWaiting={activation.keepWaiting}
+        onRetryTimeout={handleRetryAfterTimeout}
+        onContinue={handleContinueToCommandCenter}
+      />
+
       {/* Stepper */}
       <div className="flex items-center gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {STEPS.map((s, i) => {
@@ -946,7 +980,19 @@ export function CreatePmoWizard() {
                 {creating ? "Retrying…" : "Retry"}
               </button>
             )}
+            {createCorrelationId && (
+              <button
+                type="button"
+                onClick={() => setShowErrorDetails((v) => !v)}
+                className="rounded-lg border border-red-400/30 px-4 py-1.5 text-sm font-medium text-red-800 transition hover:bg-red-400/10"
+              >
+                View Details
+              </button>
+            )}
           </div>
+          {showErrorDetails && createCorrelationId && (
+            <p className="mt-2 text-[11px] text-red-300/70">Reference ID: {createCorrelationId}</p>
+          )}
         </div>
       )}
 

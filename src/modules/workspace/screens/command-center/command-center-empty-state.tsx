@@ -1,12 +1,20 @@
+import { WorkspaceOnboardingPanel } from "@/components/pmfreak/onboarding/workspace-onboarding-panel";
+
 const fieldClass =
   "w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-sky-300 focus:bg-white focus:ring-2 focus:ring-sky-100";
 
 export function CommandCenterEmptyState({
   activateAction,
   errorMessage,
+  fromOnboarding = false,
+  pmoName = null,
 }: {
   activateAction: (formData: FormData) => void | Promise<void>;
   errorMessage?: string;
+  /** True for the one-time arrival right after Command Center activation. */
+  fromOnboarding?: boolean;
+  /** Real PMO name, when one exists for this workspace — never a placeholder. */
+  pmoName?: string | null;
 }) {
   return (
     <div
@@ -24,23 +32,23 @@ export function CommandCenterEmptyState({
         </div>
       </header>
 
+      {fromOnboarding && pmoName && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-cyan-100 bg-cyan-50/60 px-4 py-3 sm:px-5">
+          <p className="text-sm text-cyan-900">
+            <span className="font-semibold">{pmoName}</span> is online. Invite your team to start collaborating.
+          </p>
+          <a
+            href="/pmo/invite-team"
+            className="shrink-0 rounded-lg border border-cyan-300/50 bg-white px-3 py-1.5 text-xs font-semibold text-cyan-800 transition hover:bg-cyan-50"
+          >
+            Invite Team →
+          </a>
+        </div>
+      )}
+
       <div className="grid gap-0 lg:grid-cols-[280px_1fr_320px]">
         <aside className="hidden shrink-0 space-y-3 border-r border-slate-200 bg-white/60 p-4 lg:block">
-          <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Get started</p>
-
-          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-            <p className="text-sm font-medium text-slate-800">Upload project documents</p>
-            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-              Unlocks once your first project is created.
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-            <p className="text-sm font-medium text-slate-800">Paste meeting notes</p>
-            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-              Unlocks once your first project is created.
-            </p>
-          </div>
+          <WorkspaceOnboardingPanel surface="dashboard" />
         </aside>
 
         <main className="min-w-0 p-4 sm:p-5">

@@ -146,7 +146,7 @@ test("structured logger uses emit() helper for consistent output", () => {
 test("wizard handleCreate gates redirect on status=success", () => {
   assert.match(wizard, /result\.status !== "success"/, "must check status before proceeding");
   const blockReturnIdx = wizard.indexOf('result.status !== "success"');
-  const redirectIdx = wizard.indexOf('router.push("/pmo/invite-team")');
+  const redirectIdx = wizard.indexOf('router.push("/command-center?from=onboarding")');
   assert.ok(blockReturnIdx > 0, "failure branch must exist");
   assert.ok(redirectIdx > blockReturnIdx, "redirect must come after the failure guard");
 });
@@ -219,13 +219,13 @@ test("wizard tracks createErrorClass to distinguish recoverable from fatal", () 
 // CONTRACT 9: no redirect without calling savePmoTenant
 // ─────────────────────────────────────────────────────────────────────────────
 
-test("wizard never pushes to invite-team without calling savePmoTenant", () => {
+test("wizard never pushes to the Command Center without calling savePmoTenant", () => {
   const saveIdx = wizard.indexOf("await savePmoTenant(tenant)");
-  const pushIdx = wizard.indexOf('router.push("/pmo/invite-team")');
+  const pushIdx = wizard.indexOf('router.push("/command-center?from=onboarding")');
   assert.ok(saveIdx > 0, "savePmoTenant must be called");
   assert.ok(pushIdx > saveIdx, "redirect must come after savePmoTenant");
-  const allPushes = [...wizard.matchAll(/router\.push\("\/pmo\/invite-team"\)/g)];
-  assert.equal(allPushes.length, 1, "redirect to invite-team must appear exactly once");
+  const allPushes = [...wizard.matchAll(/router\.push\("\/command-center\?from=onboarding"\)/g)];
+  assert.equal(allPushes.length, 1, "redirect to the Command Center must appear exactly once");
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

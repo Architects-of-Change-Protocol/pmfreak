@@ -41,11 +41,22 @@ export default async function CommandCenterPage({
     .eq("workspace_id", workspace.workspaceId)
     .order("created_at", { ascending: false });
 
+  // Loaded up front (not just in the populated branch below) so a user who
+  // just activated a Command Center but hasn't created a project yet can
+  // still see a real, honest "invite your team to {pmoName}" nudge in the
+  // empty state instead of generic copy.
+  const pmoPortfolio = await listPmosWithProjects(workspace.workspaceId);
+
   if ((projects ?? []).length === 0) {
     return (
       <div className="space-y-4">
         <WorkspaceContextBanner lens="Command Center" />
-        <CommandCenterEmptyState activateAction={activateContextAction} errorMessage={params.error} />
+        <CommandCenterEmptyState
+          activateAction={activateContextAction}
+          errorMessage={params.error}
+          fromOnboarding={fromOnboarding}
+          pmoName={pmoPortfolio[0]?.name ?? null}
+        />
       </div>
     );
   }
@@ -78,7 +89,6 @@ export default async function CommandCenterPage({
 
   // Operations strip: the Command Center is the workspace's operations
   // console, so it surfaces the full PMO portfolio, not just one project.
-  const pmoPortfolio = await listPmosWithProjects(workspace.workspaceId);
   const portfolioProjects = pmoPortfolio.reduce((sum, pmo) => sum + pmo.projects.length, 0);
   const portfolioActive = pmoPortfolio.reduce((sum, pmo) => sum + pmo.projects.filter((p) => p.status === "active").length, 0);
 
