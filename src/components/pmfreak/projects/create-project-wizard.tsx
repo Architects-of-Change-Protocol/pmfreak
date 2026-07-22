@@ -17,6 +17,7 @@ import {
 } from "@/lib/projects/project-onboarding-types";
 import { saveProjectOnboarding } from "@/lib/projects/save-project-onboarding";
 import type { ProjectSaveResult } from "@/lib/projects/save-project-onboarding";
+import { BrainBootSequence } from "./brain-boot-sequence";
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
 
@@ -699,6 +700,7 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
   const activationInFlightRef = useRef(false);
   const navigationCommittedRef = useRef(false);
   const [correlationId] = useState(() => `proj_${Date.now()}`);
+  const [bootSequenceTarget, setBootSequenceTarget] = useState<string | null>(null);
 
   const [identity, setIdentity] = useState<ProjectIdentity>(() => {
     const d = loadDraft();
@@ -799,13 +801,13 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
       return;
     }
 
-    // Persistence confirmed — safe to clear draft and navigate. New projects
-    // land in the Command Center, already showing the operational intelligence
-    // derived from the onboarding context.
+    // Persistence confirmed — safe to clear draft. Navigation is deferred
+    // until the brain boot sequence finishes; new projects land in the
+    // Command Center showing the Project Intelligence Inbox first.
     clearDraft();
     const briefParam = result.briefStatus === "generation_failed" ? "&briefGeneration=failed" : "";
     navigationCommittedRef.current = true;
-    router.push(`/command-center?projectId=${result.projectId}${briefParam}`);
+    setBootSequenceTarget(`/command-center?projectId=${result.projectId}${briefParam}&from=onboarding`);
   };
 
   const handleRetry = () => {
@@ -952,6 +954,13 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
             Back
           </button>
         </div>
+      )}
+
+      {bootSequenceTarget && (
+        <BrainBootSequence
+          projectName={identity.projectName}
+          onComplete={() => router.push(bootSequenceTarget)}
+        />
       )}
     </div>
   );

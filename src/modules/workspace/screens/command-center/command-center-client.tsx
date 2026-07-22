@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import type { OperationalGovernanceBrief } from "@/lib/projects/first-insight";
 import { CommandCenterLayout } from "./command-center-layout";
 import type { ProjectListItem, ToneBadge } from "../../presentation/command-center/types";
+import { ProjectBrainOnlineHero } from "@/components/pmfreak/intelligence-inbox/project-brain-online-hero";
+import { ProjectIntelligenceInbox } from "@/components/pmfreak/intelligence-inbox/project-intelligence-inbox";
 
 type UserProject = { id: string; name: string };
 
@@ -46,6 +48,7 @@ function buildProjectListItem(project: UserProject, brief: OperationalGovernance
 }
 
 export function CommandCenterClient({
+  firstRun = false,
   projectId,
   projectName,
   workspaceId,
@@ -73,6 +76,10 @@ export function CommandCenterClient({
   const [brief, setBrief] = useState(initialBrief ?? null);
   const [briefFailed, setBriefFailed] = useState(briefGenerationFailed && !initialBrief);
   const [retryingBrief, setRetryingBrief] = useState(false);
+  // The one-time arrival right after Project Brain activation: the Project
+  // Intelligence Inbox is the landing screen instead of the regular
+  // dashboard, until the user explicitly steps into the Command Center.
+  const [showIntelligenceInbox, setShowIntelligenceInbox] = useState(firstRun);
 
   const projectListItems = useMemo(() => {
     const source = projects.length > 0 ? projects : [{ id: projectId, name: projectName }];
@@ -97,6 +104,20 @@ export function CommandCenterClient({
       setRetryingBrief(false);
     }
   };
+
+  if (showIntelligenceInbox) {
+    return (
+      <div className="space-y-5">
+        <ProjectBrainOnlineHero projectName={projectName} />
+        <ProjectIntelligenceInbox
+          projectId={projectId}
+          workspaceId={workspaceId}
+          onEvidenceAdded={() => { void retryBrief(); }}
+          onEnterCommandCenter={() => setShowIntelligenceInbox(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div>
