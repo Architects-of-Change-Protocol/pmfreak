@@ -4,17 +4,23 @@
 // genuinely nothing to report (operational analysis), that's stated plainly
 // instead of being papered over with a fabricated metric.
 import type { ProjectBrainResponse } from "@/lib/project-brain/types";
+import type { ProjectEpisode } from "@/lib/project-brain/episodic-memory/types";
 
 export function OperationalMemoryPanel({
   evidenceCount,
   response,
+  episodes,
 }: {
   evidenceCount: number;
   /** null while the derivation/guardrail pipeline hasn't produced a safe response yet. */
   response: ProjectBrainResponse | null;
+  /** Empty while the episode pipeline hasn't produced a safe result yet — never shown as a nonzero placeholder. */
+  episodes?: ProjectEpisode[];
 }) {
   const knownCount = response?.statements.filter((s) => s.epistemicType === "FACT" || s.epistemicType === "REPORTED").length ?? 0;
   const unresolvedCount = response?.statements.filter((s) => s.epistemicType === "UNKNOWN" || s.epistemicType === "OPEN_QUESTION").length ?? 0;
+  const episodeCount = episodes?.length ?? 0;
+  const supersededCount = episodes?.filter((e) => e.status === "superseded").length ?? 0;
 
   return (
     <aside className="h-fit space-y-4 rounded-2xl border border-slate-200 bg-white/90 p-5">
@@ -51,6 +57,22 @@ export function OperationalMemoryPanel({
           </div>
         </dl>
       </div>
+
+      {episodes && (
+        <div className="border-t border-slate-100 pt-4">
+          <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-400">Project Memory Timeline</p>
+          <dl className="mt-2 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <dt className="text-xs text-zinc-500">Episodes recorded</dt>
+              <dd className="text-xs font-medium text-slate-700">{episodeCount}</dd>
+            </div>
+            <div className="flex items-center justify-between">
+              <dt className="text-xs text-zinc-500">Superseded memories</dt>
+              <dd className="text-xs font-medium text-slate-700">{supersededCount}</dd>
+            </div>
+          </dl>
+        </div>
+      )}
     </aside>
   );
 }

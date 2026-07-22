@@ -29,7 +29,10 @@ export type EvidenceTimelineItem = {
   processingState: EvidenceProcessingState;
 };
 
-const STATUS_LABEL: Record<EvidenceProcessingState, string> = {
+// Exported so project-intelligence-inbox.tsx can show the same live-status
+// wording on an evidence_stored episode card while it is still processing —
+// one vocabulary for "what's happening to this evidence right now", not two.
+export const EVIDENCE_STATUS_LABEL: Record<EvidenceProcessingState, string> = {
   uploading: "Uploading…",
   stored: "Stored in Project Memory",
   processing: "Reading contents…",
@@ -78,7 +81,7 @@ export function EvidenceTimelineCard({ item }: { item: EvidenceTimelineItem }) {
           </div>
         </div>
         <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${STATUS_TONE[item.processingState]}`}>
-          {STATUS_LABEL[item.processingState]}
+          {EVIDENCE_STATUS_LABEL[item.processingState]}
         </span>
       </div>
 

@@ -3,13 +3,17 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { EVIDENCE_SOURCE_CATEGORIES, BrainPulseIcon, type EvidenceSourceCategoryId } from "./intelligence-inbox-icons";
-import { EvidenceTimelineCard, type EvidenceTimelineItem, type EvidenceProcessingState } from "./evidence-timeline-card";
+import { EVIDENCE_STATUS_LABEL, type EvidenceTimelineItem, type EvidenceProcessingState } from "./evidence-timeline-card";
 import { OperationalMemoryPanel } from "./operational-memory-panel";
 import { KnowledgeGapsPanel } from "./knowledge-gaps-panel";
 import { TextCaptureModal } from "./text-capture-modal";
-import { ProjectBrainIntroduction } from "@/components/pmfreak/project-brain/project-brain-introduction";
+import { ProjectBrainIntroduction, type RecentMemorySummary } from "@/components/pmfreak/project-brain/project-brain-introduction";
+import { ProjectEpisodeCard } from "@/components/pmfreak/project-brain/project-episode-card";
 import { buildInitialProjectBrainResponse } from "@/lib/project-brain/validate-response-pipeline";
 import type { ProjectOnboardingSnapshot } from "@/lib/project-brain/derive-initial-response";
+import { buildProjectEpisodes } from "@/lib/project-brain/episodic-memory/derive-episodes";
+import type { ContextEvidenceItemRow, ProjectEvidenceEpisodeRow } from "@/lib/project-brain/episodic-memory/derive-episodes";
+import { groupEpisodesByRecency, sortEpisodes } from "@/lib/project-brain/episodic-memory/episode-language";
 
 // Only these are actually ingestible by /api/upload today. Everything else in
 // EVIDENCE_SOURCE_CATEGORIES is presented so users see the full range PMFreak
@@ -61,6 +65,28 @@ async function fetchProjectEvidenceRows(projectId: string): Promise<Array<{ id: 
   if (!response.ok) return [];
   const result = await response.json();
   return (result.evidence ?? []) as Array<{ id: string; file_name: string; file_type: string; uploaded_at: string; status: ServerEvidenceStatus }>;
+}
+
+// evidence_items rows are already authorized/project-scoped by the same
+// route TextCaptureModal posts to — no new endpoint needed. Only
+// source_type "manual_note" rows are Capture Context / Take a Note
+// captures; other source types belong to the governed operational-evidence
+// pipeline and are out of scope for the Project Memory timeline.
+async function fetchContextRows(workspaceId: string, projectId: string): Promise<ContextEvidenceItemRow[]> {
+  const response = await fetch(`/api/operational-flow?workspaceId=${encodeURIComponent(workspaceId)}&projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+  if (!response.ok) return [];
+  const result = await response.json();
+  const rows = (result.evidence ?? []) as Array<Record<string, unknown>>;
+  return rows
+    .filter((row) => row.source_type === "manual_note")
+    .map((row) => ({
+      id: String(row.id),
+      source_type: "manual_note" as const,
+      title: String(row.title ?? ""),
+      content: row.content ? String(row.content) : null,
+      created_by: row.created_by ? String(row.created_by) : null,
+      created_at: String(row.created_at),
+    }));
 }
 
 // Polls the real project_evidence row until the background extractor lands
@@ -129,12 +155,22 @@ export function ProjectIntelligenceInbox({
   onEnterCommandCenter?: () => void;
 }) {
   const [items, setItems] = useState<EvidenceTimelineItem[]>([]);
+  const [contextRows, setContextRows] = useState<ContextEvidenceItemRow[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [captureMode, setCaptureMode] = useState<"paste" | "note" | null>(null);
   const [confirmation, setConfirmation] = useState<{ id: string; title: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Grouping ("Today"/"Yesterday"/…) is computed once against the moment
+  // this screen was opened, not recalculated every render — episodes don't
+  // jump groups mid-session just because the clock ticked past midnight
+  // while the tab was open.
+  const [openedAt] = useState(() => new Date().toISOString());
+
+  const refetchContextRows = async () => {
+    setContextRows(await fetchContextRows(workspaceId, projectId));
+  };
 
   const showConfirmation = (title: string) => {
     const confirmationId = nextLocalId();
@@ -177,13 +213,29 @@ export function ProjectIntelligenceInbox({
     };
   }, [projectId]);
 
+  // Same reasoning as the project_evidence load above: without this, a
+  // Capture Context / Take a Note entry from an earlier visit would vanish
+  // from Project Memory on refresh.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const rows = await fetchContextRows(workspaceId, projectId);
+      if (!cancelled) setContextRows(rows);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId, projectId]);
+
+  const fileEvidenceItems = useMemo(() => items.filter((i) => i.evidenceId), [items]);
+
   const evidenceSummary = useMemo(
     () => ({
-      totalCount: items.length,
-      processedCount: items.filter((i) => i.processingState === "processed").length,
-      failedCount: items.filter((i) => i.processingState === "failed").length,
+      totalCount: fileEvidenceItems.length,
+      processedCount: fileEvidenceItems.filter((i) => i.processingState === "processed").length,
+      failedCount: fileEvidenceItems.filter((i) => i.processingState === "failed").length,
     }),
-    [items],
+    [fileEvidenceItems],
   );
 
   const projectBrainResult = useMemo(
@@ -196,6 +248,47 @@ export function ProjectIntelligenceInbox({
     [projectId, workspaceId, projectName, createdAt, onboarding, evidenceSummary],
   );
   const projectBrainResponse = projectBrainResult.ok ? projectBrainResult.response : null;
+
+  const projectEvidenceRowsForEpisodes: ProjectEvidenceEpisodeRow[] = useMemo(
+    () =>
+      fileEvidenceItems.map((item) => ({
+        id: item.evidenceId!,
+        file_name: item.title,
+        file_type: item.sourceType,
+        uploaded_at: new Date(item.timestampMs).toISOString(),
+        status: item.processingState === "stored" ? "uploaded" : (item.processingState as "processing" | "processed" | "failed"),
+      })),
+    [fileEvidenceItems],
+  );
+
+  const episodesResult = useMemo(
+    () =>
+      buildProjectEpisodes({
+        project: { projectId, workspaceId, projectName, createdAt, onboarding },
+        projectEvidenceRows: projectEvidenceRowsForEpisodes,
+        contextEvidenceItemRows: contextRows,
+        knowledgeResponse: projectBrainResponse,
+      }),
+    [projectId, workspaceId, projectName, createdAt, onboarding, projectEvidenceRowsForEpisodes, contextRows, projectBrainResponse],
+  );
+  const episodes = episodesResult.ok ? sortEpisodes(episodesResult.episodes) : [];
+  const groupedEpisodes = useMemo(() => groupEpisodesByRecency(episodes, openedAt), [episodes, openedAt]);
+
+  const liveStatusLabelFor = (episode: (typeof episodes)[number]): string | undefined => {
+    if (episode.type !== "evidence_stored") return undefined;
+    const evidenceId = episode.id.replace("evidence-stored:", "");
+    const item = items.find((i) => i.evidenceId === evidenceId);
+    return item ? EVIDENCE_STATUS_LABEL[item.processingState] : undefined;
+  };
+
+  const recentMemory: RecentMemorySummary | null = episodesResult.ok
+    ? {
+        newEpisodeCount: groupedEpisodes.find((g) => g.group === "Today")?.episodes.length ?? 0,
+        latestEpisodeTitle: episodes[0]?.title ?? null,
+        latestEpisodeAt: episodes[0]?.occurredAt ?? null,
+        openQuestionCount: episodes.filter((e) => e.type === "question_opened" || e.type === "gap_identified").length,
+      }
+    : null;
 
   const trackNewItems = (newItems: EvidenceTimelineItem[]) => {
     setItems((prev) => [...newItems, ...prev]);
@@ -288,9 +381,13 @@ export function ProjectIntelligenceInbox({
   };
 
   const handleTextCaptured = (title: string) => {
-    trackNewItems([
-      { id: nextLocalId(), sourceType: "note", title, uploader: "You", timestampMs: Date.now(), processingState: "stored" },
-    ]);
+    // The capture is already fully persisted (evidence_items) by the time
+    // this fires — refetch so it becomes a real context_recorded episode
+    // instead of adding a client-only item the timeline would need to
+    // reconcile with what the next reload actually shows.
+    showConfirmation(title);
+    void refetchContextRows();
+    onEvidenceAdded?.();
   };
 
   return (
@@ -316,6 +413,7 @@ export function ProjectIntelligenceInbox({
       <ProjectBrainIntroduction
         projectName={projectName}
         response={projectBrainResponse}
+        recentMemory={recentMemory}
         onAddEvidence={() => fileInputRef.current?.click()}
         onCaptureContext={() => setCaptureMode("paste")}
       />
@@ -392,28 +490,33 @@ export function ProjectIntelligenceInbox({
             </div>
           )}
 
-          {/* Project Memory timeline — what has actually been added, and its real storage/processing state */}
-          <div className="space-y-3">
+          {/* Project Memory timeline — the project's real operational history, one episode per real event, not a file list */}
+          <div className="space-y-4">
             <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-400">Project Memory Timeline</p>
-            {items.length === 0 ? (
+            {!episodesResult.ok ? (
+              <div className="rounded-2xl border border-dashed border-rose-200 bg-rose-50/40 p-6 text-center text-xs text-rose-700">
+                The Project Brain could not safely summarize this project&apos;s history right now. Your evidence remains stored in Project Memory.
+              </div>
+            ) : groupedEpisodes.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 p-8 text-center">
                 <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-cyan-600">
                   <BrainPulseIcon className="h-5 w-5" />
                 </span>
-                <p className="mt-3 text-sm font-semibold text-slate-800">Project Memory is empty.</p>
+                <p className="mt-3 text-sm font-semibold text-slate-800">Project Memory has begun.</p>
                 <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-zinc-400">
-                  Nothing has been added yet, so I don&apos;t yet know your stakeholders, delivery risks,
-                  contractual commitments, technical decisions, or project history.
+                  Your project history will appear here as real context, evidence, questions, and validated knowledge are recorded.
                 </p>
-                <p className="mt-2 text-xs font-medium text-cyan-700">Add evidence to give me something to work from.</p>
               </div>
             ) : (
-              <div className="relative space-y-2.5 pl-4">
-                <div className="pointer-events-none absolute left-[3px] top-3 bottom-3 w-px bg-gradient-to-b from-cyan-300/60 via-slate-200 to-transparent" />
-                {items.map((item) => (
-                  <div key={item.id} className="relative">
-                    <span className="absolute -left-4 top-5 h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.6)]" />
-                    <EvidenceTimelineCard item={item} />
+              <div className="space-y-5">
+                {groupedEpisodes.map(({ group, episodes: groupEpisodes }) => (
+                  <div key={group}>
+                    <p className="mb-2 text-[9px] uppercase tracking-[0.14em] text-zinc-400">{group}</p>
+                    <div className="space-y-2.5">
+                      {groupEpisodes.map((episode) => (
+                        <ProjectEpisodeCard key={episode.id} episode={episode} liveStatusLabel={liveStatusLabelFor(episode)} />
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -422,7 +525,7 @@ export function ProjectIntelligenceInbox({
         </div>
 
         <div className="space-y-5">
-          <OperationalMemoryPanel evidenceCount={items.length} response={projectBrainResponse} />
+          <OperationalMemoryPanel evidenceCount={items.length} response={projectBrainResponse} episodes={episodesResult.ok ? episodes : undefined} />
           <KnowledgeGapsPanel gaps={projectBrainResponse?.knowledgeGaps ?? []} />
         </div>
       </div>

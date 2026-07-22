@@ -2,6 +2,10 @@
 
 Status: Implemented (scoped — see "Deferred Work" below)
 Branch: `claude/pmfreak-brain-foundation-y2z6hf`
+Followed by: `01-episodic-memory.md` (Sprint 1), which turns the
+`ProjectIntelligenceInbox` evidence timeline this document describes into
+an episode-driven history — the raw `EvidenceTimelineCard` list rendering
+described in §7 below was superseded by `ProjectEpisodeCard` in Sprint 1.
 
 ## 1. What Sprint 0.5 Integrates
 

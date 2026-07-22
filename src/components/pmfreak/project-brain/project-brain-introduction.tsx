@@ -49,15 +49,26 @@ function KnowledgeGapRequestCard({ gap, onAddEvidence }: { gap: ProjectBrainKnow
   );
 }
 
+export type RecentMemorySummary = {
+  /** Episodes whose occurredAt falls within the caller's own "recent" window — this component does no time math itself. */
+  newEpisodeCount: number;
+  latestEpisodeTitle?: string | null;
+  latestEpisodeAt?: string | null;
+  openQuestionCount: number;
+};
+
 export function ProjectBrainIntroduction({
   projectName,
   response,
+  recentMemory,
   onAddEvidence,
   onCaptureContext,
 }: {
   projectName: string;
   /** null when the validation pipeline rejected the derived response — render the honest fallback instead. */
   response: ProjectBrainResponse | null;
+  /** Real, already-computed episode counts (Sprint 1) — omitted entirely when the caller has none to report, never zero-filled to look busy. */
+  recentMemory?: RecentMemorySummary | null;
   onAddEvidence?: () => void;
   onCaptureContext?: () => void;
 }) {
@@ -109,6 +120,30 @@ export function ProjectBrainIntroduction({
       <p className="text-xs leading-relaxed text-zinc-500">
         Based on the project context currently available, here is what I know, what I don&apos;t, and what would help next.
       </p>
+
+      {recentMemory && (recentMemory.newEpisodeCount > 0 || recentMemory.latestEpisodeTitle) && (
+        <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+          <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-400">What Changed Recently</p>
+          <div className="mt-1.5 space-y-1 text-xs text-zinc-600">
+            {recentMemory.newEpisodeCount > 0 && (
+              <p>
+                {recentMemory.newEpisodeCount} new episode{recentMemory.newEpisodeCount === 1 ? "" : "s"} {recentMemory.newEpisodeCount === 1 ? "was" : "were"} added to Project Memory.
+              </p>
+            )}
+            {recentMemory.latestEpisodeTitle && (
+              <p>
+                Latest memory: {recentMemory.latestEpisodeTitle}
+                {recentMemory.latestEpisodeAt ? ` (${new Date(recentMemory.latestEpisodeAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })})` : ""}.
+              </p>
+            )}
+            {recentMemory.openQuestionCount > 0 && (
+              <p>
+                {recentMemory.openQuestionCount} open question{recentMemory.openQuestionCount === 1 ? "" : "s"} recorded.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div>
         <p className="mb-2 text-[10px] uppercase tracking-[0.24em] text-zinc-400">What I Know</p>
