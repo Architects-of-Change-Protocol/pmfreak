@@ -102,12 +102,6 @@ export default async function CommandCenterPage({
             >
               Try again
             </a>
-            <Link
-              href="/pmos"
-              className="inline-block rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              Go to PMOs
-            </Link>
           </div>
         </div>
       </div>
