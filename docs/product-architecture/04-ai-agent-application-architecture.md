@@ -106,7 +106,8 @@ An Agent Proposal has no domain effect until a human issues `ApproveAgentProposa
 | Summarize evidence | Yes | Optional | No |
 | Propose a Risk (Agent Proposal) | Yes | Yes | Yes, to record it as a Risk |
 | Generate an Agent Proposal (candidate Recommendation content) | Yes | Yes | No — generation itself has no domain effect |
-| Approve a Proposal into a Recommendation (`ApproveAgentProposal`) | No | — | Yes — this is the mandatory gate; no Recommendation exists before it |
+| Approve an Agent Proposal (`ApproveAgentProposal`) | No | — | Yes — mandatory human gate; this approves only the Proposal |
+| Materialize the approved Proposal as a Recommendation (`CreateRecommendationFromProposal`) | Yes — system-triggered by `AgentProposalApproved` | No | No — human approval already occurred |
 | Convert an existing Recommendation into a Decision | No | Yes | Yes |
 | Record a Decision | No | Yes | Yes |
 | Create an Action | Partial (drafting only) | Yes | Per ActionCreationPolicy (varies by action class/impact) |
