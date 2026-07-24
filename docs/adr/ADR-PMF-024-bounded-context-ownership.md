@@ -42,7 +42,7 @@ PR1's aggregate map (`01-canonical-domain-model.md` §29) and PR1.1's cardinalit
 ## Risks
 
 - **Enforcement risk:** like ADR-PMF-023, this rule is not physically enforced until fitness functions (§53 of the parent document) exist; until then it depends on code review discipline.
-- **Granularity risk:** some aggregates (e.g., Stakeholder record, owned by Stakeholder and Communication Management but exposed via Project Management's `AddProjectStakeholder` command per `04-bounded-context-catalog.md` §11) sit close enough to a parent aggregate that the ownership line requires judgment calls; PR5 must resolve any ambiguity found during schema design against this ADR's rules, not by inventing a new exception.
+- **Granularity risk:** some aggregates (e.g., the Stakeholder record, which sits close enough to its parent Project that an earlier catalog draft mistakenly exposed its command through Project Management instead of its actual owner) sit close enough to a parent aggregate that the ownership line requires care to get right the first time; `04-bounded-context-catalog.md` §11 now correctly assigns `AddProjectStakeholder` to Stakeholder and Communication Management, its owning context, with no cross-context exposure exception. PR5 must resolve any similar ambiguity found during schema design against this ADR's rules, not by inventing a new exception.
 
 ## Security and Data Implications
 

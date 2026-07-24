@@ -27,7 +27,7 @@ Authority: same order as the parent document. Governing decision: ADR-PMF-027 (G
 | **Agent Context** | The assembled input for one Agent Run: retrieved Project Memory, Evidence, prior Recommendations, and any explicit actor-supplied input — never raw, unscoped database access. |
 | **Agent Tool Invocation** | One call from an Agent Run to an allowlisted tool, recorded individually within the run. |
 | **Agent Proposal** | The typed, unvalidated-by-humans output of an Agent Run — the only thing an Agent is permitted to produce. |
-| **Agent Recommendation** | An Agent Proposal that has passed Output Validation and Human Review and been converted into Recommendation Management's catalog via `ApproveAgentProposal` (§13 of the parent document) — the only command that produces a Recommendation from Agent-originated output. |
+| **Agent Recommendation** | An Agent Proposal that has passed Output Validation and Human Review (`ApproveAgentProposal`) and then been materialized into Recommendation Management's own catalog via its `CreateRecommendationFromProposal` command (§13 of the parent document) — the only path by which a Recommendation is created from Agent-originated output, and the only command that writes the Recommendation aggregate. |
 | **Agent Evidence Reference** | A pointer from an Agent Proposal or Recommendation back to the specific Evidence/Project Memory records it used — never inlined, unattributed content. |
 | **Agent Approval** | The human act of accepting an Agent Proposal into a Recommendation, or a Recommendation into a Decision — always a separate Command (`ApproveAgentProposal`, `ApproveRecommendation`). |
 | **Agent Audit Record** | The immutable record of an Agent Run and every Tool Invocation and Policy decision within it, held by Audit and Compliance. |
@@ -95,9 +95,9 @@ Model Invocation is a single scoped call through the AI Model Provider port (`04
 
 ## 8. Proposal Lifecycle and Human Approval
 
-`Requested → Assembled → Validated → Proposed → (Approved → Recommendation) | (Rejected → terminal) | (Expired → terminal)`
+`Requested → Assembled → Validated → Proposed → (Approved → Recommendation, via ApproveAgentProposal then Recommendation Management's own CreateRecommendationFromProposal) | (Rejected → terminal) | (Expired → terminal)`
 
-An Agent Proposal has no domain effect until `ApproveAgentProposal` converts it into a Recommendation (`04-canonical-application-architecture.md` §13, §26). This is the same separation the domain language already ratifies for Recommendation → Decision (ADR-PMF-008) — Proposal → Recommendation is simply the first hop of that same chain, governed by the same principle: **an AI-originated claim never becomes authoritative without an explicit human or governed-process act.**
+An Agent Proposal has no domain effect until a human issues `ApproveAgentProposal` (mutating only the Agent Proposal aggregate, within Agent Orchestration's own ownership) and Recommendation Management's `CreateRecommendationFromProposal` — triggered by the resulting `AgentProposalApproved` event — materializes it as a Recommendation (`04-canonical-application-architecture.md` §13, §26). This is the same separation the domain language already ratifies for Recommendation → Decision (ADR-PMF-008) — Proposal → Recommendation is simply the first hop of that same chain, governed by the same principle: **an AI-originated claim never becomes authoritative without an explicit human or governed-process act.** The chain is deliberately two commands in two owning contexts, not one command reaching across a context boundary, so that no single command ever crosses two aggregate-ownership boundaries (ADR-PMF-024).
 
 ## 9. Human-in-the-Loop Matrix
 
@@ -105,7 +105,10 @@ An Agent Proposal has no domain effect until `ApproveAgentProposal` converts it 
 | --- | --- | --- | --- |
 | Summarize evidence | Yes | Optional | No |
 | Propose a Risk (Agent Proposal) | Yes | Yes | Yes, to record it as a Risk |
-| Generate a Recommendation | Yes | Yes | Yes, to convert it to a Decision |
+| Generate an Agent Proposal (candidate Recommendation content) | Yes | Yes | No — generation itself has no domain effect |
+| Approve an Agent Proposal (`ApproveAgentProposal`) | No | — | Yes — mandatory human gate; this approves only the Proposal |
+| Materialize the approved Proposal as a Recommendation (`CreateRecommendationFromProposal`) | Yes — system-triggered by `AgentProposalApproved` | No | No — human approval already occurred |
+| Convert an existing Recommendation into a Decision | No | Yes | Yes |
 | Record a Decision | No | Yes | Yes |
 | Create an Action | Partial (drafting only) | Yes | Per ActionCreationPolicy (varies by action class/impact) |
 | Modify a budget | No | Yes | Yes |
@@ -116,7 +119,7 @@ An Agent Proposal has no domain effect until `ApproveAgentProposal` converts it 
 
 ## 10. Domain Mutation and Audit
 
-An Agent never issues a Command against an operational aggregate directly. The only Command an Agent Run itself triggers is `RequestAgentRun` (and, for self-management, `CancelAgentRun`) — Proposal creation is an internal pipeline step within that run, not a separate Agent-issuable Command. Producing a Recommendation from that Proposal requires `ApproveAgentProposal`, which is always issued by a human, never by the Agent itself, and which is still subject to `ApproveRecommendation` before any conversion to a Decision. Every other Command in `04-canonical-application-architecture.md` §13 that an Agent's suggestion eventually leads to (`RecordRisk`, `RecordIssue`, `RecordDecision`, `CreateActionFromDecision`) is likewise issued by a human actor exercising the approval step, never by the Agent itself. Every stage of the pipeline (§3) writes to the Agent Audit Record, independent of and in addition to the ordinary Command-level audit record each resulting domain Command produces.
+An Agent never issues a Command against an operational aggregate directly. The only Command an Agent Run itself triggers is `RequestAgentRun` (and, for self-management, `CancelAgentRun`) — Proposal creation is an internal pipeline step within that run, not a separate Agent-issuable Command. Moving a Proposal toward becoming a Recommendation requires `ApproveAgentProposal`, which is always issued by a human, never by the Agent itself, and which mutates only the Agent Proposal aggregate within Agent Orchestration's own ownership. The Recommendation itself is then created by Recommendation Management's own `CreateRecommendationFromProposal`, triggered by the resulting `AgentProposalApproved` event — Agent Orchestration never writes to Recommendation Management's aggregate directly, consistent with the one-owner rule (ADR-PMF-024) applied everywhere else in this architecture. The resulting Recommendation is still subject to `ApproveRecommendation` before any conversion to a Decision. Every other Command in `04-canonical-application-architecture.md` §13 that an Agent's suggestion eventually leads to (`RecordRisk`, `RecordIssue`, `RecordDecision`, `CreateActionFromDecision`) is likewise issued by a human actor exercising the approval step, never by the Agent itself. Every stage of the pipeline (§3) writes to the Agent Audit Record, independent of and in addition to the ordinary Command-level audit record each resulting domain Command produces.
 
 ## 11. Failure Handling, Prompt Injection, and Exfiltration Controls
 
