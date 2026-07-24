@@ -1,16 +1,22 @@
 /**
- * Behavioral contract tests for the Command Center activation sequence
- * (the cinematic state machine layered around the "Activate Command Center"
- * button). Static-analysis tests — same style as create-pmo-flow.test.mjs —
- * verifying: initialization never starts before persistence is confirmed,
- * the agent roster shown is always the real user-selected one, no fabricated
- * metrics leak into the sequence, and the timeout overlay never cancels the
- * underlying request.
+ * Behavioral contract tests for the Command Center activation lifecycle.
+ *
+ * Static-analysis style, matching create-pmo-flow.test.mjs.
+ *
+ * These replace the previous suite, which pinned a simulated lifecycle:
+ * created -> initializing -> ready driven by setTimeout, per-stage
+ * provisioning copy, an agent-activation roster, and a "Keep Waiting" button.
+ * None of that corresponded to real backend work — savePmoTenant is a single
+ * synchronous server action with no queue, worker, or persisted operation — and
+ * the fake sequence concealed a real hang: a rejected save left the UI pinned
+ * on "Creating Command Center..." forever.
+ *
+ * The real lifecycle is: idle -> submitting -> success | failure.
  */
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = process.cwd();
@@ -19,189 +25,182 @@ const ACTIVATION_DIR = "src/components/pmfreak/activation/command-center-activat
 const wizard = readFileSync(join(ROOT, "src/components/pmfreak/pmo/create-pmo-wizard.tsx"), "utf8");
 const hook = readFileSync(join(ROOT, ACTIVATION_DIR, "use-command-center-activation.ts"), "utf8");
 const sequence = readFileSync(join(ROOT, ACTIVATION_DIR, "CommandCenterActivationSequence.tsx"), "utf8");
-const timerSource = readFileSync(join(ROOT, ACTIVATION_DIR, "timer-progress-source.ts"), "utf8");
 const config = readFileSync(join(ROOT, ACTIVATION_DIR, "activation-sequence-config.ts"), "utf8");
+const failureState = readFileSync(join(ROOT, ACTIVATION_DIR, "ActivationFailureState.tsx"), "utf8");
 const transitionOverlay = readFileSync(join(ROOT, ACTIVATION_DIR, "TransitionOverlay.tsx"), "utf8");
-const timeoutState = readFileSync(join(ROOT, ACTIVATION_DIR, "ActivationTimeoutState.tsx"), "utf8");
 const types = readFileSync(join(ROOT, ACTIVATION_DIR, "types.ts"), "utf8");
 
+const ACTIVATION_SOURCES = [hook, sequence, config, failureState, transitionOverlay, types].join("\n");
+
+// Strips // line comments and /* */ block comments so the forbidden-pattern
+// checks below match executable code, not the explanatory comments that
+// document what was deliberately removed (this codebase writes a lot of those).
+function stripComments(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .map((line) => line.replace(/\/\/.*$/, ""))
+    .join("\n");
+}
+
+const ACTIVATION_CODE = stripComments(ACTIVATION_SOURCES);
+const WIZARD_CODE = stripComments(wizard);
+const FAILURE_STATE_CODE = stripComments(failureState);
+const TRANSITION_OVERLAY_CODE = stripComments(transitionOverlay);
+const TYPES_CODE = stripComments(types);
+
+
 // ─────────────────────────────────────────────────────────────────────────────
-// CONTRACT 1: Estado 1 (click received) is immediate, before the network call
+// CONTRACT 1: the simulated lifecycle is gone, not relabelled
 // ─────────────────────────────────────────────────────────────────────────────
 
-test("activation.markStarted() runs before setCreating(true)", () => {
-  const startedIdx = wizard.indexOf("activation.markStarted()");
-  const setCreatingIdx = wizard.indexOf("setCreating(true)");
-  assert.ok(startedIdx > 0, "markStarted() call must exist");
-  assert.ok(startedIdx < setCreatingIdx, "markStarted() must run before setCreating(true)");
+test("the simulated-progress modules no longer exist", () => {
+  for (const file of ["timer-progress-source.ts", "AgentActivationList.tsx", "InitializationStage.tsx", "ActivationTimeoutState.tsx"]) {
+    assert.equal(existsSync(join(ROOT, ACTIVATION_DIR, file)), false, `${file} must be deleted, not retained`);
+  }
 });
 
-test("activation.markRequestSent() runs before the server action is awaited", () => {
-  const sentIdx = wizard.indexOf("activation.markRequestSent()");
+test("no simulated progress driver survives anywhere in the activation module", () => {
+  for (const banned of ["ProgressSource", "createTimerProgressSource", "stage-start", "sequence-complete", "agentStatuses", "INITIALIZATION_STAGES"]) {
+    assert.ok(!ACTIVATION_CODE.includes(banned), `${banned} belongs to the removed simulated sequence`);
+  }
+});
+
+test("no copy claims provisioning, initialization, or memory preparation that does not happen", () => {
+  for (const claim of ["Provisioning", "Preparing Memory", "Activating Governance Agents", "Reading Context Seed", "Registering Delivery Configuration"]) {
+    assert.ok(!ACTIVATION_CODE.includes(claim), `copy "${claim}" describes work no backend operation performs`);
+  }
+});
+
+test("Keep Waiting is gone — there is no async operation to keep observing", () => {
+  assert.ok(!ACTIVATION_CODE.includes("Keep Waiting"), "Keep Waiting must not exist");
+  assert.ok(!ACTIVATION_CODE.includes("keepWaiting"), "keepWaiting handler must not exist");
+  assert.ok(!WIZARD_CODE.includes("onKeepWaiting"), "the wizard must not pass onKeepWaiting");
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTRACT 2: the state machine models only real states
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("ActivationStatus is exactly idle | submitting | success | failure", () => {
+  for (const status of ['"idle"', '"submitting"', '"success"', '"failure"']) {
+    assert.ok(types.includes(status), `${status} must be part of ActivationStatus`);
+  }
+  for (const removed of ['"activation_started"', '"request_sent"', '"created"', '"initializing"', '"ready"']) {
+    assert.ok(!TYPES_CODE.includes(removed), `${removed} modelled a state with no real backend counterpart`);
+  }
+});
+
+test("the timedOut flag is gone — a timeout now produces a terminal failure", () => {
+  assert.ok(!TYPES_CODE.includes("timedOut"), "timedOut must not exist");
+  assert.match(hook, /status:\s*"failure"/, "the timeout must resolve to a failure state");
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTRACT 3: timers are single-shot, cancelled, and never recurring
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("the hook never uses a recurring interval", () => {
+  assert.ok(!stripComments(hook).includes("setInterval"), "setInterval re-fired the timeout overlay forever");
+  assert.match(hook, /setTimeout\(/, "a single setTimeout guard is expected");
+});
+
+test("the timeout is cleared on every transition and on unmount", () => {
+  assert.match(hook, /const clearPendingTimeout = useCallback/, "a single clear helper must exist");
+  for (const fn of ["markSubmitting", "markSuccess", "markFailure", "reset"]) {
+    const body = hook.slice(hook.indexOf(`const ${fn} = useCallback`));
+    assert.match(body.slice(0, 400), /clearPendingTimeout\(\)/, `${fn} must clear the pending timeout`);
+  }
+  assert.match(hook, /useEffect\(\(\) => clearPendingTimeout/, "the timer must be cleared on unmount");
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTRACT 4: the wizard lifecycle — idle -> submitting -> success | failure
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("markSubmitting runs before the server action is awaited", () => {
+  const submitIdx = wizard.indexOf("activation.markSubmitting()");
   const saveIdx = wizard.indexOf("await savePmoTenant(tenant)");
-  assert.ok(sentIdx > 0, "markRequestSent() call must exist");
-  assert.ok(sentIdx < saveIdx, "markRequestSent() must run before awaiting savePmoTenant");
+  assert.ok(submitIdx > 0, "markSubmitting must exist");
+  assert.ok(submitIdx < saveIdx, "markSubmitting must run before awaiting savePmoTenant");
+});
+
+test("the save is wrapped in try/catch/finally so a rejection can never strand the lifecycle", () => {
+  const start = wizard.indexOf("const handleCreate = async");
+  const body = wizard.slice(start, wizard.indexOf("const handleRetryActivation"));
+  assert.match(body, /try\s*\{[\s\S]*await savePmoTenant\(tenant\)/, "the save must be inside a try block");
+  assert.match(body, /\}\s*catch\s*\(err\)\s*\{/, "a catch must handle a rejected server action");
+  assert.match(body, /\}\s*finally\s*\{/, "a finally must always release the in-flight guard");
+  assert.match(body, /finally\s*\{[\s\S]*setCreating\(false\)[\s\S]*inFlightRef\.current = false/, "finally must reset both flags");
+});
+
+test("both failure paths end in an explicit failure state, never a silent reset to idle", () => {
+  const start = wizard.indexOf("const handleCreate = async");
+  const body = wizard.slice(start, wizard.indexOf("const handleRetryActivation"));
+  const failures = [...body.matchAll(/activation\.markFailure\(/g)];
+  assert.equal(failures.length, 2, "one failure transition for a typed failure, one for a rejection");
+  assert.ok(!body.includes("activation.reset()"), "failure must not drop the user back to idle");
+});
+
+test("success transitions explicitly and exactly once", () => {
+  const successes = [...wizard.matchAll(/activation\.markSuccess\(\)/g)];
+  assert.equal(successes.length, 1, "exactly one success transition");
+});
+
+test("duplicate submissions are prevented by a single in-flight guard", () => {
+  assert.match(wizard, /const inFlightRef = useRef\(false\)/, "an in-flight ref must exist");
+  assert.match(wizard, /if \(inFlightRef\.current\) return;/, "re-entry must be rejected while a save is in flight");
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CONTRACT 2: initialization never starts before persistence is confirmed
+// CONTRACT 5: retry is a genuine new attempt
 // ─────────────────────────────────────────────────────────────────────────────
 
-test("runInitializationSequence is only called after the success guard", () => {
-  const guardIdx = wizard.indexOf('result.status !== "success"');
-  const initIdx = wizard.indexOf("activation.runInitializationSequence(");
-  assert.ok(guardIdx > 0, "success guard must exist");
-  assert.ok(initIdx > guardIdx, "initialization must be triggered after the success guard");
+test("retry starts a real new activation attempt through the same guarded path", () => {
+  assert.match(wizard, /const handleRetryActivation = \(\) => \{[\s\S]*?void handleCreate\(\);/, "retry must invoke handleCreate");
+  assert.ok(!WIZARD_CODE.includes("handleRetryAfterTimeout"), "the old timeout-only retry must be gone");
+  assert.match(wizard, /onRetry=\{handleRetryActivation\}/, "the overlay must be wired to the real retry");
 });
 
-test("wizard redirects straight into the Command Center exactly once, after savePmoTenant", () => {
-  const saveIdx = wizard.indexOf("await savePmoTenant(tenant)");
-  const pushIdx = wizard.indexOf('router.push("/command-center?from=onboarding")');
-  assert.ok(saveIdx > 0 && pushIdx > saveIdx, "redirect must come after savePmoTenant");
-  const allPushes = [...wizard.matchAll(/router\.push\("\/command-center\?from=onboarding"\)/g)];
-  assert.equal(allPushes.length, 1, "redirect to the Command Center must appear exactly once");
-});
-
-test("wizard no longer redirects to the standalone /pmo/invite-team page", () => {
-  assert.doesNotMatch(wizard, /router\.push\("\/pmo\/invite-team"\)/);
-});
-
-test("failure branch hands control back to the existing error UI via activation.reset()", () => {
-  const guardStart = wizard.indexOf('result.status !== "success"');
-  const guardEnd = wizard.indexOf("// Persistence confirmed");
-  assert.ok(guardStart > 0 && guardEnd > guardStart, "failure branch boundaries must be identifiable");
-  const failureBranch = wizard.slice(guardStart, guardEnd);
-  assert.match(failureBranch, /activation\.reset\(\)/, "failure branch must reset the activation overlay");
-  assert.match(failureBranch, /setCreating\(false\)/, "existing creating=false contract must be untouched");
+test("the failure UI offers Retry and never offers to keep waiting", () => {
+  assert.match(failureState, /Retry/, "failure state must offer Retry");
+  assert.ok(!FAILURE_STATE_CODE.includes("Keep Waiting"), "failure state must not offer Keep Waiting");
+  assert.match(failureState, /disabled=\{retrying\}/, "the retry button must disable while in flight");
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CONTRACT 3: the agent roster is always the real, user-selected one
+// CONTRACT 6: success routes automatically to the canonical destination
 // ─────────────────────────────────────────────────────────────────────────────
 
-test("initialization sequence is fed the real enabled-agents list, not a fixed roster", () => {
-  assert.match(
-    wizard,
-    /activation\.runInitializationSequence\(agents\.filter\(\(a\) => a\.enabled\)\.map\(\(a\) => a\.agentId\)\)/,
-    "must derive the agent list from wizard state, filtered by enabled"
-  );
+test("success navigates automatically after a brief confirmation, with no manual click", () => {
+  assert.match(wizard, /if \(activation\.state\.status !== "success"\) return;/, "navigation must be driven by the success state");
+  assert.match(wizard, /router\.push\("\/command-center\?from=onboarding"\)/, "must route to the Command Center");
+  assert.match(wizard, /\}, SUCCESS_CONFIRMATION_DURATION_MS\);/, "the confirmation delay must come from config");
+  assert.ok(!WIZARD_CODE.includes("handleContinueToCommandCenter"), "the manual continue handler must be gone");
+  assert.ok(!TRANSITION_OVERLAY_CODE.includes("onContinue"), "the success confirmation must not require a click");
 });
 
-test("CommandCenterActivationSequence does not hardcode a fixed agent roster", () => {
-  assert.doesNotMatch(
-    sequence,
-    /"scope"\s*,\s*"timeline"\s*,\s*"cost"/,
-    "the sequence component must not hardcode the agent id list — it must receive enabledAgentIds as a prop"
-  );
+test("successful activation does not depend on brainActivated=1", () => {
+  assert.ok(!WIZARD_CODE.includes("brainActivated"), "the durable ingestion marker decides the landing view, not a query flag");
 });
 
-test("AgentActivationList renders only agents passed in via props", () => {
-  const agentList = readFileSync(join(ROOT, ACTIVATION_DIR, "AgentActivationList.tsx"), "utf8");
-  assert.match(agentList, /enabledAgentIds\.map/, "must iterate the enabledAgentIds prop");
-  assert.doesNotMatch(
-    agentList,
-    /DEFAULT_AGENT_STATES/,
-    "must not fall back to the default agent roster — only real enabled agents"
-  );
+test("the redirect appears exactly once", () => {
+  const pushes = [...wizard.matchAll(/router\.push\("\/command-center\?from=onboarding"\)/g)];
+  assert.equal(pushes.length, 1, "exactly one Command Center redirect");
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CONTRACT 4: zero-fabrication — no invented risk/signal/initiative counts
+// CONTRACT 7: no fabricated metrics survive in the success confirmation
 // ─────────────────────────────────────────────────────────────────────────────
 
-const FORBIDDEN_FABRICATIONS = [
-  /Risks? Detected/i,
-  /Opportunities Identified/i,
-  /Active Signals/i,
-  /initiatives detected/i,
-  /Knowledge Objects Indexed/i,
-];
-
-// Stage copy must describe real setup/configuration operations, never analysis
-// or synthesis that isn't actually happening in those seconds.
-const FORBIDDEN_ANALYSIS_LANGUAGE = [
-  /Building Operational Graph/,
-  /Generating Executive Picture/,
-  /Analyzing/i,
-  /Intelligence Network/,
-];
-
-test("no fabricated metrics appear in the transition overlay", () => {
-  for (const pattern of FORBIDDEN_FABRICATIONS) {
-    assert.doesNotMatch(transitionOverlay, pattern, `TransitionOverlay must not contain fabricated metric: ${pattern}`);
-  }
+test("success confirmation counts derive from real wizard props, not literals", () => {
+  assert.match(transitionOverlay, /\{enabledAgentCount\}/, "agent count must come from props");
+  assert.match(transitionOverlay, /\{deliveryChallengeCount\}/, "challenge count must come from props");
+  assert.ok(!TRANSITION_OVERLAY_CODE.includes("Agents Online"), "agents were configured, not brought online");
 });
 
-test("no fabricated metrics appear anywhere in the activation module", () => {
-  for (const source of [sequence, config, hook, timerSource]) {
-    for (const pattern of FORBIDDEN_FABRICATIONS) {
-      assert.doesNotMatch(source, pattern, `must not contain fabricated metric: ${pattern}`);
-    }
-  }
-});
-
-test("stage copy describes real setup operations, never live analysis/synthesis", () => {
-  for (const source of [config, sequence, transitionOverlay]) {
-    for (const pattern of FORBIDDEN_ANALYSIS_LANGUAGE) {
-      assert.doesNotMatch(source, pattern, `must not imply live analysis: ${pattern}`);
-    }
-  }
-});
-
-test("ready-state counts are derived from real wizard props, not literals", () => {
-  assert.match(transitionOverlay, /enabledAgentCount/, "agent count must come from a prop");
-  assert.match(transitionOverlay, /deliveryChallengeCount/, "challenge count must come from a prop");
-  assert.match(transitionOverlay, /hasContextSeed/, "context-seed presence must come from a prop");
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CONTRACT 5: timeout never cancels the underlying request
-// ─────────────────────────────────────────────────────────────────────────────
-
-test("keepWaiting only dismisses the timeout flag, it does not touch status", () => {
-  const fnMatch = hook.match(/const keepWaiting = useCallback\(\(\) => \{([\s\S]*?)\}, \[\]\);/);
-  assert.ok(fnMatch, "keepWaiting implementation must exist");
-  assert.doesNotMatch(fnMatch[1], /status:\s*"/, "keepWaiting must not change status — only clear timedOut");
-  assert.match(fnMatch[1], /timedOut:\s*false/, "keepWaiting must clear the timedOut flag");
-});
-
-test("ActivationTimeoutState does not abort or cancel the in-flight request", () => {
-  assert.doesNotMatch(timeoutState, /\.abort\(/, "timeout UI must never abort the underlying request");
-  assert.match(timeoutState, /Keep Waiting/, "must offer Keep Waiting");
-  assert.match(timeoutState, /Retry/, "must offer Retry");
-});
-
-test("timeout is a flag layered on request_sent, not a new terminal status", () => {
-  assert.doesNotMatch(types, /"timeout"/, "timeout must not be modeled as its own ActivationStatus value");
-  assert.match(types, /timedOut:\s*boolean/, "timedOut must be a boolean flag on ActivationState");
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CONTRACT 6: configuration lives in one place, not scattered magic numbers
-// ─────────────────────────────────────────────────────────────────────────────
-
-test("stage timing/copy is defined in activation-sequence-config.ts", () => {
-  assert.match(config, /export const INITIALIZATION_STAGES/, "stages must be declared in the config module");
-  assert.match(config, /durationMs/, "each stage must declare a configurable duration");
-  assert.match(config, /enabled:\s*true/, "each stage must declare an enabled flag");
-});
-
-test("the hook imports its timing constants from config instead of hardcoding them", () => {
-  assert.match(
-    hook,
-    /import \{ CREATED_CONFIRMATION_DURATION_MS, DEFAULT_TIMEOUT_MS \} from "\.\/activation-sequence-config"/,
-    "hook must source durations from the config module"
-  );
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CONTRACT 7: pluggable progress source (future SSE/WebSocket readiness)
-// ─────────────────────────────────────────────────────────────────────────────
-
-test("ProgressSource is an abstraction, not hardwired to timers in the hook", () => {
-  assert.match(hook, /createProgressSource\s*\?\?\s*createTimerProgressSource/, "hook must accept a pluggable progress source, defaulting to timers");
-});
-
-test("timer-progress-source documents itself as the swappable default", () => {
-  assert.match(timerSource, /SSE|WebSocket/, "must document the real-time extension point");
+test("the timeout constant is defined in config, not hardcoded in the hook", () => {
+  assert.match(config, /export const SUBMIT_TIMEOUT_MS/, "timeout must live in config");
+  assert.match(config, /export const SUCCESS_CONFIRMATION_DURATION_MS/, "confirmation duration must live in config");
+  assert.match(hook, /import \{ SUBMIT_TIMEOUT_MS \} from "\.\/activation-sequence-config"/, "the hook must import its timing");
 });

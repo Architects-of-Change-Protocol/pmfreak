@@ -8,6 +8,7 @@ import type { ProjectListItem, ToneBadge } from "../../presentation/command-cent
 import { ProjectBrainOnlineHero } from "@/components/pmfreak/intelligence-inbox/project-brain-online-hero";
 import { ProjectIntelligenceInbox } from "@/components/pmfreak/intelligence-inbox/project-intelligence-inbox";
 import type { ProjectOnboardingSnapshot } from "@/lib/project-brain/derive-initial-response";
+import { markInitialIngestionAction } from "@/app/(protected)/command-center/ingestion-actions";
 
 type UserProject = { id: string; name: string };
 
@@ -125,7 +126,7 @@ export function CommandCenterClient({
           createdAt={projectCreatedAt}
           onboarding={onboarding}
           onEvidenceAdded={() => { void retryBrief(); }}
-          onEnterCommandCenter={() => setShowIntelligenceInbox(false)}
+          onEnterCommandCenter={() => { void markInitialIngestionAction(projectId, "completed"); setShowIntelligenceInbox(false); }}
         />
       </div>
     );
