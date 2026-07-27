@@ -1,0 +1,786 @@
+{
+  "auditDate": "2026-07-27",
+  "repository": "architects-of-change-protocol/pmfreak",
+  "headSha": "7aac1a52e96fe9ecc1ec96faf5b184e36aecc9e9",
+  "overallVerdict": "PMFREAK CRITICAL PATH PARTIAL — REMEDIATION BACKLOG READY",
+  "backlog": [
+    {
+      "id": "PMF-001",
+      "title": "Legacy onboarding wizard fabricates data and bypasses evidence-derived activation",
+      "priority": "P0",
+      "category": "misleading-product-state",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/components/pmfreak/activation/getting-started-flow.tsx:262 (fabricated completionScore from string length)",
+        "src/components/pmfreak/activation/getting-started-flow.tsx:274-293 (fabricated readinessScore blend)",
+        "src/components/pmfreak/activation/getting-started-flow.tsx:88-93 (hardcoded fake evidence templates)",
+        "src/app/api/getting-started/route.ts:53-60 (templates persisted as real operational_memory rows)",
+        "src/app/api/getting-started/route.ts:30-33,47-51 (loadDemo seeds fictional project)",
+        "src/app/api/getting-started/route.ts:62 (writes forbidden static onboarding_completed flag)",
+        "tests/workspace-onboarding-guardrails.test.mjs:4,46 (guardrail scans only the new surface, not this file)",
+        "src/lib/auth/onboarding-route-map.ts:10-12 (every new user is routed here)"
+      ],
+      "affectedAreas": [
+        "src/components/pmfreak/activation/getting-started-flow.tsx",
+        "src/app/(protected)/workspace/setup/page.tsx",
+        "src/app/api/getting-started/route.ts",
+        "tests/workspace-onboarding-guardrails.test.mjs"
+      ],
+      "currentBehavior": "New users are routed to /workspace/setup, which renders GettingStartedFlow — a pre-#547 wizard that computes fabricated readiness/completion scores from arithmetic on string lengths, ships hardcoded fake evidence templates that get persisted as real operational_memory rows unless the user edits every field, includes a demo-data seeding branch with a fictional project, and writes a static onboarding_completed boolean.",
+      "expectedBehavior": "The only onboarding surface a new user encounters is the evidence-derived activation engine from PR #547 (src/lib/workspace-activation/*), computing state purely from real workspace/project/task/signal presence, with no fabricated scores, no persisted fake evidence, and no demo-seeding branch.",
+      "rootCauseHypothesis": "PR #547 built a new, correct activation engine but never retired the pre-existing wizard or rerouted the onboarding entry point to it; the guardrail regression test added by #547 only covers the new surface, so the legacy wizard's fabrication was never caught by CI.",
+      "implementationBoundary": "Retire or fully rewrite getting-started-flow.tsx and its API route to use only real, evidence-derived data; reroute /workspace/setup (or retire it) so the canonical entry point is the #547 activation engine.",
+      "nonGoals": [
+        "Do not redesign the activation engine's underlying evidence rules (activation-rules.ts) — those are already correct.",
+        "Do not rebuild onboarding UX from scratch — reuse/port legitimate UX from the legacy wizard where it doesn't fabricate data."
+      ],
+      "dependencies": ["PMF-002", "PMF-006"],
+      "acceptanceCriteria": [
+        "No code path computes a readiness/completion percentage from string length or arbitrary formula.",
+        "No template evidence is ever persisted to operational_memory without explicit, unedited user authorship being clearly marked as such (or the auto-seed is removed).",
+        "The demo-data seeding branch is removed or gated behind an explicit, clearly-labeled 'sample data' affordance never reachable in the default new-user path.",
+        "Guardrail test coverage extends to whichever file is the new canonical onboarding entry point."
+      ],
+      "requiredTests": [
+        "Extend tests/workspace-onboarding-guardrails.test.mjs to cover the retired/replacement surface",
+        "New test asserting a fresh account's operational_memory contains zero rows until the user submits real evidence"
+      ],
+      "estimatedSize": "M",
+      "confidence": "high",
+      "recommendedSprint": 1
+    },
+    {
+      "id": "PMF-002",
+      "title": "Legacy wizard hard-blocks direct Project creation, contradicting ratified IA",
+      "priority": "P0",
+      "category": "canonical-architecture-contradiction",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/components/pmfreak/activation/getting-started-flow.tsx:359-370 (disabled Create Project button, tooltip 'Create a Command Center first')",
+        "docs/adr/ADR-PMF-006 Rule 11 ('No onboarding flow may require creation of a level above Project as a precondition')"
+      ],
+      "affectedAreas": [
+        "src/components/pmfreak/activation/getting-started-flow.tsx"
+      ],
+      "currentBehavior": "The live onboarding wizard disables Project creation until a Command Center/PMO has been created, contradicting the ratified information architecture from PR #533/ADR-PMF-006.",
+      "expectedBehavior": "A user can create a Project directly with zero precondition on PMO/Command Center existence, per PR #548's own stated goal and the ratified IA rule.",
+      "rootCauseHypothesis": "This gating predates PR #548's direct-creation work (commit 7c5e94c, 2026-07-15) and was never touched by the #543-#545 honesty/zero-state PRs or by #548 itself, since #548 built a new creation path without removing the old gate.",
+      "implementationBoundary": "Remove the precondition gate in getting-started-flow.tsx; this is likely resolved as a byproduct of PMF-001 if the file is retired, but must be independently verified if the file is instead patched rather than replaced.",
+      "nonGoals": ["Do not change PMO/Command Center creation flows themselves."],
+      "dependencies": ["PMF-001"],
+      "acceptanceCriteria": [
+        "Create Project is reachable and functional for a brand-new workspace with no PMO/Command Center in existence.",
+        "No UI copy implies a Command Center is a precondition for Project creation."
+      ],
+      "requiredTests": [
+        "New test: fresh workspace, zero PMOs, successfully creates a project via the onboarding surface"
+      ],
+      "estimatedSize": "S",
+      "confidence": "high",
+      "recommendedSprint": 1
+    },
+    {
+      "id": "PMF-003",
+      "title": "Execution-task/dependency mutation endpoints authorize on 'read' not 'write'",
+      "priority": "P0",
+      "category": "security-authorization",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/app/api/execution-tasks/update/route.ts:46-51 (requireProjectAccess(..., \"read\") gating a mutating POST)",
+        "src/app/api/execution-task-dependencies/update/route.ts:57-63",
+        "src/lib/execution-tasks/dependencies/create-dependency.ts:85-92",
+        "src/app/api/execution-task-dependencies/materialize/route.ts:30-36",
+        "src/lib/security/rbac.ts (executive_viewer/external_stakeholder permission set is {read[, view_executive]} only)",
+        "src/app/api/execution-tasks/[taskId]/route.ts:117-124 (newer route correctly gates on \"write\"; comment confirms legacy route intentionally left at \"read\" for backward compatibility)"
+      ],
+      "affectedAreas": [
+        "src/app/api/execution-tasks/update/route.ts",
+        "src/app/api/execution-task-dependencies/update/route.ts",
+        "src/app/api/execution-task-dependencies/route.ts",
+        "src/app/api/execution-task-dependencies/materialize/route.ts",
+        "src/lib/execution-tasks/dependencies/create-dependency.ts"
+      ],
+      "currentBehavior": "A user with a view-only workspace role (executive_viewer, external_stakeholder) can reassign task ownership, change status/due-date/progress, and create/materialize task dependencies through the legacy execution-tasks/update and execution-task-dependencies endpoints, because those routes check for \"read\" permission instead of \"write\".",
+      "expectedBehavior": "All mutating task/dependency endpoints require \"write\" permission server-side, consistently with the newer /api/execution-tasks/[taskId] route.",
+      "rootCauseHypothesis": "The legacy /update routes predate a later permission-tightening pass that only touched the new [taskId] route; the backward-compatibility comment confirms this was a deliberate but unresolved deferral, not an oversight.",
+      "implementationBoundary": "Change the permission argument from \"read\" to \"write\" in the four cited call sites; verify no legitimate read-only caller currently depends on the loose gate (check any UI code path that calls these routes for view-only users).",
+      "nonGoals": ["Do not redesign the RBAC permission model itself — this is a call-site fix, not a rbac.ts change.", "Do not add tenant-scoping to RLS policies — this is an app-layer authorization fix; RLS already enforces workspace membership."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "An executive_viewer or external_stakeholder session receives a 403 when calling any of the four cited routes with a mutating intent.",
+        "Existing legitimate write-role usage of these routes continues to succeed."
+      ],
+      "requiredTests": [
+        "New authorization-boundary test: executive_viewer POST to /api/execution-tasks/update returns 403",
+        "New authorization-boundary test: external_stakeholder POST to /api/execution-task-dependencies returns 403"
+      ],
+      "estimatedSize": "S",
+      "confidence": "high",
+      "recommendedSprint": 3
+    },
+    {
+      "id": "PMF-004",
+      "title": "pmos table lacks unique constraint on workspace_id — duplicate-PMO race condition",
+      "priority": "P0",
+      "category": "data-integrity",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/lib/pmo/save-pmo-tenant.ts:128-149 (check-then-insert pattern for pmos)",
+        "supabase/migrations/20260828000001_workspace_pmo_project_hierarchy.sql:29-49 (only a non-unique btree index, pmos_workspace_idx)",
+        "supabase/migrations/20260527091000_workspace_governance.sql:7 (contrast: workspace_governance has a real PK on workspace_id, race-safe)",
+        "src/components/pmfreak/pmo/create-pmo-wizard.tsx:720,810-811 (client-side inFlightRef only guards a single tab/instance)",
+        "tests/command-center-activation-sequence.test.mjs:150-152 (only asserts the single-tab guard, no cross-tab/concurrency test)"
+      ],
+      "affectedAreas": [
+        "src/lib/pmo/save-pmo-tenant.ts",
+        "supabase/migrations/"
+      ],
+      "currentBehavior": "Two concurrent Command Center activation requests for the same workspace (two browser tabs, or a stale retry racing the original request) can both read 'no existing PMO' and both insert, producing two pmos rows for one workspace with no database-level guard against it.",
+      "expectedBehavior": "PMO creation is idempotent at the database level — concurrent activation attempts for the same workspace cannot produce duplicate PMO records.",
+      "rootCauseHypothesis": "workspace_governance was given a race-safe upsert (PK + onConflict) when the hierarchy migration was written, but the corresponding constraint was never added to pmos, so its check-then-insert path in save-pmo-tenant.ts remains vulnerable.",
+      "implementationBoundary": "Add a unique constraint (or partial unique index) on pmos.workspace_id — exact cardinality model depends on the product decision in the audit's Unknowns section (one-PMO-per-workspace vs. multi-PMO with a different idempotency key) — then change save-pmo-tenant.ts to upsert against that constraint instead of check-then-insert.",
+      "nonGoals": ["Do not change the workspace_governance upsert pattern — it is already correct.", "Do not solve the client-side silent-retry-no-op bug here (PMF-009) — that is a separate UX defect."],
+      "dependencies": ["Product decision: PMO-per-workspace cardinality (see audit §22 item 5)"],
+      "acceptanceCriteria": [
+        "A concurrency test firing two simultaneous activation requests for one workspace results in exactly one pmos row.",
+        "Existing single-request activation continues to succeed unchanged."
+      ],
+      "requiredTests": [
+        "New concurrency test: two parallel savePmoTenant calls for the same workspace produce one pmos row"
+      ],
+      "estimatedSize": "S",
+      "confidence": "high",
+      "recommendedSprint": 2
+    },
+    {
+      "id": "PMF-005",
+      "title": "'Project Brain Online'/'smarter' claim renders at zero-evidence state",
+      "priority": "P0",
+      "category": "misleading-product-state",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/components/pmfreak/project-brain/project-brain-online-hero.tsx:13,18-20 (headline + 'gets smarter with more evidence' copy)",
+        "src/modules/workspace/screens/command-center/command-center-client.tsx:92,121 (rendered unconditionally on firstRun)",
+        "src/components/pmfreak/intelligence-inbox/operational-memory-panel.tsx:34-40 (static 'Online' block not gated on response, unlike sibling sections that honestly fall back to 'Not available yet')"
+      ],
+      "affectedAreas": [
+        "src/components/pmfreak/project-brain/project-brain-online-hero.tsx",
+        "src/components/pmfreak/intelligence-inbox/operational-memory-panel.tsx",
+        "src/modules/workspace/screens/command-center/command-center-client.tsx"
+      ],
+      "currentBehavior": "The 'Project Brain Online' hero and 'the more evidence you provide, the smarter your Project Brain becomes' copy render at the very first Command Center visit, with zero evidence and zero facts beyond 'project created' — implying an adaptive-learning capability the deterministic, rule-based implementation does not have.",
+      "expectedBehavior": "Any 'Online'/'learning' claim is either removed, or gated on and worded to match what the underlying implementation actually does (a fixed rule-based derivation over onboarding fields and evidence counts, not an adaptive learning system).",
+      "rootCauseHypothesis": "The hero/status copy was written aspirationally ahead of the underlying capability and never revisited once PR #552 clarified that the Brain is deterministic and rule-based, not learning-based.",
+      "implementationBoundary": "Rewrite the hero and operational-memory-panel status copy to accurately describe current capability (e.g., 'Project Brain is tracking N facts from your evidence' rather than 'smarter' framing); gate any 'Online' framing on there being at least one real, non-default statement.",
+      "nonGoals": ["Do not implement actual adaptive learning/confidence scoring here — that is PMF-015's scope, if pursued at all.", "Do not remove the Project Brain feature — only its overclaiming copy."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "No UI copy in the Command Center/Intelligence Inbox implies learning/adaptation occurs.",
+        "A brand-new project's first Command Center visit shows copy consistent with zero evidence having been provided yet."
+      ],
+      "requiredTests": [
+        "New test extending tests/honest-ai-copy.test.mjs (or project-brain-foundation.test.mjs) asserting no 'smarter'/'learns'/'adapts' language is rendered without qualifying evidence"
+      ],
+      "estimatedSize": "S",
+      "confidence": "high",
+      "recommendedSprint": 4
+    },
+    {
+      "id": "PMF-006",
+      "title": "Static onboarding_completed JWT flag diverges from DB-derived activation state",
+      "priority": "P1",
+      "category": "product-defect",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/lib/auth/resolve-onboarding-state.ts:115-119 (reads user_metadata.onboarding_completed from JWT)",
+        "src/proxy.ts:67-69 (Edge middleware gates on this JWT claim)",
+        "src/app/api/onboarding/route.ts:51 and src/app/api/getting-started/route.ts:62 (both write the flag directly)",
+        "src/app/(protected)/layout.tsx (calls the DB-backed resolveOnboardingState correctly, but only after the Edge gate has already acted on the stale claim)"
+      ],
+      "affectedAreas": [
+        "src/lib/auth/resolve-onboarding-state.ts",
+        "src/proxy.ts",
+        "src/app/api/onboarding/route.ts",
+        "src/app/api/getting-started/route.ts"
+      ],
+      "currentBehavior": "Edge middleware gating relies on a JWT claim that only refreshes when the session token itself refreshes; a long-lived tab or a workspace state change can leave the gate acting on stale data even though server components elsewhere correctly re-derive live state from the database.",
+      "expectedBehavior": "Activation gating is derived from the same live, DB-backed evidence everywhere, including at the Edge middleware layer, or the middleware layer accepts a bounded staleness window explicitly and documents it.",
+      "rootCauseHypothesis": "Edge middleware cannot cheaply query the database per-request, so a JWT claim was used as a shortcut; this was never reconciled with the correct, newer DB-derived resolution used in (protected)/layout.tsx.",
+      "implementationBoundary": "Either move the Edge gate to a lightweight DB-backed check, or remove enforcement at the Edge layer and rely solely on the DB-backed layout-level check (already present) as the sole authority.",
+      "nonGoals": ["Do not change the evidence-derivation rules themselves (activation-rules.ts)."],
+      "dependencies": ["PMF-001"],
+      "acceptanceCriteria": [
+        "A workspace's activation state change (e.g., a project is deleted, invalidating readiness) is reflected in gating decisions within one request, not only after a token refresh."
+      ],
+      "requiredTests": [
+        "New test simulating a stale JWT claim against a changed DB state, asserting the DB-backed state wins"
+      ],
+      "estimatedSize": "M",
+      "confidence": "medium",
+      "recommendedSprint": 1
+    },
+    {
+      "id": "PMF-007",
+      "title": "Workspace bootstrap is not atomic (orphaned-workspace risk)",
+      "priority": "P1",
+      "category": "data-integrity",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/lib/workspaces.ts:77-106 (ensureUserWorkspace: two sequential unwrapped writes — workspaces.insert at 92-96, then a separate ensureWorkspaceMembership upsert at 103)"
+      ],
+      "affectedAreas": ["src/lib/workspaces.ts"],
+      "currentBehavior": "New-workspace bootstrap performs a workspace insert and a membership upsert as two separate, non-transactional writes; a process failure between them leaves an orphaned workspace row with no owner membership.",
+      "expectedBehavior": "Bootstrap is atomic — either both writes succeed or neither does — via a single transaction or a Postgres function performing both steps.",
+      "rootCauseHypothesis": "The two operations were implemented as sequential application-layer calls without wrapping them in a transaction, likely because Supabase's client-side API makes multi-statement transactions less ergonomic than a single insert.",
+      "implementationBoundary": "Wrap both writes in a single database transaction (e.g., a Postgres function invoked via RPC) or add a reconciliation check that detects and repairs orphaned workspaces on next login.",
+      "nonGoals": ["Do not change the workspace schema itself."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "A simulated failure between the two writes either rolls back cleanly or is auto-repaired on the user's next request."
+      ],
+      "requiredTests": [
+        "New test simulating a membership-upsert failure after a successful workspace insert, asserting no orphaned state is user-visible"
+      ],
+      "estimatedSize": "S",
+      "confidence": "high",
+      "recommendedSprint": 1
+    },
+    {
+      "id": "PMF-008",
+      "title": "Due-date value drifts by a calendar day across creation/display/edit",
+      "priority": "P1",
+      "category": "correctness",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/lib/execution-tasks/create-execution-task.ts:94 (creation stores UTC-midnight, safe in isolation)",
+        "src/components/pmfreak/tasks/project-task-list.tsx:76 (new Date(task.due_date).toLocaleDateString() renders in local time)",
+        "src/components/pmfreak/execution/task-due-date-control.tsx:32 (read-only display, same issue)",
+        "src/components/pmfreak/execution/task-due-date-control.tsx:3-11 (toDateInputValue pre-fills the wrong day for negative-UTC-offset viewers)",
+        "src/components/pmfreak/execution/task-due-date-control.tsx:45 (onChange writes back using local midnight, inconsistent with the UTC-midnight interpretation used at creation)"
+      ],
+      "affectedAreas": [
+        "src/components/pmfreak/tasks/project-task-list.tsx",
+        "src/components/pmfreak/execution/task-due-date-control.tsx"
+      ],
+      "currentBehavior": "A due date created via Quick Add (stored as UTC midnight) can display as the previous day, and re-saving it after opening the editor in a timezone behind UTC can silently shift it again, because display and edit round-trip through local time inconsistently with how creation stores the value.",
+      "expectedBehavior": "A date-only due date always displays and edits as the same calendar day it was set to, regardless of the viewer's browser timezone.",
+      "rootCauseHypothesis": "The due-date field is stored as a full timestamp (UTC midnight) but treated as a date-only value everywhere else; display/edit code paths independently reimplemented local-time conversions instead of sharing one date-only-safe utility.",
+      "implementationBoundary": "Introduce a single shared date-only formatting/parsing utility (or store the field as a true date-only Postgres type) and use it consistently across project-task-list.tsx, task-due-date-control.tsx, and any other due-date rendering/editing site.",
+      "nonGoals": ["Do not change timestamp fields that are genuinely instant-in-time (e.g., created_at, uploaded_at) — this applies only to date-only fields like due_date."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "A due date set to a given calendar day displays as that same day for viewers in any timezone.",
+        "Opening and re-saving a task's due date without changing it does not alter the stored value."
+      ],
+      "requiredTests": [
+        "New test asserting due-date round-trip stability across simulated timezones (e.g., UTC-12 through UTC+14)"
+      ],
+      "estimatedSize": "S",
+      "confidence": "high",
+      "recommendedSprint": null
+    },
+    {
+      "id": "PMF-009",
+      "title": "Command Center activation retry silently no-ops after client timeout",
+      "priority": "P1",
+      "category": "correctness",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/components/pmfreak/pmo/create-pmo-wizard.tsx:868-871 (inFlightRef cleared only in the original request's finally)",
+        "src/components/pmfreak/pmo/create-pmo-wizard.tsx:880-882 (handleRetryActivation -> handleCreate hits the guard, silently no-ops)",
+        "src/components/pmfreak/activation/command-center-activation/CommandCenterActivationSequence.tsx:66 (ActivationFailureState's retrying prop hardcoded false)",
+        "src/lib/pmo/save-pmo-tenant.ts:128-149 (the underlying non-idempotent call this retry races against)"
+      ],
+      "affectedAreas": [
+        "src/components/pmfreak/pmo/create-pmo-wizard.tsx",
+        "src/components/pmfreak/activation/command-center-activation/CommandCenterActivationSequence.tsx"
+      ],
+      "currentBehavior": "If the client's 20-second submit timeout fires while the original activation request is still pending server-side, clicking Retry hits the in-flight guard and does nothing visible — no spinner, no error, no feedback — until the stale request eventually settles.",
+      "expectedBehavior": "Retry either genuinely retries (once the original request is confirmed dead) or gives the user clear, honest feedback that a previous attempt is still being processed.",
+      "rootCauseHypothesis": "The in-flight guard was designed to prevent duplicate submissions within a single request lifecycle but doesn't account for the client-side timeout firing before the guard clears, leaving a window where Retry is a no-op.",
+      "implementationBoundary": "Either surface a 'still processing your previous request' state when the guard is active during a retry attempt, or resolve PMF-004's idempotency fix first so a genuine retry is always safe to fire immediately.",
+      "nonGoals": ["Do not change the 20-second timeout value itself — this is a feedback/behavior fix, not a tuning change."],
+      "dependencies": ["PMF-004"],
+      "acceptanceCriteria": [
+        "Clicking Retry while the original request is still in flight shows a visible 'still working' state rather than doing nothing."
+      ],
+      "requiredTests": [
+        "New test simulating a slow original request and asserting Retry gives visible feedback rather than a silent no-op"
+      ],
+      "estimatedSize": "S",
+      "confidence": "high",
+      "recommendedSprint": 2
+    },
+    {
+      "id": "PMF-010",
+      "title": "BrainBootSequence fakes live backend initialization stages",
+      "priority": "P1",
+      "category": "misleading-product-state",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/components/pmfreak/projects/brain-boot-sequence.tsx:11-16 (five staged labels: 'Bringing governance online…', 'Synchronizing context engine…', etc.)",
+        "src/components/pmfreak/projects/brain-boot-sequence.tsx:19-21 ('the project is already saved by the time this renders'; 'a staged reveal only', self-documented)"
+      ],
+      "affectedAreas": ["src/components/pmfreak/projects/brain-boot-sequence.tsx"],
+      "currentBehavior": "A five-stage animated sequence displays labels describing backend initialization (governance, operational memory, operational graph, context engine) tied only to fixed 600-650ms timers, none of which correspond to any real backend call executing at that moment.",
+      "expectedBehavior": "Loading/progress UI either reflects real, observable backend state transitions, or uses generic 'Setting up your project…' language that does not claim specific subsystem activity that isn't occurring.",
+      "rootCauseHypothesis": "The staged reveal was designed for visual polish/perceived-progress purposes without connecting it to real async work, since the underlying project creation had already completed by the time this component renders.",
+      "implementationBoundary": "Replace the specific subsystem-activity labels with either (a) real status polling tied to actual async initialization work, if any exists, or (b) generic, honest 'setting things up' copy with no specific capability claims.",
+      "nonGoals": ["Do not add real backend initialization work purely to justify the existing copy — fix the copy to match reality, or remove the staged reveal."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "No boot-sequence label claims a specific subsystem (governance, context engine, etc.) is being initialized unless a real, observable process is running."
+      ],
+      "requiredTests": [
+        "New test asserting boot-sequence copy does not reference specific backend subsystems without a corresponding real status source"
+      ],
+      "estimatedSize": "S",
+      "confidence": "high",
+      "recommendedSprint": 4
+    },
+    {
+      "id": "PMF-011",
+      "title": "/pmos/page.tsx retains the same unguarded-call fragility class fixed elsewhere by #553",
+      "priority": "P1",
+      "category": "reliability",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/app/(protected)/pmos/page.tsx:19 (unguarded listPmosWithProjects call)",
+        "src/lib/pmos/pmo-service.ts:35,48 (throws bare Error on any Supabase read failure)",
+        "commit 010d4f7 message explicitly states 'other callers keep their fatal semantics' — a disclosed, not hidden, residual gap"
+      ],
+      "affectedAreas": ["src/app/(protected)/pmos/page.tsx", "src/lib/pmos/pmo-service.ts"],
+      "currentBehavior": "A transient Supabase read failure on the /pmos page will still throw an uncaught exception into the generic (protected)/error.tsx boundary, exactly the class of failure PR #553 fixed for /command-center but explicitly left unaddressed here.",
+      "expectedBehavior": "/pmos degrades gracefully on a transient read failure, consistent with the fix already applied to /command-center.",
+      "rootCauseHypothesis": "PR #553 was scoped narrowly to the UAT-reported failure on /command-center and intentionally did not generalize the fix to all pmo-service.ts callers.",
+      "implementationBoundary": "Apply the same try/catch + null-vs-empty distinction pattern from portfolio-summary.ts to /pmos/page.tsx's use of listPmosWithProjects.",
+      "nonGoals": ["Do not modify pmo-service.ts's throwing behavior itself — wrap callers instead, consistent with #553's approach."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "A simulated Supabase read failure on /pmos renders a recoverable error state, not a crash into the generic error boundary."
+      ],
+      "requiredTests": [
+        "New test mirroring tests/command-center-portfolio-availability.test.mjs for the /pmos route"
+      ],
+      "estimatedSize": "XS",
+      "confidence": "high",
+      "recommendedSprint": 5
+    },
+    {
+      "id": "PMF-012",
+      "title": "Project Brain episode/knowledge timestamps use project-creation time, not real event time",
+      "priority": "P1",
+      "category": "correctness",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/components/pmfreak/intelligence-inbox/project-intelligence-inbox.tsx:246 (generatedAt fixed to project.createdAt for every statement)",
+        "src/lib/project-brain/episodic-memory/derive-episodes.ts:212,231,252 (knowledge_recorded/question_opened/gap_identified episodes use statement.generatedAt)",
+        "src/lib/project-brain/derive-initial-response.ts:256-264 (a FACT about N evidence items is stamped with the project's creation date even if those items were uploaded weeks later)"
+      ],
+      "affectedAreas": [
+        "src/components/pmfreak/intelligence-inbox/project-intelligence-inbox.tsx",
+        "src/lib/project-brain/episodic-memory/derive-episodes.ts",
+        "src/lib/project-brain/derive-initial-response.ts"
+      ],
+      "currentBehavior": "Every knowledge/gap/question episode in the timeline is stamped with the project's creation timestamp rather than the timestamp of the evidence or event that actually produced the underlying fact, so the timeline clusters all such episodes on day one regardless of when they were actually learned.",
+      "expectedBehavior": "Each derived statement/episode carries the timestamp of the real evidence or event that produced it, not a single fixed value shared across all statements.",
+      "rootCauseHypothesis": "buildInitialProjectBrainResponse was implemented to take one generatedAt value for the whole response rather than per-statement, likely because the initial rule-based derivation didn't yet need per-statement granularity.",
+      "implementationBoundary": "Thread the originating evidence/event's real timestamp through to each individual statement and episode, rather than one shared generatedAt value at the response level.",
+      "nonGoals": ["Do not change episode persistence model (still virtual/derived per PMF design) — this is a timestamp-accuracy fix, not a persistence architecture change."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "A fact derived from evidence uploaded on day 10 of a project shows a day-10 timestamp in the episode timeline, not day 1."
+      ],
+      "requiredTests": [
+        "New test asserting statement/episode timestamps match their originating evidence row's timestamp, not the project's createdAt"
+      ],
+      "estimatedSize": "M",
+      "confidence": "high",
+      "recommendedSprint": 4
+    },
+    {
+      "id": "PMF-013",
+      "title": "Evidence/context timeline silently caps at 20 rows with no pagination",
+      "priority": "P1",
+      "category": "correctness",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/lib/operational-flow/operational-flow-service.ts:85 (.order(\"created_at\",{ascending:false}).limit(20), no pagination anywhere in the UI)",
+        "src/components/pmfreak/intelligence-inbox/project-intelligence-inbox.tsx:75-90 (fetchContextRows consumes whatever /api/operational-flow returns with no 'load more' affordance)"
+      ],
+      "affectedAreas": [
+        "src/lib/operational-flow/operational-flow-service.ts",
+        "src/components/pmfreak/intelligence-inbox/project-intelligence-inbox.tsx"
+      ],
+      "currentBehavior": "A project with more than 20 manual-note/context captures silently drops older entries from the Intelligence Inbox timeline and from any Project Brain derivation that consumes contextRows, with no indication to the user that history exists beyond what's shown.",
+      "expectedBehavior": "All evidence/context entries are reachable, either via real pagination controls or a substantially higher limit with an explicit 'load more' affordance.",
+      "rootCauseHypothesis": "The 20-row limit was likely a reasonable default for the initial first-run overlay use case but was never revisited for long-lived projects accumulating more captures over time.",
+      "implementationBoundary": "Add pagination (cursor or offset-based) to getOperationalSummary's evidence_items query and wire a 'load more'/pagination control into the Inbox timeline UI.",
+      "nonGoals": ["Do not change the project_evidence (file upload) query, which already has no limit."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "A project with 25+ manual captures shows all of them via pagination, not silently truncated to the most recent 20."
+      ],
+      "requiredTests": [
+        "New test seeding 25 evidence_items rows and asserting all are reachable through the API/UI"
+      ],
+      "estimatedSize": "S",
+      "confidence": "high",
+      "recommendedSprint": 5
+    },
+    {
+      "id": "PMF-014",
+      "title": "/api/projects/[id]/operational-governance-brief has no explicit membership check",
+      "priority": "P1",
+      "category": "security-authorization",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/app/api/projects/[id]/operational-governance-brief/route.ts:8-26 (only getAuthUser(); no requireProjectAccess/requireWorkspaceMember call)",
+        "supabase/migrations/20260602000000_operational_governance_briefs.sql:17-39 (RLS is_workspace_member(workspace_id) policy — currently the sole backstop)"
+      ],
+      "affectedAreas": ["src/app/api/projects/[id]/operational-governance-brief/route.ts"],
+      "currentBehavior": "This route relies solely on RLS for tenant isolation, unlike every sibling route in scope which pairs RLS with an explicit app-layer requireProjectAccess/requireWorkspaceMember check.",
+      "expectedBehavior": "The route explicitly verifies the caller's membership in the target project's workspace server-side, matching the defense-in-depth pattern used elsewhere in the codebase.",
+      "rootCauseHypothesis": "This route was likely added or refactored without following the same authorization-helper convention used by the rest of the /api/projects/[id]/* family, an inconsistency rather than an intentional design choice.",
+      "implementationBoundary": "Add a requireProjectAccess or requireWorkspaceMember call at the top of the handler, consistent with sibling routes.",
+      "nonGoals": ["Do not modify the RLS policy itself — it is already correct; this is an app-layer defense-in-depth addition."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "A cross-tenant request to this route is rejected by an explicit app-layer check, not solely by RLS."
+      ],
+      "requiredTests": [
+        "New authorization test: user from workspace A requesting a brief for a project in workspace B receives 403 from the app layer"
+      ],
+      "estimatedSize": "S",
+      "confidence": "medium",
+      "recommendedSprint": 3
+    },
+    {
+      "id": "PMF-015",
+      "title": "Project Brain confidence levels are hardcoded per statement type, not computed",
+      "priority": "P1",
+      "category": "misleading-product-state",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/lib/project-brain/types.ts:68-76 (a \"scored\" confidence variant with score/method/scoredBy exists)",
+        "src/lib/project-brain/derive-initial-response.ts:107,127,147,160,178 (fixed constant per epistemic type: FACT→high, REPORTED→medium, OPEN_QUESTION→low, UNKNOWN→unknown, RECOMMENDATION→low)"
+      ],
+      "affectedAreas": ["src/lib/project-brain/derive-initial-response.ts", "src/lib/project-brain/types.ts"],
+      "currentBehavior": "The confidence type system supports a computed, scored confidence value, but the only real producer assigns a fixed constant based purely on statement kind — no statement's confidence is actually derived from any signal.",
+      "expectedBehavior": "Either confidence is genuinely computed from a real signal (source count, corroboration, recency), or the UI is relabeled to make clear confidence reflects a fixed category rather than a computed score.",
+      "rootCauseHypothesis": "The \"scored\" variant was designed ahead of any real scoring logic being implemented, as part of the type-first constitution approach in PR #552.",
+      "implementationBoundary": "Either implement a real, simple scoring function (e.g., based on source count/corroboration) for at least one statement type, or change UI copy to avoid implying a computed score where only a fixed category exists.",
+      "nonGoals": ["Do not build a full ML-based confidence model — a simple, explainable rule-based score is sufficient to satisfy the honesty requirement."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Confidence labels shown to users accurately describe whether the value is a fixed category or a computed score."
+      ],
+      "requiredTests": [
+        "New test asserting confidence-related UI copy matches the actual derivation method used"
+      ],
+      "estimatedSize": "S",
+      "confidence": "high",
+      "recommendedSprint": 4
+    },
+    {
+      "id": "PMF-016",
+      "title": "Audit-event write failures are unchecked and unlogged",
+      "priority": "P2",
+      "category": "observability",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/lib/execution-tasks/create-execution-task.ts:223-235 (execution_task_events insert result never checked)",
+        "src/app/api/execution-tasks/update/route.ts:113-121",
+        "src/app/api/execution-tasks/[taskId]/route.ts:242-249",
+        "src/lib/execution-tasks/dependencies/create-dependency.ts:179-208 (Promise.all with discarded errors)"
+      ],
+      "affectedAreas": [
+        "src/lib/execution-tasks/create-execution-task.ts",
+        "src/app/api/execution-tasks/update/route.ts",
+        "src/app/api/execution-tasks/[taskId]/route.ts",
+        "src/lib/execution-tasks/dependencies/create-dependency.ts"
+      ],
+      "currentBehavior": "Audit-event inserts that fail after a successful primary task/dependency mutation are silently swallowed with no logging, leaving the activity trail incomplete with zero operator visibility.",
+      "expectedBehavior": "A failed audit-event write is at minimum logged (console.error with structured context), matching the pattern already used for primary-mutation failures in the same files.",
+      "rootCauseHypothesis": "The audit insert was correctly designed to be non-blocking for the primary action, but error handling was omitted entirely rather than being reduced to logging-only.",
+      "implementationBoundary": "Add error checking and structured logging to each cited audit-event insert, without making the primary mutation depend on its success.",
+      "nonGoals": ["Do not make audit-event failures block or roll back the primary mutation."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "A simulated audit-event insert failure is visible in logs while the primary mutation still succeeds."
+      ],
+      "requiredTests": [
+        "New test simulating an execution_task_events insert failure, asserting the primary mutation succeeds and a log entry is produced"
+      ],
+      "estimatedSize": "XS",
+      "confidence": "high",
+      "recommendedSprint": 3
+    },
+    {
+      "id": "PMF-017",
+      "title": "/create-command-center has no already-activated short-circuit",
+      "priority": "P2",
+      "category": "usability",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/app/(protected)/create-command-center/page.tsx (no guard checking existing activation state)",
+        "src/lib/pmo/save-pmo-tenant.ts:150-167 (re-submission is safe due to an existence-check-then-update branch, so no data corruption results)"
+      ],
+      "affectedAreas": ["src/app/(protected)/create-command-center/page.tsx"],
+      "currentBehavior": "Revisiting /create-command-center after a workspace is already activated always re-renders the full creation wizard from scratch, with no indication the workspace already has a Command Center.",
+      "expectedBehavior": "Revisiting the page for an already-activated workspace redirects to the existing Command Center, or clearly indicates one already exists.",
+      "rootCauseHypothesis": "The page was built for the first-activation case only; the already-activated case was not considered a distinct state to guard against.",
+      "implementationBoundary": "Add a server-side check at the top of the page for an existing PMO/Command Center for the workspace, redirecting if found.",
+      "nonGoals": ["Do not change the underlying save-pmo-tenant.ts re-submission safety logic — it's already safe, just not short-circuited in the UI."],
+      "dependencies": ["PMF-004"],
+      "acceptanceCriteria": [
+        "Revisiting /create-command-center for an already-activated workspace redirects to /command-center instead of re-rendering the wizard."
+      ],
+      "requiredTests": [
+        "New test: GET /create-command-center for an already-activated workspace redirects"
+      ],
+      "estimatedSize": "XS",
+      "confidence": "high",
+      "recommendedSprint": 2
+    },
+    {
+      "id": "PMF-018",
+      "title": "Evidence-item hash is a hardcoded placeholder — no real dedup",
+      "priority": "P2",
+      "category": "correctness",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/lib/operational-flow/operational-flow-service.ts:44 (evidence_hash: \"0\".repeat(64), a fabricated placeholder resembling a real sha256)",
+        "src/lib/project-evidence/evidence-processor.ts:246 (real sha256 content_hash computed for uploaded files, but only used as an upsert key, never for dedup detection)"
+      ],
+      "affectedAreas": [
+        "src/lib/operational-flow/operational-flow-service.ts",
+        "src/lib/project-evidence/evidence-processor.ts"
+      ],
+      "currentBehavior": "Manual notes/context entries store a hardcoded fake hash value that performs no function; uploaded files compute a real hash but it's never compared against existing rows, so identical content submitted twice creates two independent, un-flagged rows.",
+      "expectedBehavior": "Either real duplicate detection is implemented using the existing real hash (for files) and a real computed hash (for notes), or the fake hash field is removed/relabeled so it does not imply a capability that doesn't exist.",
+      "rootCauseHypothesis": "The hash field was added to the schema ahead of implementing real dedup logic and a placeholder was used to satisfy a NOT NULL/type constraint.",
+      "implementationBoundary": "Compute a real hash for manual notes and add a pre-insert duplicate check (warn or block) using existing hash values for both files and notes.",
+      "nonGoals": ["Do not build fuzzy/semantic duplicate detection — exact-content hash matching is sufficient scope."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Submitting identical note content twice surfaces a duplicate warning instead of silently creating two rows."
+      ],
+      "requiredTests": [
+        "New test: submitting identical evidence content twice triggers duplicate detection"
+      ],
+      "estimatedSize": "S",
+      "confidence": "high",
+      "recommendedSprint": 5
+    },
+    {
+      "id": "PMF-019",
+      "title": "Project Brain knowledge-gap sourceIds always empty",
+      "priority": "P2",
+      "category": "correctness",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/lib/project-brain/derive-initial-response.ts:407 (sourceIds: [] hardcoded)",
+        "src/lib/project-brain/types.ts:128 (docstring expects real source references)"
+      ],
+      "affectedAreas": ["src/lib/project-brain/derive-initial-response.ts"],
+      "currentBehavior": "Every knowledge gap is generated with an empty sourceIds array, even though the type's own documentation expects it to reference the specific empty onboarding field the gap was derived from.",
+      "expectedBehavior": "Knowledge gaps carry a real reference to the field/record whose absence produced them, matching the provenance standard applied to statements.",
+      "rootCauseHypothesis": "Knowledge gap generation was implemented before provenance wiring was extended to this specific statement subtype.",
+      "implementationBoundary": "Populate sourceIds with a reference to the onboarding field or evidence gap that produced each knowledge gap.",
+      "nonGoals": [],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "A generated knowledge gap's sourceIds field is non-empty and traceable to the specific absence that produced it."
+      ],
+      "requiredTests": [
+        "New test asserting knowledge gaps carry non-empty, correct sourceIds"
+      ],
+      "estimatedSize": "XS",
+      "confidence": "high",
+      "recommendedSprint": 4
+    },
+    {
+      "id": "PMF-020",
+      "title": "/api/intelligence/{stakeholders,coordination,interventions} unauthenticated when scope id omitted",
+      "priority": "P2",
+      "category": "security-authorization",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/app/api/intelligence/stakeholders/route.ts:9-16",
+        "src/app/api/intelligence/coordination/route.ts:18-26",
+        "src/app/api/intelligence/interventions/route.ts:11-18",
+        "src/app/api/intelligence/operational-live/route.ts:5-11 (sibling route that authenticates unconditionally, for contrast)"
+      ],
+      "affectedAreas": [
+        "src/app/api/intelligence/stakeholders/route.ts",
+        "src/app/api/intelligence/coordination/route.ts",
+        "src/app/api/intelligence/interventions/route.ts"
+      ],
+      "currentBehavior": "These three routes only authenticate/authorize when workspaceId/projectId is present in the query string; when omitted, no requireAuthenticatedUser() call runs at all, though the response is currently an empty/synthetic snapshot rather than real data.",
+      "expectedBehavior": "All three routes call requireAuthenticatedUser() unconditionally, matching the pattern used by sibling intelligence routes.",
+      "rootCauseHypothesis": "These routes were implemented to short-circuit early when no scope is provided, and the early-return path was written before the auth call rather than after.",
+      "implementationBoundary": "Move the unconditional authentication check to the top of each handler, before the scope-presence branch.",
+      "nonGoals": ["Do not change what data is returned when scope is present — only fix the ordering/presence of the auth check."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "All three routes return 401 for an unauthenticated request regardless of query parameters."
+      ],
+      "requiredTests": [
+        "New test: unauthenticated GET to each of the three routes with no scope id returns 401"
+      ],
+      "estimatedSize": "XS",
+      "confidence": "medium",
+      "recommendedSprint": 3
+    },
+    {
+      "id": "PMF-021",
+      "title": "PM-assignment routes resolve workspace via workspaces[0] instead of the project's own workspace",
+      "priority": "P2",
+      "category": "correctness",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/app/api/projects/[id]/pm-assignments/route.ts:23-24 (workspaceId = workspaces[0]?.id)",
+        "src/app/api/projects/[id]/pm-assignments/[assignmentId]/route.ts:20-21",
+        "src/app/api/projects/[id]/route.ts:76-83 (loadScopedProject — the correct pattern used by sibling routes)"
+      ],
+      "affectedAreas": [
+        "src/app/api/projects/[id]/pm-assignments/route.ts",
+        "src/app/api/projects/[id]/pm-assignments/[assignmentId]/route.ts"
+      ],
+      "currentBehavior": "A user belonging to multiple workspaces will incorrectly 404 on legitimate PM assignments in any workspace other than the arbitrary first one returned by getUserWorkspaces, because the route resolves workspace from the user's membership list rather than from the project being acted on.",
+      "expectedBehavior": "Workspace is resolved from the project row itself, consistent with every other project-scoped route.",
+      "rootCauseHypothesis": "This route was likely written by copying a workspace-level pattern rather than the project-scoped pattern used elsewhere, before multi-workspace membership was a common case.",
+      "implementationBoundary": "Change workspace resolution to derive from the project's own workspace_id, matching loadScopedProject's pattern.",
+      "nonGoals": [],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "A user with memberships in multiple workspaces can access PM assignments for a project in any of their workspaces, not just the first."
+      ],
+      "requiredTests": [
+        "New test: user with 2+ workspace memberships accesses PM assignments in their second workspace successfully"
+      ],
+      "estimatedSize": "XS",
+      "confidence": "high",
+      "recommendedSprint": 3
+    },
+    {
+      "id": "PMF-022",
+      "title": "Nav/terminology contradictions: Execution label collision, Portfolio mislabels, Create Center CTA",
+      "priority": "P2",
+      "category": "canonical-architecture-contradiction",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/lib/workspace/navigation-hierarchy.ts:11,12,19,21",
+        "src/app/(protected)/pmos/[pmoId]/page.tsx:80 (<h2>Portfolio</h2> over a plain project list)",
+        "src/app/(protected)/create-pmo/page.tsx (dead redirect stub to /create-command-center)",
+        "docs/product-architecture/02-canonical-product-language.md:51-52,675 (forbidden synonyms; required 'Create PMO' label)"
+      ],
+      "affectedAreas": [
+        "src/lib/workspace/navigation-hierarchy.ts",
+        "src/app/(protected)/pmos/[pmoId]/page.tsx",
+        "src/app/(protected)/create-pmo/page.tsx"
+      ],
+      "currentBehavior": "Navigation and page labels use 'Portfolio' for non-PMI-Portfolio data in two places, and the primary onboarding CTA reads 'Create Center' while actually creating a PMO — both contradicting the ratified canonical product language from PR #532.",
+      "expectedBehavior": "Nav/page labels match the ratified canonical terminology; the primary creation CTA is labeled 'Create PMO'.",
+      "rootCauseHypothesis": "Terminology ratification (PR #532) updated documentation but was not fully propagated to every UI label at the time.",
+      "implementationBoundary": "Rename the affected labels/headings; retire the dead /create-pmo stub.",
+      "nonGoals": ["Do not change the underlying PMO/Portfolio data models."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "No UI label uses 'Portfolio' for non-Portfolio data.",
+        "The primary creation CTA reads 'Create PMO'."
+      ],
+      "requiredTests": [
+        "Snapshot/text assertion tests for the affected labels"
+      ],
+      "estimatedSize": "S",
+      "confidence": "high",
+      "recommendedSprint": 6
+    },
+    {
+      "id": "PMF-023",
+      "title": "Intelligence Inbox advertises 18 evidence-source categories, 5 are wired",
+      "priority": "P2",
+      "category": "misleading-product-state",
+      "status": "confirmed-defect",
+      "evidence": [
+        "src/components/pmfreak/intelligence-inbox/intelligence-inbox-icons.tsx:100-148 (EVIDENCE_SOURCE_CATEGORIES; own comment: 'a UI-only catalog — most of these sources aren't ingestible yet')",
+        "src/components/pmfreak/intelligence-inbox/project-intelligence-inbox.tsx:310-321 (non-wired drops silently sorted to a skipped list)"
+      ],
+      "affectedAreas": [
+        "src/components/pmfreak/intelligence-inbox/intelligence-inbox-icons.tsx",
+        "src/components/pmfreak/intelligence-inbox/project-intelligence-inbox.tsx"
+      ],
+      "currentBehavior": "The drop-zone grid presents 18 evidence-source category icons (invoices, screenshots, video, etc.), of which only 5 file types are actually ingestible; unsupported drops are silently sorted into a skipped list with a notice.",
+      "expectedBehavior": "The UI clearly distinguishes wired-and-working categories from not-yet-supported ones, rather than presenting them with equal visual weight.",
+      "rootCauseHypothesis": "The category grid was designed to communicate the eventual target surface area before ingestion support caught up to all of it.",
+      "implementationBoundary": "Visually distinguish unsupported categories (e.g., a 'coming soon' badge, matching the pattern already used for Gmail/Slack/Teams) rather than presenting them as equally functional drop targets.",
+      "nonGoals": ["Do not implement ingestion for the remaining 13 categories — that is future feature work, out of this backlog's scope."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Unsupported evidence categories are visually marked as not-yet-available, consistent with the existing Gmail/Slack/Teams treatment."
+      ],
+      "requiredTests": [
+        "New test asserting unsupported category buttons/drop-targets render a 'coming soon' indicator"
+      ],
+      "estimatedSize": "S",
+      "confidence": "high",
+      "recommendedSprint": 5
+    },
+    {
+      "id": "PMF-024",
+      "title": "Pricing 'Enterprise' tier undefined in SubscriptionPlan type",
+      "priority": "P3",
+      "category": "canonical-architecture-contradiction",
+      "status": "confirmed-debt",
+      "evidence": [
+        "src/app/pricing/page.tsx:8-27 ('Enterprise' tier, tier: null, routes to mailto:sales@)",
+        "src/lib/billing.ts:5,52-58 (SubscriptionPlan only recognizes 'free'|'pro'|'pmo'; toPlan() silently coerces anything else, including 'enterprise', to 'free')"
+      ],
+      "affectedAreas": ["src/app/pricing/page.tsx", "src/lib/billing.ts"],
+      "currentBehavior": "The pricing page markets an Enterprise tier that has no corresponding value in the billing plan type; currently unreachable in practice since the pricing card's tier is null and routes to a sales contact rather than a real signup flow.",
+      "expectedBehavior": "Either the SubscriptionPlan type includes 'enterprise' if the tier is ever meant to be grantable programmatically, or the pricing page and type are reconciled to avoid a dead enum path.",
+      "rootCauseHypothesis": "Enterprise was planned as a billing tier at some point and then descoped to a sales-assisted-only flow, leaving the type and marketing page out of sync.",
+      "implementationBoundary": "Document as known debt; only implement type changes if/when Enterprise becomes a self-serve or programmatically-granted tier.",
+      "nonGoals": ["Do not build Enterprise billing functionality as part of this item — decision-dependent, see audit §22 note on Enterprise scope."],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Documented as known debt in code comments or architecture docs; no functional change required unless a product decision changes Enterprise's billing status."
+      ],
+      "requiredTests": [],
+      "estimatedSize": "XS",
+      "confidence": "medium",
+      "recommendedSprint": 6
+    },
+    {
+      "id": "PMF-025",
+      "title": "Dead file demo-data.ts and deprecated 'PMO Brain' label in /pmo/invite-team",
+      "priority": "P3",
+      "category": "maintainability",
+      "status": "confirmed-debt",
+      "evidence": [
+        "src/modules/workspace/presentation/command-center/demo-data.ts (0 importers in screens/ since PR #543)",
+        "src/app/(protected)/pmo/invite-team/page.tsx:37,40 ('PMO Brain'/'PMO team' deprecated terminology)"
+      ],
+      "affectedAreas": [
+        "src/modules/workspace/presentation/command-center/demo-data.ts",
+        "src/app/(protected)/pmo/invite-team/page.tsx"
+      ],
+      "currentBehavior": "A 228-line dead fixture file remains in the repository unused since the #543 honesty refactor; a legacy invite page still uses deprecated 'PMO Brain' terminology.",
+      "expectedBehavior": "Dead code is removed; terminology matches the ratified canonical product language.",
+      "rootCauseHypothesis": "Cleanup was not part of the #543 PR's scope, and the invite-team page predates the #532 terminology ratification and was never revisited.",
+      "implementationBoundary": "Delete demo-data.ts; rename 'PMO Brain'/'PMO team' labels in invite-team/page.tsx.",
+      "nonGoals": [],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "demo-data.ts no longer exists in the repository.",
+        "No UI copy in /pmo/invite-team uses 'PMO Brain'."
+      ],
+      "requiredTests": ["npm run build succeeds with the file removed (confirms zero remaining importers)"],
+      "estimatedSize": "XS",
+      "confidence": "high",
+      "recommendedSprint": 6
+    }
+  ]
+}
