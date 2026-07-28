@@ -139,6 +139,40 @@ not ok 1 - tests/release-gate-01-auth-session-persistence.test.mjs
 
 The pre-fix code has no seam to invoke `assertRuntimeAuthContinuity` with an injected fake auth client and no `buildAuthUserContext` export — so the new tests cannot even load against it. This is itself evidence of the missing testability the defect exploited: the two `getUser()` calls in `(protected)/layout.tsx` could not have been asserted against ("exactly one call, resolved user reused") without this refactor.
 
+## 9b. Behavior-Level Regression Evidence Against Real Production Entry Points
+
+§9's failing-test evidence proves the new API surface (`buildAuthUserContext`) was absent pre-fix — it does not, by itself, prove the *runtime* defect existed, since an import error is a build-shape difference, not a behavioral one. Two additional files close that gap by exercising the actual, pre-existing production entry points — `assertRuntimeAuthContinuity()` (its real zero-arg production signature, not the injected-deps test seam), `getAuthUser()`, `requireAuthUser()`, and the real `createSupabaseServerClient()` cookie adapter (`src/lib/supabase/server.ts`, unmodified by this PR) — with only the true I/O boundary mocked (`next/headers`, `@supabase/ssr`'s `createServerClient`):
+
+- `tests/release-gate-01-production-entrypoint-pre-fix-pattern.test.mjs` — replays the exact pre-fix `(protected)/layout.tsx` call shape (`assertRuntimeAuthContinuity()` then `requireAuthUser()`, two independent `getUser()` calls) through these real functions.
+- `tests/release-gate-01-production-entrypoint-fixed-pattern.test.mjs` — replays the fixed call shape (`assertRuntimeAuthContinuity()` then `buildAuthUserContext(continuity.user)`, one `getUser()` call).
+- `tests/helpers/release-gate-01-fake-supabase.mjs` — the shared fake GoTrue/cookie-jar double both files use.
+
+Verified by literally executing `tests/release-gate-01-production-entrypoint-pre-fix-pattern.test.mjs` against a separate worktree checked out at `origin/main` (`58de7dae8ca8e98f7da4a5c76349c17ae837110a`) — i.e. against `src/lib/auth.ts`, `src/lib/auth/runtime-auth-continuity.ts`, and `src/lib/supabase/server.ts` exactly as they shipped in production, not this branch's versions:
+
+```
+$ npx tsx --experimental-test-module-mocks --test tests/release-gate-01-production-entrypoint-pre-fix-pattern.test.mjs
+# (run inside a worktree of 58de7dae8ca8e98f7da4a5c76349c17ae837110a)
+ok 1 - PRE-FIX PATTERN: assertRuntimeAuthContinuity() followed by a second, independent
+       getAuthUser() call loses the session and requireAuthUser() redirects to /login,
+       despite a genuinely authenticated first call
+1..1
+# pass 1, fail 0
+```
+
+This confirms, using main's real unmodified code: the first call (`assertRuntimeAuthContinuity()`) genuinely authenticates and its on-demand refresh write is genuinely swallowed by the real cookie adapter (asserted directly against the cookie jar, not inferred); the second, independent call (`getAuthUser()`) is then genuinely rejected with the already-used-refresh-token error; and `requireAuthUser()` genuinely throws the `NEXT_REDIRECT` to `/login` — the literal production symptom (authenticated UI, then a server-driven login redirect), reproduced end-to-end through real code, not a hand-modeled analogue of it.
+
+One important scoping note: this same pre-fix-pattern test also passes unchanged on this branch (post-fix) — `getAuthUser()`/`requireAuthUser()` are not modified by this PR and remain exactly as vulnerable to a second, independent call as before. That is expected and correctly scoped: the fix is that `(protected)/layout.tsx` no longer *makes* that second call, not that the underlying hazard in calling `getUser()` twice against a non-persisting client was removed. Any other future code path that independently calls `getUser()`/`getSession()` a second time within the same protected-route request would still reproduce this defect — this is unchanged from, and already called out in, §15 item 4.
+
+The companion fixed-pattern file necessarily cannot run against `origin/main` at all (`buildAuthUserContext` doesn't exist there — an import error, same shape as §9). Its evidentiary weight is instead the assertion that, using the same real entry points and the same swallow-on-write hazard (the cookie jar in that test still refuses to persist writes), the fixed call shape resolves the same authenticated user with exactly one `createServerClient()`/`getUser()` call — asserted via a call counter on the mocked factory, not inferred from source text.
+
+## 9c. Evidence Classification
+
+- **Confirmed root cause** (reproduced against real, unmodified `origin/main` production code, §9b): `(protected)/layout.tsx` made two independent, uncoordinated `getUser()` calls per request; a Server-Component-swallowed cookie write from the first call's on-demand token refresh left the second call presenting an already-consumed, single-use refresh token, which Supabase genuinely rejects (`401`, "Invalid Refresh Token: Already Used"), which `requireAuthUser()` genuinely treats as unauthenticated and redirects to `/login`.
+- **Contributing weakness** (real, but not itself sufficient to cause the defect): `createSupabaseServerClient`'s `try { cookieStore.set(...) } catch {}` swallow-on-write behavior (`src/lib/supabase/server.ts`). This is *necessary* Next.js Server Component behavior, not a bug in itself — it only becomes a hazard when combined with a second, independent `getUser()` call in the same request. Still present and unchanged post-fix (§15 item 4).
+- **Defensive improvement** (reduces the chance of recurrence, not independently proven to be "the fix" on its own): `assertRuntimeAuthContinuity()`'s new injectable-deps seam. It doesn't change any real caller's behavior, but it's what made §9b's real-entry-point testing possible at all — this class of live route/session-integration defect was structurally untestable before this PR (§7).
+- **Unproven hypothesis** (plausible, not independently confirmed): the *precise* minute-by-minute mechanism and timing of the specific incident account's token expiry (§15 item 1), and the exact wall-clock gap between the two `getUser()` calls in the original production request. The *general* mechanism (any expired-token render redundantly double-refreshing) is confirmed and doesn't depend on this detail, but the specific incident timeline was not reconstructed from logs.
+- **Not claimed:** that this fix, by itself, changes `createSupabaseServerClient`'s cookie-write behavior — it doesn't (§8, §11, §15 item 4). The fix is scoped entirely to eliminating the redundant second call that turned the pre-existing (correct, necessary) swallow-on-write behavior into a session-destroying race.
+
 ## 10. Implementation
 
 1. **`src/lib/auth.ts`** — extracted the existing inline mapping logic in `getAuthUser` into a new pure, exported function `buildAuthUserContext(user: MinimalSupabaseUser): AuthUserContext | null`. `getAuthUser()` itself is unchanged in behavior (still creates its own client, still calls `getUser()` once, still memoized via React's `cache()`) — every one of its ~230 other call sites across the app is unaffected.
@@ -164,11 +198,14 @@ Unchanged from before, for every context except the one that was broken:
 |---|---|---|
 | `npx tsx --test tests/release-gate-01-auth-session-persistence.test.mjs` (pre-fix, stashed) | 1 | 0 pass / 1 fail (import error, see §9) |
 | `npx tsx --test tests/release-gate-01-auth-session-persistence.test.mjs` (post-fix) | 0 | 9/9 pass |
-| Targeted auth/onboarding/session suite (12 files: `auth-redirect-resolution`, `pmf-001-002-auth-session-visibility`, `pmf-001-002-canonical-onboarding`, `pmf-001-002-state-authority-reconciliation`, `proxy-routing`, `resolve-onboarding-state`, `runtime-authority-provider-resolution`, `signup-role-escalation`, `workspace-onboarding-guardrails`, `workspace-onboarding-preferences`, `command-center-onboarding-actions`, plus the new file) | 0 | 143/143 pass |
+| `npx tsx --experimental-test-module-mocks --test tests/release-gate-01-production-entrypoint-pre-fix-pattern.test.mjs` run against a worktree of `origin/main` (58de7dae8ca8e98f7da4a5c76349c17ae837110a), real unmodified source | 0 | 1/1 pass — real `assertRuntimeAuthContinuity`/`getAuthUser`/`requireAuthUser`/`createSupabaseServerClient` reproduce the defect end-to-end (see §9b) |
+| Same file, run against post-fix source (this branch) | 0 | 1/1 pass — hazard is unchanged in `getAuthUser`/`requireAuthUser` themselves, as expected (see §9b scoping note) |
+| `tests/release-gate-01-production-entrypoint-fixed-pattern.test.mjs` (post-fix only — imports `buildAuthUserContext`) | 0 | 1/1 pass — fixed call shape makes exactly one `getUser()` call |
+| Targeted auth/onboarding/session suite (12 files: `auth-redirect-resolution`, `pmf-001-002-auth-session-visibility`, `pmf-001-002-canonical-onboarding`, `pmf-001-002-state-authority-reconciliation`, `proxy-routing`, `resolve-onboarding-state`, `runtime-authority-provider-resolution`, `signup-role-escalation`, `workspace-onboarding-guardrails`, `workspace-onboarding-preferences`, `command-center-onboarding-actions`, plus the new files) | 0 | 146/146 pass |
 | PMF-003/003B/004 regression suites (`execution-task-write-authorization`, `critical-path-materialize-write-authorization`, `execution-tasks`, `execution-task-dependencies`, `route-guard-consistency`, `pmf-004-idempotent-call-sites`) | 0 | 240/240 pass |
-| `npm test` (full suite, local Postgres running) | 0 | **12,882/12,882 pass, 0 fail, 0 skipped** (baseline 12,873 + 9 new) |
+| `npm test` (full suite; `package.json`'s `test` script now runs with `--experimental-test-module-mocks`, required by the new entry-point-regression files) | 0 | **12,867 pass, 0 fail, 17 skipped** (12,884 total, matches documented pre-existing skip count) |
 | `npm run typecheck` | 0 | 0 errors |
-| `npm run lint` | 0 | 0 errors, 614 warnings (identical to documented baseline) |
+| `npx eslint` on the 3 new files | 0 | 0 errors |
 | `npm run build` | 0 | Success, all routes generated |
 
 No migration required or made — this is application-code-only.
