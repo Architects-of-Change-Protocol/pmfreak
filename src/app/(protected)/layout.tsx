@@ -8,7 +8,7 @@ import { resolvePostAuthDestination } from "@/lib/auth/resolve-post-auth-destina
 import { isSafeContinuationRoute } from "@/lib/auth/validate-continuation-route";
 import { headers } from "next/headers";
 import { resolveOnboardingState } from "@/lib/auth/resolve-onboarding-state";
-import { getOnboardingRedirect, isOnboardingComplete } from "@/lib/auth/onboarding-route-map";
+import { getOnboardingRedirect, hasWorkspaceAccess } from "@/lib/auth/onboarding-route-map";
 import { resolveCapabilityProfile } from "@/lib/workspace/pilot-capability-set";
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -50,7 +50,15 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     await supabase.from("early_access_events").insert({ invite_id: trial?.invite_id ?? null, trial_license_id: trial?.id ?? null, workspace_id: trial?.workspace_id ?? null, event_type: "access_blocked_trial_inactive", event_payload: { userId: user.id } });
   }
 
-  if (!isOnboardingComplete(onboardingState)) {
+  // hasWorkspaceAccess (not isOnboardingComplete) gates general navigation:
+  // a Project may exist — and a user may freely browse the rest of the app —
+  // before Command Center is activated (ADR-PMF-006). Only no_workspace,
+  // needs_project and trial_blocked force a redirect here. needs_task and
+  // execution_started render the full app normally; /command-center itself
+  // (already reachable like any other route) is what shows the correct next
+  // action (add first task / activate Command Center) via the unchanged
+  // evidence-derived WorkspaceOnboardingPanel/CommandCenterEmptyState.
+  if (!hasWorkspaceAccess(onboardingState)) {
     const headersList = await headers();
     const currentPath = headersList.get("x-pathname") ?? "";
     const dest = getOnboardingRedirect(onboardingState);

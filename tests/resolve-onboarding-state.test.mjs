@@ -67,8 +67,19 @@ test('returns "needs_project" when a workspace has zero PMOs and zero projects �
   assert.equal(state, 'needs_project');
 });
 
-test('returns "active" when a real project exists, regardless of PMO existence', async () => {
-  const client = fakeClient({ projects: { data: [{ id: 'p1' }], error: null } });
+test('returns "needs_task" (not blocked at needs_project) when a real project exists with no task and no PMO', async () => {
+  // "active" now specifically means Command Center is active (see
+  // tests/pmf-001-002-state-authority-reconciliation.test.mjs for the full
+  // reconciliation) — a bare project alone is "needs_task". The invariant
+  // this test protects (no PMO precondition) still holds: it never falls
+  // back to needs_project or any PMO-gated state.
+  const client = fakeClient({ projects: { data: [{ id: 'p1' }], error: null }, execution_tasks: { data: [], error: null } });
+  const state = await resolveOnboardingState(user, 'ws-1', { isRecovered: true, getClient: () => client });
+  assert.equal(state, 'needs_task');
+});
+
+test('returns "active" once Command Center is active (a real pmos row exists), regardless of task existence', async () => {
+  const client = fakeClient({ projects: { data: [{ id: 'p1' }], error: null }, execution_tasks: { data: [], error: null }, pmos: { data: [{ id: 'pmo1' }], error: null } });
   const state = await resolveOnboardingState(user, 'ws-1', { isRecovered: true, getClient: () => client });
   assert.equal(state, 'active');
 });
@@ -155,8 +166,12 @@ test('proxy.ts still redirects unauthenticated users on protected routes and qua
 // --- layout.tsx: the sole onboarding-state redirect authority ---
 
 test('protected layout uses resolveOnboardingState (canonical resolver) and redirects on needs_project too', () => {
+  // The persistent route gate uses hasWorkspaceAccess (not
+  // isOnboardingComplete): a Project may exist, and general navigation
+  // remains open, before Command Center is active — see
+  // tests/pmf-001-002-state-authority-reconciliation.test.mjs.
   assert.match(layoutSrc, /resolveOnboardingState/);
-  assert.match(layoutSrc, /isOnboardingComplete\(onboardingState\)/);
+  assert.match(layoutSrc, /hasWorkspaceAccess\(onboardingState\)/);
   assert.match(layoutSrc, /getOnboardingRedirect\(onboardingState\)/);
 });
 

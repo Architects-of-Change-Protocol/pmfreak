@@ -94,16 +94,22 @@ No records may have been further modified by users in a way that would resolve t
 
 ## 7. Canonical derived state machine
 
-`src/lib/auth/resolve-onboarding-state.ts` (`OnboardingState`):
+**Superseded by the correction pass — see §21.** The state machine below is the CURRENT, reconciled version; §21 documents why the original (initial-PR) 4-state version was corrected.
 
-| State | Required real entities | Canonical route | Next action |
-|---|---|---|---|
-| `no_workspace` | None resolvable (defensive; `resolveWriteWorkspace` bootstraps before this is normally read) | `/projects/new` | Workspace bootstraps transparently as part of project creation |
-| `needs_project` | Workspace exists, zero `projects` rows | `/projects/new` | Create Project (no PMO precondition) |
-| `active` | At least one real `projects` row | `/command-center` | Add first task, activate Command Center, invite team (all non-blocking recommendations via `WorkspaceOnboardingPanel`/`activation-rules.ts`, unchanged from PR #547) |
-| `trial_blocked` | An expired/revoked trial license | `/trial-inactive` | Contact sales / renew (unchanged) |
+`src/lib/auth/resolve-onboarding-state.ts` (`OnboardingState`) — derived from the exact same evidence source (`collectWorkspaceActivationEvidence`, the PR #547 workspace-activation engine's own evidence collector) as the checklist UI, not a second, independently-queried machine:
 
-No PMO/Command Center check exists anywhere in this resolver. `resolveOnboardingStateFromJwt` (the boolean-authority shortcut) is deleted outright — there is exactly one resolver, DB-derived, called from exactly one redirect authority (`(protected)/layout.tsx`).
+| State | Required real entities | Canonical route | `hasWorkspaceAccess` | `isOnboardingComplete` | Next action |
+|---|---|---|---|---|---|
+| `no_workspace` | None resolvable (defensive; `resolveWriteWorkspace` bootstraps before this is normally read) | `/projects/new` | false | false | Workspace bootstraps transparently as part of project creation |
+| `needs_project` | Workspace exists, zero non-archived `projects` rows | `/projects/new` | false | false | Create Project (no PMO precondition) |
+| `needs_task` | A real Project exists, zero `execution_tasks` rows, Command Center not active | `/command-center` | true | false | Add first task (honest "Add your first task" state) |
+| `execution_started` | A real Project AND a real task exist, Command Center not active | `/command-center` | true | false | Activate Command Center |
+| `active` | Command Center is active — a real, PMF-004-backed `pmos` row exists (independent of task existence) | `/command-center` | true | true | Full app; Invite Team as a recommendation; evidence ingestion |
+| `trial_blocked` | An expired/revoked trial license | `/trial-inactive` | false | false | Contact sales / renew (unchanged) |
+
+No PMO/Command Center check gates `needs_project`→`needs_task` progression. `resolveOnboardingStateFromJwt` (the boolean-authority shortcut) remains deleted outright — there is exactly one resolver, DB-derived, called from exactly one redirect authority (`(protected)/layout.tsx`).
+
+`hasWorkspaceAccess` and `isOnboardingComplete` are two distinct boolean *views* over this single state — not two competing machines: `hasWorkspaceAccess` gates the persistent route (layout.tsx) and is satisfied by `needs_task`/`execution_started`/`active` alike (ADR-PMF-006: a Project may exist, and general navigation remains open, before Command Center is active); `isOnboardingComplete` is stricter (`active` only) and drives the post-auth landing decision (`resolve-post-auth-destination.ts`), funneling incomplete users toward `/command-center` until Command Center is truly active.
 
 ## 8. Production implementation
 
@@ -219,3 +225,79 @@ Real function-level invocation (not source-text-only) was used wherever a fake S
 ## 20. Explicit non-goals (honored)
 
 No Project Brain/evidence-ingestion expansion. No Gmail/Slack/Teams integration. No Portfolio implementation. No Command Center scope redesign. No visual redesign. No broad navigation refactoring. No broad permission/RLS refactoring. No deletion of historical database rows. No new AI functionality. No new fake/demo data. No onboarding analytics. No team-invitation redesign. No modification to the original audit/backlog JSON artifacts. No auto-merge of the resulting PR.
+
+## 21. Correction pass — state authority reconciliation
+
+Product review of PR #560 found the initial implementation, while correctly retiring the legacy wizard and removing the PMO-before-Project gate, did not satisfy the sprint's canonical derived-state-machine requirement: `resolveOnboardingState` modeled only `no_workspace | needs_project | active | trial_blocked` and returned `active` as soon as a single Project existed, prematurely treating onboarding as complete and collapsing "Project exists", "a real task exists", and "Command Center is active" into one state — while `src/lib/workspace-activation/*` (PR #547) separately computed `execution_started` and related evidence-derived stages for display purposes only, never consulted by routing. Two authorities, overlapping semantics.
+
+### 21.1 Reconciliation approach
+
+`resolveOnboardingState` now calls `collectWorkspaceActivationEvidence` (the PR #547 engine's own evidence collector) directly for `projectExists`/`taskExists`/`pmoExists`, rather than running its own separate `projects`/`pmos` queries. This is not a second state machine consulting the same tables independently — it is the identical function call the checklist UI's evidence collection already used, reused verbatim. `evaluate-workspace-activation.ts`/`activation-rules.ts` were **not modified** (zero-risk to the canonical, heavily-tested checklist engine); only `resolveOnboardingState` was changed to depend on them.
+
+The service-role client `resolveOnboardingState` already constructs for its trial-license check is passed through as `collectWorkspaceActivationEvidence`'s `getClient` override (`getClient: async () => supabase`), so evidence collection never falls back to that function's own RLS/cookie-scoped default — this routing authority must be reliable in every calling context, including immediately after a fresh sign-in (§21.3), so it never depends on session-cookie propagation.
+
+`role: "viewer"` is passed to `collectWorkspaceActivationEvidence` as a functionally inert placeholder: verified by reading the function, `role` only flows into `evidence.role` (consumed by per-step `actionAllowed`) and `deriveWorkspaceActivationMode`'s inputs (`ownerType`/`memberCount`/`pendingInviteExists`, not `role`) — `resolveOnboardingState` reads none of that, only `projectExists`/`taskExists`/`pmoExists`.
+
+### 21.2 New state model
+
+`OnboardingState` gained two states, reusing the PR #547 engine's own vocabulary directly rather than inventing new terms: `needs_task` (a real Project, zero real tasks) and `execution_started` (a real Project AND a real task, Command Center not yet active) — the latter name is the exact literal `deriveActivationStage` already returns for this evidence shape. `active` was redefined to require `pmoExists` (a real, PMF-004-backed `pmos` row) — independent of task existence, since `activateContextAction` can create a Project and PMO together without a task ever existing first, and once Command Center is active that is the terminal onboarding state regardless of checklist completeness.
+
+Verified by direct comparison (`tests/pmf-001-002-state-authority-reconciliation.test.mjs`, "resolveOnboardingState and activation-rules.ts agree on which phase a given evidence shape represents"): for identical evidence, `resolveOnboardingState`'s state and `deriveActivationStage`/`deriveActivationSteps`'s stage/step-completion agree.
+
+### 21.3 Two views, one state — not two machines
+
+Two boolean helpers now exist in `onboarding-route-map.ts`, both pure functions of the single `OnboardingState` value, never independently derived:
+
+- **`isOnboardingComplete(state)`** — `true` only for `active` (Command Center active). Drives the post-auth landing decision (`resolve-post-auth-destination.ts`): a freshly authenticated user in `needs_task`/`execution_started` is funneled to `/command-center` (via `getOnboardingRedirect`) rather than an arbitrary requested route, until Command Center is truly active.
+- **`hasWorkspaceAccess(state)`** — `true` for every state except `no_workspace`/`needs_project`/`trial_blocked`. Drives `(protected)/layout.tsx`'s persistent route gate: a Project may exist, and a user may freely navigate the rest of the app (`/team`, `/billing`, `/dashboard`, etc.), before Command Center is active — this sprint's ratified rule and ADR-PMF-006 both require this; making the persistent gate as strict as `isOnboardingComplete` would have re-introduced exactly the kind of broad, un-scoped navigation restriction the original sprint explicitly excluded.
+
+`needs_task`, `execution_started` and `active` all resolve to the same `getOnboardingRedirect` destination (`/command-center`) — this is the explicitly-permitted "first-task and activation steps hosted inside /command-center" design (the states remain distinct in the `OnboardingState` value and in `hasWorkspaceAccess`/`isOnboardingComplete`'s differing treatment of them; only the redirect *destination* is shared, matching the route that already hosts the unchanged evidence-derived `WorkspaceOnboardingPanel`/`CommandCenterEmptyState` CTA for both "add first task" and "activate Command Center").
+
+### 21.4 Login/signup session-visibility verification
+
+Investigated per explicit instruction: the initial PR's `signup/actions.ts` and `api/login/route.ts` called `getAuthUser()` (cookie/RLS-backed, via `createSupabaseServerClient()` → `next/headers` `cookies()`) immediately after `supabase.auth.signUp()`/`signInWithPassword()`, to resolve the post-auth destination. This assumed the session cookie set during sign-in/sign-up is visible to a subsequent `cookies()` read within the same Server Action/Route Handler execution — a real, non-obvious assumption about Next.js's per-request cookie-jar semantics.
+
+Rather than attempting to prove that assumption holds (which would require simulating Next.js's internal request-scoped cookie store — not achievable in this Node test environment), the dependency was **eliminated**: both flows now build the identity used for `resolveOnboardingState`/`resolveCanonicalWorkspace` directly from `data.user` — the object `signUp()`/`signInWithPassword()` themselves return, with no cookie read involved. `resolveOnboardingState`'s parameter type was narrowed from the full, cookie-derived `AuthUserContext` to a minimal `OnboardingStateUser = { id: string; email: string | null }` (the only fields it actually reads: `user.id` for queries, `user.email` via `isFounderOrInternalUser`, whose parameter type was narrowed to match). `resolveCanonicalWorkspace` already used the service-role client keyed by `userId`, independent of cookies. Neither function anywhere in this call chain reads `cookies()`.
+
+Verified directly (`tests/pmf-001-002-auth-session-visibility.test.mjs`): (1) neither `signup/actions.ts` nor `api/login/route.ts` imports/calls `getAuthUser()` anymore; (2) real invocation of `resolveOnboardingState` with only `{id, email}` — exactly what a sign-in/sign-up response provides — resolves correctly against a fake, non-cookie-backed client; (3) evidence collection reuses the resolver's own already-constructed client rather than creating a new cookie-backed one.
+
+`src/app/auth/callback/route.ts` (pre-existing, unrelated to this sprint) retains its own `getAuthUser()`-based pattern for the OAuth callback flow — not modified here (out of scope; it predates this sprint and was not the flow flagged for investigation). It shares the same underlying mechanism (Next.js's documented per-request mutable cookie store) that the signup/login redesign no longer needs to rely on. Flagged as residual note in §19, not a regression introduced by this pass.
+
+### 21.5 Preserved work (unchanged by this pass)
+
+Legacy wizard retirement, fake-evidence-route deletion, Project-before-PMO routing, Invite Team optionality, PMF-004 as the sole activation implementation, and the historical-rows-untouched stance — all verified unchanged: no file touched in §8/§9 of this record was modified again in this pass except `resolve-onboarding-state.ts`, `onboarding-route-map.ts`, `(protected)/layout.tsx`, `src/lib/auth.ts` (one function's parameter type narrowed), `src/app/signup/actions.ts`, and `src/app/api/login/route.ts`.
+
+### 21.6 Pre-correction failure evidence
+
+`tests/pmf-001-002-state-authority-reconciliation.test.mjs` was written first and run against PR #560 HEAD (`7d49e394c50120449c12d4d6ac0481b3dda74d5b`) before any correction:
+
+```
+npx tsx --test tests/pmf-001-002-state-authority-reconciliation.test.mjs
+# tests 1
+# pass 0
+# fail 1   (module load failure: hasWorkspaceAccess did not exist yet)
+```
+
+An isolated, import-failure-free check confirmed the underlying behavioral gap directly: `resolveOnboardingState` with a fake client returning a real Project (no task, no PMO) returned `"active"` — proving the exact state-collapse defect described, independent of the new export's absence.
+
+### 21.7 Post-correction validation
+
+| Command | Exit | Result |
+|---|---|---|
+| `npx tsx --test tests/pmf-001-002-state-authority-reconciliation.test.mjs tests/pmf-001-002-auth-session-visibility.test.mjs` | 0 | 17/17 pass |
+| `npx tsx --test tests/pmf-001-002-canonical-onboarding.test.mjs tests/pmf-001-002-state-authority-reconciliation.test.mjs tests/pmf-001-002-auth-session-visibility.test.mjs tests/resolve-onboarding-state.test.mjs tests/proxy-routing.test.mjs tests/auth-redirect-resolution.test.mjs tests/legacy-shell-quarantine.test.mjs tests/workspace-onboarding-guardrails.test.mjs` (corrected onboarding tests) | 0 | 114/114 pass |
+| workspace-activation tests (`*workspace-activation*`, `*workspace-onboarding*`) | 0 | 61/61 pass (engine files unmodified) |
+| task-creation tests (`*execution-task*`, excluding dependencies) | 0 | 108/108 pass |
+| PMF-004 tests (`pmf-004-default-pmo-command-center-idempotency`, `pmf-004-idempotent-call-sites`) | 0 | 5/5 pass, 17 skipped (pre-existing: no local Postgres in this sandbox, self-disclosed by the PMF-004 record — unrelated to this pass) |
+| auth/login/signup tests (`*login*`, `*signup*`) | 0 | 18/18 pass |
+| `npm test` (full suite) | 0 | 12,856/12,856 pass, 17 skipped (same pre-existing PMF-004 skips), 0 fail |
+| `npm run typecheck` | 0 | 0 errors |
+| `npm run lint` | 0 | 0 errors, 614 warnings — identical to baseline; `npx eslint` scoped to every file this pass changed reports 0 errors, 0 warnings |
+| `npm run build` | 0 | Success, all routes generated |
+
+Four pre-existing tests (from the initial PR) failed after this correction and were updated because they encoded the *superseded* "active = Project exists" semantics: `tests/pmf-001-002-canonical-onboarding.test.mjs`, `tests/resolve-onboarding-state.test.mjs` (two tests), `tests/legacy-shell-quarantine.test.mjs`. Each update is annotated in-file explaining the corrected semantics; no assertion was weakened — each now pins the stricter, reconciled behavior.
+
+### 21.8 Correction-pass residual debt
+
+- `src/app/auth/callback/route.ts`'s pre-existing `getAuthUser()`-based pattern (§21.4) was not modified — out of the explicit scope ("the new login/signup flow"). It is not proven unsafe; it shares the same documented Next.js mechanism the redesigned flows no longer need to depend on.
+- No live-Supabase/E2E validation of the corrected journey was performed — same constraint as §18, unchanged.

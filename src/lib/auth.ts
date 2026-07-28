@@ -175,5 +175,12 @@ export const evaluateFounderOrInternalAccess = (input: { email?: string | null }
  * `evaluateFounderOrInternalAccess`, which is the actual decision logic and
  * the seam covered by direct unit tests.
  */
-export const isFounderOrInternalUser = (user: AuthUserContext) =>
+/**
+ * Deliberately narrowed to its actual dependency (email only), not the full
+ * AuthUserContext — callers resolving onboarding state immediately after a
+ * fresh sign-in/sign-up (before any cookie round-trip can be assumed to have
+ * propagated) can pass a minimal `{ email }` built directly from the
+ * sign-in/sign-up response instead of round-tripping through getAuthUser().
+ */
+export const isFounderOrInternalUser = (user: { email: string | null | undefined }) =>
   evaluateFounderOrInternalAccess({ email: user.email }).allowed;

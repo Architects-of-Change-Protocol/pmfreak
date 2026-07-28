@@ -101,7 +101,7 @@ test("OperationalShell no longer special-cases /command-center into a bare bypas
 });
 
 test("(protected)/layout.tsx contains no hardcoded per-route allowlist for the incomplete-onboarding branch", () => {
-  const branchStart = layout.indexOf("if (!isOnboardingComplete(onboardingState))");
+  const branchStart = layout.indexOf("if (!hasWorkspaceAccess(onboardingState))");
   const branchEnd = layout.indexOf("const capabilityProfile");
   const incompleteBranch = layout.slice(branchStart, branchEnd);
   assert.doesNotMatch(incompleteBranch, /currentPath\.startsWith\(/, "no hardcoded route allowlist — the destination must be derived from getOnboardingRedirect");

@@ -54,17 +54,26 @@ const founderUser = { id: "user-1", email: "u@test.dev", fullName: "U", companyI
 
 // ─── 1. PMO must not gate project-existence recognition ─────────────────────
 
-test("resolveOnboardingState: workspace with zero PMOs and a real project is active, not needs_pmo_setup", async () => {
+test("resolveOnboardingState: workspace with zero PMOs and a real project progresses past needs_project, never needs_pmo_setup", async () => {
+  // Under the corrected, reconciled state machine (see
+  // tests/pmf-001-002-state-authority-reconciliation.test.mjs), "active"
+  // now specifically means Command Center is active — a bare Project with
+  // no task and no PMO is "needs_task", not "active". The defect this test
+  // originally pinned (PMO gating progression past needs_project) remains
+  // fixed either way: the state must never be needs_pmo_setup, and it must
+  // have moved on from needs_project without any PMO existing.
   const client = fakeClient({
     pmos: { data: [], error: null },
     workspace_governance: { data: null, error: null },
     projects: { data: [{ id: "proj-1" }], error: null },
+    execution_tasks: { data: [], error: null },
   });
   const state = await resolveOnboardingState(founderUser, "ws-1", {
     isRecovered: true,
     getClient: () => client,
   });
-  assert.equal(state, "active", "a real project must make the workspace active regardless of PMO existence");
+  assert.equal(state, "needs_task", "a real project with zero PMOs must progress to needs_task, never be blocked at needs_pmo_setup");
+  assert.notEqual(state, "needs_project", "the project must be recognized as existing, regardless of PMO existence");
 });
 
 test("resolveOnboardingState: workspace with zero PMOs and zero projects routes to project creation, not PMO setup", async () => {
