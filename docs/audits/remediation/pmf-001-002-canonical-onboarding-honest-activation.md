@@ -301,3 +301,95 @@ Four pre-existing tests (from the initial PR) failed after this correction and w
 
 - `src/app/auth/callback/route.ts`'s pre-existing `getAuthUser()`-based pattern (§21.4) was not modified — out of the explicit scope ("the new login/signup flow"). It is not proven unsafe; it shares the same documented Next.js mechanism the redesigned flows no longer need to depend on.
 - No live-Supabase/E2E validation of the corrected journey was performed — same constraint as §18, unchanged.
+
+## 22. PR #560 Manual UAT and Merge Gate
+
+**Date / UTC timestamp of this pass:** 2026-07-28T20:27:38Z.
+**Tester/runtime agent:** Claude Sonnet 5, running as the Claude Code runtime agent in an ephemeral remote-execution container (not a human tester, no browser session).
+**Task framing vs. actual repository state — read this before the rest of this section:** this pass was commissioned as a pre-merge UAT/merge-gate task for PR #560, instructed to block merge pending real browser/runtime validation. On establishing baseline (per the task's own §3), **PR #560 was already merged to `main`** (`state: closed`, `merged: true`, `merged_by: vicvalch`, `merged_at: 2026-07-28T20:04:19Z`) before this pass began — the merge decision was made by the repository owner outside this task, prior to any runtime UAT. This was surfaced to the user, who directed this pass to proceed as a **post-merge retroactive validation and evidence report**, not a merge gate (there is no pending merge left to gate). Everything below should be read in that light: findings are follow-up items against `main`, not blockers to a still-open PR.
+
+### 22.1 Baseline
+
+| Item | Value |
+|---|---|
+| Repository path | `/home/user/pmfreak` |
+| Designated working branch | `claude/pmfreak-pr560-onboarding-uat-opz5ef` |
+| Branch HEAD at session start | `fd163ba06ed6f98a514ac51a8a079816400f8500` |
+| `origin/main` SHA | `fd163ba06ed6f98a514ac51a8a079816400f8500` (identical — the branch sat exactly on `main`'s tip; `git merge-base --is-ancestor` confirmed `main` already contains this commit) |
+| PR #560 head SHA (pre-squash) | `ad5919e31c24cc31d33e3c6a789403c2f0d37ab6` |
+| PR #560 base SHA | `7a8a8d4ccf62954da26a0ae3869c138b937ed9fc` (#559) |
+| PR #560 state | `closed`, `merged: true` (squash-merged into `main` as `fd163ba0`) |
+| Worktree status | Clean at session start; no uncommitted or untracked files |
+| Ahead/behind vs. `origin/main` | 0 behind, 0 ahead (branch === main tip) |
+
+No branch reset was required (no divergent/stale history to rebase). This document's own edit is the only change made by this pass.
+
+### 22.2 Runtime-environment determination (§4 criteria)
+
+Inspected: `README.md`, `package.json` scripts, `.env.example`/`.env.operational-flow.example`, shell environment, Docker, local Postgres, and the repository for any Playwright/E2E harness.
+
+| Requirement | Status |
+|---|---|
+| Browser-accessible PMFreak instance | **Unavailable** — no running dev server, no preview/staging URL configured for this session |
+| Working signup/login against a real backend | **Unavailable** — no `.env.local`; no `SUPABASE_*` env vars set anywhere in the session shell |
+| Real authenticated session | **Unavailable** (no backend to authenticate against) |
+| Database persistence (Supabase) | **Unavailable** — no reachable Supabase project; `supabase/` contains only migration SQL, no local Supabase stack running |
+| Playwright/E2E browser framework | **Absent from the repository** — no Playwright config, no existing browser E2E suite to run or extend |
+| `node_modules` | Not installed at session start (`npm ci` run first; 586 packages installed cleanly) |
+
+**Conclusion: true browser/runtime UAT (Scenarios A–H) is not possible in this environment.** No product behavior was altered to work around this. Per §4/§18, this is treated as `CANONICAL ONBOARDING UAT BLOCKED` for the runtime-journey portion specifically, folded into the overall post-merge verdict below — not as a reason to skip the automated validation that *is* possible.
+
+### 22.3 Automated validation actually performed
+
+One gap was closeable without touching product code: the PR's own reported "17 PMF-004 environment-dependent skips" (`tests/pmf-004-default-pmo-command-center-idempotency.test.mjs`) are real-Postgres concurrency tests for exactly the Command Center activation idempotency guarantee this merge gate is about (`ensure_default_pmo`/`ensure_user_workspace` converging to one row under concurrent/duplicate calls). Postgres 16 was already installed in this container but not running; `service postgresql start` brought it up, and the test file's own documented fallback (`sudo -u postgres psql`, no env vars needed) picked it up with zero configuration changes. This is test infrastructure, not product-behavior modification, and it runs the real SQL functions from `supabase/migrations/20260831000000_pmo_command_center_activation_idempotency.sql` under genuine concurrent transactions — stronger evidence than the mocked/static contract tests, though it is still function-level (real Postgres, no Next.js/Supabase-auth/browser layer) rather than a full browser reproduction of a double-click.
+
+| Command | Exit | Result |
+|---|---|---|
+| `npm ci` | 0 | 586 packages installed |
+| `service postgresql start` (Postgres 16, local, disposable to this container) | 0 | `accepting connections` on 5432 |
+| `npx tsx --test tests/pmf-004-default-pmo-command-center-idempotency.test.mjs` (alone, with Postgres running) | 0 | **17/17 pass, 0 skipped** (previously 0 pass / 17 skipped without local Postgres) |
+| Targeted onboarding/activation/PMF-004 tests (`pmf-001-002-*`, `resolve-onboarding-state`, `workspace-activation-*`, `workspace-onboarding-*`, `command-center-*`, `pmf-004-*`, `signup-role-escalation`) | 0 | 185/185 run, **168 pass, 0 fail, 17 skipped** on the first pass (before Postgres was started) |
+| `npm test` (full suite, Postgres running) | 0 | **12,873/12,873 pass, 0 fail, 0 skipped** (12,856 + the 17 now-unskipped PMF-004 tests — matches the PR's reported baseline exactly, with the disclosed gap now closed) |
+| `npm run typecheck` | 0 | 0 errors |
+| `npm run lint` | 0 | 0 errors, 614 warnings (identical to the PR's reported baseline) |
+| `npm run build` | 0 | Success, all routes generated, including `/command-center`, `/getting-started`, `/onboarding`, `/workspace/setup`, `/workspace-setup`, `/projects/new` (one pre-existing, unrelated Turbopack tracing warning on `next.config.ts` → `degraded-mode.ts`, not part of this PR) |
+
+**Skipped-test analysis:** zero tests were skipped by the end of this pass. The only skip class that existed (the 17 PMF-004 concurrency tests) was resolved by providing the missing Postgres dependency, not by weakening any assertion. No merge-critical behavior remains untested-and-unverified at the automated level.
+
+### 22.4 Source-level confirmation of PR #560's claimed corrections (supporting evidence only — not a UAT substitute)
+
+Static inspection of `main` (not a substitute for runtime verification, but explicitly permitted as supporting evidence per §4) confirmed every item is actually present, not just claimed:
+
+- `src/components/pmfreak/activation/getting-started-flow.tsx`, `src/app/api/getting-started/route.ts`, `src/app/api/onboarding/route.ts` — confirmed deleted.
+- `src/lib/auth/legacy-onboarding-redirect.ts` — present.
+- `src/lib/auth/resolve-onboarding-state.ts` — confirmed calling `collectWorkspaceActivationEvidence` directly (the PR #547 engine), not a second query path.
+- `src/lib/auth/onboarding-route-map.ts` — confirmed exporting both `isOnboardingComplete` and `hasWorkspaceAccess` as distinct views.
+- `resolveOnboardingStateFromJwt` — confirmed absent anywhere in `src/`.
+- `src/app/signup/actions.ts` and `src/app/api/login/route.ts` — confirmed building identity from `data.user` (the sign-up/sign-in response), no `getAuthUser()` call in either file.
+
+### 22.5 Scenario-by-scenario disposition (§6–§13)
+
+Every lettered scenario (A: new authenticated user, B: workspace bootstrap, C: Project-first creation, D: first execution task, E: Command Center activation, F: legacy routes/flags, G: partial-state recovery, H: honest zero states) requires a live browser session against a real, persisted backend. None could be executed — see §22.2. No UAT run identifier, disposable identity, or disposable workspace/Project/task was created, because no environment existed to create them in. No screenshots or traces exist. No before/after row-count matrix exists (no live database was touched by a UAT journey; the only database activity this pass performed was the ephemeral, self-cleaning PMF-004 test-suite databases created and dropped by the test file's own `test.after` hook — confirmed no `pmf004_test_*` databases remain: `sudo -u postgres psql -l` after the run shows none). This is the one part of the task genuinely blocked by environment, not by anything this pass could have done differently.
+
+Authorization/isolation smoke check (§15): the existing regression suite already includes onboarding-adjacent authorization tests (e.g. "workspaceId manipulated to a workspace the actor does not belong to fails closed", "activation API verifies membership server-side and never trusts workspaceId input", evidence-probe workspace-scoping tests) — all passing as part of the 12,873. These are service/unit-level, not a live two-account browser cross-tenant check; no new authorization defect was found or demonstrated, so no narrow fix was in scope.
+
+### 22.6 Defects found
+
+**None** — at the level this pass could actually verify (automated tests, typecheck, lint, build, source inspection). No P0, P1, P2, or P3 defect was identified or demonstrated. No code changes were made to product source; the only repository change from this pass is this document.
+
+### 22.7 Residual debt / open risk
+
+1. **No browser/E2E validation of the canonical journey has ever been performed for PR #560** — not at initial implementation, not at the correction pass, not at this post-merge pass. This is now merged to `main` without that validation ever having occurred. This is the single most material residual risk from this entire remediation.
+2. Everything listed in §19 and §21.8 remains unchanged and still applies (deprecated `onboardingCompleted` field, PMF-006 not formally closed, historical fake `operational_memory` rows not cleaned up, `auth/callback/route.ts` not modified).
+3. The PMF-004 idempotency gap is now closed at the **database-function level** (real Postgres, real migration SQL, real concurrent transactions) but still not at the full-stack browser level (Next.js server action → Supabase auth → Postgres → UI feedback). A future pass with a real Supabase/staging environment should still execute the browser-level Scenario E (double-click activation, network retry) at least once before this is considered fully closed.
+4. The local Postgres 16 instance started in this container for test purposes is disposable to this ephemeral session and was used only for the repository's own test suite (creating/dropping short-lived `pmf004_test_*` databases) — no product/customer data exists in or touched this instance.
+
+### 22.8 Cleanup status
+
+No disposable UAT entities (user, workspace, Project, task) were created — none of Scenarios A–H executed. No cleanup is owed. The ephemeral Postgres test databases created by the PMF-004 suite were dropped automatically by the test file's own teardown; verified none remain.
+
+### 22.9 Final disposition
+
+PR #560 is already merged; there is no pending merge for this pass to gate. Every automated validation this environment can run is green, including the one previously-disclosed gap (17 PMF-004 skips), now fully closed. No defect was found or demonstrated by any means available in this session. The one requirement this task could not satisfy is the one it explicitly says must not be faked or waived: an actual browser/runtime walk of the canonical journey. That has still never happened for this feature, across every sprint of this remediation.
+
+**CANONICAL ONBOARDING UAT BLOCKED — RUNTIME ENVIRONMENT REQUIRED** (for the browser/runtime-journey portion specifically; all automated validation available in this environment passed with 0 failures and 0 skips, and is documented above as a post-merge finding, not a merge gate, since PR #560 was already merged prior to this pass).
