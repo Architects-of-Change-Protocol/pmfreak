@@ -74,7 +74,9 @@ async function ensureWorkspaceMembership(userId: string, workspaceId: string, ro
   if (error) throw new Error(`Unable to ensure workspace membership: ${error.message}`);
 }
 
-export async function ensureUserWorkspace(userId: string) {
+export async function ensureUserWorkspace(
+  userId: string
+): Promise<{ workspaceId: string; role: WorkspaceContext["role"]; created: boolean }> {
   const supabase = createSupabaseServiceRoleClient({ routeId: "lib.workspaces", operation: "ensure_workspace", reason: "workspace_bootstrap", systemActor: "system", actorUserId: userId });
 
   const { data: existingMembership } = await supabase
@@ -89,20 +91,32 @@ export async function ensureUserWorkspace(userId: string) {
     return { workspaceId: existingMembership.workspace_id, role: existingMembership.role, created: false };
   }
 
-  const { data: createdWorkspace, error: createError } = await supabase
-    .from("workspaces")
-    .insert({ name: "Workspace", created_by_user_id: userId })
-    .select("id")
-    .single<{ id: string }>();
+  // ensure_user_workspace (migration 20260831000000) is an advisory-lock
+  // guarded get-or-create, keyed by user_id: two concurrent first-login
+  // requests for the same brand-new user (e.g. two protected-route tabs
+  // opened at once) both reach this line after the fast read above finds no
+  // membership, but the RPC serializes them so only one workspace is ever
+  // created — a plain insert here could otherwise let both create an
+  // independent workspace for the same user.
+  const { data: rpcData, error: createError } = await supabase.rpc("ensure_user_workspace", {
+    p_user_id: userId,
+    p_default_name: "Workspace",
+  });
+  const createdWorkspace = rpcData as unknown as { id: string } | null;
 
   if (createError || !createdWorkspace?.id) {
     console.error("[workspace-init] failed to create workspace", { userId, reason: createError?.message ?? "unknown" });
     throw new Error("Unable to initialize workspace.");
   }
 
-  await ensureWorkspaceMembership(userId, createdWorkspace.id, "owner");
+  const { data: membership } = await supabase
+    .from("workspace_memberships")
+    .select("role")
+    .eq("workspace_id", createdWorkspace.id)
+    .eq("user_id", userId)
+    .maybeSingle<{ role: WorkspaceContext["role"] }>();
 
-  return { workspaceId: createdWorkspace.id, role: "owner" as const, created: true };
+  return { workspaceId: createdWorkspace.id, role: membership?.role ?? "owner", created: true };
 }
 
 /**

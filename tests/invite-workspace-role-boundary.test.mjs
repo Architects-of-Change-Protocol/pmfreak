@@ -396,9 +396,33 @@ test("acceptWorkspaceInvite: an invite record with an invalid/garbage stored rol
 test("workspace creator owner assignment is a hardcoded server-side literal, not client-derived (source scan)", async () => {
   const fs = await import("node:fs/promises");
   const source = await fs.readFile(new URL("../src/lib/workspaces.ts", import.meta.url), "utf8");
+  // createWorkspace (the explicit "New Workspace" flow) still assigns owner
+  // via the same ensureWorkspaceMembership helper with a literal string.
   assert.match(
     source,
-    /ensureWorkspaceMembership\(userId, createdWorkspace\.id, "owner"\)/,
-    "workspace bootstrap must assign owner via a literal string, never a variable derived from client input",
+    /ensureWorkspaceMembership\(userId, created\.id, "owner"\)/,
+    "createWorkspace must assign owner via a literal string, never a variable derived from client input",
   );
+  // PMF-004: first-login bootstrap (ensureUserWorkspace) now creates its
+  // workspace+membership atomically via the ensure_user_workspace RPC
+  // (20260831000000_pmo_command_center_activation_idempotency.sql) instead
+  // of a raw check-then-insert, closing a concurrent-duplicate-workspace
+  // race. The owner-role assignment moved into that SQL function, still as
+  // a hardcoded literal, never a parameter.
+  assert.match(
+    source,
+    /supabase\.rpc\("ensure_user_workspace"/,
+    "first-login bootstrap must call the advisory-lock-guarded RPC, not a raw insert",
+  );
+  const migration = await fs.readFile(
+    new URL("../supabase/migrations/20260831000000_pmo_command_center_activation_idempotency.sql", import.meta.url),
+    "utf8",
+  );
+  const fn = migration.slice(migration.indexOf("create function ensure_user_workspace"));
+  assert.match(
+    fn,
+    /values \(v_workspace\.id, p_user_id, 'owner'\)/,
+    "ensure_user_workspace must assign owner via a literal string, never a parameter derived from client input",
+  );
+  assert.doesNotMatch(fn, /p_role/, "ensure_user_workspace must not accept a caller-supplied role parameter");
 });

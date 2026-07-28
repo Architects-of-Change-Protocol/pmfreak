@@ -123,47 +123,33 @@ export async function savePmoTenant(tenant: PmoTenant): Promise<PmoTenantSaveRes
     // Materialize the PMO as a first-class entity (Workspace → PMO → Project
     // hierarchy). The governance JSON above stays the source of tenant
     // config; the pmos row is what navigation, project assignment, and the
-    // PMO chat scope hang off. Idempotent: skip when the workspace already
-    // has a PMO (re-running the wizard must not spawn duplicates).
-    const { data: existingPmo } = await supabaseClient
-      .from("pmos")
-      .select("id")
-      .eq("workspace_id", resolution.workspaceId)
-      .limit(1)
-      .maybeSingle<{ id: string }>();
-
-    if (!existingPmo?.id) {
-      const { error: pmoInsertError } = await supabaseClient.from("pmos").insert({
-        workspace_id: resolution.workspaceId,
-        name: tenant.identity.pmoName,
-        pmo_type: commandCenterType,
-        created_by_user_id: user.id,
+    // PMO chat scope hang off.
+    //
+    // Idempotent and race-safe: ensure_default_pmo is the same
+    // advisory-lock-guarded Postgres function pmo-service.ts's
+    // ensureDefaultPmo() already uses for project-creation bootstrap
+    // (migrations 20260828000002, 20260831000000). Two tabs, a
+    // client-timeout racing its own retry, or a concurrent project-creation
+    // call for the same brand-new workspace all serialize against the same
+    // lock and converge on the same canonical default PMO row — a raw
+    // check-then-insert here could otherwise let two concurrent activations
+    // each observe "no existing PMO" and both insert. p_sync_existing keeps
+    // the pmos row's name/type in sync with a rename on re-activation,
+    // matching the previous check-then-insert-or-update behavior exactly.
+    const { data: pmoRow, error: pmoRpcError } = await supabaseClient.rpc("ensure_default_pmo", {
+      p_workspace_id: resolution.workspaceId,
+      p_name: tenant.identity.pmoName,
+      p_created_by_user_id: user.id,
+      p_pmo_type: commandCenterType,
+      p_sync_existing: true,
+    });
+    if (pmoRpcError || !pmoRow) {
+      emit("warn", "pmo.create.pmo_entity_warn", {
+        correlationId,
+        userId,
+        workspaceId,
+        error: pmoRpcError?.message ?? "unknown",
       });
-      if (pmoInsertError) {
-        emit("warn", "pmo.create.pmo_entity_warn", {
-          correlationId,
-          userId,
-          workspaceId,
-          error: pmoInsertError.message,
-        });
-      }
-    } else {
-      // Re-running the wizard on a workspace that already has a default PMO
-      // must keep it in sync with the workspace name update above — otherwise
-      // the pmos row (what navigation/chat/project-assignment hang off) is
-      // left showing a stale name after a rename.
-      const { error: pmoUpdateError } = await supabaseClient
-        .from("pmos")
-        .update({ name: tenant.identity.pmoName, pmo_type: commandCenterType, updated_at: new Date().toISOString() })
-        .eq("id", existingPmo.id);
-      if (pmoUpdateError) {
-        emit("warn", "pmo.create.pmo_entity_warn", {
-          correlationId,
-          userId,
-          workspaceId,
-          error: pmoUpdateError.message,
-        });
-      }
     }
 
     emit("info", "pmo.create.persisted", {
