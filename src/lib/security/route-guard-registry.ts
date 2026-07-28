@@ -56,11 +56,13 @@ export const ROUTE_GUARD_REGISTRY: readonly RouteGuardEntry[] = [
     kind: "middleware",
     classification: "auth-only",
     requiredGuard: "isProtectedPageRoute",
-    dataAccess: ["session cookie (JWT onboarding_completed claim only)"],
+    dataAccess: ["session cookie (auth presence only — no onboarding-state claim is read)"],
     notes:
-      "Page-route redirect gate only. API routes pass through untouched " +
-      "('policy === \"api\" => return response') — every API route owns its " +
-      "own server-side guard. Never the sole authorization boundary.",
+      "Page-route redirect gate only. Makes no onboarding/activation-state " +
+      "decisions (see resolveOnboardingState) — those are decided exclusively " +
+      "by (protected)/layout.tsx from real DB state. API routes pass through " +
+      "untouched ('policy === \"api\" => return response') — every API route " +
+      "owns its own server-side guard. Never the sole authorization boundary.",
   },
   {
     file: "src/app/(protected)/layout.tsx",

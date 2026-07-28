@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 const resolver = readFileSync('src/lib/auth/resolve-post-auth-destination.ts', 'utf8');
 const validator = readFileSync('src/lib/auth/validate-continuation-route.ts', 'utf8');
 const proxy = readFileSync('src/proxy.ts', 'utf8');
+const layout = readFileSync('src/app/(protected)/layout.tsx', 'utf8');
 const workspacePage = readFileSync('src/app/(protected)/workspace/page.tsx', 'utf8');
 const workspaceSetupPage = readFileSync('src/app/(protected)/workspace/setup/page.tsx', 'utf8');
 const gettingStartedPage = readFileSync('src/app/(protected)/getting-started/page.tsx', 'utf8');
@@ -20,14 +21,33 @@ test('/workspace is quarantined and redirects to /command-center, not the legacy
   assert.doesNotMatch(workspacePage, /WorkspaceShell/);
 });
 
-test('/workspace/setup renders setup flow and does not redirect to /getting-started', () => {
-  assert.match(workspaceSetupPage, /GettingStartedFlow/);
-  assert.doesNotMatch(workspaceSetupPage, /redirect\("\/getting-started"\)/);
+// PMF-001/PMF-002 canonical onboarding consolidation retired the legacy
+// fabricated-readiness wizard (GettingStartedFlow) as a reachable onboarding
+// surface. /workspace/setup, /getting-started and /onboarding are now all
+// thin redirect-only compatibility routes that resolve the real, current
+// onboarding state and redirect to the derived canonical destination — none
+// of them render a wizard or hardcode a legacy destination.
+test('/workspace/setup no longer renders the legacy wizard — it redirects via the canonical resolver', () => {
+  assert.doesNotMatch(workspaceSetupPage, /import\s*\{\s*GettingStartedFlow/);
+  assert.doesNotMatch(workspaceSetupPage, /<GettingStartedFlow/);
+  assert.match(workspaceSetupPage, /redirectToCanonicalOnboardingDestination/);
 });
 
-test('legacy onboarding routes alias to canonical /workspace/setup', () => {
-  assert.match(gettingStartedPage, /redirect\("\/workspace\/setup"\)/);
-  assert.match(onboardingPage, /redirect\("\/workspace\/setup"\)/);
+test('legacy onboarding routes (/getting-started, /onboarding) redirect via the canonical resolver, not a hardcoded legacy destination', () => {
+  for (const [name, src] of [
+    ['getting-started', gettingStartedPage],
+    ['onboarding', onboardingPage],
+  ]) {
+    assert.match(src, /redirectToCanonicalOnboardingDestination/, `${name} page must use the canonical redirect helper`);
+    assert.doesNotMatch(src, /redirect\("\/workspace\/setup"\)/, `${name} page must not hardcode the retired legacy wizard route`);
+  }
+});
+
+test('the canonical legacy-redirect helper never hardcodes a destination — it always derives one from real state', () => {
+  const helper = readFileSync('src/lib/auth/legacy-onboarding-redirect.ts', 'utf8');
+  assert.match(helper, /resolveOnboardingState/);
+  assert.match(helper, /getOnboardingRedirect\(state\)/);
+  assert.doesNotMatch(helper, /redirect\("\/workspace\/setup"\)/);
 });
 
 test('proxy does not hijack valid onboarded protected navigation', () => {
@@ -35,16 +55,18 @@ test('proxy does not hijack valid onboarded protected navigation', () => {
   assert.doesNotMatch(proxy, /decision\.reason !== "requested-route"/);
 });
 
-test('proxy enforces setup access for onboarding incomplete users', () => {
-  assert.match(proxy, /requiresOnboardingCompletion\(pathname\) && !onboardingCompleted/);
-  // Canonical: redirect target comes from getOnboardingRedirect, not hardcoded
-  assert.match(proxy, /getOnboardingRedirect\(onboardingState\)/);
-});
-
-test('proxy redirects onboarding-complete users away from setup routes to /command-center', () => {
-  assert.match(proxy, /isSetupRoute\(pathname\) && onboardingCompleted/);
-  const setupBlock = proxy.slice(proxy.indexOf('isSetupRoute(pathname) && onboardingCompleted'));
-  assert.match(setupBlock.slice(0, 200), /new URL\("\/command-center", request\.url\)/);
+// PMF-002's routing-layer gate lived exactly in proxy.ts's former
+// onboarding-state enforcement (requiresOnboardingCompletion + a JWT-boolean
+// state resolver), which unconditionally sent every PMO-less user to the
+// legacy wizard before the DB-derived resolver ever ran. Edge middleware now
+// makes no onboarding-state decision — (protected)/layout.tsx, which calls
+// the real resolveOnboardingState on every request, is the sole authority.
+test('proxy makes no onboarding-state-based access decision — that authority lives solely in layout.tsx', () => {
+  assert.doesNotMatch(proxy, /requiresOnboardingCompletion/);
+  assert.doesNotMatch(proxy, /isSetupRoute/);
+  assert.doesNotMatch(proxy, /onboardingCompleted/);
+  assert.match(layout, /resolveOnboardingState/);
+  assert.match(layout, /getOnboardingRedirect\(onboardingState\)/);
 });
 
 test('proxy quarantines the legacy /workspace shell to /command-center', () => {
@@ -54,9 +76,13 @@ test('proxy quarantines the legacy /workspace shell to /command-center', () => {
 });
 
 test('no circular redirect chains between setup and legacy routes', () => {
-  assert.doesNotMatch(workspaceSetupPage, /redirect\("\/getting-started"\)/);
-  assert.match(gettingStartedPage, /workspace\/setup/);
-  assert.match(onboardingPage, /workspace\/setup/);
+  // Loop safety now comes from deriving the destination live (never a fixed
+  // route literal shared between the two pages) plus layout.tsx's
+  // currentPath !== dest guard — verified structurally: neither retired page
+  // hardcodes the other's route.
+  assert.doesNotMatch(gettingStartedPage, /redirect\("\/onboarding"\)/);
+  assert.doesNotMatch(onboardingPage, /redirect\("\/getting-started"\)/);
+  assert.match(layout, /currentPath !== dest/);
 });
 
 test('continuation validator maintains auth recursion protections', () => {
@@ -65,10 +91,8 @@ test('continuation validator maintains auth recursion protections', () => {
   assert.match(validator, /ALLOWED_PREFIXES/);
 });
 
-
 test('proxy uses central route policy registry helpers', () => {
   assert.match(proxy, /getRouteAccessPolicy/);
   assert.match(proxy, /isProtectedPageRoute/);
   assert.match(proxy, /isAuthRoute/);
-  assert.match(proxy, /isSetupRoute/);
 });

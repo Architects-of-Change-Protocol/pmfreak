@@ -13,6 +13,10 @@ const matchesRoute = (pathname: string, route: string): boolean => pathname === 
 const matchesAnyRoute = (pathname: string, routes: readonly string[]): boolean => routes.some((route) => matchesRoute(pathname, route));
 
 const AUTH_ROUTES = ["/login", "/signup"] as const;
+// Retired legacy onboarding entry points. Each now renders nothing but a
+// redirect to the derived canonical destination (resolveOnboardingState) —
+// kept in the route table only so bookmarked URLs remain protected pages
+// instead of falling through to "unknown".
 const SETUP_ROUTES = ["/workspace/setup", "/getting-started", "/onboarding"] as const;
 const WORKSPACE_CORE_ROUTES = [
   "/workspace",
@@ -114,15 +118,6 @@ export function isAuthRoute(pathname: string): boolean {
   return getRouteAccessPolicy(pathname) === "auth";
 }
 
-export function isSetupRoute(pathname: string): boolean {
-  return getRouteAccessPolicy(pathname) === "setup";
-}
-
 export function isInternalDebugRoute(pathname: string): boolean {
   return getRouteAccessPolicy(pathname) === "internal-debug";
-}
-
-export function requiresOnboardingCompletion(pathname: string): boolean {
-  const policy = getRouteAccessPolicy(pathname);
-  return policy === "workspace-core" || policy === "workspace-contextual";
 }

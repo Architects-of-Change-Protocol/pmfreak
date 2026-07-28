@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { redirectToCanonicalOnboardingDestination } from "@/lib/auth/legacy-onboarding-redirect";
 
-export default function OnboardingPage() {
-  redirect("/workspace/setup");
+export default async function OnboardingPage() {
+  await redirectToCanonicalOnboardingDestination();
 }

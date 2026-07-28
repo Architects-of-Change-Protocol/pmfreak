@@ -8,7 +8,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = process.cwd();
@@ -29,6 +29,73 @@ const UI_FILES = [
 
 const API_FILE = "src/app/api/workspace-activation/route.ts";
 const MIGRATION_FILE = "supabase/migrations/20260829000000_workspace_onboarding_preferences.sql";
+
+// PMF-001/PMF-002 canonical onboarding consolidation — extends this
+// guardrail's coverage (per remediation record §"fabricated-state
+// guardrail") to the routing authority and the shared setup actions every
+// canonical entry point (project-first onboarding, PMF-004 activation) goes
+// through, not just the evidence-derived engine's own files.
+const ROUTING_AUTHORITY_FILES = [
+  "src/lib/auth/resolve-onboarding-state.ts",
+  "src/lib/auth/onboarding-route-map.ts",
+  "src/proxy.ts",
+  "src/app/(protected)/layout.tsx",
+];
+
+const SHARED_SETUP_ACTION_FILES = [
+  "src/lib/projects/save-project-onboarding.ts",
+  "src/lib/projects/create-minimal-project.ts",
+  "src/lib/pmo/save-pmo-tenant.ts",
+  "src/app/(protected)/command-center/actions.ts",
+];
+
+// Legacy wizard paths retired by PMF-001/PMF-002. Not merely "must not
+// fabricate" — must not exist as a reachable onboarding surface at all.
+const RETIRED_LEGACY_PATHS = [
+  "src/components/pmfreak/activation/getting-started-flow.tsx",
+  "src/components/pmfreak/onboarding/ActivationProgress.tsx",
+  "src/components/pmfreak/onboarding/AIActivationTransition.tsx",
+  "src/app/api/getting-started/route.ts",
+  "src/app/api/onboarding/route.ts",
+];
+
+test("legacy fabricated-readiness wizard paths no longer exist in the repository", () => {
+  for (const path of RETIRED_LEGACY_PATHS) {
+    assert.ok(!existsSync(join(ROOT, path)), `${path} must remain deleted — it is a retired onboarding surface`);
+  }
+});
+
+test("routing authority and shared setup actions never write the legacy onboarding_completed flag", () => {
+  for (const file of [...ROUTING_AUTHORITY_FILES, ...SHARED_SETUP_ACTION_FILES]) {
+    const src = read(file);
+    assert.ok(!src.includes("onboarding_completed"), `${file} must not read or write onboarding_completed`);
+  }
+});
+
+test("shared setup actions never seed demo/template evidence or fake operational memory", () => {
+  for (const file of SHARED_SETUP_ACTION_FILES) {
+    const src = read(file);
+    for (const forbidden of ["loadDemo", "activation-demo", "demoAppend", "PMFreak Demo Launch Recovery"]) {
+      assert.ok(!src.includes(forbidden), `${file} must not contain demo-seeding logic ("${forbidden}")`);
+    }
+  }
+});
+
+test("routing authority never computes a fabricated readiness/completion score from arithmetic", () => {
+  for (const file of ROUTING_AUTHORITY_FILES) {
+    const src = read(file);
+    for (const forbidden of ["readinessScore", "completionScore", "governanceCompleteness", "operationalCoherence"]) {
+      assert.ok(!src.includes(forbidden), `${file} must not contain fabricated readiness field "${forbidden}"`);
+    }
+  }
+});
+
+test("no onboarding state routes to a PMO/Command Center precondition before Project creation", () => {
+  const routeMapSrc = read("src/lib/auth/onboarding-route-map.ts");
+  assert.doesNotMatch(routeMapSrc, /return\s+"\/create-command-center"/);
+  assert.doesNotMatch(routeMapSrc, /return\s+"\/create-pmo"/);
+  assert.doesNotMatch(routeMapSrc, /return\s+"\/workspace\/setup"/);
+});
 
 // Fabrication signatures eliminated by the Zero State UX sprint. They must
 // never appear in the onboarding/activation surface.

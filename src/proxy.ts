@@ -1,29 +1,29 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
-import { resolvePostAuthDestination } from "@/lib/auth/resolve-post-auth-destination";
-import { resolveOnboardingStateFromJwt } from "@/lib/auth/resolve-onboarding-state";
-import { getOnboardingRedirect, isOnboardingComplete } from "@/lib/auth/onboarding-route-map";
 import { isSafeContinuationRoute } from "@/lib/auth/validate-continuation-route";
 import {
   getRouteAccessPolicy,
   isAuthRoute,
   isInternalDebugRoute,
   isProtectedPageRoute,
-  isSetupRoute,
-  requiresOnboardingCompletion,
 } from "@/lib/auth/route-policy-registry";
 
 // ─── Policy table ────────────────────────────────────────────────────────────
 // Public routes        → passthrough (no auth required)
-// Auth routes          → redirect authenticated users away; accept ?next param
+// Auth routes          → redirect authenticated users to a safe continuation
+//                         route or a neutral protected default
 // Protected routes     → unauthenticated → /login?next=<path>
-// Setup/onboarding     → authenticated + complete → /command-center
-// Workspace routes     → incomplete onboarding → getOnboardingRedirect(state)
 // /workspace            → always → /command-center (legacy shell quarantined)
-// Active               → passthrough
-// trial_blocked        → /trial-inactive  (via getOnboardingRedirect)
 // API routes           → passthrough (handled by route handlers)
 // Assets/_next         → excluded by matcher; never reach this function
+//
+// Onboarding/activation-state-based redirects (needs_project, trial_blocked)
+// are NOT decided here. Edge middleware cannot perform async DB calls, and a
+// JWT-boolean shortcut is exactly the stale, non-authoritative signal PMF-002
+// identified as a routing-layer gate that could diverge from real persisted
+// state. (protected)/layout.tsx — which calls the DB-derived
+// resolveOnboardingState on every request — is the single canonical
+// authority for those redirects instead.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Every redirect must carry the cookies updateSession wrote to the passthrough
@@ -63,35 +63,16 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user) {
-    // Use sync JWT-based state resolver — middleware cannot do async DB calls.
-    const jwtOnboardingCompleted = user.user_metadata?.onboarding_completed === true;
-    const onboardingState = resolveOnboardingStateFromJwt(jwtOnboardingCompleted);
-    const onboardingCompleted = isOnboardingComplete(onboardingState);
-
-    // Authenticated user on auth route → resolve post-auth destination
+    // Authenticated user on auth route → send them to a safe continuation
+    // route if one was requested, otherwise a neutral protected default.
+    // No onboarding-state decision is made here (see file header) —
+    // (protected)/layout.tsx re-evaluates real state on the landing route
+    // and redirects further (e.g. to /projects/new) if needed.
     if (isAuthRoute(pathname)) {
       const requestedRoute = request.nextUrl.searchParams.get("next");
-      const decision = resolvePostAuthDestination({
-        isAuthenticated: true,
-        onboardingState,
-        requestedRoute,
-        isRequestedRouteSafe: requestedRoute ? isSafeContinuationRoute(requestedRoute) : false,
-      });
-      return redirectPreservingSession(new URL(decision.destination, request.url), response);
-    }
-
-    // Completed onboarding user on setup route → /command-center
-    if (isSetupRoute(pathname) && onboardingCompleted) {
-      return redirectPreservingSession(new URL("/command-center", request.url), response);
-    }
-
-    // Incomplete onboarding on workspace route → state-specific redirect
-    if (requiresOnboardingCompletion(pathname) && !onboardingCompleted && pathname !== "/logout") {
-      const dest = getOnboardingRedirect(onboardingState);
-      // Guard: never redirect to the current path (loop prevention)
-      if (dest !== pathname) {
-        return redirectPreservingSession(new URL(dest, request.url), response);
-      }
+      const isRequestedRouteSafe = requestedRoute ? isSafeContinuationRoute(requestedRoute) : false;
+      const destination = isRequestedRouteSafe ? (requestedRoute as string) : "/command-center";
+      return redirectPreservingSession(new URL(destination, request.url), response);
     }
 
     // Quarantine the legacy dark /workspace shell — always bounce authenticated

@@ -26,6 +26,16 @@ export type AuthUserContext = {
    * (`isFounderOrInternalUser` below).
    */
   role: UserRole;
+  /**
+   * @deprecated Stale, non-authoritative. Reflects the legacy
+   * `user_metadata.onboarding_completed` flag, which no production code path
+   * writes as `true` anymore (see
+   * docs/audits/remediation/pmf-001-002-canonical-onboarding-honest-activation.md).
+   * Never use this for routing or activation-state decisions — use
+   * `resolveOnboardingState` (derives from real workspace/project rows)
+   * instead. Retained only so existing display-only consumers keep
+   * compiling; do not add new reads of this field.
+   */
   onboardingCompleted: boolean;
 };
 
@@ -165,5 +175,12 @@ export const evaluateFounderOrInternalAccess = (input: { email?: string | null }
  * `evaluateFounderOrInternalAccess`, which is the actual decision logic and
  * the seam covered by direct unit tests.
  */
-export const isFounderOrInternalUser = (user: AuthUserContext) =>
+/**
+ * Deliberately narrowed to its actual dependency (email only), not the full
+ * AuthUserContext — callers resolving onboarding state immediately after a
+ * fresh sign-in/sign-up (before any cookie round-trip can be assumed to have
+ * propagated) can pass a minimal `{ email }` built directly from the
+ * sign-in/sign-up response instead of round-tripping through getAuthUser().
+ */
+export const isFounderOrInternalUser = (user: { email: string | null | undefined }) =>
   evaluateFounderOrInternalAccess({ email: user.email }).allowed;

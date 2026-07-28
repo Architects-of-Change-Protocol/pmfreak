@@ -159,14 +159,6 @@ export async function savePmoTenant(tenant: PmoTenant): Promise<PmoTenantSaveRes
       schemaVersion: PMO_TENANT_SCHEMA_VERSION,
     });
 
-    // Mark onboarding complete — non-fatal: the governance row is the canonical proof.
-    const { error: metaError } = await supabaseClient.auth.admin.updateUserById(user.id, {
-      user_metadata: { onboarding_completed: true },
-    });
-    if (metaError) {
-      emit("warn", "pmo.create.metadata_warn", { correlationId, userId, error: metaError.message });
-    }
-
     emit("info", "pmo.create.success", { correlationId, userId, workspaceId });
     return { status: "success", correlationId };
   } catch (err) {

@@ -5,6 +5,7 @@ import { readFileSync, existsSync } from "node:fs";
 const proxy = readFileSync("src/proxy.ts", "utf8");
 const onboardingMap = readFileSync("src/lib/auth/onboarding-route-map.ts", "utf8");
 const resolveState = readFileSync("src/lib/auth/resolve-onboarding-state.ts", "utf8");
+const layout = readFileSync("src/app/(protected)/layout.tsx", "utf8");
 
 // ─── 1. Public passthrough ───────────────────────────────────────────────────
 test("public routes pass through without redirect", () => {
@@ -32,18 +33,32 @@ test("unauthenticated access to protected route redirects to /login?next=", () =
   assert.match(proxy, /loginUrl\.searchParams\.set\("next", pathname\)/);
 });
 
-// ─── 4. Onboarding redirect ──────────────────────────────────────────────────
-test("incomplete onboarding on workspace route redirects via getOnboardingRedirect", () => {
-  assert.match(proxy, /requiresOnboardingCompletion\(pathname\) && !onboardingCompleted/);
-  assert.match(proxy, /getOnboardingRedirect\(onboardingState\)/);
+// ─── 4. Onboarding-state redirects: layout.tsx only, never proxy.ts ─────────
+// PMF-002's routing-layer gate lived exactly here: Edge middleware forced
+// every PMO-less user to /workspace/setup based on a stale JWT boolean,
+// before the DB-derived layout.tsx ever ran. Edge middleware now makes no
+// onboarding-state decision at all — only (protected)/layout.tsx (which
+// calls the real, DB-derived resolveOnboardingState on every request) does.
+
+test("proxy.ts contains no onboarding-state resolution or redirect logic", () => {
+  assert.doesNotMatch(proxy, /resolveOnboardingStateFromJwt/);
+  assert.doesNotMatch(proxy, /onboarding_completed/);
+  assert.doesNotMatch(proxy, /getOnboardingRedirect/);
+  assert.doesNotMatch(proxy, /"no_workspace"/);
+  assert.doesNotMatch(proxy, /"needs_pmo_setup"/);
+  assert.doesNotMatch(proxy, /"needs_project"/);
+  assert.doesNotMatch(proxy, /"trial_blocked"/);
 });
 
-test("needs_pmo_setup redirects to /workspace/setup", () => {
-  assert.match(onboardingMap, /needs_pmo_setup.*\/workspace\/setup|"needs_pmo_setup"[\s\S]*?return "\/workspace\/setup"/);
+test("layout.tsx redirects needs_project to /projects/new and trial_blocked to /trial-inactive, both via getOnboardingRedirect", () => {
+  assert.match(layout, /getOnboardingRedirect\(onboardingState\)/);
+  assert.match(onboardingMap, /"needs_project"[\s\S]*?return "\/projects\/new"/);
+  assert.match(onboardingMap, /"trial_blocked"[\s\S]*?return "\/trial-inactive"/);
 });
 
-test("needs_project redirects to /projects/new", () => {
-  assert.match(onboardingMap, /needs_project.*\/projects\/new|"needs_project"[\s\S]*?return "\/projects\/new"/);
+test("no onboarding state maps to a PMO/Command Center precondition route", () => {
+  assert.doesNotMatch(onboardingMap, /return\s+"\/workspace\/setup"/);
+  assert.doesNotMatch(onboardingMap, /return\s+"\/create-command-center"/);
 });
 
 // ─── 5. Active passthrough ───────────────────────────────────────────────────
@@ -58,15 +73,14 @@ test("trial_blocked state redirects to /trial-inactive", () => {
 });
 
 // ─── 7. next param preservation ──────────────────────────────────────────────
-test("next param is read and passed to resolvePostAuthDestination", () => {
+test("next param is read and used for a safe post-auth-route continuation", () => {
   assert.match(proxy, /searchParams\.get\("next"\)/);
-  assert.match(proxy, /requestedRoute/);
   assert.match(proxy, /isSafeContinuationRoute/);
 });
 
 // ─── 8. No redirect loop ──────────────────────────────────────────────────────
-test("loop guard: never redirect to current pathname", () => {
-  assert.match(proxy, /dest !== pathname/);
+test("layout.tsx loop guard: never redirect to the already-current onboarding destination", () => {
+  assert.match(layout, /currentPath !== dest/);
 });
 
 // ─── 9. Matcher consistency ───────────────────────────────────────────────────
@@ -108,12 +122,9 @@ test("updateSession does not treat transient Supabase errors as logged-out", () 
   assert.match(supabaseProxy, /expires_at/);
 });
 
-// ─── 11. resolveOnboardingStateFromJwt is the only onboarding resolver in proxy ─
-test("proxy uses resolveOnboardingStateFromJwt exclusively (no inline onboarding logic)", () => {
-  assert.match(proxy, /resolveOnboardingStateFromJwt/);
-  // No hardcoded onboarding state checks
-  assert.doesNotMatch(proxy, /"no_workspace"/);
-  assert.doesNotMatch(proxy, /"needs_pmo_setup"/);
-  assert.doesNotMatch(proxy, /"needs_project"/);
-  assert.doesNotMatch(proxy, /"trial_blocked"/);
+// ─── 11. Authenticated user on an auth route lands somewhere safe ────────────
+test("proxy sends an authenticated user hitting /login or /signup to a safe continuation route or a neutral default", () => {
+  assert.match(proxy, /isAuthRoute\(pathname\)/);
+  assert.match(proxy, /isRequestedRouteSafe/);
+  assert.match(proxy, /"\/command-center"/);
 });

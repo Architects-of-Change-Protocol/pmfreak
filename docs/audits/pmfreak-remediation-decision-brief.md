@@ -391,7 +391,7 @@ These are genuine findings from this verification pass that do not correspond to
 - Recommended option: Retire the legacy wizard (`getting-started-flow.tsx`) as the entry gate; port any UX the PR #547 evidence-derived engine lacks; rework `resolve-onboarding-state.ts`/`onboarding-route-map.ts` so the routing layer itself no longer forces PMO-first.
 - Alternative: Keep both systems, explicitly documented, with the legacy wizard's fabrication/forbidden-flag defects fixed in place regardless.
 - Main consequence: Resolving PMF-002 requires the routing-layer rework either way; retiring the wizard avoids maintaining two onboarding systems long-term.
-- Product-owner answer: `PENDING`
+- Product-owner answer: The PR #547 evidence-derived onboarding model is canonical. The legacy wizard is retired as a reachable onboarding system. Project creation must not require prior PMO or Command Center creation. Onboarding progression derives from real persisted state.
 
 **Decision 2 — View-only role exposure classification**
 - Evidence-based classification: **Active production exposure** — the exploitable role (`"viewer"`) is real, DB-default, and assignable today via the live `/team` invite UI; the audit's own cited roles (`executive_viewer`/`external_stakeholder`) are dead code and were never the actual live exposure.
