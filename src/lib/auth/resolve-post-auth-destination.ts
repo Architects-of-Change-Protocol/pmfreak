@@ -34,7 +34,7 @@ export function resolvePostAuthDestination(context: PostAuthContext): PostAuthDe
     state != null ? isOnboardingComplete(state) : (context.onboardingCompleted ?? false);
 
   if (!completed) {
-    const destination = state != null ? getOnboardingRedirect(state) : "/workspace/setup";
+    const destination = state != null ? getOnboardingRedirect(state) : "/projects/new";
     return { destination, reason: "onboarding-required" };
   }
 

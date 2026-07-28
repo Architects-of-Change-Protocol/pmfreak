@@ -13,7 +13,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 
 const read = (p) => readFileSync(p, "utf8");
 
@@ -30,8 +30,15 @@ test("command-center chat input discloses the deterministic nature", () => {
   assert.ok(!/Ask this project anything/.test(src), "open-ended placeholder implies generative AI");
 });
 
-test("onboarding transition copy does not claim live analysis or AI activation", () => {
-  const src = read("src/components/pmfreak/onboarding/AIActivationTransition.tsx");
+test("legacy AIActivationTransition component (fabricated 'analyzing' stages) is retired, not merely edited", () => {
+  // PMF-001/PMF-002 canonical onboarding consolidation removed this
+  // component along with the legacy wizard that was its only caller — see
+  // docs/audits/remediation/pmf-001-002-canonical-onboarding-honest-activation.md.
+  // If it ever reappears, its copy must be re-audited against the banned
+  // fabricated-analysis strings below before this assertion is relaxed.
+  const path = "src/components/pmfreak/onboarding/AIActivationTransition.tsx";
+  if (!existsSync(path)) return;
+  const src = read(path);
   for (const banned of [
     /Analyzing stakeholder structure/,
     /Activating PMFreak agents/,
@@ -42,8 +49,11 @@ test("onboarding transition copy does not claim live analysis or AI activation",
   }
 });
 
-test("getting-started flow does not promise AI sensing/detection on deterministic paths", () => {
-  const src = read("src/components/pmfreak/activation/getting-started-flow.tsx");
+test("legacy getting-started-flow.tsx (fabricated readiness score, AI-sensing copy) is retired, not merely edited", () => {
+  // Same retirement as above — see PMF-001/PMF-002 remediation record.
+  const path = "src/components/pmfreak/activation/getting-started-flow.tsx";
+  if (!existsSync(path)) return;
+  const src = read(path);
   for (const banned of [
     /sensing stakeholder confidence drift/,
     /detection accuracy/,

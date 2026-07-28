@@ -5,6 +5,9 @@ import { headers } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isSafeContinuationRoute } from "@/lib/auth/validate-continuation-route";
 import { resolvePostAuthDestination } from "@/lib/auth/resolve-post-auth-destination";
+import { resolveOnboardingState } from "@/lib/auth/resolve-onboarding-state";
+import { resolveCanonicalWorkspace } from "@/lib/workspaces/canonical-workspace-resolver";
+import { getAuthUser } from "@/lib/auth";
 import { buildSignupProfile } from "./build-signup-profile";
 import { buildAbuseKey, enforceAbuseLimit, getClientIpFromHeaders } from "@/lib/security/abuse-protection";
 
@@ -43,7 +46,6 @@ export async function signupAction(formData: FormData) {
         full_name: fullName,
         company_name: companyName,
         role,
-        onboarding_completed: false,
       },
     },
   });
@@ -57,9 +59,13 @@ export async function signupAction(formData: FormData) {
   }
 
   const safe = requestedRoute ? isSafeContinuationRoute(requestedRoute) : false;
+  const authUser = await getAuthUser();
+  const onboardingState = authUser
+    ? await resolveOnboardingState(authUser, (await resolveCanonicalWorkspace(authUser.id)).workspaceId)
+    : undefined;
   const decision = resolvePostAuthDestination({
     isAuthenticated: Boolean(data.user),
-    onboardingCompleted: data.user?.user_metadata?.onboarding_completed === true,
+    onboardingState,
     requestedRoute,
     isRequestedRouteSafe: safe,
   });

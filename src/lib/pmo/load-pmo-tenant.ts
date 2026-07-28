@@ -5,15 +5,22 @@ export type PmoTenantLoadResult =
   | { found: true; tenant: PmoTenant; schemaVersion: number }
   | { found: false; schemaVersion?: never; tenant?: never };
 
-export async function loadPmoTenant(workspaceId: string): Promise<PmoTenantLoadResult> {
+type PmoTenantQueryClient = Pick<ReturnType<typeof createSupabaseServiceRoleClient>, "from">;
+
+export async function loadPmoTenant(
+  workspaceId: string,
+  opts?: { getClient?: () => PmoTenantQueryClient }
+): Promise<PmoTenantLoadResult> {
   try {
-    const supabase = createSupabaseServiceRoleClient({
-      routeId: "pmo/load-pmo-tenant",
-      operation: "select",
-      reason: "pmo_tenant_load",
-      workspaceId,
-      systemActor: "system",
-    });
+    const supabase =
+      opts?.getClient?.() ??
+      createSupabaseServiceRoleClient({
+        routeId: "pmo/load-pmo-tenant",
+        operation: "select",
+        reason: "pmo_tenant_load",
+        workspaceId,
+        systemActor: "system",
+      });
 
     const { data, error } = await supabase
       .from("workspace_governance")

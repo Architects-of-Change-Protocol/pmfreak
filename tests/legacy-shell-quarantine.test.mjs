@@ -7,9 +7,9 @@ const read = (p) => readFileSync(p, "utf8");
 const onboardingMap = read("src/lib/auth/onboarding-route-map.ts");
 const resolver = read("src/lib/auth/resolve-post-auth-destination.ts");
 const proxy = read("src/proxy.ts");
+const layout = read("src/app/(protected)/layout.tsx");
 const workspacePage = read("src/app/(protected)/workspace/page.tsx");
 const workspaceSetupPage = read("src/app/(protected)/workspace/setup/page.tsx");
-const gettingStartedFlow = read("src/components/pmfreak/activation/getting-started-flow.tsx");
 const commandCenterPage = read("src/app/(protected)/command-center/page.tsx");
 const commandCenterLayout = read("src/modules/workspace/screens/command-center/command-center-layout.tsx");
 const commandCenterEmptyState = read("src/modules/workspace/screens/command-center/command-center-empty-state.tsx");
@@ -29,11 +29,20 @@ test("default authenticated landing route is /command-center, not /workspace", (
   assert.match(resolver, /return \{ destination: "\/command-center", reason: "command-center-default" \};/);
 });
 
-// ─── 2. Completed onboarding /workspace/setup redirects to /command-center ──
-test("completed onboarding on /workspace/setup redirects to /command-center", () => {
-  assert.match(proxy, /isSetupRoute\(pathname\) && onboardingCompleted/);
-  const idx = proxy.indexOf("isSetupRoute(pathname) && onboardingCompleted");
-  assert.match(proxy.slice(idx, idx + 200), /new URL\("\/command-center", request\.url\)/);
+// ─── 2. /workspace/setup no longer renders anything — it is a pure redirect ─
+// PMF-001/PMF-002 canonical onboarding consolidation retired the legacy
+// wizard hosted at /workspace/setup entirely. There is nothing left for the
+// Edge middleware to "complete-onboarding-redirect away from" — the page
+// itself always redirects, via the same canonical resolver every other
+// onboarding-aware surface uses.
+test("/workspace/setup always redirects via the canonical resolver, never renders a wizard", () => {
+  assert.doesNotMatch(workspaceSetupPage, /import\s*\{\s*GettingStartedFlow/);
+  assert.match(workspaceSetupPage, /redirectToCanonicalOnboardingDestination/);
+});
+
+test("proxy.ts makes no setup-route-specific onboarding decision", () => {
+  assert.doesNotMatch(proxy, /isSetupRoute/);
+  assert.doesNotMatch(proxy, /onboardingCompleted/);
 });
 
 // ─── 3. /workspace never renders the legacy OperationalShell ────────────────
@@ -53,7 +62,6 @@ for (const [name, file] of Object.entries({
   "command-center layout": commandCenterLayout,
   "command-center empty state": commandCenterEmptyState,
   "workspace/setup page": workspaceSetupPage,
-  "getting-started-flow": gettingStartedFlow,
 })) {
   test(`${name} contains none of the legacy dark-shell strings`, () => {
     for (const legacy of LEGACY_STRINGS) {
@@ -73,19 +81,16 @@ test("light command-center feature layout carries the pmfreak-light-command-cent
   assert.match(commandCenterEmptyState, /data-shell="pmfreak-light-command-center"/);
 });
 
-test("light workspace-setup shell carries the pmfreak-light-workspace-setup marker", () => {
-  assert.match(workspaceSetupPage, /data-shell="pmfreak-light-workspace-setup"/);
-});
-
-// ─── 8. Single unified authenticated shell (post Workspace→PMO→Project fix) ──
-// The Workspace→PMO→Project refactor (#526/#527) added /workspaces, /pmos,
-// /pmos/[pmoId], /projects/[id] and /chat but never added them to the old
-// command-center/workspace-setup allowlist in (protected)/layout.tsx, so
-// every one of those new routes fell through to the legacy dark
-// OperationalShell branch -- the exact regression this test file now guards
-// against. OperationalShell is no longer "legacy": it is the one shell for
-// every onboarding-complete authenticated route except the /workspace/setup
-// wizard (which has no workspace/PMO/project data yet to build nav from).
+// ─── 7. Single unified authenticated shell — no per-route allowlist ─────────
+// The Workspace→PMO→Project refactor (#526/#527) originally broke because new
+// routes weren't added to a hardcoded allowlist in (protected)/layout.tsx, so
+// they silently fell through to the legacy dark OperationalShell branch.
+// PMF-001/PMF-002 canonical onboarding consolidation removed the allowlist
+// entirely: the "incomplete onboarding" branch now redirects to the single,
+// derived canonical destination for the current state (never a hardcoded
+// route string), and only that exact destination ever renders in place of a
+// redirect — so no unlisted route can silently bypass the unified shell
+// again, because there is no list to fall through.
 test("OperationalShell root carries the unified pmfreak-shell marker, not a legacy one", () => {
   assert.match(operationalShell, /data-shell="pmfreak-shell"/);
   assert.doesNotMatch(operationalShell, /pmfreak-legacy-operational-shell/);
@@ -95,33 +100,23 @@ test("OperationalShell no longer special-cases /command-center into a bare bypas
   assert.doesNotMatch(operationalShell, /pathname\.startsWith\("\/command-center"\)/);
 });
 
-test("(protected)/layout.tsx no longer special-cases /command-center for onboarding-complete users", () => {
-  const protectedLayout = read("src/app/(protected)/layout.tsx");
-  const postOnboardingSection = protectedLayout.slice(
-    protectedLayout.lastIndexOf('if (currentPath.startsWith("/workspace/setup')
-  );
-  assert.doesNotMatch(postOnboardingSection, /currentPath\.startsWith\("\/command-center"\)/);
-  assert.match(postOnboardingSection, /<OperationalShell/);
+test("(protected)/layout.tsx contains no hardcoded per-route allowlist for the incomplete-onboarding branch", () => {
+  const branchStart = layout.indexOf("if (!isOnboardingComplete(onboardingState))");
+  const branchEnd = layout.indexOf("const capabilityProfile");
+  const incompleteBranch = layout.slice(branchStart, branchEnd);
+  assert.doesNotMatch(incompleteBranch, /currentPath\.startsWith\(/, "no hardcoded route allowlist — the destination must be derived from getOnboardingRedirect");
+  assert.match(incompleteBranch, /getOnboardingRedirect\(onboardingState\)/);
+  assert.doesNotMatch(incompleteBranch, /<OperationalShell/, "incomplete-onboarding fallback must be a bare wrapper, not the full shell");
 });
 
-test("the Workspace/PMO/Project routes added by the refactor render through the unified shell, not a bare div", () => {
-  const protectedLayout = read("src/app/(protected)/layout.tsx");
-  // Only the onboarding wizard gets a bare div for onboarding-complete users;
-  // every other path (including /workspaces, /pmos, /projects, /chat, /dashboard)
-  // falls through to <OperationalShell>. Anchor on the *last* occurrence of
-  // the workspace/setup bare-div branch, which only exists once we're past
-  // the onboarding-incomplete block (that block legitimately still special-
-  // cases /command-center for users who somehow reach it before completing
-  // onboarding, which is out of scope for this regression).
-  const postOnboardingSection = protectedLayout.slice(
-    protectedLayout.lastIndexOf('if (currentPath.startsWith("/workspace/setup')
-  );
-  assert.doesNotMatch(postOnboardingSection, /currentPath\.startsWith\("\/command-center"\)/);
-  const bareDivBranches = [...postOnboardingSection.matchAll(/currentPath\.startsWith\("([^"]+)"\)/g)].map((m) => m[1]);
-  assert.deepEqual(bareDivBranches, ["/workspace/setup"]);
+test("completed-onboarding users always render through OperationalShell, with no route-specific bypass", () => {
+  const completeBranch = layout.slice(layout.indexOf("const capabilityProfile"));
+  const bareDivBranches = [...completeBranch.matchAll(/currentPath\.startsWith\("([^"]+)"\)/g)].map((m) => m[1]);
+  assert.deepEqual(bareDivBranches, [], "no route-specific bypass may exist after the onboarding-complete check");
+  assert.match(completeBranch, /<OperationalShell/);
 });
 
-// ─── 7. Safe diagnostic endpoint ─────────────────────────────────────────────
+// ─── 8. Safe diagnostic endpoint ─────────────────────────────────────────────
 test("/api/route-debug reports the corrected routing defaults without leaking secrets", () => {
   assert.match(routeDebug, /defaultAuthenticatedRoute: "\/command-center"/);
   assert.match(routeDebug, /workspaceRedirectTarget: "\/command-center"/);

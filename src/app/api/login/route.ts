@@ -3,6 +3,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolvePostAuthDestination } from "@/lib/auth/resolve-post-auth-destination";
 import { isSafeContinuationRoute } from "@/lib/auth/validate-continuation-route";
 import { debugAuthDecision } from "@/lib/auth/auth-decision-debug";
+import { resolveOnboardingState } from "@/lib/auth/resolve-onboarding-state";
+import { resolveCanonicalWorkspace } from "@/lib/workspaces/canonical-workspace-resolver";
+import { getAuthUser } from "@/lib/auth";
 
 export async function POST(request: Request) {
   const requestUrl = new URL(request.url);
@@ -27,13 +30,17 @@ export async function POST(request: Request) {
   }
 
   const safe = requestedRoute ? isSafeContinuationRoute(requestedRoute) : false;
+  const authUser = await getAuthUser();
+  const onboardingState = authUser
+    ? await resolveOnboardingState(authUser, (await resolveCanonicalWorkspace(authUser.id)).workspaceId)
+    : undefined;
   const decision = resolvePostAuthDestination({
     isAuthenticated: Boolean(data.user),
-    onboardingCompleted: data.user?.user_metadata?.onboarding_completed === true,
+    onboardingState,
     requestedRoute,
     isRequestedRouteSafe: safe,
   });
 
-  debugAuthDecision({ requestedRoute, onboardingCompleted: data.user?.user_metadata?.onboarding_completed === true, decision });
+  debugAuthDecision({ requestedRoute, onboardingCompleted: onboardingState != null && onboardingState === "active", decision });
   return NextResponse.redirect(new URL(decision.destination, request.url));
 }

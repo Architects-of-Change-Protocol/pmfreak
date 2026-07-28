@@ -1,38 +1,53 @@
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
-import { loadPmoTenant } from "@/lib/pmo/load-pmo-tenant";
 import { isFounderOrInternalUser } from "@/lib/auth";
 import type { AuthUserContext } from "@/lib/auth";
 
 export type OnboardingState =
   | "no_workspace"
-  | "needs_pmo_setup"
   | "needs_project"
   | "active"
   | "trial_blocked";
 
+type OnboardingStateQueryClient = Pick<ReturnType<typeof createSupabaseServiceRoleClient>, "from">;
+
 /**
  * Canonical resolver for onboarding state. This is the single source of truth
- * for all routing decisions related to onboarding/access gating.
+ * for all routing decisions related to onboarding/access gating — including
+ * Edge middleware (src/proxy.ts performs no onboarding-state redirects of its
+ * own; (protected)/layout.tsx is the sole caller that redirects on state).
  *
- * NOTE: This function uses service-role DB access. It is intended for
- * server-side surfaces only (Server Components, Route Handlers, Server Actions).
- * Do NOT use this in Edge middleware (proxy.ts) — use the sync JWT-based helper instead.
+ * State is derived exclusively from real persisted entities:
+ *   - "no_workspace": no resolvable workspace for this user (defensive —
+ *     resolveWriteWorkspace/ensureUserWorkspace bootstrap a workspace before
+ *     this is normally called, so this is effectively unreachable in the
+ *     (protected) layout, but is handled honestly rather than assumed away).
+ *   - "needs_project": a workspace exists but has zero real Projects.
+ *   - "active": the workspace has at least one real Project.
+ *   - "trial_blocked": an expired/revoked trial license blocks access.
+ *
+ * A PMO/Command Center is explicitly NOT a precondition here — ADR-PMF-006
+ * Rule 11 requires that no onboarding flow gate Project creation behind
+ * creation of a level above Project. There is no persisted
+ * "onboardingComplete"-style flag anywhere in this resolution: every branch
+ * reads real rows.
  */
 export async function resolveOnboardingState(
   user: AuthUserContext,
   workspaceId: string | null,
-  opts?: { isRecovered?: boolean }
+  opts?: { isRecovered?: boolean; getClient?: () => OnboardingStateQueryClient }
 ): Promise<OnboardingState> {
   if (!workspaceId) return "no_workspace";
 
-  const supabase = createSupabaseServiceRoleClient({
-    routeId: "auth/resolve-onboarding-state",
-    operation: "select",
-    reason: "onboarding_state_resolution",
-    workspaceId,
-    systemActor: "system",
-    actorUserId: user.id,
-  });
+  const supabase =
+    opts?.getClient?.() ??
+    createSupabaseServiceRoleClient({
+      routeId: "auth/resolve-onboarding-state",
+      operation: "select",
+      reason: "onboarding_state_resolution",
+      workspaceId,
+      systemActor: "system",
+      actorUserId: user.id,
+    });
 
   // Check trial status — skip for newly-bootstrapped workspaces and internal users
   if (!isFounderOrInternalUser(user) && !opts?.isRecovered) {
@@ -80,22 +95,9 @@ export async function resolveOnboardingState(
     }
   }
 
-  // Check PMO existence: either a first-class pmos row (Workspace → PMO →
-  // Project hierarchy) or the legacy governance tenant (schema v2) counts —
-  // existing accounts predate the pmos table backfill running.
-  const { data: pmoRows } = await supabase
-    .from("pmos")
-    .select("id")
-    .eq("workspace_id", workspaceId)
-    .eq("status", "active")
-    .limit(1);
-
-  if (!pmoRows || pmoRows.length === 0) {
-    const pmoResult = await loadPmoTenant(workspaceId);
-    if (!pmoResult.found) return "needs_pmo_setup";
-  }
-
-  // Check project existence
+  // Check project existence — the only precondition for "active". No PMO/
+  // Command Center check: a workspace with zero PMOs and a real Project is
+  // fully active (ADR-PMF-006 Rule 11; ratified onboarding decision).
   const { data: projects } = await supabase
     .from("projects")
     .select("id")
@@ -105,15 +107,4 @@ export async function resolveOnboardingState(
   if (!projects || projects.length === 0) return "needs_project";
 
   return "active";
-}
-
-/**
- * Lightweight sync version for Edge middleware (proxy.ts).
- * Maps the JWT boolean flag to a coarse OnboardingState without DB access.
- * The full async resolver should be preferred on server-side surfaces.
- */
-export function resolveOnboardingStateFromJwt(
-  onboardingCompleted: boolean
-): Extract<OnboardingState, "needs_pmo_setup" | "active"> {
-  return onboardingCompleted ? "active" : "needs_pmo_setup";
 }

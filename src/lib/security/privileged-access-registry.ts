@@ -311,7 +311,7 @@ export const PRIVILEGED_ACCESS_REGISTRY: readonly PrivilegedAccessEntry[] = [
   },
   {
     file: "src/lib/auth/resolve-onboarding-state.ts",
-    purpose: "Onboarding/trial-gate resolver: reads the caller's workspace memberships and active trial license, and expires it server-side if past trial_end_at, to decide routing (no_workspace/needs_pmo_setup/needs_project/active/trial_blocked). System-level write across workspace boundaries that RLS on the authenticated user would block.",
+    purpose: "Onboarding/trial-gate resolver: reads the caller's workspace memberships and active trial license, and expires it server-side if past trial_end_at, to decide routing (no_workspace/needs_project/active/trial_blocked — no PMO precondition). System-level write across workspace boundaries that RLS on the authenticated user would block.",
     riskLevel: "MEDIUM",
     mitigations: [
       "Authenticated AuthUserContext required by signature",
@@ -416,7 +416,7 @@ export const PRIVILEGED_ACCESS_REGISTRY: readonly PrivilegedAccessEntry[] = [
       "getAuthUser() required before any query",
       "workspaceId always comes from resolveCanonicalWorkspace(user.id), never a client-supplied field",
       "Explicit rollback (delete) of the workspace_governance row if a later step in the same flow throws",
-      "user_metadata update only ever sets the fixed literal onboarding_completed: true — no other field, and never anything role/permission-shaped",
+      "no longer writes any onboarding_completed flag — activation state is derived from the real pmos/projects rows this flow already writes",
     ],
     strictCriteriaMet: "L1",
     needsRlsBeforeSwap: false,

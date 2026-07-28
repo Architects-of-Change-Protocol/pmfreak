@@ -30,7 +30,6 @@ const projectsActions = fs.readFileSync("src/app/(protected)/projects/actions.ts
 // so its workspace resolution lives there rather than being duplicated here.
 const createMinimalProject = fs.readFileSync("src/lib/projects/create-minimal-project.ts", "utf8");
 const commandCenterActions = fs.readFileSync("src/app/(protected)/command-center/actions.ts", "utf8");
-const gettingStarted = fs.readFileSync("src/app/api/getting-started/route.ts", "utf8");
 const onboardingState = fs.readFileSync("src/lib/auth/resolve-onboarding-state.ts", "utf8");
 
 // ─── Finding: resolveCanonicalWorkspace's `recovered` flag (meaning "the
@@ -179,7 +178,6 @@ test("every project/PMO write entry point resolves its workspace via resolveWrit
     ["save-pmo-tenant.ts", savePmoTenant],
     ["projects/actions.ts (via createMinimalProject)", projectsActions + createMinimalProject],
     ["command-center/actions.ts", commandCenterActions],
-    ["api/getting-started/route.ts", gettingStarted],
   ]) {
     assert.ok(src.includes("resolveWriteWorkspace"), `${name} must resolve its workspace via resolveWriteWorkspace`);
     assert.ok(!/\bensureUserWorkspace\(/.test(src), `${name} must not call ensureUserWorkspace directly (bypasses the preferred-workspace cookie)`);
@@ -212,22 +210,19 @@ test("the ensure_default_pmo Postgres function acquires a workspace-scoped advis
   assert.ok(/grant execute on function public\.ensure_default_pmo.*to authenticated, service_role/.test(ensureDefaultPmoMigration));
 });
 
-// ─── Finding (investigated, not changed — user asked to check intent first):
-// resolveOnboardingState treats ANY active pmos row as proof "PMO setup" is
-// complete, including the lightweight auto-created "General PMO" from
-// ensureDefaultPmo. Traced both onboarding entry points: api/getting-started
-// and savePmoTenant BOTH explicitly set user_metadata.onboarding_completed
-// = true after creating their respective PMO, independent of each other —
-// confirming getting-started is a deliberate, self-contained, complete
-// onboarding path in its own right, not a partial stub. Treating any active
-// pmos row as satisfying the DB-level "PMO setup" check is consistent with
-// that design (a secondary source of truth for surfaces that can't wait for
-// a JWT refresh), not a gap — so this finding is pinned as intentional
-// rather than fixed. ─────────────────────────────────────────────────────
+// ─── Superseded finding (PMF-001/PMF-002 canonical onboarding
+// consolidation): the "any active pmos row satisfies PMO setup" check this
+// finding originally pinned as intentional was itself the routing-layer gate
+// that forced every PMO-less user through the legacy getting-started wizard
+// before they could create a Project — a P0 defect (PMF-002), not the
+// benign secondary-source-of-truth design this finding assumed. The legacy
+// wizard (api/getting-started/route.ts) is retired, resolveOnboardingState
+// no longer checks pmos at all, and no production path writes
+// onboarding_completed. See
+// docs/audits/remediation/pmf-001-002-canonical-onboarding-honest-activation.md.
+// ─────────────────────────────────────────────────────────────────────────
 
-test("getting-started is a self-contained onboarding path that marks onboarding complete on its own, independent of the savePmoTenant wizard (confirms resolveOnboardingState's any-active-pmos-row check is intentional, not a gap)", () => {
-  assert.ok(gettingStarted.includes("ensureDefaultPmo"), "getting-started creates its own default PMO rather than requiring the wizard to have run first");
-  assert.ok(/onboarding_completed:\s*true/.test(gettingStarted), "getting-started must independently mark onboarding complete, confirming it's a complete path, not a partial stub");
-  assert.ok(/onboarding_completed:\s*true/.test(savePmoTenant), "the full wizard also independently marks onboarding complete, matching the same pattern");
-  assert.ok(onboardingState.includes('.from("pmos")'), "the DB-level check accepting any active pmos row is the intended secondary source of truth for these two independent complete-onboarding paths");
+test("resolveOnboardingState has no PMO precondition — Project creation never requires a PMO to exist first", () => {
+  assert.ok(!onboardingState.includes('.from("pmos")'), "the resolver must not query pmos at all — no PMO precondition anywhere in onboarding state resolution");
+  assert.ok(!/onboarding_completed/.test(savePmoTenant), "save-pmo-tenant.ts must no longer write the legacy onboarding_completed flag");
 });

@@ -156,12 +156,16 @@ test("project admin API supports update, move, delete, duplicate", () => {
 // ─── Creation flows (Change 1) ────────────────────────────────────────────────
 
 test("every project creation path attaches a PMO", () => {
+  // A PMO is always attached (auto-created via ensureDefaultPmo when not
+  // explicit) as an internal implementation detail of project creation —
+  // this is distinct from and does not reintroduce a PMO *precondition* for
+  // reaching Project creation, which resolveOnboardingState never checks
+  // (PMF-001/PMF-002). The retired api/getting-started/route.ts (a former,
+  // separate creation path) is no longer checked here — it was deleted.
   assert.ok(createMinimalProject.includes("pmo_id: resolvedPmoId"), "projects/actions.ts (via createMinimalProject) must attach a PMO");
   assert.ok(saveProjectOnboarding.includes("pmo_id: pmoId"));
   const commandCenterAction = fs.readFileSync("src/app/(protected)/command-center/actions.ts", "utf8");
   assert.ok(commandCenterAction.includes("pmo_id: defaultPmo.id"));
-  const gettingStarted = fs.readFileSync("src/app/api/getting-started/route.ts", "utf8");
-  assert.ok(gettingStarted.includes("pmo_id: defaultPmo.id"));
 });
 
 test("PMO onboarding materializes a pmos row", () => {
@@ -177,9 +181,13 @@ test("workspace creation flow exists", () => {
   assert.ok(workspacesLib.includes("export async function createWorkspace"));
 });
 
-test("onboarding state accepts a first-class PMO row", () => {
-  assert.ok(onboardingState.includes('from("pmos")'));
-  assert.ok(onboardingState.includes("needs_pmo_setup"));
+test("onboarding state resolution has no PMO precondition (PMF-001/PMF-002)", () => {
+  // Superseded: resolveOnboardingState previously queried pmos and returned
+  // a distinct "needs_pmo_setup" state that gated Project creation behind
+  // PMO existence — exactly PMF-002's routing-layer defect. Canonical
+  // onboarding consolidation removed the PMO check and the state entirely.
+  assert.ok(!onboardingState.includes('.from("pmos")'));
+  assert.ok(!onboardingState.includes("needs_pmo_setup"));
 });
 
 // ─── Navigation (Changes 2 & 8) ───────────────────────────────────────────────

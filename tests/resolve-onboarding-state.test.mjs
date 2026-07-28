@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { resolveOnboardingState } from '../src/lib/auth/resolve-onboarding-state.ts';
+import { getOnboardingRedirect, isOnboardingComplete } from '../src/lib/auth/onboarding-route-map.ts';
 
 const resolverSrc = readFileSync('src/lib/auth/resolve-onboarding-state.ts', 'utf8');
 const routeMapSrc = readFileSync('src/lib/auth/onboarding-route-map.ts', 'utf8');
@@ -10,38 +12,70 @@ const layoutSrc = readFileSync('src/app/(protected)/layout.tsx', 'utf8');
 const callbackSrc = readFileSync('src/app/auth/callback/route.ts', 'utf8');
 const authRedirectSrc = readFileSync('src/lib/auth-redirect.ts', 'utf8');
 
-// --- resolve-onboarding-state.ts ---
+// --- fake Supabase query client (real invocation, not source-text) ---
 
-test('OnboardingState type covers all 5 states', () => {
+function fakeClient(tableResponses) {
+  return {
+    from(table) {
+      const result = tableResponses[table] ?? { data: null, error: null };
+      const builder = {
+        select: () => builder,
+        eq: () => builder,
+        in: () => builder,
+        order: () => builder,
+        limit: () => builder,
+        update: () => builder,
+        lt: () => builder,
+        neq: () => builder,
+        maybeSingle: async () => result,
+        then: (resolve, reject) => Promise.resolve(result).then(resolve, reject),
+      };
+      return builder;
+    },
+  };
+}
+
+const user = { id: 'user-1', email: 'u@test.dev', fullName: 'U', companyId: 'c1', companyName: 'Acme', role: 'owner', onboardingCompleted: false };
+
+// --- resolve-onboarding-state.ts: real invocation ---
+
+test('OnboardingState type covers all 4 states (no needs_pmo_setup)', () => {
   assert.match(resolverSrc, /"no_workspace"/);
-  assert.match(resolverSrc, /"needs_pmo_setup"/);
   assert.match(resolverSrc, /"needs_project"/);
   assert.match(resolverSrc, /"active"/);
   assert.match(resolverSrc, /"trial_blocked"/);
+  assert.doesNotMatch(resolverSrc, /"needs_pmo_setup"/);
 });
 
-test('returns "no_workspace" when workspaceId is null', () => {
-  assert.match(resolverSrc, /if \(!workspaceId\) return "no_workspace"/);
+test('returns "no_workspace" when workspaceId is null', async () => {
+  const state = await resolveOnboardingState(user, null);
+  assert.equal(state, 'no_workspace');
 });
 
-test('returns "trial_blocked" for revoked or expired trials', () => {
-  assert.match(resolverSrc, /return "trial_blocked"/);
-  assert.match(resolverSrc, /trial_status.*revoked|revoked.*trial_status/);
-  assert.match(resolverSrc, /trial_status.*expired|expired.*trial_status/);
+test('returns "trial_blocked" for a revoked trial', async () => {
+  const client = fakeClient({
+    workspace_memberships: { data: [{ workspace_id: 'ws-1' }], error: null },
+    trial_licenses: { data: { id: 't1', invite_id: 'i1', workspace_id: 'ws-1', trial_status: 'revoked', trial_end_at: '2020-01-01' }, error: null },
+  });
+  const state = await resolveOnboardingState(user, 'ws-1', { getClient: () => client });
+  assert.equal(state, 'trial_blocked');
 });
 
-test('returns "needs_pmo_setup" when no PMO tenant found', () => {
-  assert.match(resolverSrc, /return "needs_pmo_setup"/);
-  assert.match(resolverSrc, /!pmoResult\.found/);
+test('returns "needs_project" when a workspace has zero PMOs and zero projects — no PMO precondition', async () => {
+  const client = fakeClient({ projects: { data: [], error: null } });
+  const state = await resolveOnboardingState(user, 'ws-1', { isRecovered: true, getClient: () => client });
+  assert.equal(state, 'needs_project');
 });
 
-test('returns "needs_project" when PMO exists but no projects', () => {
-  assert.match(resolverSrc, /return "needs_project"/);
-  assert.match(resolverSrc, /projects\.length === 0/);
+test('returns "active" when a real project exists, regardless of PMO existence', async () => {
+  const client = fakeClient({ projects: { data: [{ id: 'p1' }], error: null } });
+  const state = await resolveOnboardingState(user, 'ws-1', { isRecovered: true, getClient: () => client });
+  assert.equal(state, 'active');
 });
 
-test('returns "active" when fully onboarded', () => {
-  assert.match(resolverSrc, /return "active"/);
+test('resolver never queries the pmos table (no PMO precondition anywhere in resolution)', () => {
+  assert.doesNotMatch(resolverSrc, /\.from\("pmos"\)/);
+  assert.doesNotMatch(resolverSrc, /loadPmoTenant/);
 });
 
 test('bypasses trial check for internal/founder users (isRecovered option)', () => {
@@ -49,31 +83,38 @@ test('bypasses trial check for internal/founder users (isRecovered option)', () 
   assert.match(resolverSrc, /isRecovered/);
 });
 
-test('sync JWT resolver maps boolean to OnboardingState without DB access', () => {
-  assert.match(resolverSrc, /resolveOnboardingStateFromJwt/);
-  assert.match(resolverSrc, /onboardingCompleted.*active|active.*onboardingCompleted/);
+test('no JWT-boolean-derived sync resolver exists — DB-derived resolveOnboardingState is the only resolver', () => {
+  assert.doesNotMatch(resolverSrc, /resolveOnboardingStateFromJwt/);
 });
 
 // --- onboarding-route-map.ts ---
 
-test('getOnboardingRedirect maps no_workspace to /workspace/setup', () => {
-  assert.match(routeMapSrc, /"no_workspace"/);
-  assert.match(routeMapSrc, /\/workspace\/setup/);
+test('getOnboardingRedirect maps needs_project to /projects/new (no PMO/Command Center route)', () => {
+  assert.equal(getOnboardingRedirect('needs_project'), '/projects/new');
+});
+
+test('getOnboardingRedirect maps no_workspace to /projects/new (safe fallback, never the legacy wizard)', () => {
+  assert.equal(getOnboardingRedirect('no_workspace'), '/projects/new');
 });
 
 test('getOnboardingRedirect maps trial_blocked to /trial-inactive', () => {
-  assert.match(routeMapSrc, /"trial_blocked"/);
-  assert.match(routeMapSrc, /\/trial-inactive/);
+  assert.equal(getOnboardingRedirect('trial_blocked'), '/trial-inactive');
 });
 
-test('getOnboardingRedirect maps needs_project to /projects/new', () => {
-  assert.match(routeMapSrc, /"needs_project"/);
-  assert.match(routeMapSrc, /\/projects\/new/);
+test('getOnboardingRedirect maps active to /command-center', () => {
+  assert.equal(getOnboardingRedirect('active'), '/command-center');
 });
 
 test('isOnboardingComplete returns true only for "active" state', () => {
-  assert.match(routeMapSrc, /isOnboardingComplete/);
-  assert.match(routeMapSrc, /state === "active"/);
+  assert.equal(isOnboardingComplete('active'), true);
+  assert.equal(isOnboardingComplete('needs_project'), false);
+  assert.equal(isOnboardingComplete('no_workspace'), false);
+  assert.equal(isOnboardingComplete('trial_blocked'), false);
+});
+
+test('no route map entry redirects to a PMO/Command Center creation route', () => {
+  assert.doesNotMatch(routeMapSrc, /return\s+"\/create-command-center"/);
+  assert.doesNotMatch(routeMapSrc, /return\s+"\/create-pmo"/);
 });
 
 // --- resolve-post-auth-destination.ts ---
@@ -87,38 +128,40 @@ test('onboardingCompleted is deprecated in favor of onboardingState', () => {
   assert.match(postAuthSrc, /onboardingCompleted\?/);
 });
 
+test('boolean-only fallback destination is project-first, not the legacy wizard', () => {
+  assert.doesNotMatch(postAuthSrc, /"\/workspace\/setup"/);
+});
+
 test('Phase 4: non-active state overrides safe continuation route', () => {
   assert.match(postAuthSrc, /isOnboardingComplete\(state\)/);
   assert.match(postAuthSrc, /getOnboardingRedirect\(state\)/);
 });
 
-test('resolvePostAuthDestination uses getOnboardingRedirect for canonical state', () => {
-  assert.match(postAuthSrc, /import.*getOnboardingRedirect.*onboarding-route-map/);
-  assert.match(postAuthSrc, /import.*isOnboardingComplete.*onboarding-route-map/);
+// --- proxy.ts: Edge middleware makes no onboarding-state decisions ---
+
+test('proxy.ts contains no onboarding-state resolution or redirect logic', () => {
+  assert.doesNotMatch(proxySrc, /resolveOnboardingStateFromJwt/);
+  assert.doesNotMatch(proxySrc, /onboarding_completed/);
+  assert.doesNotMatch(proxySrc, /getOnboardingRedirect/);
+  assert.doesNotMatch(proxySrc, /"needs_project"/);
+  assert.doesNotMatch(proxySrc, /"needs_pmo_setup"/);
 });
 
-// --- proxy.ts ---
-
-test('proxy uses resolveOnboardingStateFromJwt for Edge-safe sync resolution', () => {
-  assert.match(proxySrc, /resolveOnboardingStateFromJwt/);
+test('proxy.ts still redirects unauthenticated users on protected routes and quarantines /workspace', () => {
+  assert.match(proxySrc, /isProtectedPageRoute\(pathname\) && !user/);
+  assert.match(proxySrc, /pathname === "\/workspace"/);
 });
 
-test('proxy uses isOnboardingComplete from canonical route map', () => {
-  assert.match(proxySrc, /isOnboardingComplete/);
-});
+// --- layout.tsx: the sole onboarding-state redirect authority ---
 
-test('proxy uses getOnboardingRedirect instead of hardcoded /workspace/setup', () => {
-  assert.match(proxySrc, /getOnboardingRedirect\(onboardingState\)/);
-});
-
-// --- layout.tsx ---
-
-test('protected layout uses resolveOnboardingState (canonical resolver)', () => {
+test('protected layout uses resolveOnboardingState (canonical resolver) and redirects on needs_project too', () => {
   assert.match(layoutSrc, /resolveOnboardingState/);
+  assert.match(layoutSrc, /isOnboardingComplete\(onboardingState\)/);
+  assert.match(layoutSrc, /getOnboardingRedirect\(onboardingState\)/);
 });
 
-test('protected layout uses isOnboardingComplete for shell rendering decision', () => {
-  assert.match(layoutSrc, /isOnboardingComplete\(onboardingState\)/);
+test('protected layout has a loop guard against redirecting to the current path', () => {
+  assert.match(layoutSrc, /currentPath !== dest/);
 });
 
 test('protected layout no longer checks user.onboardingCompleted directly', () => {

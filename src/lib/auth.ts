@@ -26,6 +26,16 @@ export type AuthUserContext = {
    * (`isFounderOrInternalUser` below).
    */
   role: UserRole;
+  /**
+   * @deprecated Stale, non-authoritative. Reflects the legacy
+   * `user_metadata.onboarding_completed` flag, which no production code path
+   * writes as `true` anymore (see
+   * docs/audits/remediation/pmf-001-002-canonical-onboarding-honest-activation.md).
+   * Never use this for routing or activation-state decisions — use
+   * `resolveOnboardingState` (derives from real workspace/project rows)
+   * instead. Retained only so existing display-only consumers keep
+   * compiling; do not add new reads of this field.
+   */
   onboardingCompleted: boolean;
 };
 
