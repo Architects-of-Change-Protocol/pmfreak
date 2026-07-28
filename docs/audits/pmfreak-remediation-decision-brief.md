@@ -402,7 +402,7 @@ These are genuine findings from this verification pass that do not correspond to
 - Recommended invariant: Many PMOs per workspace remains ratified and unchanged (ADR-PMF-003 Rule 1); only the *default* auto-created PMO needs an idempotent, lock-guarded upsert (mirroring the already-correct `ensure_default_pmo` pattern).
 - Alternative: Relax even the "one default PMO" invariant, treating default-PMO duplication as acceptable.
 - Migration consequence: No blanket unique constraint on `pmos.workspace_id` (would contradict Rule 1); a scoped idempotency fix in `savePmoTenant` instead.
-- Product-owner answer: `PENDING`
+- Product-owner answer: **RATIFIED** (PMF-004 remediation sprint) — Multiple PMOs per workspace are supported. Default PMO bootstrap must converge to one canonical default identity per workspace. Global uniqueness on `pmos.workspace_id` is prohibited. See `docs/audits/remediation/pmf-004-default-pmo-command-center-idempotency.md` for the implementation.
 
 **Decision 4 — Portfolio**
 - Recommended status: Rename the term-squatting usages now (nav lens, PMO-page heading, command-center variables); defer building the ratified PMI-Portfolio entity to a future roadmap item; leave dormant/orphaned Portfolio code and the UI-orphaned `personal_portfolios` backend as-is for now.

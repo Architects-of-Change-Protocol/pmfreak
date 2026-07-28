@@ -165,7 +165,9 @@ test("every project creation path attaches a PMO", () => {
 });
 
 test("PMO onboarding materializes a pmos row", () => {
-  assert.ok(savePmoTenant.includes('from("pmos")'));
+  // PMF-004: materialization now goes through ensure_default_pmo (an
+  // advisory-lock-guarded RPC), not a raw check-then-insert against pmos.
+  assert.ok(savePmoTenant.includes('supabaseClient.rpc("ensure_default_pmo"'));
 });
 
 test("workspace creation flow exists", () => {

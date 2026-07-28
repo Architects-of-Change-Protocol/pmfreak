@@ -186,23 +186,49 @@ export async function moveProjectToPmo(workspaceId: string, projectId: string, p
   if (error) throw new Error(`Unable to move project: ${error.message}`);
 }
 
+export type EnsureDefaultPmoOptions = {
+  /** Command Center activation sets this from the user's chosen type; project-creation callers omit it and get 'company_pmo'. */
+  pmoType?: PmoType;
+  /**
+   * When true, an already-existing default PMO has its name/type overwritten
+   * to match the given inputs (Command Center re-activation keeping the pmos
+   * row in sync with a rename). Project-creation callers must leave this
+   * false — a new project must never rename the workspace's existing default
+   * PMO.
+   */
+  syncExisting?: boolean;
+};
+
 /**
- * Returns the workspace's default PMO (oldest active), creating one when the
- * workspace has none yet. Used to keep legacy single-PMO flows working.
+ * Returns the workspace's canonical default PMO (oldest active), creating
+ * one when the workspace has none yet. Used to keep legacy single-PMO flows
+ * working, and also by Command Center activation (see save-pmo-tenant.ts,
+ * which calls the same underlying RPC directly via its service-role client).
  *
  * Runs as a single Postgres function (ensure_default_pmo, advisory-lock
- * guarded — see 20260828000002) rather than a check-then-insert from
- * application code: two concurrent calls for the same brand-new workspace
- * (e.g. a double-submitted onboarding form) would otherwise both observe
- * zero PMOs and both create a "General PMO" row before either commits, the
- * same race already closed for the one-time migration backfill.
+ * guarded — see 20260828000002 and 20260831000000) rather than a
+ * check-then-insert from application code: two concurrent calls for the same
+ * brand-new workspace (e.g. a double-submitted onboarding form, two browser
+ * tabs, or a timed-out request racing its own retry) would otherwise both
+ * observe zero PMOs and both create a row before either commits. Every
+ * caller of this function — regardless of entry point — shares the exact
+ * same advisory lock key and the exact same "default PMO" identity (oldest
+ * active PMO row for the workspace), so they always serialize against each
+ * other, not just against themselves.
  */
-export async function ensureDefaultPmo(workspaceId: string, userId: string, preferredName?: string): Promise<PmoRow> {
+export async function ensureDefaultPmo(
+  workspaceId: string,
+  userId: string,
+  preferredName?: string,
+  options?: EnsureDefaultPmoOptions
+): Promise<PmoRow> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("ensure_default_pmo", {
     p_workspace_id: workspaceId,
     p_name: preferredName?.trim() || "General PMO",
     p_created_by_user_id: userId,
+    p_pmo_type: options?.pmoType ?? null,
+    p_sync_existing: options?.syncExisting ?? false,
   });
   if (error || !data) throw new Error(`Unable to ensure default PMO: ${error?.message ?? "unknown"}`);
   return data as unknown as PmoRow;

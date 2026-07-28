@@ -88,14 +88,21 @@ test("listMessages fetches the newest N messages (descending + limit) then resto
 // a pmos row" branch updated workspace_governance and workspaces.name but
 // never the pmos row itself — re-running the setup wizard to rename a PMO
 // left the pmos row (what navigation/chat/project-assignment hang off)
-// showing the old, stale name indefinitely. ──────────────────────────────────
+// showing the old, stale name indefinitely.
+//
+// PMF-004 replaced the raw check-then-insert-or-update this test originally
+// pinned with a single call to the advisory-lock-guarded ensure_default_pmo
+// RPC (see 20260831000000_pmo_command_center_activation_idempotency.sql):
+// concurrent activations could otherwise both observe "no existing PMO" and
+// both insert. p_sync_existing:true is what now carries the same
+// keep-the-pmos-row-in-sync-on-rename guarantee this test protects. ────────
 
-test("savePmoTenant updates the existing pmos row's name/type when the workspace already has one, not just workspace_governance", () => {
-  const existingBranch = savePmoTenant.slice(savePmoTenant.indexOf("if (!existingPmo?.id)"));
-  assert.ok(existingBranch.includes('} else {'), "must have an else branch for the already-has-a-pmos-row case");
-  const elseBranch = existingBranch.slice(existingBranch.indexOf("} else {"));
-  assert.ok(elseBranch.includes('.from("pmos")') && elseBranch.includes(".update("), "the else branch must update the existing pmos row");
-  assert.ok(elseBranch.includes("tenant.identity.pmoName"), "the update must carry the wizard's (possibly renamed) PMO name");
+test("savePmoTenant syncs the existing default PMO's name/type on re-activation via the idempotent RPC, not just workspace_governance", () => {
+  assert.match(savePmoTenant, /supabaseClient\.rpc\("ensure_default_pmo"/, "must call the shared advisory-lock-guarded RPC, not a raw check-then-insert");
+  const rpcCall = savePmoTenant.slice(savePmoTenant.indexOf('supabaseClient.rpc("ensure_default_pmo"'));
+  const callArgs = rpcCall.slice(0, rpcCall.indexOf("});"));
+  assert.ok(callArgs.includes("p_name: tenant.identity.pmoName"), "the call must carry the wizard's (possibly renamed) PMO name");
+  assert.ok(callArgs.includes("p_sync_existing: true"), "Command Center re-activation must sync an existing default PMO's name/type, not just create-once");
 });
 
 // ─── Finding: duplicateProject copied source.pmo_id directly into the new
