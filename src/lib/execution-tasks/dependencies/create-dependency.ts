@@ -12,6 +12,23 @@ export type CreateExecutionTaskDependencyResult =
   | { ok: true; dependency: ExecutionTaskDependencyRow; duplicate: boolean }
   | { ok: false; error: string; failureClass: string };
 
+export type CreateExecutionTaskDependencyDeps = {
+  requireAuthenticatedUser: typeof requireAuthenticatedUser;
+  requireProjectAccess: typeof requireProjectAccess;
+  createSupabaseServerClient: typeof createSupabaseServerClient;
+};
+
+const defaultDeps: CreateExecutionTaskDependencyDeps = {
+  requireAuthenticatedUser,
+  requireProjectAccess,
+  createSupabaseServerClient,
+};
+
+/**
+ * `deps` defaults to the real implementations (same DI pattern as the
+ * billing routes and /api/vault/intake); tests inject fakes so the
+ * authorization boundary can be verified without a live backend.
+ */
 export async function createExecutionTaskDependency(input: {
   predecessorTaskId: string;
   successorTaskId: string;
@@ -23,7 +40,8 @@ export async function createExecutionTaskDependency(input: {
   sourcePayload?: Record<string, unknown>;
   confidenceScore?: number | null;
   actorUserId?: string;
-}): Promise<CreateExecutionTaskDependencyResult> {
+}, depsOverride: Partial<CreateExecutionTaskDependencyDeps> = {}): Promise<CreateExecutionTaskDependencyResult> {
+  const deps: CreateExecutionTaskDependencyDeps = { ...defaultDeps, ...depsOverride };
   const depType = input.dependencyType ?? "finish_to_start";
   const depStatus = input.status ?? "active";
 
@@ -33,7 +51,7 @@ export async function createExecutionTaskDependency(input: {
     userId = input.actorUserId;
   } else {
     try {
-      const { user } = await requireAuthenticatedUser();
+      const { user } = await deps.requireAuthenticatedUser();
       userId = user.id;
     } catch {
       return { ok: false, error: "Unauthenticated.", failureClass: "unauthenticated" };
@@ -45,7 +63,7 @@ export async function createExecutionTaskDependency(input: {
     return { ok: false, error: "A task cannot depend on itself.", failureClass: "self_dependency" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await deps.createSupabaseServerClient();
 
   // 2. Load both tasks
   const [predResult, succResult] = await Promise.all([
@@ -85,7 +103,7 @@ export async function createExecutionTaskDependency(input: {
 
   // 4. Validate project access
   try {
-    await requireProjectAccess(predTask.project_id, "read");
+    await deps.requireProjectAccess(predTask.project_id, "write");
   } catch (error) {
     if (error instanceof AccessDeniedError) {
       return { ok: false, error: "Access denied.", failureClass: "unauthorized" };
