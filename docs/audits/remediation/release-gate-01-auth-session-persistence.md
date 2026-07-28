@@ -1,0 +1,193 @@
+# Release Gate 01 — Corrective Hotfix: Production Authentication Session Persistence
+
+**Severity:** P1 (production defect: an authenticated user is incorrectly redirected to `/login` and their session is destroyed, without signing out).
+**Scope:** `src/app/(protected)/layout.tsx`, `src/lib/auth.ts`, `src/lib/auth/runtime-auth-continuity.ts`. No product-code change outside this authentication path.
+**Branch:** `fix/release-gate-01-auth-session-persistence`, based on `origin/main` at `58de7dae8ca8e98f7da4a5c76349c17ae837110a`.
+**Discovered during:** Release Gate 01 agent-guided human browser UAT, live against `https://pmfreak.com/` (production), commit `58de7dae8ca8e98f7da4a5c76349c17ae837110a` confirmed via `/api/build-info`.
+
+---
+
+## 1. Executive Summary
+
+`src/app/(protected)/layout.tsx` — the layout wrapping every authenticated route in PMFreak — made **two independent, uncoordinated server-side `supabase.auth.getUser()` calls per request**: one inside `assertRuntimeAuthContinuity()`, immediately followed by a second inside `requireAuthUser()` → `getAuthUser()`. Each call created its own separate Supabase server client.
+
+`src/lib/supabase/server.ts`'s cookie adapter silently swallows any cookie-write failure (`try { cookieStore.set(...) } catch {}`), which is *necessary* — Next.js Server Components are not allowed to write cookies, and this must not throw — but has a real cost: if the access token was expired, the first `getUser()` call's on-demand token refresh succeeds in-memory but can never be persisted back to cookies from this render. Supabase rotates (invalidates) the refresh token server-side as soon as it is used, regardless of whether the caller manages to persist the replacement. The second, independent `getUser()` call then presents that same, now-already-consumed refresh token and is rejected outright (`401`, "Invalid Refresh Token: Already Used"). `requireAuthUser()` treats that as "not authenticated" and redirects to `/login`.
+
+Once that now-dead refresh token cookie is subsequently presented to Edge middleware (`src/lib/supabase/proxy.ts`), the Supabase client's own `SIGNED_OUT` handling proactively clears every stored auth cookie via middleware's own cookie adapter (which does **not** swallow writes) — this is the exact mechanism behind the "the cookie table was completely empty" symptom observed live in production DevTools.
+
+**Fix:** `assertRuntimeAuthContinuity()` now returns the resolved Supabase user; `(protected)/layout.tsx` builds the full `AuthUserContext` directly from it via a new pure helper, `buildAuthUserContext()`, instead of making a second, independent `getUser()` call. Exactly one `getUser()` call — and therefore at most one refresh attempt — happens per protected-route request.
+
+---
+
+## 2. Production Evidence
+
+Reproduced live, agent-guided (Mode B — the Claude Code sandbox's egress policy blocks direct outbound access to `pmfreak.com`; the repository owner drove the browser and reported results), during Release Gate 01's browser/runtime UAT.
+
+| Item | Value |
+|---|---|
+| Runtime URL | `https://pmfreak.com/` (production) |
+| Deployed commit (confirmed via `GET /api/build-info`) | `58de7dae8ca8e98f7da4a5c76349c17ae837110a` — matches `origin/main` exactly |
+| `vercelEnv` | `production` |
+| Account | pre-existing production account, role `viewer` (redacted email; domain `@onchainfest.xyz`, an internal-allowlisted domain per `src/lib/auth.ts`'s `INTERNAL_EMAIL_DOMAINS`, not a customer account) |
+| Authenticated-shell evidence | `/projects/new` rendered normally, full `OperationalShell` nav, sidebar showed the account's email and `viewer` role badge |
+| Triggering action | Clicked the "Create Center" nav item (`href="/create-command-center"`) |
+| Result | Redirected to `pmfreak.com/login?next=%2Fcreate-command-center` |
+| Direct-navigation control | Fresh top-level navigation (new tab, typed/loaded URL, not a client-side link) to `https://pmfreak.com/command-center` **also** redirected to `/login?next=%2Fcommand-center` |
+| Cookie inspection | Chrome DevTools → Application → Storage → Cookies → `https://pmfreak.com` — **the cookie table was completely empty**; no cookie names starting with `sb-`, no cookies at all |
+| User action | Did not sign out, did not clear cookies manually |
+
+---
+
+## 3. Reproduction Steps
+
+1. Authenticate normally (session had been established prior to this session, not observed first-hand — see §14, Residual Debt, for the one gap this leaves).
+2. Land on `/projects/new` with a normal, fully-rendered authenticated shell.
+3. Click "Create Center" in the left nav (`href="/create-command-center"`).
+4. Observe redirect to `/login?next=%2Fcreate-command-center`.
+5. Open a fresh tab, navigate directly to `/command-center`.
+6. Observe redirect to `/login?next=%2Fcommand-center` — confirms the session is dead, not merely a bad client-side navigation.
+7. Inspect cookies for `pmfreak.com` — confirms zero cookies remain, not just an expired/invalid one.
+
+## 4. Expected vs. Actual Behavior
+
+| | Expected | Actual (pre-fix) |
+|---|---|---|
+| Internal navigation while authenticated | Stays authenticated, no redirect | Redirected to `/login` |
+| Direct navigation to a protected route with a valid session | Session recognized | Redirected to `/login` |
+| Cookie state after the above | Auth cookies present and valid | Cookie table completely empty |
+| Root cause class | N/A | Session token silently corrupted by the app's own server-side code, not a genuine expiry |
+
+---
+
+## 5. Authentication Architecture Inventory
+
+| File | Symbol | Runtime context | Calls `getUser()`/refresh? | Cookie writer | Can persist a refresh? |
+|---|---|---|---|---|---|
+| `src/lib/supabase/proxy.ts` | `updateSession` | Edge middleware | Yes | `request.cookies.set` + `response.cookies.set`, no try/catch | **Yes** — the only context that reliably can |
+| `src/proxy.ts` | `proxy` (uses `updateSession`) | Edge middleware | Indirectly | forwards `response` from `updateSession`; `redirectPreservingSession` forwards its cookies to redirects | Yes |
+| `src/lib/supabase/server.ts` | `createSupabaseServerClient` | Server Components, Route Handlers, Server Actions (shared factory) | On demand (via `getUser()`/`getSession()` callers) | `cookieStore.set` wrapped in `try {} catch {}` | **No, in a plain Server Component render** (Next.js throws; error is swallowed). Yes in Route Handlers/Server Actions. |
+| `src/lib/auth/runtime-auth-continuity.ts` | `assertRuntimeAuthContinuity` (pre-fix) | Server Component (`(protected)/layout.tsx`) | Yes, unconditionally, its own client | via `createSupabaseServerClient` | No (Server Component context) |
+| `src/lib/auth.ts` | `getAuthUser` / `requireAuthUser` (pre-fix, called a *second* time from layout) | Server Component (`(protected)/layout.tsx`) | Yes, unconditionally, its own **separate** client | via `createSupabaseServerClient` | No (Server Component context) |
+| `src/app/(protected)/layout.tsx` | `ProtectedLayout` | Server Component | Called both of the above, back-to-back, pre-fix | — | — |
+| `src/app/login/actions.ts`, `src/app/api/login/route.ts`, `src/app/signup/actions.ts` | login/signup | Server Action / Route Handler | `signInWithPassword`/`signUp` write session via the request's response — can persist | Yes | Yes |
+| `src/app/logout/route.ts` | logout | Route Handler | `signOut()` | Yes | Yes (intentional) |
+
+**Tests covering this before the fix:** none exercised real `getUser()` call counts or cookie-persistence behavior — `tests/auth-redirect-resolution.test.mjs`, `tests/proxy-routing.test.mjs`, and `tests/resolve-onboarding-state.test.mjs` are static source-text assertions (matches the general blind-spot pattern already identified in `docs/audits/pmfreak-remediation-decision-brief.md` §12).
+
+---
+
+## 6. Root-Cause Analysis
+
+`(protected)/layout.tsx` (pre-fix):
+
+```ts
+const continuity = await assertRuntimeAuthContinuity();   // getUser() call #1 (own client)
+if (!continuity.ok) { redirect(...) }
+
+const user = await requireAuthUser();                     // getAuthUser() -> getUser() call #2 (own, SEPARATE client)
+```
+
+Both calls read the same cookie-backed session. If the access token was expired:
+
+1. Call #1's client (`assertRuntimeAuthContinuity`'s own `createSupabaseServerClient()`) detects the expired token and refreshes on-demand (`@supabase/auth-js`'s `__loadSession()` refresh-if-expired path — this happens regardless of the `autoRefreshToken` setting, which only gates the *background/proactive* timer, not on-demand refresh triggered by actually calling `getUser()`/`getSession()`). The refresh **succeeds** — Supabase's Auth server issues a new access+refresh token pair and immediately invalidates (rotates) the old refresh token server-side.
+2. The new tokens cannot be written back to cookies from this render (`createSupabaseServerClient`'s `setAll` throws inside a Server Component render; the error is caught and silently discarded — see `src/lib/supabase/server.ts:14-22`). The render itself succeeds using the in-memory refreshed user — this is why the authenticated shell could render correctly on the page shown just before the failure.
+3. Call #2's client (`getAuthUser`'s own, separate `createSupabaseServerClient()`) reads cookies again — still the **old**, now-already-consumed refresh token, since call #1 never persisted its replacement. Supabase's Auth server rejects this second refresh attempt outright: `401`, "Invalid Refresh Token: Already Used." This is a genuine auth rejection, not a transient error.
+4. `getAuthUser()` returns `null`; `requireAuthUser()` redirects to `/login`.
+5. On the *next* request (e.g. the direct `/command-center` navigation), Edge middleware's `updateSession()` presents the same dead refresh token. Supabase's Auth server again rejects it; the Supabase JS client's internal `SIGNED_OUT` handling then proactively clears every stored auth cookie via the `@supabase/ssr` `createServerClient` adapter's `onAuthStateChange` listener (visible in `node_modules/@supabase/ssr/dist/module/createServerClient.js`) — and because middleware's cookie adapter does **not** swallow writes, this clearing succeeds and is forwarded to the browser via the login redirect. This is the exact, fully explained mechanism behind "the cookie table was completely empty."
+
+This is fully deterministic, not a rare race: it reproduces on essentially every request where the access token happens to be expired at render time, which — given `(protected)/layout.tsx` runs on every protected navigation — is a routine, expected occurrence for any session left open across a normal token lifetime.
+
+### Why the authenticated sidebar could render before the server rejected the session
+
+Call #1 (`assertRuntimeAuthContinuity`) actually succeeded for that request — it obtained a valid, refreshed in-memory user and the page rendered correctly. The corruption is a *side effect* of that same successful call (the now-unpersisted, rotated refresh token), which only manifests as a visible failure on the *next* `getUser()` call — in the pre-fix code, that was call #2 in the very same request (`requireAuthUser()`), and after that, every subsequent request.
+
+### Was the cookie never written, or written and later removed?
+
+Both, at different points, now precisely distinguished:
+- The **replacement** token from the first (successful) refresh was **never written** at all (swallowed in a Server Component context).
+- The **original** (now-dead) token **was later actively removed** — correctly, since middleware genuinely could no longer treat it as valid, and the app's own `SIGNED_OUT` handling cleared it as designed for a truly dead session. That clearing was the *symptom* of the two-call race, not a separate bug in its own right.
+
+---
+
+## 7. Why Existing Tests Missed the Defect
+
+No existing test invoked `assertRuntimeAuthContinuity()` or `getAuthUser()`/`requireAuthUser()` as real functions with a simulated token-refresh outcome. `tests/pmf-001-002-auth-session-visibility.test.mjs` covers a related but different concern (login/signup's *first* post-auth destination resolution not depending on a same-request cookie round trip) and does not touch `(protected)/layout.tsx`'s per-navigation auth-continuity check at all. `assertRuntimeAuthContinuity` and `getAuthUser` were previously not unit-testable in isolation — both hard-depended on `next/headers` and constructed their own Supabase client internally with no injection seam, which is exactly why this class of defect (a live route/session-integration bug, not a static text-pattern violation) was invisible to the pre-fix suite. This matches the general blind-spot pattern already documented in `docs/audits/pmfreak-remediation-decision-brief.md` §12: the suite is overwhelmingly static source-text assertion, not live route/session-integration testing.
+
+## 8. Security Implications
+
+- No cross-tenant or unauthorized-access exposure — the opposite: legitimate, correctly-authenticated users are denied access to their own data.
+- No credentials, tokens, or session values were exposed at any point; the defect is a false-negative session check, not a false-positive one.
+- No fix here weakens any authorization boundary — `assertRuntimeAuthContinuity`'s auth-rejection-vs-network-error distinction, and its `getSession()` fallback for transient errors, are preserved unchanged.
+
+## 9. Pre-Fix Failing-Test Evidence
+
+`tests/release-gate-01-auth-session-persistence.test.mjs` was written against the fixed API surface (`buildAuthUserContext` export, `assertRuntimeAuthContinuity(deps)`), then run against the pre-fix versions of the three affected files (`git stash` of the fix, tests kept):
+
+```
+$ npx tsx --test tests/release-gate-01-auth-session-persistence.test.mjs
+TAP version 13
+# file:///home/user/pmfreak/tests/release-gate-01-auth-session-persistence.test.mjs:52
+# import { buildAuthUserContext } from "../src/lib/auth.ts";
+#          ^^^^^^^^^^^^^^^^^^^^
+# SyntaxError: The requested module '../src/lib/auth.ts' does not provide an export named 'buildAuthUserContext'
+...
+not ok 1 - tests/release-gate-01-auth-session-persistence.test.mjs
+# tests 1
+# pass 0
+# fail 1
+```
+
+The pre-fix code has no seam to invoke `assertRuntimeAuthContinuity` with an injected fake auth client and no `buildAuthUserContext` export — so the new tests cannot even load against it. This is itself evidence of the missing testability the defect exploited: the two `getUser()` calls in `(protected)/layout.tsx` could not have been asserted against ("exactly one call, resolved user reused") without this refactor.
+
+## 10. Implementation
+
+1. **`src/lib/auth.ts`** — extracted the existing inline mapping logic in `getAuthUser` into a new pure, exported function `buildAuthUserContext(user: MinimalSupabaseUser): AuthUserContext | null`. `getAuthUser()` itself is unchanged in behavior (still creates its own client, still calls `getUser()` once, still memoized via React's `cache()`) — every one of its ~230 other call sites across the app is unaffected.
+2. **`src/lib/auth/runtime-auth-continuity.ts`** — `assertRuntimeAuthContinuity` now:
+   - Accepts an optional `Partial<RuntimeAuthContinuityDeps>` (each of `getUser`, `getSession`, `getPathname`, `getAuthCookieNames` individually injectable; defaults to the real `next/headers`/Supabase-backed implementations when omitted — zero behavior change for every real caller).
+   - Returns the resolved Supabase `user` object (not just `userId`) in its report.
+3. **`src/app/(protected)/layout.tsx`** — replaced the second, independent `await requireAuthUser()` call with `buildAuthUserContext(continuity.user)`, reusing the user `assertRuntimeAuthContinuity` already resolved. If that ever maps to `null` (an authenticated Supabase user with no email — the same edge case `getAuthUser` already handled), the layout redirects to `/login?next=...` exactly as `requireAuthUser` did.
+
+Net effect: **exactly one `getUser()` call per protected-route request**, eliminating the double-refresh race entirely, without touching `getAuthUser()`/`requireAuthUser()`'s behavior for any other call site, without touching middleware, without touching login/signup/logout, and without weakening the auth-rejection-vs-network-error distinction `assertRuntimeAuthContinuity` already provided.
+
+## 11. Cookie/Session Contract After the Fix
+
+Unchanged from before, for every context except the one that was broken:
+
+- Login/signup (Server Action/Route Handler): unchanged, persists normally.
+- Middleware: unchanged, refreshes and persists normally, clears cookies only on a genuine `SIGNED_OUT`/auth rejection.
+- Logout: unchanged — the only normal user action that intentionally clears the session.
+- **Protected-route Server Component render:** now performs at most one `getUser()` call per request (previously two), so a same-request refresh, if it happens, is never immediately followed by a second, independent refresh attempt against the same now-stale cookie.
+
+## 12. Validation
+
+| Command | Exit | Result |
+|---|---|---|
+| `npx tsx --test tests/release-gate-01-auth-session-persistence.test.mjs` (pre-fix, stashed) | 1 | 0 pass / 1 fail (import error, see §9) |
+| `npx tsx --test tests/release-gate-01-auth-session-persistence.test.mjs` (post-fix) | 0 | 9/9 pass |
+| Targeted auth/onboarding/session suite (12 files: `auth-redirect-resolution`, `pmf-001-002-auth-session-visibility`, `pmf-001-002-canonical-onboarding`, `pmf-001-002-state-authority-reconciliation`, `proxy-routing`, `resolve-onboarding-state`, `runtime-authority-provider-resolution`, `signup-role-escalation`, `workspace-onboarding-guardrails`, `workspace-onboarding-preferences`, `command-center-onboarding-actions`, plus the new file) | 0 | 143/143 pass |
+| PMF-003/003B/004 regression suites (`execution-task-write-authorization`, `critical-path-materialize-write-authorization`, `execution-tasks`, `execution-task-dependencies`, `route-guard-consistency`, `pmf-004-idempotent-call-sites`) | 0 | 240/240 pass |
+| `npm test` (full suite, local Postgres running) | 0 | **12,882/12,882 pass, 0 fail, 0 skipped** (baseline 12,873 + 9 new) |
+| `npm run typecheck` | 0 | 0 errors |
+| `npm run lint` | 0 | 0 errors, 614 warnings (identical to documented baseline) |
+| `npm run build` | 0 | Success, all routes generated |
+
+No migration required or made — this is application-code-only.
+
+## 13. Runtime Verification
+
+**Not yet performed as of this record.** This correction has not been deployed; no preview URL exists yet to verify against. Per the release-gate corrective protocol, runtime UAT of this specific fix (repeating the exact original reproduction sequence against a deployed preview of this branch) must happen before this hotfix — or Release Gate 01 itself — can be marked verified. See the PR for tracking.
+
+## 14. Rollback Considerations
+
+The change is additive/subtractive within three files and is easy to revert (`git revert`) if the preview UAT surfaces a regression. No data migration, no schema change, no change to login/signup/logout. If reverted, the pre-existing double-`getUser()`-call defect returns; no new failure mode is introduced by rolling back.
+
+## 15. Residual Debt
+
+1. **Not independently confirmed:** the *exact* moment/mechanism by which the reproducing account's access token became expired (e.g., how long the session had been open before this UAT session). The fix addresses the *general* mechanism (any expired-token render redundantly double-refreshing), which is sufficient regardless of how any specific token came to be expired, but a precise minute-by-minute timeline of the original incident was not reconstructed.
+2. **`next.config.ts`'s `STATIC_SERVER_ACTION_ORIGINS = ["pmfreak-mu.vercel.app"]`** (Next.js's Server Action origin allowlist) does not include `pmfreak.com`, the custom production domain actually used in this reproduction. This was discovered during investigation and is *not* the mechanism behind this defect (the reproduction was plain `GET` navigation, not a Server Action submission, and Next.js additionally auto-trusts the request's own same-origin Host by default), but it is a plausible separate risk to Server Action-based mutations (form submissions) issued from `pmfreak.com` and is flagged here for product-owner attention rather than fixed in this narrowly-scoped PR.
+3. **`@supabase/auth-helpers-nextjs`** remains a listed `package.json` dependency (deprecated) but is not imported anywhere in `src/` — confirmed dead, not a contributing factor, left untouched as out of scope for this hotfix.
+4. `createSupabaseServerClient`'s swallow-on-write-failure pattern (`src/lib/supabase/server.ts:14-22`) is unchanged and remains necessary (Server Components genuinely cannot write cookies) — the fix here is to avoid *needing* a second, redundant call in the one place that was making one, not to change this adapter itself. Any *other* future code path that independently calls `getUser()`/`getSession()` a second time within the same protected-route request would reintroduce an equivalent race; this is now called out explicitly in both files' doc comments.
+
+## 16. Release-Gate Impact
+
+Release Gate 01's browser/runtime UAT is paused pending this fix's deployment and re-verification (see `docs/audits/pmfreak-release-gate-01.md`). No other Release Gate 01 checkpoint (workspace bootstrap, Project-first creation, first task, Command Center activation, etc.) was reached before this defect blocked the journey at Checkpoint A.

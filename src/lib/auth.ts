@@ -56,17 +56,24 @@ export const toDisplayRole = (role: unknown): UserRole => {
   return DEFAULT_SIGNUP_ROLE;
 };
 
-export const getAuthUser = cache(async (): Promise<AuthUserContext | null> => {
-  if (!hasSupabaseEnv) {
-    return null;
-  }
+// Minimal shape this needs from a Supabase auth user — deliberately not the
+// full SDK `User` type, so callers that already resolved a user via their
+// own `getUser()` call (e.g. assertRuntimeAuthContinuity) can build a full
+// AuthUserContext from it directly, without a second `getUser()` round trip.
+// A second, independent server-side `getUser()` call in the same request can
+// itself trigger a Supabase token refresh; server COMPONENT contexts cannot
+// persist a refreshed session (see src/lib/supabase/server.ts's setAll), so
+// a redundant call risks silently consuming/rotating the refresh token a
+// second time while the first rotation's replacement was never written back
+// to cookies — see docs/audits/remediation/release-gate-01-auth-session-persistence.md.
+export type MinimalSupabaseUser = {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+};
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user?.email) {
+export const buildAuthUserContext = (user: MinimalSupabaseUser): AuthUserContext | null => {
+  if (!user.email) {
     return null;
   }
 
@@ -81,6 +88,23 @@ export const getAuthUser = cache(async (): Promise<AuthUserContext | null> => {
     role: toDisplayRole(metadata.role),
     onboardingCompleted: metadata.onboarding_completed === true,
   };
+};
+
+export const getAuthUser = cache(async (): Promise<AuthUserContext | null> => {
+  if (!hasSupabaseEnv) {
+    return null;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return null;
+  }
+
+  return buildAuthUserContext(user);
 });
 
 export const requireAuthUser = async () => {
