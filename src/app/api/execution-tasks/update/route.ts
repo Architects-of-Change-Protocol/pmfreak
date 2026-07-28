@@ -6,10 +6,29 @@ import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { isValidStatusTransition } from "@/lib/execution-tasks/lifecycle";
 import type { ExecutionTaskRow, ExecutionTaskStatus } from "@/lib/db/database-contract";
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+export type UpdateExecutionTaskDeps = {
+  requireAuthenticatedUser: typeof requireAuthenticatedUser;
+  requireProjectAccess: typeof requireProjectAccess;
+  createSupabaseServerClient: typeof createSupabaseServerClient;
+};
+
+const defaultDeps: UpdateExecutionTaskDeps = {
+  requireAuthenticatedUser,
+  requireProjectAccess,
+  createSupabaseServerClient,
+};
+
+/**
+ * Testable core of the route handler (same DI pattern as the billing routes
+ * and /api/vault/intake): `deps` defaults to the real implementations; tests
+ * inject fakes so the authorization boundary can be verified without a live
+ * backend.
+ */
+export async function handleUpdateExecutionTask(request: NextRequest, depsOverride: Partial<UpdateExecutionTaskDeps> = {}): Promise<NextResponse> {
+  const deps: UpdateExecutionTaskDeps = { ...defaultDeps, ...depsOverride };
   let userId: string;
   try {
-    const { user } = await requireAuthenticatedUser();
+    const { user } = await deps.requireAuthenticatedUser();
     userId = user.id;
   } catch {
     return NextResponse.json({ ok: false, error: "Unauthenticated.", failureClass: "unauthenticated" }, { status: 401 });
@@ -28,7 +47,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: "taskId is required.", failureClass: "validation_failed" }, { status: 400 });
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await deps.createSupabaseServerClient();
 
   const { data: task, error: taskError } = await supabase
     .from("execution_tasks")
@@ -44,7 +63,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    await requireProjectAccess(task.project_id, "read");
+    await deps.requireProjectAccess(task.project_id, "write");
   } catch (error) {
     if (error instanceof Error && error.message.includes("denied")) {
       return NextResponse.json({ ok: false, error: "Access denied.", failureClass: "unauthorized" }, { status: 403 });
@@ -153,4 +172,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   return NextResponse.json({ ok: true, task: updated });
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  return handleUpdateExecutionTask(request);
 }

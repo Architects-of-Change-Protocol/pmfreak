@@ -17,10 +17,29 @@ const EVENT_TYPE_MAP: Record<string, string> = {
   invalidated: "dependency_invalidated",
 };
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+export type UpdateExecutionTaskDependencyDeps = {
+  requireAuthenticatedUser: typeof requireAuthenticatedUser;
+  requireProjectAccess: typeof requireProjectAccess;
+  createSupabaseServerClient: typeof createSupabaseServerClient;
+};
+
+const defaultDeps: UpdateExecutionTaskDependencyDeps = {
+  requireAuthenticatedUser,
+  requireProjectAccess,
+  createSupabaseServerClient,
+};
+
+/**
+ * Testable core of the route handler (same DI pattern as the billing routes
+ * and /api/vault/intake): `deps` defaults to the real implementations; tests
+ * inject fakes so the authorization boundary can be verified without a live
+ * backend.
+ */
+export async function handleUpdateExecutionTaskDependency(request: NextRequest, depsOverride: Partial<UpdateExecutionTaskDependencyDeps> = {}): Promise<NextResponse> {
+  const deps: UpdateExecutionTaskDependencyDeps = { ...defaultDeps, ...depsOverride };
   let userId: string;
   try {
-    const { user } = await requireAuthenticatedUser();
+    const { user } = await deps.requireAuthenticatedUser();
     userId = user.id;
   } catch {
     return NextResponse.json({ ok: false, error: "Unauthenticated." }, { status: 401 });
@@ -41,7 +60,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: "status is required." }, { status: 400 });
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await deps.createSupabaseServerClient();
 
   const { data: dep, error: loadError } = await supabase
     .from("execution_task_dependencies")
@@ -57,7 +76,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    await requireProjectAccess(dep.project_id, "read");
+    await deps.requireProjectAccess(dep.project_id, "write");
   } catch (error) {
     if (error instanceof Error && error.message.includes("denied")) {
       return NextResponse.json({ ok: false, error: "Access denied." }, { status: 403 });
@@ -104,4 +123,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   });
 
   return NextResponse.json({ ok: true, dependency: updated });
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  return handleUpdateExecutionTaskDependency(request);
 }
