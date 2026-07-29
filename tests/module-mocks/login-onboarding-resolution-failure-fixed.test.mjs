@@ -14,7 +14,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { makeCookieJar, mockModuleOptions } from "./release-gate-01-fake-supabase.mjs";
+import { makeCookieJar, mockModuleOptions, resolveMockTarget } from "./release-gate-01-fake-supabase.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
@@ -40,12 +40,12 @@ function makeSignInOnlyGoTrueFactory() {
 
 test("FIXED: POST /api/login redirects with the session cookie intact even when resolveOnboardingState()/resolveCanonicalWorkspace() throws", async (t) => {
   const jar = makeCookieJar({ writesSucceed: true });
-  t.mock.module("next/headers", mockModuleOptions({ cookies: async () => jar, headers: async () => ({ get: () => null }) }));
-  t.mock.module("@supabase/ssr", mockModuleOptions({ createServerClient: makeSignInOnlyGoTrueFactory() }));
-  t.mock.module("@/lib/workspaces/canonical-workspace-resolver", mockModuleOptions({
+  t.mock.module(resolveMockTarget("next/headers"), mockModuleOptions({ cookies: async () => jar, headers: async () => ({ get: () => null }) }));
+  t.mock.module(resolveMockTarget("@supabase/ssr"), mockModuleOptions({ createServerClient: makeSignInOnlyGoTrueFactory() }));
+  t.mock.module(resolveMockTarget("@/lib/workspaces/canonical-workspace-resolver"), mockModuleOptions({
     resolveCanonicalWorkspace: async () => { throw new Error("simulated: service role env missing / DB unreachable"); },
   }));
-  t.mock.module("@/lib/auth/resolve-onboarding-state", mockModuleOptions({ resolveOnboardingState: async () => "active" }));
+  t.mock.module(resolveMockTarget("@/lib/auth/resolve-onboarding-state"), mockModuleOptions({ resolveOnboardingState: async () => "active" }));
 
   const { POST } = await import("../../src/app/api/login/route.ts");
 
