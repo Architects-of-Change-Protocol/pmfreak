@@ -68,6 +68,77 @@ export function makeCookieJar({ writesSucceed }) {
   };
 }
 
+// Models signUp() succeeding (writing the session cookie via the real
+// cookies() adapter, exactly like signIn does) and getUser() reading that
+// same cookie back — lets a test verify a second, independent request
+// (e.g. a follow-up /api/debug-auth call sharing the same cookie jar)
+// recognizes the session signUp established.
+export function makeSignUpAndGetUserGoTrueFactory({ email, password, userId }) {
+  return function createServerClient(_url, _anonKey, { cookies }) {
+    return {
+      auth: {
+        signUp: async ({ email: attemptedEmail, password: attemptedPassword }) => {
+          if (attemptedEmail !== email || attemptedPassword !== password) {
+            return { data: { user: null, session: null }, error: { message: "Signup requires a valid email and password.", status: 400 } };
+          }
+          cookies.setAll([{ name: "sb-signup-auth-token", value: "signup-session-payload", options: { path: "/" } }]);
+          return {
+            data: {
+              user: { id: userId, email: attemptedEmail, user_metadata: {} },
+              session: { access_token: "access-1", user: { id: userId, email: attemptedEmail } },
+            },
+            error: null,
+          };
+        },
+        getUser: async () => {
+          const cookie = cookies.getAll().find((c) => c.name === "sb-signup-auth-token");
+          if (cookie?.value === "signup-session-payload") {
+            return { data: { user: { id: userId, email, user_metadata: {} } }, error: null };
+          }
+          return { data: { user: null }, error: { status: 401, message: "No session" } };
+        },
+      },
+    };
+  };
+}
+
+// Minimal fake for `@supabase/supabase-js`'s `createClient` — the
+// service-role/admin client `createPrivilegedSupabaseClient` builds
+// (src/lib/security/privileged-access.ts), used by
+// resolveCanonicalWorkspace, resolveOnboardingState,
+// collectWorkspaceActivationEvidence, and the abuse-protection Supabase
+// store. `.from(table)` returns a chainable query-builder stub: every
+// chain method (select/eq/neq/in/order/limit/update/lt) returns itself,
+// and both `.maybeSingle()` and awaiting the chain directly resolve to the
+// canned `{ data, error }` configured for that table (default: empty
+// array, no error, for any table not explicitly configured). `.rpc()`
+// defaults to a low, always-allowed counter (for abuse-protection's
+// increment RPC) unless overridden.
+export function makeFakeAdminQueryClient(tableResponses = {}, rpcResponses = {}) {
+  function makeChain(table) {
+    const response = tableResponses[table] ?? { data: [], error: null };
+    const rows = Array.isArray(response.data) ? response.data : response.data == null ? [] : [response.data];
+    const chain = {
+      select: () => chain,
+      eq: () => chain,
+      neq: () => chain,
+      in: () => chain,
+      order: () => chain,
+      limit: () => chain,
+      update: () => chain,
+      lt: () => chain,
+      gte: () => chain,
+      maybeSingle: async () => ({ data: rows[0] ?? null, error: response.error ?? null }),
+      then: (resolve, reject) => Promise.resolve({ data: response.data, error: response.error ?? null }).then(resolve, reject),
+    };
+    return chain;
+  }
+  return {
+    from: (table) => makeChain(table),
+    rpc: async (name) => rpcResponses[name] ?? { data: 1, error: null },
+  };
+}
+
 // Models the GoTrue HTTP client `@supabase/ssr`'s createServerClient hands
 // back: single-use refresh tokens, an on-demand refresh on an expired access
 // token, and (faithfully to real Supabase/GoTrue) the refresh call itself
