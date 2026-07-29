@@ -9,29 +9,41 @@
  */
 
 // node:test's mock.module() renamed its exports-object option between Node
-// major versions: Node 22.x (through at least 22.22.2) only recognizes
-// `namedExports`; Node 24.x recognizes `exports` and only *deprecates*
-// `namedExports` (still works, with a warning) — except passing BOTH keys
-// at once throws ERR_INVALID_ARG_VALUE on Node 24. Since this repo's local
-// dev, and its CI runner (which silently upgrades a pinned Node 20 to
-// whatever the runner's current default is), can each land on either major,
-// pick the key the running Node actually understands instead of hardcoding
-// one and letting the other silently no-op (Node 22 given `exports` doesn't
-// throw — it just never applies the mock).
-//
-// This deliberately only BUILDS the options object — it does not call
-// `t.mock.module()` itself. `mock.module()` resolves a bare specifier (e.g.
-// "next/headers") relative to its *immediate caller's* module location, not
-// the ultimate test file; calling it from here (this shared helper, under
-// tests/module-mocks/) made Node try to resolve "next/headers" as
-// tests/module-mocks/next/headers and fail with ERR_MODULE_NOT_FOUND in CI.
-// Each test file must call `t.mock.module(specifier, mockModuleOptions(...))`
-// itself so the resolution context is the test file, exactly as a direct,
-// unwrapped `t.mock.module()` call would be.
+// major versions: Node 22.x only recognizes `namedExports`; Node 24.x
+// recognizes `exports` and only *deprecates* `namedExports` (still works,
+// with a warning) — except passing BOTH keys at once throws
+// ERR_INVALID_ARG_VALUE on Node 24. Since this repo's local dev, and its CI
+// runner (which silently upgrades a pinned Node 20 to whatever the runner's
+// current default is), can each land on either major, pick the key the
+// running Node actually understands instead of hardcoding one and letting
+// the other silently no-op (Node 22 given `exports` doesn't throw — it just
+// never applies the mock).
 export function mockModuleOptions(exportsObj) {
   const nodeMajor = Number(process.versions.node.split(".")[0]);
   const key = nodeMajor >= 24 ? "exports" : "namedExports";
   return { [key]: exportsObj };
+}
+
+// `t.mock.module()` given a bare specifier (e.g. "next/headers") failed
+// with ERR_MODULE_NOT_FOUND in CI ("Cannot find module
+// '.../tests/module-mocks/next/headers'") on two different call shapes —
+// called from this shared helper, and called directly in the test file
+// itself — while never reproducing locally on either Node 22 or Node 24,
+// from-scratch npm ci included. That rules out "which file calls
+// t.mock.module()" as the variable; the actual cause is some
+// non-deterministic edge case in how mock.module()'s bare-specifier
+// resolution interacts with tsx's loader (visible in the stack trace:
+// tsx's resolveDirectory/resolveBase, which has its own error-message
+// text-parsing fallback for ERR_MODULE_NOT_FOUND) — apparently sensitive to
+// something not pinned by the lockfile (exact Node patch build, timing).
+// Rather than depend on that resolution succeeding, pre-resolve the
+// specifier to a concrete file:// URL via `import.meta.resolve()` (which
+// mock.module() accepts, and which still intercepts every other importer's
+// plain `import ... from "next/headers"` — mock.module matches by resolved
+// target, not specifier text) so there is no bare-specifier resolution step
+// left for mock.module()/tsx to disagree about.
+export function resolveMockTarget(specifier) {
+  return import.meta.resolve(specifier);
 }
 
 // A real Next.js `cookies()` store, minimally reimplemented: `getAll()` plus
