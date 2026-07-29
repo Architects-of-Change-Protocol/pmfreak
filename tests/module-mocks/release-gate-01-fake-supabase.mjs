@@ -18,10 +18,20 @@
 // pick the key the running Node actually understands instead of hardcoding
 // one and letting the other silently no-op (Node 22 given `exports` doesn't
 // throw — it just never applies the mock).
-export function mockModuleExports(t, specifier, exportsObj) {
+//
+// This deliberately only BUILDS the options object — it does not call
+// `t.mock.module()` itself. `mock.module()` resolves a bare specifier (e.g.
+// "next/headers") relative to its *immediate caller's* module location, not
+// the ultimate test file; calling it from here (this shared helper, under
+// tests/module-mocks/) made Node try to resolve "next/headers" as
+// tests/module-mocks/next/headers and fail with ERR_MODULE_NOT_FOUND in CI.
+// Each test file must call `t.mock.module(specifier, mockModuleOptions(...))`
+// itself so the resolution context is the test file, exactly as a direct,
+// unwrapped `t.mock.module()` call would be.
+export function mockModuleOptions(exportsObj) {
   const nodeMajor = Number(process.versions.node.split(".")[0]);
   const key = nodeMajor >= 24 ? "exports" : "namedExports";
-  t.mock.module(specifier, { [key]: exportsObj });
+  return { [key]: exportsObj };
 }
 
 // A real Next.js `cookies()` store, minimally reimplemented: `getAll()` plus

@@ -17,7 +17,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { makeCookieJar, makeFakeGoTrueFactory, mockModuleExports } from "./release-gate-01-fake-supabase.mjs";
+import { makeCookieJar, makeFakeGoTrueFactory, mockModuleOptions } from "./release-gate-01-fake-supabase.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
@@ -29,16 +29,16 @@ test("FIXED PATTERN: a single assertRuntimeAuthContinuity() call plus buildAuthU
 
   let createServerClientCalls = 0;
   const realFactory = makeFakeGoTrueFactory();
-  mockModuleExports(t, "next/headers", {
+  t.mock.module("next/headers", mockModuleOptions({
     cookies: async () => jar,
     headers: async () => ({ get: () => "/command-center" }),
-  });
-  mockModuleExports(t, "@supabase/ssr", {
+  }));
+  t.mock.module("@supabase/ssr", mockModuleOptions({
     createServerClient: (...args) => {
       createServerClientCalls += 1;
       return realFactory(...args);
     },
-  });
+  }));
 
   const { assertRuntimeAuthContinuity } = await import("../../src/lib/auth/runtime-auth-continuity.ts");
   const { buildAuthUserContext } = await import("../../src/lib/auth.ts");

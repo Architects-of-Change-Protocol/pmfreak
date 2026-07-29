@@ -50,7 +50,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { makeCookieJar, makeFakeGoTrueFactory, mockModuleExports } from "./release-gate-01-fake-supabase.mjs";
+import { makeCookieJar, makeFakeGoTrueFactory, mockModuleOptions } from "./release-gate-01-fake-supabase.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
@@ -60,11 +60,11 @@ test("PRE-FIX PATTERN: assertRuntimeAuthContinuity() followed by a second, indep
   jar.seed("sb-access-token", "access-1-expired");
   jar.seed("sb-refresh-token", "refresh-1");
 
-  mockModuleExports(t, "next/headers", {
+  t.mock.module("next/headers", mockModuleOptions({
     cookies: async () => jar,
     headers: async () => ({ get: (name) => (name === "x-pathname" ? "/command-center" : null) }),
-  });
-  mockModuleExports(t, "@supabase/ssr", { createServerClient: makeFakeGoTrueFactory() });
+  }));
+  t.mock.module("@supabase/ssr", mockModuleOptions({ createServerClient: makeFakeGoTrueFactory() }));
 
   const { assertRuntimeAuthContinuity } = await import("../../src/lib/auth/runtime-auth-continuity.ts");
   const { getAuthUser, requireAuthUser } = await import("../../src/lib/auth.ts");
