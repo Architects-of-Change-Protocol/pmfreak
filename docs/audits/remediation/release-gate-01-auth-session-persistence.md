@@ -219,6 +219,30 @@ Unchanged from before, for every context except the one that was broken:
 
 No migration required or made — this is application-code-only.
 
+## 12b. Test-Count Reconciliation (12,873 baseline → 12,867 reported pass)
+
+The PR description's original validation table was authored in an environment with real local Postgres available, producing `12,873` baseline / `0` skipped. This environment (and CI) has no local Postgres, so the reconciliation below re-measures the baseline the same way, in the same environment, for a true apples-to-apples comparison — not just quoting the old number.
+
+`origin/main` @ `58de7dae8ca8e98f7da4a5c76349c17ae837110a`, this environment, `npx tsx --test tests/*.test.mjs tests/*.test.ts`:
+
+| | Files | Total | Pass | Fail | Skip |
+|---|---|---|---|---|---|
+| Baseline (origin/main, re-measured here) | 476 | 12,873 | 12,856 | 0 | 17 |
+
+All 17 skips are pre-existing, in a single file — `tests/pmf-004-default-pmo-command-center-idempotency.test.mjs` (added in PR #524, well before this branch) — each gated by `{ skip: !DB_AVAILABLE && SKIP_REASON }`, where `SKIP_REASON` is `"No usable local Postgres for PMF-004 concurrency tests ... Disclosed as residual, environment-dependent coverage in the PMF-004 remediation record"`. Confirmed identical (same 17, same reason) running `origin/main`'s own unmodified code in this same environment — this PR did not cause, and could not have prevented, these skips.
+
+This branch (135cc9a), split `npm test` invocation:
+
+| Invocation | Files | Total | Pass | Fail | Skip |
+|---|---|---|---|---|---|
+| `tsx --test tests/*.test.mjs tests/*.test.ts` | 477 (476 baseline + 1 new: `tests/release-gate-01-auth-session-persistence.test.mjs`) | 12,882 | 12,865 | 0 | 17 |
+| `tsx --experimental-test-module-mocks --test tests/module-mocks/*.test.mjs` | 2 (both new) | 2 | 2 | 0 | 0 |
+| **Combined** | **479** | **12,884** | **12,867** | **0** | **17** |
+
+Reconciliation: `12,884 − 12,873 = 11` new tests added (9 in `tests/release-gate-01-auth-session-persistence.test.mjs`, 2 in `tests/module-mocks/`), all passing, 0 skipped, 0 failed. The skip count (17) is unchanged from baseline — same file, same reason, same count. There is no set of "six tests" that stopped running or lost coverage: `12,873 − 12,867 = 6` is the arithmetic difference between the *pass* counts of two runs measured under different Postgres-availability assumptions (the original table's 0-skip baseline vs. this environment's 17-skip baseline), not six tests that disappeared — it resolves to `17 (pre-existing, unrelated skips) − 11 (new, all passing) = 6`. Every test that executes passes; total discovered/executed tests increased by 11, not decreased.
+
+Files outside both `npm test` globs, confirmed pre-existing and covered elsewhere, not newly excluded by the split: `tests/compliance/compliance-scripts.test.mjs` (pre-existing since PR #524, run via its own `npm run compliance:test` / `.github/workflows/ip-compliance.yml`, never matched by the original single-invocation `tests/*.test.mjs tests/*.test.ts` glob either — unaffected by this PR's invocation split).
+
 ## 13. Runtime Verification
 
 **Not yet performed as of this record.** This correction has not been deployed; no preview URL exists yet to verify against. Per the release-gate corrective protocol, runtime UAT of this specific fix (repeating the exact original reproduction sequence against a deployed preview of this branch) must happen before this hotfix — or Release Gate 01 itself — can be marked verified. See the PR for tracking.
