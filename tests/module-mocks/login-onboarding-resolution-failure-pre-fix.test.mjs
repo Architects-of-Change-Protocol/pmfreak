@@ -34,6 +34,16 @@
  * each file in its own child process, and `t.mock.module()`'s effect on a
  * module that a PRIOR test in the same process already imported (and
  * therefore already resolved/cached) does not apply retroactively.
+ *
+ * `resolveCanonicalWorkspace` is used real and unmocked here — it throws on
+ * its own via `createSupabaseServiceRoleClient()` when
+ * `SUPABASE_SERVICE_ROLE_KEY` isn't set (deliberately left unset), which is
+ * both a faithful, real reproduction (this is the exact failure verified
+ * live against a running `next dev` server — see the audit doc) and avoids
+ * `t.mock.module()` targeting a `@/`-aliased internal module — unlike bare
+ * package specifiers such as `next/headers`, `import.meta.resolve()` does
+ * not reliably route those through tsx's path-alias resolution in CI, in a
+ * way not reproducible locally.
  */
 
 import test from "node:test";
@@ -42,6 +52,7 @@ import { makeCookieJar, mockModuleOptions, resolveMockTarget } from "./release-g
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Models signInWithPassword succeeding and writing a session cookie via the
 // route handler's real cookies() adapter — Route Handlers CAN persist
@@ -69,10 +80,6 @@ test("PRE-FIX-STYLE FAILURE: an uncaught resolveOnboardingState()/resolveCanonic
   const jar = makeCookieJar({ writesSucceed: true }); // Route Handler context: writes succeed
   t.mock.module(resolveMockTarget("next/headers"), mockModuleOptions({ cookies: async () => jar, headers: async () => ({ get: () => null }) }));
   t.mock.module(resolveMockTarget("@supabase/ssr"), mockModuleOptions({ createServerClient: makeSignInOnlyGoTrueFactory() }));
-  t.mock.module(resolveMockTarget("@/lib/workspaces/canonical-workspace-resolver"), mockModuleOptions({
-    resolveCanonicalWorkspace: async () => { throw new Error("simulated: service role env missing / DB unreachable"); },
-  }));
-  t.mock.module(resolveMockTarget("@/lib/auth/resolve-onboarding-state"), mockModuleOptions({ resolveOnboardingState: async () => "active" }));
 
   // The exact unguarded call sequence that was live in
   // src/app/api/login/route.ts on origin/main and every commit of this PR
@@ -94,7 +101,7 @@ test("PRE-FIX-STYLE FAILURE: an uncaught resolveOnboardingState()/resolveCanonic
       // awaited FIRST, inline, before resolveOnboardingState is even called.
       await resolveOnboardingState(authUser, (await resolveCanonicalWorkspace(authUser.id)).workspaceId);
     },
-    /simulated: service role env missing/,
+    /Missing Supabase service role environment variables/,
     "this is the exact unguarded call shape that was live in src/app/api/login/route.ts — it throws uncaught",
   );
   // The real, live Next.js contract (verified separately against a running

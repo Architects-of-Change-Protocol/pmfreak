@@ -6,10 +6,18 @@
  *
  * Exercises the real, unmodified `POST` export of
  * `src/app/api/login/route.ts` directly, with a real
- * `createSupabaseServerClient()`/cookie-adapter chain — only the true I/O
- * boundary is mocked (`next/headers`, `@supabase/ssr`, and, to
- * deterministically trigger the failure mode without a real database,
- * `resolveOnboardingState`/`resolveCanonicalWorkspace`).
+ * `createSupabaseServerClient()`/cookie-adapter chain and the real, also
+ * unmocked `resolveCanonicalWorkspace()` — only the true I/O boundary is
+ * mocked (`next/headers`, `@supabase/ssr`). `resolveCanonicalWorkspace()`
+ * throws on its own, for real: it calls `createSupabaseServiceRoleClient()`,
+ * which throws synchronously ("Missing Supabase service role environment
+ * variables") when `SUPABASE_SERVICE_ROLE_KEY` isn't set — deliberately
+ * left unset here, exactly reproducing the missing-service-role-key
+ * failure this fix was verified against live (see the audit doc). This
+ * also sidesteps `t.mock.module()` targeting a `@/`-aliased internal
+ * module — unlike bare package specifiers such as `next/headers`,
+ * `import.meta.resolve()` does not reliably route those through tsx's
+ * path-alias resolution in CI, in a way not reproducible locally.
  */
 
 import test from "node:test";
@@ -18,6 +26,7 @@ import { makeCookieJar, mockModuleOptions, resolveMockTarget } from "./release-g
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 function makeSignInOnlyGoTrueFactory() {
   return function createServerClient(_url, _anonKey, { cookies }) {
@@ -42,10 +51,6 @@ test("FIXED: POST /api/login redirects with the session cookie intact even when 
   const jar = makeCookieJar({ writesSucceed: true });
   t.mock.module(resolveMockTarget("next/headers"), mockModuleOptions({ cookies: async () => jar, headers: async () => ({ get: () => null }) }));
   t.mock.module(resolveMockTarget("@supabase/ssr"), mockModuleOptions({ createServerClient: makeSignInOnlyGoTrueFactory() }));
-  t.mock.module(resolveMockTarget("@/lib/workspaces/canonical-workspace-resolver"), mockModuleOptions({
-    resolveCanonicalWorkspace: async () => { throw new Error("simulated: service role env missing / DB unreachable"); },
-  }));
-  t.mock.module(resolveMockTarget("@/lib/auth/resolve-onboarding-state"), mockModuleOptions({ resolveOnboardingState: async () => "active" }));
 
   const { POST } = await import("../../src/app/api/login/route.ts");
 
