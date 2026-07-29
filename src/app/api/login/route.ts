@@ -5,6 +5,7 @@ import { isSafeContinuationRoute } from "@/lib/auth/validate-continuation-route"
 import { debugAuthDecision } from "@/lib/auth/auth-decision-debug";
 import { resolveOnboardingState } from "@/lib/auth/resolve-onboarding-state";
 import { resolveCanonicalWorkspace } from "@/lib/workspaces/canonical-workspace-resolver";
+import { logContinuityIssue } from "@/lib/auth/auth-continuity-diagnostics";
 
 export async function POST(request: Request) {
   const requestUrl = new URL(request.url);
@@ -35,9 +36,30 @@ export async function POST(request: Request) {
   // session-visibility verification" in
   // docs/audits/remediation/pmf-001-002-canonical-onboarding-honest-activation.md.
   const authUser = data.user ? { id: data.user.id, email: data.user.email ?? null } : null;
-  const onboardingState = authUser
-    ? await resolveOnboardingState(authUser, (await resolveCanonicalWorkspace(authUser.id)).workspaceId)
-    : undefined;
+  // signInWithPassword above already wrote the session cookie via this
+  // request's cookies() adapter. An uncaught exception anywhere after that
+  // point — before this function returns — discards that write entirely:
+  // Next.js only merges queued cookie mutations onto a response the route
+  // handler actually returns, never onto its own generated error response
+  // (verified directly against this Next.js version). resolveOnboardingState/
+  // resolveCanonicalWorkspace are non-critical routing enrichment (they only
+  // pick which authenticated page to land on), so a failure here must never
+  // be allowed to silently destroy an already-established, genuinely valid
+  // session — fall back to the same "state unknown" path already used when
+  // there's no authUser at all, which resolvePostAuthDestination sends to
+  // /projects/new, a safe default for any authenticated user.
+  let onboardingState;
+  if (authUser) {
+    try {
+      onboardingState = await resolveOnboardingState(authUser, (await resolveCanonicalWorkspace(authUser.id)).workspaceId);
+    } catch (err) {
+      logContinuityIssue(
+        "auth",
+        { code: "post_login_onboarding_resolution_failed", severity: "warn", message: err instanceof Error ? err.message : String(err) },
+        { userId: authUser.id },
+      );
+    }
+  }
   const decision = resolvePostAuthDestination({
     isAuthenticated: Boolean(data.user),
     onboardingState,
