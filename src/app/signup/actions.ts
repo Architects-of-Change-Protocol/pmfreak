@@ -9,6 +9,7 @@ import { resolveOnboardingState } from "@/lib/auth/resolve-onboarding-state";
 import { resolveCanonicalWorkspace } from "@/lib/workspaces/canonical-workspace-resolver";
 import { buildSignupProfile } from "./build-signup-profile";
 import { buildAbuseKey, enforceAbuseLimit, getClientIpFromHeaders } from "@/lib/security/abuse-protection";
+import { logContinuityIssue } from "@/lib/auth/auth-continuity-diagnostics";
 
 export async function signupAction(formData: FormData) {
   const { email, password, fullName, companyName, requestedRoute, role } = buildSignupProfile(formData);
@@ -68,9 +69,32 @@ export async function signupAction(formData: FormData) {
   // resolveOnboardingState/resolveCanonicalWorkspace both use the
   // service-role client (keyed by userId), independent of session cookies.
   const authUser = data.user ? { id: data.user.id, email: data.user.email ?? null } : null;
-  const onboardingState = authUser
-    ? await resolveOnboardingState(authUser, (await resolveCanonicalWorkspace(authUser.id)).workspaceId)
-    : undefined;
+  // signUp above already established the session (cookies were queued via
+  // this request's cookies() adapter, and data.session is confirmed
+  // present above). An uncaught exception anywhere after that point —
+  // before this function's own redirect() call — would discard that
+  // write entirely, same hazard as src/app/api/login/route.ts (see
+  // docs/audits/remediation/release-gate-01-auth-session-persistence.md
+  // §13a): resolveOnboardingState/resolveCanonicalWorkspace only pick
+  // which authenticated page to land on, never establish or validate the
+  // session itself, so a failure here must never be allowed to destroy an
+  // already-established, genuinely valid signup. Fall back to the same
+  // "state unknown" path already used when there's no authUser at all,
+  // which resolvePostAuthDestination sends to /projects/new — never
+  // claims onboarding is complete, never fabricates workspace/project
+  // state.
+  let onboardingState;
+  if (authUser) {
+    try {
+      onboardingState = await resolveOnboardingState(authUser, (await resolveCanonicalWorkspace(authUser.id)).workspaceId);
+    } catch (err) {
+      logContinuityIssue(
+        "auth",
+        { code: "post_signup_onboarding_resolution_failed", severity: "warn", message: err instanceof Error ? err.message : String(err) },
+        { userId: authUser.id },
+      );
+    }
+  }
   const decision = resolvePostAuthDestination({
     isAuthenticated: Boolean(data.user),
     onboardingState,

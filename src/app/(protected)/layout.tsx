@@ -1,4 +1,4 @@
-import { isFounderOrInternalUser, requireAuthUser } from "@/lib/auth";
+import { isFounderOrInternalUser, buildAuthUserContext } from "@/lib/auth";
 import { assertRuntimeAuthContinuity } from "@/lib/auth/runtime-auth-continuity";
 import { resolveWriteWorkspace } from "@/lib/workspaces/resolve-write-workspace";
 import { OperationalShell } from "@/components/pmfreak/operational-shell";
@@ -22,7 +22,23 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     redirect(`${decision.destination}?next=${encodeURIComponent(nextParam)}`);
   }
 
-  const user = await requireAuthUser();
+  // Build the AuthUserContext directly from the user assertRuntimeAuthContinuity
+  // already resolved above — deliberately NOT a second requireAuthUser()/
+  // getAuthUser() call. A second, independent getUser() call in the same
+  // request can itself trigger a Supabase token refresh; this app's
+  // Server-Component Supabase client (src/lib/supabase/server.ts) cannot
+  // persist a refreshed session, so calling getUser() twice risked silently
+  // consuming/rotating the refresh token on the second call while the first
+  // call's replacement was never written back to cookies — poisoning the
+  // session for every subsequent request. See
+  // docs/audits/remediation/release-gate-01-auth-session-persistence.md.
+  const user = continuity.user ? buildAuthUserContext(continuity.user) : null;
+  if (!user) {
+    const headersList = await headers();
+    const currentPath = headersList.get("x-pathname") ?? "/command-center";
+    const nextParam = encodeURIComponent(currentPath || "/command-center");
+    redirect(`/login?next=${nextParam}`);
+  }
   const resolvedWorkspace = await resolveWriteWorkspace(user.id);
   console.log("[protected-layout] workspace resolution: workspaceId:", resolvedWorkspace.workspaceId, "bootstrapped:", resolvedWorkspace.bootstrapped);
 
