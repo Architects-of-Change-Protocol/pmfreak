@@ -35,13 +35,22 @@
  * Sharing a process with another test that also exercises this import
  * chain would silently pin both to whichever mock ran first.
  *
+ * This file lives under tests/module-mocks/ (not tests/) and is run via a
+ * dedicated `npm test` step (see package.json) that adds Node's
+ * `--experimental-test-module-mocks` flag, scoped to only this directory.
+ * That flag isn't needed by, and is deliberately kept off, the other ~500
+ * pre-existing test files' invocation — it changes Node's ESM loader
+ * behavior process-wide for every file it's passed to, and there's no
+ * reason for files that don't call `mock.module`/`t.mock.module` to run
+ * under an experimental loader hook they don't use.
+ *
  * See docs/audits/remediation/release-gate-01-auth-session-persistence.md
  * for the full root-cause writeup this test corroborates behaviorally.
  */
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { makeCookieJar, makeFakeGoTrueFactory } from "./helpers/release-gate-01-fake-supabase.mjs";
+import { makeCookieJar, makeFakeGoTrueFactory, mockModuleExports } from "./release-gate-01-fake-supabase.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
@@ -51,16 +60,14 @@ test("PRE-FIX PATTERN: assertRuntimeAuthContinuity() followed by a second, indep
   jar.seed("sb-access-token", "access-1-expired");
   jar.seed("sb-refresh-token", "refresh-1");
 
-  t.mock.module("next/headers", {
-    namedExports: {
-      cookies: async () => jar,
-      headers: async () => ({ get: (name) => (name === "x-pathname" ? "/command-center" : null) }),
-    },
+  mockModuleExports(t, "next/headers", {
+    cookies: async () => jar,
+    headers: async () => ({ get: (name) => (name === "x-pathname" ? "/command-center" : null) }),
   });
-  t.mock.module("@supabase/ssr", { namedExports: { createServerClient: makeFakeGoTrueFactory() } });
+  mockModuleExports(t, "@supabase/ssr", { createServerClient: makeFakeGoTrueFactory() });
 
-  const { assertRuntimeAuthContinuity } = await import("../src/lib/auth/runtime-auth-continuity.ts");
-  const { getAuthUser, requireAuthUser } = await import("../src/lib/auth.ts");
+  const { assertRuntimeAuthContinuity } = await import("../../src/lib/auth/runtime-auth-continuity.ts");
+  const { getAuthUser, requireAuthUser } = await import("../../src/lib/auth.ts");
 
   // Call #1: the real production zero-arg assertRuntimeAuthContinuity(),
   // exactly as (protected)/layout.tsx invokes it.

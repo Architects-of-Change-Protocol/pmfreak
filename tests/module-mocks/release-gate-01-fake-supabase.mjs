@@ -8,6 +8,22 @@
  * cached `@supabase/ssr` import).
  */
 
+// node:test's mock.module() renamed its exports-object option between Node
+// major versions: Node 22.x (through at least 22.22.2) only recognizes
+// `namedExports`; Node 24.x recognizes `exports` and only *deprecates*
+// `namedExports` (still works, with a warning) — except passing BOTH keys
+// at once throws ERR_INVALID_ARG_VALUE on Node 24. Since this repo's local
+// dev, and its CI runner (which silently upgrades a pinned Node 20 to
+// whatever the runner's current default is), can each land on either major,
+// pick the key the running Node actually understands instead of hardcoding
+// one and letting the other silently no-op (Node 22 given `exports` doesn't
+// throw — it just never applies the mock).
+export function mockModuleExports(t, specifier, exportsObj) {
+  const nodeMajor = Number(process.versions.node.split(".")[0]);
+  const key = nodeMajor >= 24 ? "exports" : "namedExports";
+  t.mock.module(specifier, { [key]: exportsObj });
+}
+
 // A real Next.js `cookies()` store, minimally reimplemented: `getAll()` plus
 // a `set()` that either persists (Server Action / Route Handler / real
 // middleware) or throws exactly as Next does in a Server Component render

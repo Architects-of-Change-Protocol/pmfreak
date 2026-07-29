@@ -1,6 +1,6 @@
 /**
  * Release Gate 01 — companion to
- * tests/release-gate-01-production-entrypoint-pre-fix-pattern.test.mjs.
+ * tests/module-mocks/release-gate-01-production-entrypoint-pre-fix-pattern.test.mjs.
  * Read that file's header first for why this is a separate `node --test`
  * file rather than a second `test()` alongside the pre-fix one (short
  * version: process isolation is required for `t.mock.module("@supabase/ssr",
@@ -17,7 +17,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { makeCookieJar, makeFakeGoTrueFactory } from "./helpers/release-gate-01-fake-supabase.mjs";
+import { makeCookieJar, makeFakeGoTrueFactory, mockModuleExports } from "./release-gate-01-fake-supabase.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
@@ -29,23 +29,19 @@ test("FIXED PATTERN: a single assertRuntimeAuthContinuity() call plus buildAuthU
 
   let createServerClientCalls = 0;
   const realFactory = makeFakeGoTrueFactory();
-  t.mock.module("next/headers", {
-    namedExports: {
-      cookies: async () => jar,
-      headers: async () => ({ get: () => "/command-center" }),
-    },
+  mockModuleExports(t, "next/headers", {
+    cookies: async () => jar,
+    headers: async () => ({ get: () => "/command-center" }),
   });
-  t.mock.module("@supabase/ssr", {
-    namedExports: {
-      createServerClient: (...args) => {
-        createServerClientCalls += 1;
-        return realFactory(...args);
-      },
+  mockModuleExports(t, "@supabase/ssr", {
+    createServerClient: (...args) => {
+      createServerClientCalls += 1;
+      return realFactory(...args);
     },
   });
 
-  const { assertRuntimeAuthContinuity } = await import("../src/lib/auth/runtime-auth-continuity.ts");
-  const { buildAuthUserContext } = await import("../src/lib/auth.ts");
+  const { assertRuntimeAuthContinuity } = await import("../../src/lib/auth/runtime-auth-continuity.ts");
+  const { buildAuthUserContext } = await import("../../src/lib/auth.ts");
 
   // This is byte-for-byte the fixed (protected)/layout.tsx contract: one
   // continuity call, then a pure mapping of its already-resolved user —

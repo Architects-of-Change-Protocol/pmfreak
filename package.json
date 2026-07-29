@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "npm run lint:aoc-boundaries && eslint",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --experimental-test-module-mocks --test tests/*.test.mjs tests/*.test.ts",
+    "test": "tsx --test tests/*.test.mjs tests/*.test.ts && tsx --experimental-test-module-mocks --test tests/module-mocks/*.test.mjs",
     "lint:aoc-boundaries": "node scripts/lint-aoc-boundaries.mjs",
     "check:aoc-packages": "node scripts/check-aoc-packages.mjs",
     "check:aoc-deps": "node scripts/check-aoc-dependency-direction.mjs",
