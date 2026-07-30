@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { logContinuityIssue } from "@/lib/auth/auth-continuity-diagnostics";
 import { cookies, headers } from "next/headers";
+import { cache } from "react";
 import type { MinimalSupabaseUser } from "@/lib/auth";
 
 export type RuntimeAuthContinuityReport = {
@@ -55,9 +56,31 @@ const realDeps = (): RuntimeAuthContinuityDeps => ({
   },
 });
 
+// Real (no injected deps) callers share one memoized result per request via
+// React's cache() — Next.js scopes cache() to a single request's render, so
+// this does not leak across requests/users. Without this, a second real
+// caller in the same request (e.g. a nested page reading the resolved role
+// for a UI permission gate, in addition to (protected)/layout.tsx's own
+// call) would make its own independent getUser() call — precisely the
+// uncoordinated-double-call hazard already fixed once for the layout itself
+// (see docs/audits/remediation/release-gate-01-auth-session-persistence.md)
+// and must never be reintroduced by a second, different call site. Test
+// callers that inject deps are deliberately NOT cached — cache() keys on
+// referential identity, and every test call already runs in its own fresh
+// invocation, so this has no effect on test behavior or isolation.
+const cachedRealAssertRuntimeAuthContinuity = cache((): Promise<RuntimeAuthContinuityReport> =>
+  runAssertRuntimeAuthContinuity(realDeps())
+);
+
 export async function assertRuntimeAuthContinuity(deps?: Partial<RuntimeAuthContinuityDeps>): Promise<RuntimeAuthContinuityReport> {
-  const real = realDeps();
-  const { getUser, getSession, getPathname, getAuthCookieNames } = { ...real, ...deps };
+  if (!deps) {
+    return cachedRealAssertRuntimeAuthContinuity();
+  }
+  return runAssertRuntimeAuthContinuity({ ...realDeps(), ...deps });
+}
+
+async function runAssertRuntimeAuthContinuity(depsInput: RuntimeAuthContinuityDeps): Promise<RuntimeAuthContinuityReport> {
+  const { getUser, getSession, getPathname, getAuthCookieNames } = depsInput;
 
   const pathname = await getPathname();
   const authCookieNames = await getAuthCookieNames();

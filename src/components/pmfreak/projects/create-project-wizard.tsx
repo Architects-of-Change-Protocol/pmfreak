@@ -505,6 +505,7 @@ function StepBrainActivation({
   discovery,
   activating,
   contextReady,
+  canActivateBrain,
   saveError,
   saveFailureClass,
   saveFailureDetail,
@@ -517,6 +518,7 @@ function StepBrainActivation({
   discovery: IntelligenceDiscovery;
   activating: boolean;
   contextReady: boolean;
+  canActivateBrain: boolean;
   saveError: string | null;
   saveFailureClass: "recoverable_failure" | "fatal_failure" | null;
   saveFailureDetail: string | null;
@@ -525,6 +527,28 @@ function StepBrainActivation({
   onFixConfig: () => void;
 }) {
   const humanize = (v: string) => v.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+  // Server-side authorization (save-project-onboarding.ts's
+  // canActivateProjectBrain check) is the real boundary — this is a UI
+  // courtesy so a viewer never sees an apparently-actionable "Activate
+  // Project Brain" button that the server would always reject. No form
+  // submission, retry, or fix-config affordance is rendered here — there is
+  // nothing this step can do for a viewer except explain why.
+  if (!canActivateBrain) {
+    return (
+      <div className="space-y-6">
+        <div className="mb-7">
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Activate Project Brain</h2>
+        </div>
+        <div role="alert" className="rounded-2xl border border-amber-300/25 bg-amber-400/[0.05] p-5">
+          <p className="text-sm font-semibold text-amber-800">You don&apos;t have permission to activate a Project Brain</p>
+          <p className="mt-2 text-sm leading-relaxed text-zinc-600">
+            Creating a project and activating its Brain requires the owner, admin, or PM role in this workspace. Ask a workspace owner, admin, or PM to create this project, or request an elevated role.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const BRAIN_COMPONENTS = [
     { label: "Project Memory", desc: "Operational context, history, and delivery signals" },
@@ -689,7 +713,7 @@ function StepBrainActivation({
 
 // ─── Main Wizard ───────────────────────────────────────────────────────────────
 
-export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
+export function CreateProjectWizard({ pmoId, canActivateBrain = true }: { pmoId?: string; canActivateBrain?: boolean } = {}) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [errors, setErrors] = useState<string[]>([]);
@@ -775,7 +799,7 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
 
   const handleActivate = async () => {
     const contextReady = hasMinimumContext(identity, delivery);
-    if (!contextReady || activationInFlightRef.current || navigationCommittedRef.current) return;
+    if (!contextReady || !canActivateBrain || activationInFlightRef.current || navigationCommittedRef.current) return;
 
     activationInFlightRef.current = true;
     setActivating(true);
@@ -793,11 +817,28 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
     let result: ProjectSaveResult;
     try {
       result = await saveProjectOnboarding(payload, correlationId, { pmoId: pmoId ?? null });
-    } catch {
-      // Server action transport failure — treat as recoverable
-      setSaveError("A network error occurred. Your draft is preserved. Please try again.");
+    } catch (err) {
+      // The Server Action call itself was rejected (never reached
+      // saveProjectOnboarding's own try/catch, which always returns a typed
+      // ProjectSaveResult and never throws). A genuine offline/DNS/TLS
+      // failure surfaces here as a real TypeError ("Failed to fetch") — that
+      // is the only case honestly labeled a network error. Anything else
+      // (most plausibly: the session expired mid-wizard and middleware
+      // intercepted this submission with a redirect instead of the expected
+      // action-result payload, which Next.js's action runtime cannot parse
+      // and rejects) is a different failure the app cannot fully identify
+      // from here, so it must not be mislabeled "network error" — doing so
+      // previously hid a real session/authorization problem behind a
+      // misleading, unrelated message. See
+      // docs/audits/remediation/release-gate-01-brain-activation-honesty.md.
+      const isGenuineNetworkFailure = err instanceof TypeError;
+      setSaveError(
+        isGenuineNetworkFailure
+          ? "A network error occurred. Your draft is preserved. Please try again."
+          : "We couldn't confirm this action completed. This can happen if your session expired or the request was interrupted. Your draft is preserved — please check you're still signed in, then try again."
+      );
       setSaveFailureClass("recoverable_failure");
-      setSaveFailureDetail("network_error");
+      setSaveFailureDetail(isGenuineNetworkFailure ? "network_error" : "action_transport_error");
       activationInFlightRef.current = false;
       setActivating(false);
       return;
@@ -862,6 +903,7 @@ export function CreateProjectWizard({ pmoId }: { pmoId?: string } = {}) {
             discovery={discovery}
             activating={activating}
             contextReady={contextReady}
+            canActivateBrain={canActivateBrain}
             saveError={saveError}
             saveFailureClass={saveFailureClass}
             saveFailureDetail={saveFailureDetail}

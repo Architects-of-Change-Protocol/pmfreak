@@ -7,8 +7,15 @@ import { resolveWriteWorkspace } from "@/lib/workspaces/resolve-write-workspace"
 import { ensureDefaultPmo, getPmoById } from "@/lib/pmos/pmo-service";
 import { generateAndPersistOperationalGovernanceBrief } from "@/lib/projects/first-insight";
 import { ingestProjectSetupContext } from "@/lib/projects/ingest-project-setup-context";
+import { canActivateProjectBrain } from "@/lib/projects/project-brain-authorization";
 import type { ResolvedWriteWorkspace } from "@/lib/workspaces/resolve-write-workspace";
 import type { ProjectOnboardingPayload } from "./project-onboarding-types";
+
+// Postgres unique_violation. See
+// supabase/migrations/20260901000000_project_onboarding_create_correlation_idempotency.sql —
+// (workspace_id, create_correlation_id) is unique, so a retried submission
+// that already committed hits this code instead of inserting a duplicate row.
+const UNIQUE_VIOLATION = "23505";
 
 export type ProjectSaveResult =
   | { status: "success"; projectId: string; correlationId: string; briefStatus: "generated" | "generation_failed"; briefError?: string }
@@ -133,6 +140,30 @@ export async function saveProjectOnboarding(
       };
     }
 
+    // Authorization boundary: mirrors the DB-level "workspace managers can
+    // manage pmos" RLS policy (owner/admin/pm) that ensureDefaultPmo below
+    // is already subject to. Checked here, before any mutation is attempted,
+    // so a viewer gets one honest, upfront permission denial instead of
+    // passing the (previously ungated) project insert and then hitting an
+    // unexplained RLS rejection creating the PMO underneath it — see
+    // docs/audits/remediation/release-gate-01-brain-activation-honesty.md.
+    if (!canActivateProjectBrain(ensured.role)) {
+      emit("project.create.failed", {
+        correlationId: cid,
+        failureClass: "fatal_failure",
+        reason: "insufficient_permissions",
+        userId: user.id,
+        workspaceId: ensured.workspaceId,
+        role: ensured.role,
+      });
+      return {
+        status: "fatal_failure",
+        error: "Your workspace role does not have permission to create projects or activate a Project Brain. Ask a workspace owner, admin, or PM.",
+        failureClass: "insufficient_permissions",
+        correlationId: cid,
+      };
+    }
+
     const supabase = await createSupabaseServerClient();
 
     // Attach the project to its PMO: an explicit selection (e.g. "New
@@ -156,9 +187,35 @@ export async function saveProjectOnboarding(
         description: payload.deliveryContext.problemStatement || null,
         status: "active",
         onboarding_payload: payload as unknown as Record<string, unknown>,
+        create_correlation_id: cid,
       })
       .select("id")
       .single<{ id: string }>();
+
+    if (error?.code === UNIQUE_VIOLATION) {
+      // A prior attempt with this exact correlationId already committed —
+      // the wizard's correlationId is generated once per mount and reused
+      // by Retry (see create-project-wizard.tsx), so this can only happen
+      // when the client never received/processed that earlier success.
+      // Idempotent: return the already-persisted project instead of
+      // inserting a duplicate.
+      const { data: existing } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("workspace_id", ensured.workspaceId)
+        .eq("create_correlation_id", cid)
+        .single<{ id: string }>();
+
+      if (existing?.id) {
+        emit("project.create.idempotent_replay", {
+          correlationId: cid,
+          projectId: existing.id,
+          userId: user.id,
+          workspaceId: ensured.workspaceId,
+        });
+        return { status: "success", projectId: existing.id, correlationId: cid, briefStatus: "generated" };
+      }
+    }
 
     if (error || !data?.id) {
       emit("project.create.failed", {
@@ -275,6 +332,16 @@ export async function saveProjectOnboarding(
         reason: message,
       });
 
+      // Tracked so the returned message never claims the rollback succeeded
+      // when it didn't — previously this branch always said "the project has
+      // been removed" regardless of whether the delete itself succeeded,
+      // which could tell a user a row was gone when it was still there. If
+      // the rollback genuinely fails, the row survives with its
+      // create_correlation_id intact, so a subsequent Retry (same
+      // correlationId) hits the idempotency unique constraint above and
+      // correctly resolves to that same, real project instead of erroring
+      // again or creating a duplicate.
+      let rollbackSucceeded = false;
       try {
         const supabase = await createSupabaseServerClient();
         const { error: rbErr } = await supabase
@@ -289,6 +356,7 @@ export async function saveProjectOnboarding(
             detail: rbErr.message,
           });
         } else {
+          rollbackSucceeded = true;
           emit("project.create.rollback.completed", {
             correlationId: cid,
             projectId: insertedProjectId,
@@ -304,7 +372,9 @@ export async function saveProjectOnboarding(
 
       return {
         status: "recoverable_failure",
-        error: "Project initialization failed. The project has been removed. Please try again.",
+        error: rollbackSucceeded
+          ? "Project initialization failed. The project has been removed. Please try again."
+          : "Project initialization failed. Please try again — retrying will resume this same project rather than creating a duplicate.",
         failureClass: "downstream_failure",
         correlationId: cid,
       };

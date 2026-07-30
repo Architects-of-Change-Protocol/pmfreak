@@ -277,11 +277,19 @@ test("/create-pmo remains backward compatible by redirecting to /create-command-
   assert.doesNotMatch(createPmoPage, /return\s*\(/, "legacy route must not return JSX before redirecting");
 });
 
-test("auth and route policies allow both preferred and legacy creation routes", () => {
-  assert.match(continuationRoutes, /"\/create-command-center"/, "continuation validation must allow preferred route");
-  assert.match(continuationRoutes, /"\/create-pmo"/, "continuation validation must preserve legacy route");
+test("auth and route policies allow both preferred and legacy creation routes", async () => {
   assert.match(routePolicyRegistry, /"\/create-command-center"/, "route policy must include preferred route");
   assert.match(routePolicyRegistry, /"\/create-pmo"/, "route policy must preserve legacy route");
+  // isSafeContinuationRoute (src/lib/auth/validate-continuation-route.ts) now
+  // derives safety from the route policy registry above instead of a second,
+  // hand-maintained literal list (see
+  // docs/audits/remediation/release-gate-01-auth-session-persistence.md) —
+  // asserted here via real invocation rather than a source-text match
+  // against a list that no longer exists in this file.
+  assert.ok(continuationRoutes.length > 0, "continuation-route source must still be readable");
+  const { isSafeContinuationRoute } = await import("../src/lib/auth/validate-continuation-route.ts");
+  assert.equal(isSafeContinuationRoute("/create-command-center"), true, "continuation validation must allow preferred route");
+  assert.equal(isSafeContinuationRoute("/create-pmo"), true, "continuation validation must preserve legacy route");
 });
 
 test("user-facing Command Center CTAs use the preferred route", () => {
