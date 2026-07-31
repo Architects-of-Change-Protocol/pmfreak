@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { OperationalSummary } from "@/lib/operational-flow/types";
-import type { Agent, ChatMessage, DrawerContent, MemoryItem, NeedsYouItem, ProjectListItem } from "../../presentation/command-center/types";
+import type { Agent, ChatMessage, DrawerContent, MemoryItem, NeedsYouItem, ProjectListItem, RepositoryItem } from "../../presentation/command-center/types";
 import {
   deriveAgents,
   deriveNeedsYou,
@@ -96,14 +96,14 @@ function buildRealMessages(project: ProjectListItem, needsYou: NeedsYouItem[]): 
 function MobileOverlay({ open, onClose, side, children }: { open: boolean; onClose: () => void; side: "left" | "right"; children: React.ReactNode }) {
   return (
     <div className={`fixed inset-0 z-30 xl:hidden ${open ? "" : "pointer-events-none"}`} aria-hidden={!open}>
-      <div onClick={onClose} className={`absolute inset-0 bg-slate-900/20 transition-opacity duration-200 ${open ? "opacity-100" : "opacity-0"}`} />
+      <div onClick={onClose} className={`absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-200 ${open ? "opacity-100" : "opacity-0"}`} />
       <div
-        className={`absolute top-0 h-full w-72 max-w-[85vw] bg-white shadow-2xl transition-transform duration-200 ${
+        className={`absolute top-0 h-full w-72 max-w-[85vw] bg-[#0a0a0d] shadow-2xl transition-transform duration-200 ${
           side === "left" ? `left-0 ${open ? "translate-x-0" : "-translate-x-full"}` : `right-0 ${open ? "translate-x-0" : "translate-x-full"}`
         }`}
       >
         <div className="flex justify-end p-2">
-          <button type="button" onClick={onClose} aria-label="Close panel" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
+          <button type="button" onClick={onClose} aria-label="Close panel" className="rounded-lg p-1.5 text-zinc-500 hover:bg-white/5">
             <CloseIcon className="h-4 w-4" />
           </button>
         </div>
@@ -278,6 +278,15 @@ export function CommandCenterLayout({
     });
   };
 
+  const handleTopBarSourceClick = (source: RepositoryItem) => {
+    setDrawerContent({
+      title: source.label,
+      why: "This is one of the sources of truth currently attached to this conversation.",
+      evidence: [`${source.count ?? 0} ${source.label.toLowerCase()} recorded for this project`],
+      nextStep: "Open the project repository to review these in full.",
+    });
+  };
+
   const handleNeedsYouSelect = (item: NeedsYouItem) => setDrawerContent(item.drawer);
   const handleAgentSelect = (agent: Agent) => setDrawerContent(agent.drawer);
 
@@ -295,17 +304,20 @@ export function CommandCenterLayout({
     <div
       data-build="command-center-light-v2"
       data-shell="pmfreak-light-command-center"
-      className="overflow-hidden rounded-[28px] border border-slate-200 bg-[#FCFBF9] shadow-[0_40px_90px_-60px_rgba(15,23,42,0.35)]"
+      className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0a0a0d] shadow-[0_40px_90px_-60px_rgba(0,0,0,0.7)]"
     >
       <ProjectTopBar
         project={selectedProject}
+        sources={repositoryItems}
         onOpenProjects={() => setLeftOpen(true)}
         onOpenAgents={() => setRightOpen(true)}
+        onSourceClick={handleTopBarSourceClick}
+        onAttach={() => setNotesOpen(true)}
         lastUpdatedLabel={lastUpdatedLabel}
       />
 
       <div className="flex min-h-[600px] xl:h-[calc(100vh-190px)]">
-        <aside className="hidden w-[280px] shrink-0 border-r border-slate-200 bg-white/60 xl:block">
+        <aside className="hidden w-[280px] shrink-0 border-r border-white/10 bg-white/[0.015] xl:block">
           <ProjectSidebar
             workspaceName={workspaceName}
             projects={projects}
@@ -319,7 +331,7 @@ export function CommandCenterLayout({
 
         <main className="flex min-w-0 flex-1 flex-col">
           {notesOpen && (
-            <div className="border-b border-slate-200 p-4">
+            <div className="border-b border-white/10 p-4">
               <VaultIntakePanel
                 workspaceId={workspaceId}
                 projectId={selectedProject.id}
@@ -339,7 +351,7 @@ export function CommandCenterLayout({
           </div>
         </main>
 
-        <aside className="hidden w-[320px] shrink-0 space-y-6 overflow-y-auto border-l border-slate-200 bg-white/60 p-4 xl:block">
+        <aside className="hidden w-[320px] shrink-0 space-y-6 overflow-y-auto border-l border-white/10 bg-white/[0.015] p-4 xl:block">
           <WorkspaceOnboardingPanel surface="dashboard" />
           <NeedsYouQueue items={needsYouItems} onSelect={handleNeedsYouSelect} loading={flowLoading} onAddNotes={() => setNotesOpen(true)} />
           <AgentDock agents={agentItems} onSelect={handleAgentSelect} loading={flowLoading} onAddContext={() => setNotesOpen(true)} />

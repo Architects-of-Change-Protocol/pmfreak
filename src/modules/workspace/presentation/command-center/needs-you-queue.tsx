@@ -18,7 +18,7 @@ export function NeedsYouQueue({
   return (
     <div>
       <div className="flex items-center justify-between gap-2 px-1">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Needs You</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Needs You</p>
       </div>
       {loading && items.length === 0 && <SectionLoadingState label="Checking for open decisions..." />}
       {!loading && items.length === 0 && (
@@ -35,9 +35,9 @@ export function NeedsYouQueue({
             <button
               type="button"
               onClick={() => onSelect(item)}
-              className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:shadow-[0_2px_10px_rgba(15,23,42,0.05)]"
+              className="flex w-full items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
             >
-              <span className="truncate text-sm text-slate-700">{item.title}</span>
+              <span className="truncate text-sm text-zinc-200">{item.title}</span>
               <StatusBadge tone={item.badge.tone}>{item.badge.label}</StatusBadge>
             </button>
           </li>
