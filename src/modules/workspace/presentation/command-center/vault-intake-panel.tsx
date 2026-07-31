@@ -65,15 +65,15 @@ export function VaultIntakePanel({
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_2px_10px_rgba(15,23,42,0.05)]">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 shadow-[0_2px_20px_rgba(0,0,0,0.2)]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-slate-800">Add project notes</p>
-          <p className="mt-0.5 text-xs text-slate-400">
+          <p className="text-sm font-semibold text-zinc-100">Add project notes</p>
+          <p className="mt-0.5 text-xs text-zinc-500">
             Paste meeting notes, an email, or an update. I&apos;ll look for risks, commitments, and decisions.
           </p>
         </div>
-        <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
+        <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1 text-zinc-500 hover:bg-white/5">
           <CloseIcon className="h-4 w-4" />
         </button>
       </div>
@@ -82,14 +82,14 @@ export function VaultIntakePanel({
         onChange={(e) => setContent(e.target.value)}
         rows={5}
         placeholder="The supplier confirmed delivery will slip to next Friday. Maria will follow up..."
-        className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50/60 p-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+        className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.02] p-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-sky-500/40 focus:ring-2 focus:ring-sky-500/10"
       />
-      {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
+      {error && <p className="mt-2 text-xs text-rose-400">{error}</p>}
       <div className="mt-3 flex items-center justify-end gap-2">
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+          className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-white/5"
         >
           Cancel
         </button>
@@ -97,7 +97,7 @@ export function VaultIntakePanel({
           type="button"
           onClick={submit}
           disabled={busy || !content.trim()}
-          className="rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-300 transition hover:bg-sky-500/15 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? "Analyzing..." : "Analyze notes"}
         </button>

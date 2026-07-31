@@ -2,12 +2,12 @@ import type { ReactNode } from "react";
 import type { StatusTone } from "./types";
 
 const TONE_STYLES: Record<StatusTone, { dot: string; bg: string; text: string; border: string }> = {
-  danger: { dot: "bg-rose-500", bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200" },
-  task: { dot: "bg-sky-500", bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200" },
-  approval: { dot: "bg-amber-500", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
-  insight: { dot: "bg-violet-500", bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-200" },
-  success: { dot: "bg-emerald-500", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
-  info: { dot: "bg-slate-400", bg: "bg-slate-100", text: "text-slate-600", border: "border-slate-200" },
+  danger: { dot: "bg-rose-400", bg: "bg-rose-500/10", text: "text-rose-300", border: "border-rose-500/25" },
+  task: { dot: "bg-sky-400", bg: "bg-sky-500/10", text: "text-sky-300", border: "border-sky-500/25" },
+  approval: { dot: "bg-amber-400", bg: "bg-amber-500/10", text: "text-amber-300", border: "border-amber-500/25" },
+  insight: { dot: "bg-violet-400", bg: "bg-violet-500/10", text: "text-violet-300", border: "border-violet-500/25" },
+  success: { dot: "bg-emerald-400", bg: "bg-emerald-500/10", text: "text-emerald-300", border: "border-emerald-500/25" },
+  info: { dot: "bg-zinc-400", bg: "bg-zinc-500/10", text: "text-zinc-300", border: "border-zinc-500/25" },
 };
 
 export const TONE_LABELS: Record<StatusTone, string> = {

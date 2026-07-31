@@ -237,92 +237,158 @@ export function deriveRepository(data: OperationalSummary | undefined): Reposito
   ];
 }
 
+/** Counts real signals of the given type(s) and reports the highest severity among them
+ *  (undefined when none exist) — the deterministic basis for every specialist agent below. */
+function signalSlice(data: OperationalSummary | undefined, types: string[]) {
+  const matches = (data?.signals ?? []).filter((signal) => types.includes(String(signal.signal_type)));
+  const severityRank: Record<string, number> = { low: 0, medium: 1, high: 2, critical: 3 };
+  let topSeverity: string | undefined;
+  for (const signal of matches) {
+    const severity = String(signal.severity ?? "");
+    if (!topSeverity || (severityRank[severity] ?? -1) > (severityRank[topSeverity] ?? -1)) topSeverity = severity;
+  }
+  return { count: matches.length, topSeverity };
+}
+
+type SpecialistDef = {
+  id: string;
+  name: string;
+  types: string[];
+  busyLabel: string;
+  clearLabel: string;
+  why: string;
+  nextStep: string;
+};
+
+/** The AI Specialist Team — one agent per PMFreak signal family, named to match the
+ *  discipline a PM would delegate that concern to. Every count below comes straight from
+ *  `data.signals`, grouped by the real `signal_type` PMFreak already detects from evidence —
+ *  no invented personas or fixture data. */
+const SPECIALISTS: SpecialistDef[] = [
+  {
+    id: "risk-agent",
+    name: "Risk Agent",
+    types: ["governance_gap"],
+    busyLabel: "Watching for new risk signals...",
+    clearLabel: "No open risk signals",
+    why: "Watches for blockers and delivery risks as new evidence comes in.",
+    nextStep: "Paste new notes to refresh what the Risk Agent is watching.",
+  },
+  {
+    id: "schedule-agent",
+    name: "Schedule Agent",
+    types: ["schedule_risk", "delivery_impediment"],
+    busyLabel: "Tracking schedule pressure...",
+    clearLabel: "Schedule looks clear",
+    why: "Watches for slipping dates and delivery impediments across the project.",
+    nextStep: "Review the flagged schedule signals in Needs You.",
+  },
+  {
+    id: "scope-agent",
+    name: "Scope Agent",
+    types: ["scope_creep"],
+    busyLabel: "Watching for scope drift...",
+    clearLabel: "Scope holding steady",
+    why: "Flags scope creep as it shows up in notes, emails, and requests.",
+    nextStep: "Confirm whether the flagged scope changes are approved.",
+  },
+  {
+    id: "budget-agent",
+    name: "Budget Agent",
+    types: ["cost_risk", "billing_risk"],
+    busyLabel: "Watching cost signals...",
+    clearLabel: "No cost pressure detected",
+    why: "Watches for cost and billing risk as it's mentioned in project evidence.",
+    nextStep: "Review the flagged cost signals before they escalate.",
+  },
+  {
+    id: "stakeholder-agent",
+    name: "Stakeholder Agent",
+    types: ["stakeholder_blocker"],
+    busyLabel: "Watching stakeholder blockers...",
+    clearLabel: "No stakeholder blockers",
+    why: "Tracks stakeholders who are blocking or slowing down the project.",
+    nextStep: "Reach out to the stakeholders flagged as blockers.",
+  },
+  {
+    id: "quality-agent",
+    name: "Quality Agent",
+    types: ["quality_risk"],
+    busyLabel: "Watching quality signals...",
+    clearLabel: "No quality risk detected",
+    why: "Watches for quality risk called out in reviews, tickets, and notes.",
+    nextStep: "Review the flagged quality risk before it affects delivery.",
+  },
+  {
+    id: "change-agent",
+    name: "Change Agent",
+    types: ["decision_needed", "missing_approval"],
+    busyLabel: "Tracking pending decisions...",
+    clearLabel: "No changes waiting on you",
+    why: "Tracks decisions and approvals a change needs before it can proceed.",
+    nextStep: "Decide the pending items waiting in Needs You.",
+  },
+];
+
 export function deriveAgents(data: OperationalSummary | undefined, hasBrief: boolean): Agent[] {
   const assurance = data?.assurance;
-  const risks = assurance?.unresolvedRisksIssues ?? 0;
-  const tasks = assurance?.openRecommendations ?? 0;
-  const approvals = assurance?.decisionRequiredCount ?? 0;
-  const sources = data?.evidence.length ?? 0;
-  const violations = assurance?.violationsCount ?? 0;
 
-  return [
-    {
-      id: "risk-sentinel",
-      name: "Risk Sentinel",
-      statusText: risks > 0 ? "Checking blockers..." : "No blockers detected",
-      badge: { tone: risks > 0 ? "danger" : "success", label: risks > 0 ? `${risks} warnings` : "Clear" },
-      activity: risks > 0 ? "pulsing" : "idle",
+  const specialistAgents: Agent[] = SPECIALISTS.map((spec) => {
+    const { count, topSeverity } = signalSlice(data, spec.types);
+    const tone = count === 0 ? "success" : topSeverity === "critical" || topSeverity === "high" ? "danger" : "task";
+    return {
+      id: spec.id,
+      name: spec.name,
+      statusText: count > 0 ? spec.busyLabel : spec.clearLabel,
+      badge: { tone, label: count > 0 ? `${count} signal${count === 1 ? "" : "s"}` : "Clear" },
+      activity: count === 0 ? "idle" : tone === "danger" ? "pulsing" : "progress",
       drawer: {
-        title: "Risk Sentinel",
-        why: "Watches for blockers and delivery risks as new evidence comes in.",
-        evidence: [`${risks} unresolved risk/issue signal(s) right now`],
-        nextStep: "Paste new notes to refresh what Risk Sentinel is watching.",
+        title: spec.name,
+        why: spec.why,
+        evidence: [count > 0 ? `${count} ${spec.name.toLowerCase()} signal(s) detected right now` : "No matching signals recorded yet"],
+        nextStep: count > 0 ? spec.nextStep : "Paste project notes to give this agent something to watch.",
       },
+    };
+  });
+
+  // Dependency Agent: no dedicated signal type exists yet, so it's grounded in the same
+  // evidence-chain-completeness data the assurance summary already tracks, rather than a
+  // fabricated dependency count.
+  const incompleteChains = assurance?.incompleteChainCount ?? 0;
+  const dependencyAgent: Agent = {
+    id: "dependency-agent",
+    name: "Dependency Agent",
+    statusText: incompleteChains > 0 ? "Checking incomplete evidence chains..." : "No broken dependencies",
+    badge: { tone: incompleteChains > 0 ? "task" : "success", label: incompleteChains > 0 ? `${incompleteChains} incomplete` : "Clear" },
+    activity: incompleteChains > 0 ? "progress" : "idle",
+    drawer: {
+      title: "Dependency Agent",
+      why: "Watches for evidence chains that stall partway through — an early signal of a blocked dependency.",
+      evidence: [incompleteChains > 0 ? `${incompleteChains} incomplete evidence chain(s)` : "Every evidence chain currently resolves cleanly"],
+      nextStep: incompleteChains > 0 ? "Review the incomplete chains to see what's blocking them." : "Paste project notes to give this agent something to watch.",
     },
-    {
-      id: "task-builder",
-      name: "Task Builder",
-      statusText: tasks > 0 ? "Preparing next steps..." : "No pending tasks",
-      badge: { tone: "task", label: `${tasks} tasks` },
-      activity: tasks > 0 ? "progress" : "idle",
-      drawer: {
-        title: "Task Builder",
-        why: "Turns open recommendations into concrete next steps.",
-        evidence: [`${tasks} open recommendation(s)`],
-        nextStep: "Review pending recommendations in Needs You.",
-      },
+  };
+
+  // Portfolio Agent: the executive rollup across everything above — the closest thing to a
+  // single-project "portfolio health" read, grounded in the real governance brief and
+  // assurance counters rather than any cross-project fixture data.
+  const totalEvents = assurance?.totalGovernanceEvents ?? 0;
+  const portfolioAgent: Agent = {
+    id: "portfolio-agent",
+    name: "Portfolio Agent",
+    statusText: hasBrief ? "Executive brief ready" : "Waiting on evidence",
+    badge: { tone: "task", label: hasBrief ? "1 brief" : "0 briefs" },
+    activity: "idle",
+    drawer: {
+      title: "Portfolio Agent",
+      why: "Rolls up this project's governance activity into a short, client-ready summary.",
+      evidence: [
+        hasBrief ? "Latest governance brief available" : "No governance brief generated yet",
+        `${totalEvents} governance event(s) recorded`,
+      ],
+      nextStep: hasBrief ? "Review the draft brief before sharing it." : "Add project evidence to generate the first brief.",
     },
-    {
-      id: "commitment-tracker",
-      name: "Commitment Tracker",
-      statusText: approvals > 0 ? "Watching open promises..." : "Nothing waiting",
-      badge: { tone: approvals > 0 ? "approval" : "success", label: approvals > 0 ? `${approvals} approval` : "Clear" },
-      activity: approvals > 0 ? "pulsing" : "idle",
-      drawer: {
-        title: "Commitment Tracker",
-        why: "Keeps track of decisions and promises that still need a human call.",
-        evidence: [`${approvals} decision(s) awaiting a reviewer`],
-        nextStep: "Confirm which open items are still on track.",
-      },
-    },
-    {
-      id: "document-librarian",
-      name: "Document Librarian",
-      statusText: sources > 0 ? "Indexing project files..." : "No sources yet",
-      badge: { tone: "info", label: `${sources} sources` },
-      activity: sources > 0 ? "shimmer" : "idle",
-      drawer: {
-        title: "Document Librarian",
-        why: "Keeps every document, email, and note organized and searchable.",
-        evidence: [`${sources} evidence record(s) recorded`],
-        nextStep: "Paste notes to add more to the project repository.",
-      },
-    },
-    {
-      id: "executive-briefing",
-      name: "Executive Briefing",
-      statusText: hasBrief ? "Draft ready" : "Waiting on evidence",
-      badge: { tone: "task", label: hasBrief ? "1 task" : "0 tasks" },
-      activity: hasBrief ? "idle" : "idle",
-      drawer: {
-        title: "Executive Briefing",
-        why: "Prepares a short, client-ready summary of project status.",
-        evidence: hasBrief ? ["Latest governance brief available"] : ["No governance brief generated yet"],
-        nextStep: hasBrief ? "Review the draft brief before sharing it." : "Add project evidence to generate the first brief.",
-      },
-    },
-    {
-      id: "governance-guard",
-      name: "Governance Guard",
-      statusText: violations > 0 ? "Waiting for approval" : "No violations",
-      badge: { tone: violations > 0 ? "approval" : "success", label: violations > 0 ? `${violations} approval` : "Clear" },
-      activity: violations > 0 ? "pulsing" : "idle",
-      drawer: {
-        title: "Governance Guard",
-        why: "Routes sensitive actions for human approval before anything is sent.",
-        evidence: [`${violations} governance violation(s) flagged`],
-        nextStep: "Approve or reject the pending action in Needs You.",
-      },
-    },
-  ];
+  };
+
+  return [...specialistAgents, dependencyAgent, portfolioAgent];
 }
