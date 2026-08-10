@@ -1,0 +1,232 @@
+# PMFreak Sequential Build Plan (P2)
+
+**Status:** Approved planning baseline; implementation not started.
+**Repository planning point:** branch `work`, HEAD `a256a8323465bfc79a010857510805bcdd6b03b2`, clean before P2 files.
+**Normative precedence:** P0 target → P1 observed state → this delivery bridge.
+
+## Executive Build Strategy
+
+Build one commercial spine by preserving the governed operational-flow transaction, adapting—not deleting—historical H3–H10 and AOC components, and closing one observable transition per increment. Twenty prompts cover ten work packages. Founder Invite follows WP1→WP2→WP3→WP4→WP5→WP6→WP7; WP8/WP9 are PMO Pilot and WP10 is Expansion. Tests live in every increment, not a final phase. Track C may start from verified contracts with visibly labelled expiring fixtures, but G3 requires real contracts throughout.
+
+The state machine is `NOT_STARTED → IN_PROGRESS → IMPLEMENTED_NOT_VERIFIED → VERIFIED`, with terminal/intervention states `BLOCKED` and `REJECTED`. Only acceptance evidence permits `VERIFIED`. Dependent work cannot start from `BLOCKED`, `IMPLEMENTED_NOT_VERIFIED`, or `REJECTED`.
+
+## Ratified Product Decisions
+
+- **D1:** `operational_decision_records` and governed recommendations are canonical; parallel models are classified adapters/bounded models/projections/sources/candidates, never silently fused or removed.
+- **D2:** Founder intake is controlled manual `DEMO / FIXTURE`, using real Source→Raw Input→Normalized Event→Evidence contracts.
+- **D3:** PMFreak internal Task is first SoR; external providers follow through adapters.
+- **D4:** AOC-E in-process is initial governed mode; remote `allowDecisionWriteback: false` is invariant.
+- **D5:** external writes, grant/delegation/authority mutation, material agent actions, knowledge elevation and policy-classified actions require AOC. Ordinary authorized PM business writes remain PMFreak decisions.
+- **D6:** Command Center is a persona/entity experience; persisted records are configuration/activation/read models pending consumer proof.
+- **D7:** frontend fixtures are labelled, contract-conformant, impossible to confuse with live data, and carry a replacement prompt/gate.
+
+## Current-to-Target Bridge
+
+| P1 rupture | Existing asset to preserve | Bridge prompts | Target proof |
+|---|---|---|---|
+| Parallel domain models | operational-flow RPC, H3–H6, decision audit | P2-01/02 | G1 canonical IDs, adapters, consumer safety |
+| Direct Evidence insertion/zero hash | manual capture, evidence tables | P2-03/04 | content-addressed Raw→Event→Evidence and UI |
+| Decision stops before Action | AOC runtime/grants, business Decision | P2-05/06 | separate Action with allow/deny/revoke/unavailable |
+| Legacy Recommendation→Task | task drafts/execution tasks | P2-07/08 | allowed Action creates exactly one internal Task |
+| Outcome subsystem disconnected | outcome/reconciliation engines | P2-09/10/20 | observed Outcome and complete audit lineage |
+| Fragmented PM frontend | inbox, shell, critical-path/task panels | P2-11/12 | one accessible project journey |
+| No reproducible runtime proof | seed, DB checker, auth/invite tests | P2-13/14/15 | G3 17-step, two-tenant acceptance |
+| Schedule/portfolio adjacent | H7–H10 engines/pages | P2-16/17 | G4 qualified exposure/portfolio attention |
+| Learning disconnected | learning/ratification foundations | P2-18/19 | independent Expansion elevation gate |
+
+No P2 Planning Exception was found. The current repository supports the planned paths; actual migration necessity remains a prompt-time evidence decision, always additive.
+
+## Work Package Dependency Graph
+
+```mermaid
+flowchart LR
+ P201[P2-01] --> P202[P2-02 / G1]
+ P202 --> P203[P2-03] --> P204[P2-04]
+ P202 --> P205[P2-05]
+ P204 --> P206[P2-06]
+ P205 --> P206 --> P207[P2-07] --> P208[P2-08]
+ P208 --> P209[P2-09] --> P210[P2-10]
+ P210 --> P220[P2-20]
+ P204 --> P211[P2-11]
+ P206 --> P211
+ P208 --> P212[P2-12]
+ P210 --> P212
+ P204 --> P213[P2-13]
+ P212 --> P214[P2-14] --> P215[P2-15 / G3]
+ P204 --> P216[P2-16] --> P217[P2-17 / G4]
+ P210 --> P218[P2-18] --> P219[P2-19 / Expansion]
+```
+
+## Prompt Inventory and Sequence
+
+| ID | WP | Title | Track | Depends on | Phase |
+|---|---|---|---|---|---|
+| P2-01 | WP1 | Canonical Domain Contract and Consumer Map | A | none | Founder |
+| P2-02 | WP1 | Compatibility Adapters, Correlation Spine and Legacy Safety Gate | A | P2-01 | Founder |
+| P2-03 | WP2 | Raw Input and Normalized Event Foundation | A | G1 | Founder |
+| P2-04 | WP2 | Evidence Derivation and Manual Provenance Experience | A/C | P2-03 | Founder |
+| P2-05 | WP3 | Material Action and Governance Contract | B | G1 | Founder |
+| P2-06 | WP3 | In-Process AOC Decision-to-Action Vertical Slice | B/A/C | P2-04/05 | Founder |
+| P2-07 | WP4 | Canonical Action-to-Task Adapter | A | P2-06 | Founder |
+| P2-08 | WP4 | Idempotent Internal Dispatch and Execution Experience | A/C | P2-07 | Founder |
+| P2-09 | WP5 | Outcome and Observation Contract | A | P2-08 | Founder |
+| P2-10 | WP5 | Outcome Review and Complete Lineage Experience | A/C | P2-09 | Founder |
+| P2-20 | WP5 | Closed-Loop Audit Export Compatibility Gate | D/A | P2-10 | Founder |
+| P2-11 | WP6 | PM Execution Center Attention-to-Decision Experience | C | P2-04 + verified action contract | Founder |
+| P2-12 | WP6 | PM Execution Center Action-to-Outcome and Accessibility Gate | C | P2-08/10/11 | Founder |
+| P2-13 | WP7 | Founder Invite Seed and Isolated Environment Harness | D | P2-04/G1 | Founder |
+| P2-14 | WP7 | Authenticated Two-Tenant Founder Browser Story | D | P2-12/13 | Founder |
+| P2-15 | WP7 | Governance, Audit and Release Readiness Gate | D | P2-14 | Founder |
+| P2-16 | WP8 | Schedule Exposure Adapter and Experience | A/C | P2-04/G1 | Pilot |
+| P2-17 | WP9 | Qualified Portfolio Projection and PMO Attention Experience | A/C | P2-16 | Pilot |
+| P2-18 | WP10 | Learning Candidate Eligibility and Lineage | A | P2-10 | Expansion |
+| P2-19 | WP10 | Governed Ratification, Revocation and Learning Review | B/C | P2-18 | Expansion |
+
+## Founder Invite Critical Path
+
+Strict chain: `P2-01 → P2-02/G1 → P2-03 → P2-04 → P2-06 → P2-07 → P2-08 → P2-09 → P2-10 + P2-20 → P2-12 → P2-14 → P2-15/G3`. P2-05 starts after G1 and must join before P2-06. P2-11 starts after P2-04 and consumes only verified P2-06 contracts or a labelled fixture expiring at P2-06. P2-13 starts after P2-04 and joins at P2-14. Founder Invite does not await P2-16–19.
+
+## PMO Pilot and Expansion Path
+
+P2-16 may start after G1 and P2-04, in parallel with Founder execution work; it adapts H7–H9 without rewriting engines. P2-17 starts only after P2-16 and should preferably integrate after G3 to avoid PMO scope distracting from Founder Invite. P2-18 starts after P2-10 outcome evidence; P2-19 follows and has an independent Expansion gate. WP10 does not block G4.
+
+## Parallel Track Plan
+
+| Prompt(s) | Primary track | Parallel condition | Cross-track join |
+|---|---|---|---|
+| P2-03 and P2-05 | A / B | G1 VERIFIED, isolated worktrees | P2-04/05 both VERIFIED before P2-06 |
+| P2-11 | C | P2-04 VERIFIED; action uses labelled contract fixture only | fixture removed/replaced by P2-06; joins P2-12 |
+| P2-13 | D | P2-04 VERIFIED | joins real UI at P2-14 |
+| P2-16 | A/C | G1 + P2-04 VERIFIED; does not modify Founder spine ownership | feeds P2-17, not G3 |
+| P2-18 | A | P2-10 VERIFIED; isolated from Founder branch | joins P2-19 only |
+
+Use separate branches/worktrees; never combine parallel prompts in one dirty tree. Contract owner merges first, consumers rebase only by authorized non-destructive workflow. Track C hardcoded success is prohibited.
+
+## Acceptance Ladder
+
+- **G1 — Canonical Spine Ready:** P2-01/02 `VERIFIED`; exported contracts, legacy consumer/classification map, compatibility/event tests, no silently broken consumer.
+- **G2 — Governed Execution Loop Ready:** P2-03–10 and P2-20 `VERIFIED`; provenance, Recommendation/Decision separation, AOC allow/deny/degraded, one Task under retry, distinct Observation, complete/redacted lineage.
+- **G3 — Founder Invite Ready:** G2 plus P2-11–15 `VERIFIED`; authenticated browser story, session refresh, two-tenant/RLS, 17 steps, honest fixture, reproducible reset, audit, build/release gates.
+- **G4 — PMO Pilot Ready:** G3 recommended plus P2-16/17 `VERIFIED`; qualified schedule/portfolio projections, coverage/confidence and safe drill-down.
+- **Expansion gate:** P2-18/19 `VERIFIED`; candidate eligibility, governed ratify/reject/revoke and retrieval. Independent of G4.
+
+## Contract and Migration Strategy
+
+| Prompts | Migration | Compatibility / backfill | RLS/audit/recovery |
+|---|---|---|---|
+| 01–02 | no/possible additive refs | no destructive merge; adapter reads; dual-write only if explicitly bounded through P2-15 | contract tests; revert adapter, retain history |
+| 03–04 | yes, additive likely | optional backfill marks legacy evidence provenance incomplete; never synthesize provenance | immutable raw/event, workspace/project RLS; `check:operational-flow-db` |
+| 05–06 | additive Action/request likely | legacy decisions remain; no remote writeback | AOC refs/obligations, fail closed, DB verifier |
+| 07–08 | possible additive idempotency/ref | adapt H5/H6; dual-write discouraged, if unavoidable expires P2-15 | unique idempotency, task RLS, reconcile safely |
+| 09–10/20 | additive Outcome/links likely | retain agent outcomes via adapter; no achievement backfill from Task | append-only observations/audit; dispute/retract rather than overwrite |
+| 11–15 | normally no product schema | fixture replacement at P2-06/08/10; deterministic seed reset only isolated data | two-tenant and cleanup proof |
+| 16–19 | possible additive projections/learning | retain H7–H10/memory consumers | quality/elevation RLS and retention/revocation |
+
+Physical deletion is outside initial P2 and requires later consumer proof, migration plan, runtime replacement, tests and human approval. Migrations are forward-only. Recovery disables new adapter/feature and preserves audit; rollback never deletes recorded decisions/evidence.
+
+## Frontend Integration Strategy
+
+| UI increment | Contract | Fixture policy / replacement | Required UX proof |
+|---|---|---|---|
+| P2-04 provenance | P2-03 real | manual input itself labelled `DEMO / FIXTURE`; data contract is real | empty/loading/error/stale/duplicate; accessible component/browser |
+| P2-11 recommendation/decision | P2-01/04 real | action placeholder allowed only labelled; replaced P2-06 | no global context leakage; denied and confidence states |
+| P2-06 Action | P2-05/AOC real | none for acceptance | allow/deny/revoke/unavailable |
+| P2-08 Task | P2-07 real | none | retry/failure/lifecycle; no outcome success |
+| P2-10/12 Outcome/lineage | P2-09 real | none at final gate | incomplete/disputed and accessible timeline |
+| P2-14 Founder | all real except labelled manual demo input | no backend mock | browser refresh/two tenant/screenshots/no layout regression |
+| P2-16/17 Pilot | verified project/schedule projections | fixtures only contract-labelled before respective acceptance, then removed | responsive, coverage/confidence, safe drill-down |
+
+## AOC Consumption Strategy
+
+P2-05 freezes the PMFreak adapter to AOC-P/AOC-E; P2-06 consumes AOC-E in-process. Canonical owner remains AOC for policy, grant, obligation, delegation, revocation, identity/integrity primitives; PMFreak stores references and business state. Remote mode remains advisory/unavailable and `allowDecisionWriteback=false`. Material actions fail closed on unavailable/stale verification. Ordinary PM business decisions stay PMFreak-authorized and audited. Contract doubles may unlock parallel UI only if AOC interface is verified and the double is labelled/replaced before G2. Run package/boundary/no-bypass tests in every Track B prompt. P2-19 reuses the same boundary for knowledge elevation.
+
+## Test and Runtime Verification Strategy
+
+Every prompt runs targeted behavioral tests, typecheck, lint and `git diff --check`; high-risk/UI prompts run build. Migration prompts run `npm run check:operational-flow-db` on isolated Supabase and negative RLS. Track B runs `npm run check:aoc-boundaries && npm run check:no-local-auth-bypass`. P2-14 adds authenticated browser/session/two-tenant runtime proof; P2-15 runs beta/release readiness. Source scans never suffice alone. Evidence records exact command, exit, environment, observable state and cleanup. A skipped applicable check yields `IMPLEMENTED_NOT_VERIFIED`, never `VERIFIED`.
+
+## Branch, Commit and Review Strategy
+
+Convention: branch `build/<prompt-id>-<slug>` (for example `build/p2-01-canonical-spine`); commit `feat(<wp>): <prompt-id> <outcome>` or `test/docs/fix` as appropriate. One principal commit per prompt; a separate forward migration/contract commit is allowed when review safety requires it. Start with branch/HEAD/status and instructions; stop on overlapping user changes. End with diff summary and `git diff --check`. Use isolated worktrees for parallel work. No destructive reset/rebase, push or PR without separate authorization. Flags require owner, removal condition and expiry gate. Adapters require deprecation plan; migrations are forward-only.
+
+## Risk Register
+
+| Risk | Trigger | Prevention | Detection | Response | Blocks |
+|---|---|---|---|---|---|
+| Parallel decisions | new flow bypasses D1 | canonical refs/adapters | consumer/lineage tests | stop, reconcile adapter | G1 |
+| Schema drift | types/migration diverge | additive contract first | DB/type contract | corrective forward migration | G1/G2 |
+| Hidden consumers | removal/change surprises route | inventory/no deletion | build/runtime grep telemetry | preserve compatibility | G1 |
+| Direct Evidence | API inserts evidence | Event-only derivation | integration/DB guard | reject/quarantine | G2 |
+| Provenance corruption | bad digest/link | content address/immutable link | replay/hash test | mark disputed, never rewrite | G2 |
+| Authority duplication | PM role mimics AOC allow | adapter boundary | no-bypass tests | fail closed | G2 |
+| Remote writeback | flag enabled | hard invariant | config test | reject change | G2 |
+| AOC unavailable | timeout/stale | explicit state | failure injection | deny/queue safe, inform user | G2 |
+| Idempotency failure | retry duplicates Task | unique key/transaction | retry/concurrency test | reconcile and block | G2 |
+| Task=Outcome | done auto-achieves | separate contracts | lifecycle regression | reopen outcome/correct audit | G2 |
+| Mock leakage | fixture looks live | label/type/expiry | browser assertion | hide/reject release | G3 |
+| Context loss | wrong workspace/project | server scope | IDOR/two-tenant test | deny and log | G3 |
+| Session regression | refresh rotates/loses cookie | one continuity path | browser refresh | block Founder | G3 |
+| RLS mismatch | route works only service role | least privilege | isolated DB negative | fix forward policy | G3 |
+| Audit fragmentation | missing correlations | canonical IDs/events | export completeness | mark gap/block | G2/G3 |
+| CI zero jobs | conditions skip gate | explicit workflow assertions | remote run inspection | block release | G3 |
+| PMO scope creep | WP8/9 delays WP1–7 | separate phase/branches | dashboard dependency | defer Pilot | G3 |
+
+## Stop/Resume Rules
+
+Stop on unverified dependency, overlapping dirty tree, missing isolated infrastructure/credential, migration collision, unclear AOC canonical contract, needed authorization weakening, non-ratified product decision, contradictory tests without authority, or scope expansion. Record `BLOCKED` with exact evidence and decision owner. `IMPLEMENTED_NOT_VERIFIED` means implementation exists but an applicable gate is missing. Resume only after blocker resolution is documented and preconditions rechecked. `REJECTED` requires a new approved approach; dependent prompts cannot bypass it. Parallel work proceeds only from a `VERIFIED` contract explicitly listed in this plan.
+
+## Definition of Done by Work Package
+
+| WP | Cumulative DoD |
+|---|---|
+| WP1 | User/auditor sees one vocabulary; contracts, consumers, IDs/events and adapters verified; build/compatibility pass; no destructive migration or unresolved spine blocker |
+| WP2 | PM sees labelled intake provenance; authorized immutable Raw/Event/Evidence persist with digest/RLS, duplicate/degraded tests, UI and DB proof |
+| WP3 | PM sees separate Action allow/deny/revoke/unavailable; business/AOC authority distinct; persisted audit/refs; remote false; tenant/AOC tests |
+| WP4 | Allowed Action creates exactly one internal Task; lifecycle UI, retry/reconcile/error, RLS/audit/build; no Outcome closure; H5/H6 compatible |
+| WP5 | Expected/observed Outcome and full redacted lineage persist; authorized review, disputed/incomplete states, targeted/runtime tests; legacy outcomes adapted |
+| WP6 | Authenticated PM completes coherent accessible project journey on real contracts; all honest states/browser/build; Command Center remains experience |
+| WP7 | Deterministic resettable 17-step two-tenant demo proves session/RLS/AOC/audit/observability/release; limitations documented; all P1 Founder blockers closed |
+| WP8 | Typed schedule change deterministically yields evidence-linked Finding/Recommendation; context/confidence/missing/invalid topology and UI tests; engines preserved |
+| WP9 | PMO gets qualified portfolio attention with coverage/confidence/restricted drill-down and tenant/runtime proof; unsupported conflicts absent |
+| WP10 | Complete lineage yields Candidate; authorized AOC ratify/reject/revoke controls scoped retrieval/retention; no causality/auto-elevation; audit/UI/tests |
+
+## Prompt File Manifest
+
+The authoritative linked manifest is in [`prompts/README.md`](prompts/README.md). It contains 20 self-contained files, P2-01 through P2-20. P2-20 belongs to WP5 and is placed after P2-10 in execution order despite its numeric suffix; IDs are stable identifiers, not permission to ignore dependency metadata.
+
+## Execution Dashboard Template
+
+Update only after real verification; generated code is not progress.
+
+| Prompt ID | WP | Track | Status | Branch/Commit | Dependencies | Tests | Gate | Blocker | Next |
+|---|---|---|---|---|---|---|---|---|---|
+| P2-01 | WP1 | A | VERIFIED | `work` / P2-01 commit | none | 242 focused + 6 spine; typecheck/lint/AOC | contributes to G1 | — | P2-02 |
+| P2-02 | WP1 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-03 | WP2 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-04 | WP2 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-05 | WP3 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-06 | WP3 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-07 | WP4 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-08 | WP4 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-09 | WP5 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-10 | WP5 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-11 | WP6 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-12 | WP6 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-13 | WP7 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-14 | WP7 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-15 | WP7 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-16 | WP8 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-17 | WP9 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-18 | WP10 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-19 | WP10 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-20 | WP5 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+
+## P2 Approval Checklist
+
+- [x] P0/P1 precedence and D1–D7 incorporated without re-audit.
+- [x] WP1–WP10 covered by 20 complete prompts; WP1–WP7 Founder critical path explicit.
+- [x] WP8–WP10 separated from Founder Invite; parallel joins are contract-gated.
+- [x] Every prompt contains exactly 20 required sections, status machine, exact dependencies, tests, acceptance commands and stop conditions.
+- [x] G1–G4 plus Expansion gate, migration/compatibility, frontend fixture replacement, AOC in-process boundary and remote-writeback invariant defined.
+- [x] Branch/commit/review strategy, risk register, cumulative DoD, linked manifest and `NOT_STARTED` dashboard present.
+- [x] First implementation prompt P2-01 is self-contained and executable without further planning.
+- [x] P2 modifies documentation only; implementation remains unstarted.
