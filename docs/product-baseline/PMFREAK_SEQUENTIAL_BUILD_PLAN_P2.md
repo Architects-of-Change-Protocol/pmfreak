@@ -200,7 +200,7 @@ Update only after real verification; generated code is not progress.
 | Prompt ID | WP | Track | Status | Branch/Commit | Dependencies | Tests | Gate | Blocker | Next |
 |---|---|---|---|---|---|---|---|---|---|
 | P2-01 | WP1 | A | VERIFIED | `work` / P2-01 commit | none | 242 focused + 6 spine; typecheck/lint/AOC | contributes to G1 | — | P2-02 |
-| P2-02 | WP1 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-02 | WP1 | A | VERIFIED | `feat/p2-02-compatibility-spine` / P2-02 commit | P2-01 VERIFIED | 7 compatibility + 6 spine + 19 flow/evidence + 508 bounded regressions; typecheck/lint/AOC/build | G1 VERIFIED | — | review; do not auto-start dependents |
 | P2-03 | WP2 | — | NOT_STARTED | — | see prompt | — | — | — | — |
 | P2-04 | WP2 | — | NOT_STARTED | — | see prompt | — | — | — | — |
 | P2-05 | WP3 | — | NOT_STARTED | — | see prompt | — | — | — | — |
