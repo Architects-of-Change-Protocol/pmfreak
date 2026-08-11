@@ -12,7 +12,7 @@
 - **Unlocks:** P2-04, P2-13, P2-17
 - **Risk Level:** high
 - **Expected Review Size:** large
-- **Status:** `NOT_STARTED`
+- **Status:** `IMPLEMENTED_NOT_VERIFIED` — isolated migration, database, RLS, authorization, runtime, contract, typecheck, build, and boundary checks pass; repository-wide `npm run lint` remains red on unrelated baseline violations.
 - **Migration:** yes additive; forward-only, additive if used; destructive changes prohibited.
 
 ## Role
