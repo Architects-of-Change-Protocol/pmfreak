@@ -12,7 +12,7 @@
 - **Unlocks:** P2-07, P2-11, G2
 - **Risk Level:** high
 - **Expected Review Size:** large
-- **Status:** `NOT_STARTED`
+- **Status:** `VERIFIED`
 - **Migration:** yes additive likely; forward-only, additive if used; destructive changes prohibited.
 
 ## Role

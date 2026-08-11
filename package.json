@@ -74,6 +74,7 @@
     "check:protocol-consumers": "node --test tests/consumer-boundary-audit.test.ts",
     "seed:operational-flow": "node scripts/seed-operational-flow-demo.mjs",
     "check:operational-flow-db": "node scripts/check-operational-flow-db.mjs",
+    "check:p2-06-db": "node scripts/check-p2-06-db.mjs",
     "check:dependency-security": "node scripts/check-dependency-security.mjs",
     "check:beta-release": "node scripts/check-beta-release.mjs",
     "check:fresh-db-migrations": "node scripts/check-fresh-db-migrations.mjs",
