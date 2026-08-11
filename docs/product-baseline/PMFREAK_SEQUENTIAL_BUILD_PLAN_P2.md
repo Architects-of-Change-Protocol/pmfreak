@@ -201,7 +201,7 @@ Update only after real verification; generated code is not progress.
 |---|---|---|---|---|---|---|---|---|---|
 | P2-01 | WP1 | A | VERIFIED | `work` / P2-01 commit | none | 242 focused + 6 spine; typecheck/lint/AOC | contributes to G1 | — | P2-02 |
 | P2-02 | WP1 | A | VERIFIED | `feat/p2-02-compatibility-spine` / P2-02 commit | P2-01 VERIFIED | 7 compatibility + 6 spine + 19 flow/evidence + 508 bounded regressions; typecheck/lint/AOC/build | G1 VERIFIED | — | review; do not auto-start dependents |
-| P2-03 | WP2 | A | IMPLEMENTED_NOT_VERIFIED | `build/p2-03-raw-input-normalized-event` / this P2-03 commit | G1 VERIFIED | 15 contract; isolated DB/RLS/runtime; typecheck/build/AOC/auth-bypass | not passed | repository-wide lint: 154 unrelated baseline errors | resolve baseline lint, then re-run P2-03 acceptance; P2-04 remains locked |
+| P2-03 | WP2 | A | VERIFIED | `build/p2-03-raw-input-normalized-event` / P2-03 + recovery commits | G1 VERIFIED | 15 contract; fresh + existing-history migration; isolated DB/RLS/runtime; typecheck; lint 0 errors/614 warnings; build; AOC/auth-bypass | passed | — | P2-04 unlocked; do not auto-start |
 | P2-04 | WP2 | — | NOT_STARTED | — | see prompt | — | — | — | — |
 | P2-05 | WP3 | — | NOT_STARTED | — | see prompt | — | — | — | — |
 | P2-06 | WP3 | — | NOT_STARTED | — | see prompt | — | — | — | — |

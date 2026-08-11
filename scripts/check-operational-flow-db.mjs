@@ -21,13 +21,19 @@ if (!url || !anonKey || !serviceRoleKey || !appBaseUrl || process.env.OPERATIONA
   process.exit(2);
 }
 
-// Production safeguard: reject any URL that looks like a real Supabase project
-// (i.e. not localhost and not a known local/CI pattern). Adjust the allowlist
-// if your isolated environment uses a custom domain.
-if (!/localhost|127\.0\.0\.1|0\.0\.0\.0|\.local(:\d+)?$/.test(url) && !process.env.OPERATIONAL_FLOW_TEST_ALLOW_REMOTE === "true") {
-  const { hostname } = new URL(url);
-  if (!hostname.includes("localhost") && !hostname.includes("127.0.0.1")) {
-    console.error(`SAFETY ABORT: OPERATIONAL_FLOW_TEST_SUPABASE_URL points to a remote host (${hostname}).\nThis check creates and deletes real data. Only run it against an isolated local Supabase instance.\nIf you intentionally want to run against a remote isolated project, set OPERATIONAL_FLOW_TEST_ALLOW_REMOTE=true.`);
+// Destructive verification is intentionally local-only. Literal loopback hosts
+// avoid DNS rebinding and prevent 0.0.0.0/listen addresses from being mistaken
+// for safe request targets.
+for (const [name, target] of [["OPERATIONAL_FLOW_TEST_SUPABASE_URL", url], ["OPERATIONAL_FLOW_TEST_BASE_URL", appBaseUrl]]) {
+  let hostname;
+  try {
+    hostname = new URL(target).hostname;
+  } catch {
+    console.error(`SAFETY ABORT: ${name} is not a valid URL.`);
+    process.exit(2);
+  }
+  if (hostname !== "127.0.0.1" && hostname !== "localhost" && hostname !== "[::1]") {
+    console.error(`SAFETY ABORT: ${name} must use a literal loopback host; received ${hostname}.`);
     process.exit(2);
   }
 }

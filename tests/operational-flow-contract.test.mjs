@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 
 const migration = readFileSync("supabase/migrations/20260611000000_operational_evidence_decision_loop.sql", "utf8");
 const intakeMigration = readFileSync("supabase/migrations/20260901000000_raw_input_normalized_event_foundation.sql", "utf8");
-const pgcryptoCompatibility = readFileSync("supabase/migrations/20260610000000_pgcrypto_public_digest_compatibility.sql", "utf8");
+const pgcryptoCompatibility = readFileSync("supabase/roles.sql", "utf8");
 const service = readFileSync("src/lib/operational-flow/operational-flow-service.ts", "utf8");
 const route = readFileSync("src/app/api/operational-flow/route.ts", "utf8");
 const ui = readFileSync("src/modules/workspace/presentation/command-center/operational-decision-loop.tsx", "utf8");
@@ -121,10 +121,12 @@ test("real DB/RLS verifier fails explicitly when isolated Supabase infrastructur
   for (const probe of ["viewer evidence insert", "normal-user signal insert", "cross-workspace write", "authority denial", "totalGovernanceEvents > 30"]) assert.match(dbVerifier, new RegExp(probe));
 });
 
-test("P2-03: fresh migration compatibility preserves history and resolves pgcrypto explicitly", () => {
+test("P2-03: local fresh-replay compatibility does not backdate deployed migration history", () => {
   assert.match(pgcryptoCompatibility, /extensions\.digest/);
   assert.match(pgcryptoCompatibility, /set search_path = pg_catalog, extensions/);
   assert.doesNotMatch(pgcryptoCompatibility, /alter table|drop table|delete from/i);
+  assert.match(pgcryptoCompatibility, /loads roles\.sql before[\s\S]*versioned migrations/);
+  assert.equal(existsSync("supabase/migrations/20260610000000_pgcrypto_public_digest_compatibility.sql"), false);
 });
 
 test("P2-03: Source, Raw Input, Normalized Event, and Evidence remain separate", () => {
