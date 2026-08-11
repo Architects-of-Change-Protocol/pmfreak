@@ -235,10 +235,19 @@ test("first insight includes DetectedRaidOverview", () => {
   assert.match(briefOrchestrator, /raid_items/);
 });
 
-test("Command Center surfaces RAID signals detected from vault intake", () => {
-  assert.match(vaultIntakePanel, /raidSnapshot/);
-  assert.match(vaultIntakePanel, /risk\$\{risks === 1 \? "" : "s"\}/);
-  assert.match(vaultIntakePanel, /issue\$\{issues === 1 \? "" : "s"\}/);
+test("Command Center surfaces RAID from the explicit vault pipeline", () => {
   assert.match(commandCenter, /void retryBrief\(\)/);
   assert.match(commandCenter, /onEvidenceAdded/);
+  assert.match(commandCenter, /detectedRaidOverview\.snapshot\.issues/);
+});
+
+test("manual P2-04 vault intake derives Evidence without automatic RAID extraction", () => {
+  assert.match(vaultIntakePanel, /captureAndDeriveDemoEvidence/);
+  assert.match(vaultIntakePanel, /Intelligence has not run\./);
+  assert.doesNotMatch(vaultIntakePanel, /raidSnapshot/);
+  assert.doesNotMatch(vaultIntakePanel, /postVaultIntake/);
+  assert.doesNotMatch(
+    vaultIntakePanel,
+    /extractRaidItems|triggerExecutiveSynthesisUpdate/,
+  );
 });
