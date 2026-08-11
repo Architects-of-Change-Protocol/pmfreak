@@ -175,7 +175,7 @@ export function comparePMFreakMaterialActionReplay(existing: PMFreakMaterialActi
   return existing.deterministicDigest === candidate.deterministicDigest ? "replay" : "conflict";
 }
 
-export function evaluatePMFreakMaterialActionGovernance(proposal: PMFreakMaterialActionProposal, evidence: PMFreakMaterialActionGovernanceEvidence, now = new Date()): PMFreakMaterialActionGovernanceResult {
+export function evaluatePMFreakMaterialActionGovernance(proposal: PMFreakMaterialActionProposal, evidence: PMFreakMaterialActionGovernanceEvidence, now: Date): PMFreakMaterialActionGovernanceResult {
   let state = evidence.state;
   if (proposal.deterministicDigest.length !== 64) state = "degraded";
   else if (new Date(proposal.expiresAt) <= now) state = "expired";
