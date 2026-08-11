@@ -2,7 +2,7 @@ import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
-import { captureOperationalInput, deriveEvidence, getOperationalSummary, recordHumanDecision, runEvidenceDecisionChain } from "@/lib/operational-flow/operational-flow-service";
+import { captureOperationalInput, deriveEvidence, getOperationalSummary, proposeGovernedMaterialAction, recordHumanDecision, revokeGovernedMaterialAction, runEvidenceDecisionChain } from "@/lib/operational-flow/operational-flow-service";
 import type { EvidenceAssertionType, EvidenceClassification, MissingDataState } from "@/lib/operational-flow/types";
 import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
   const projectId = String(body.projectId ?? "").trim();
   const operation = String(body.operation ?? "").trim();
   if (!workspaceId || !projectId || !operation) return Response.json({ error: "workspaceId, projectId and operation are required." }, { status: 400 });
-  if (!["capture_input", "derive_evidence", "run_chain", "record_decision"].includes(operation)) return Response.json({ error: "Unsupported public operation." }, { status: 400 });
+  if (!["capture_input", "derive_evidence", "run_chain", "record_decision", "propose_material_action", "revoke_material_action"].includes(operation)) return Response.json({ error: "Unsupported public operation." }, { status: 400 });
   const authorized = await authorize(projectId, workspaceId, "write");
   if (authorized instanceof Response) return authorized;
   const scope = { workspaceId, projectId, userId: authorized.user.id, role: authorized.role };
@@ -90,6 +90,25 @@ export async function POST(request: Request) {
       return Response.json(result, { status: result.disposition === "created" ? 201 : 200 });
     }
     if (operation === "run_chain") return Response.json(await runEvidenceDecisionChain(authorized.supabase, scope, String(body.evidenceItemId ?? "")));
+    if (operation === "propose_material_action") {
+      const actionClass = String(body.actionClass ?? "");
+      const risk = String(body.risk ?? ""); const reversibility = String(body.reversibility ?? ""); const sideEffect = String(body.sideEffect ?? "");
+      if (!["ordinary_business_write","external_write","authority_mutation","material_agent_action","knowledge_elevation","policy_classified"].includes(actionClass)
+        || !["low","medium","high","critical","unknown"].includes(risk) || !["reversible","partially_reversible","irreversible","unknown"].includes(reversibility)
+        || !["internal","external","authority","knowledge","unknown"].includes(sideEffect)) return Response.json({ error: "Invalid material action classification." }, { status: 400 });
+      const result = await proposeGovernedMaterialAction(authorized.supabase, scope, {
+        decisionId: String(body.decisionId ?? ""), idempotencyKey: String(body.idempotencyKey ?? ""),
+        actionClass: actionClass as "ordinary_business_write" | "external_write" | "authority_mutation" | "material_agent_action" | "knowledge_elevation" | "policy_classified",
+        actionType: String(body.actionType ?? ""), targetResourceType: String(body.targetResourceType ?? ""), targetResourceId: String(body.targetResourceId ?? ""),
+        intendedOperation: String(body.intendedOperation ?? ""), intendedEffect: String(body.intendedEffect ?? ""), risk: risk as "low" | "medium" | "high" | "critical" | "unknown",
+        reversibility: reversibility as "reversible" | "partially_reversible" | "irreversible" | "unknown", sideEffect: sideEffect as "internal" | "external" | "authority" | "knowledge" | "unknown",
+        justification: String(body.justification ?? ""), createdAt: String(body.createdAt ?? ""), evaluationTime: String(body.evaluationTime ?? ""), expiresAt: String(body.expiresAt ?? ""),
+      });
+      return Response.json(result, { status: result.disposition === "created" ? 201 : result.disposition === "conflict" ? 409 : 200 });
+    }
+    if (operation === "revoke_material_action") return Response.json(await revokeGovernedMaterialAction(authorized.supabase, scope, {
+      actionId: String(body.actionId ?? ""), evaluationTime: String(body.evaluationTime ?? ""), reasonCode: String(body.reasonCode ?? "governance_revoked"),
+    }));
     const decisionStatus = String(body.decisionStatus ?? "");
     if (!DECISION_STATUSES.has(decisionStatus)) return Response.json({ error: "Invalid decisionStatus." }, { status: 400 });
     return Response.json(await recordHumanDecision(authorized.supabase, scope, {

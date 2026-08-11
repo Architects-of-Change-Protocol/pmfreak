@@ -73,6 +73,8 @@ export type OperationalSummary = {
   recommendations: Array<Record<string, unknown>>;
   decisions: Array<Record<string, unknown>>;
   evidenceLinks: Array<Record<string, unknown>>;
+  materialActions: Array<Record<string, unknown>>;
+  materialActionEvaluations: Array<Record<string, unknown>>;
   assurance: OperationalAssuranceSummary;
   actor: { role: string | null; canCreateEvidence: boolean };
 };
