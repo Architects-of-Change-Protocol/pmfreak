@@ -77,6 +77,7 @@ export * from "./pmfreak-aoc-governed-action-gate-no-mutation-guard";
 export * from "./pmfreak-aoc-governed-action-gate-redaction";
 export * from "./pmfreak-aoc-governed-action-gate-claim-safety";
 export * from "./pmfreak-aoc-governed-action-gate-fixtures";
+export * from "./pmfreak-material-action-contract";
 export * from "./pmfreak-aoc-gate-result-ui-constants";
 export * from "./pmfreak-aoc-gate-result-ui-types";
 export * from "./pmfreak-aoc-gate-result-ui-descriptor";
