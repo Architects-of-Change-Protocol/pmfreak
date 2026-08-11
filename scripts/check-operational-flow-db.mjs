@@ -120,12 +120,21 @@ try {
   const viewerCookie = await loginCookie(users.viewer.email);
   const unauthorizedApi = await apiJson(`/api/operational-flow?workspaceId=${workspaceA}&projectId=${projectA}`);
   assert.equal(unauthorizedApi.response.status, 401);
-  const viewerApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: viewerCookie }, body: JSON.stringify({ operation: "create_evidence", workspaceId: workspaceA, projectId: projectA, sourceType: "manual_note", title: "Viewer write", content: "Must be denied" }) });
+  const viewerApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: viewerCookie }, body: JSON.stringify({ operation: "derive_evidence", workspaceId: workspaceA, projectId: projectA, normalizedEventId: randomUUID(), idempotencyKey: `viewer-${suffix}`, assertionType: "ASSUMPTION", classification: "UNCLASSIFIED", confidenceScore: 0.5, missingDataState: "UNKNOWN", evaluatedAt: new Date().toISOString() }) });
   assert.equal(viewerApi.response.status, 403);
-  const wrongScopeApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ operation: "create_evidence", workspaceId: workspaceB, projectId: projectA, sourceType: "manual_note", title: "Wrong scope", content: "Must be denied" }) });
+  const wrongScopeApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ operation: "derive_evidence", workspaceId: workspaceB, projectId: projectA, normalizedEventId: randomUUID(), idempotencyKey: `wrong-${suffix}`, assertionType: "ASSUMPTION", classification: "UNCLASSIFIED", confidenceScore: 0.5, missingDataState: "UNKNOWN", evaluatedAt: new Date().toISOString() }) });
   assert.equal(wrongScopeApi.response.status, 403);
-  const createApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ operation: "create_evidence", workspaceId: workspaceA, projectId: projectA, sourceType: "email", title: "API scope request", content: "Additional work outside scope without formal approval.", sourceReference: "test://api" }) });
+  const correlationId = randomUUID();
+  const captureApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ operation: "capture_input", workspaceId: workspaceA, projectId: projectA, sourceKey: "manual-demo:v1", idempotencyKey: `capture-${suffix}`, title: "API scope request", content: "Additional work outside scope without formal approval.", occurredAt: new Date().toISOString(), correlationId }) });
+  assert.equal(captureApi.response.status, 201);
+  const createApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ operation: "derive_evidence", workspaceId: workspaceA, projectId: projectA, normalizedEventId: captureApi.payload.normalizedEvent.id, idempotencyKey: `evidence-${suffix}`, assertionType: "ASSUMPTION", classification: "UNCLASSIFIED", confidenceScore: 0.5, missingDataState: "UNKNOWN", evaluatedAt: new Date().toISOString() }) });
   assert.equal(createApi.response.status, 201);
+  assert.equal(createApi.payload.intelligenceRan, false);
+  assert.match(createApi.payload.evidence.derivation_digest, /^sha256:[a-f0-9]{64}$/);
+  const replayApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ operation: "derive_evidence", workspaceId: workspaceA, projectId: projectA, normalizedEventId: captureApi.payload.normalizedEvent.id, idempotencyKey: `evidence-${suffix}`, assertionType: "ASSUMPTION", classification: "UNCLASSIFIED", confidenceScore: 0.5, missingDataState: "UNKNOWN", evaluatedAt: new Date().toISOString() }) });
+  assert.equal(replayApi.response.status, 200); assert.equal(replayApi.payload.disposition, "duplicate");
+  const conflictApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ operation: "derive_evidence", workspaceId: workspaceA, projectId: projectA, normalizedEventId: captureApi.payload.normalizedEvent.id, idempotencyKey: `evidence-${suffix}`, assertionType: "INFERENCE", classification: "UNCLASSIFIED", confidenceScore: 0.5, missingDataState: "UNKNOWN", evaluatedAt: new Date().toISOString() }) });
+  assert.equal(conflictApi.response.status, 409);
   const apiEvidenceId = createApi.payload.evidence.id;
   const chainApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ operation: "run_chain", workspaceId: workspaceA, projectId: projectA, evidenceItemId: apiEvidenceId }) });
   assert.equal(chainApi.response.status, 200);
@@ -147,7 +156,7 @@ try {
   assert.equal(duplicateIntake.payload.disposition, "duplicate");
   assert.equal(duplicateIntake.payload.rawInput.id, intakeApi.payload.rawInput.id);
   const conflictingIntake = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ ...intakeBody, content: "Conflicting retry" }) });
-  assert.equal(conflictingIntake.response.status, 400);
+  assert.equal(conflictingIntake.response.status, 409);
   const viewerIntake = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: viewerCookie }, body: JSON.stringify({ ...intakeBody, idempotencyKey: `viewer-${suffix}` }) });
   assert.equal(viewerIntake.response.status, 403);
   const outsiderRawRead = await (await createUser("second-outsider-reader")).from("operational_raw_inputs").select("id").eq("id", intakeApi.payload.rawInput.id);
@@ -164,13 +173,13 @@ try {
   const evidenceInsert = {
     workspace_id: workspaceA, project_id: projectA, created_by: users.owner.id,
     source_type: "email", title: "Client asks for work outside scope",
-    content: "Additional work outside scope was requested without formal approval.",
+    content: "Additional work outside scope without formal approval.",
     source_reference: "test://scope-email", confidence_level: "high", status: "recorded",
     evidence_hash: "0".repeat(64), version: 1,
   };
-  const ownerEvidence = await owner.from("evidence_items").insert(evidenceInsert).select("*").single();
-  assert.ifError(ownerEvidence.error);
-  assert.match(ownerEvidence.data.evidence_hash, /^[a-f0-9]{64}$/);
+  await expectDenied(owner.from("evidence_items").insert(evidenceInsert), "direct owner evidence insert");
+  const ownerEvidence = await owner.from("evidence_items").select("*").eq("id", apiEvidenceId).single();
+  assert.ifError(ownerEvidence.error); assert.match(ownerEvidence.data.derivation_digest, /^sha256:[a-f0-9]{64}$/);
 
   await expectDenied(viewer.from("evidence_items").insert({ ...evidenceInsert, id: randomUUID(), created_by: users.viewer.id }), "viewer evidence insert");
   await expectDenied(owner.from("operational_signals").insert({
@@ -239,7 +248,7 @@ try {
   const secondSeed = JSON.parse(execFileSync(process.execPath, ["scripts/seed-operational-flow-demo.mjs", workspaceA, users.owner.id], { encoding: "utf8", env: seedEnv }));
   assert.equal(firstSeed.projectId, secondSeed.projectId); assert.equal(secondSeed.disposition, "reused");
 
-  console.log(JSON.stringify({ ok: true, checks: ["role-aware evidence RLS", "derived-table direct writes denied", "cross-workspace denied", "transactional idempotent chain", "authority denial", "atomic decision/evidence/recommendation", "append-only audit trail", "frozen evidence", "exact assurance counts > 30", "idempotent seed", "authenticated API create/run/decision", "API 401/403 scope and role denials", "P2-03 source/raw/event separation", "P2-03 SHA-256 digests", "P2-03 idempotent duplicate and conflict", "P2-03 cross-tenant RLS", "P2-03 immutable raw/event"] }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: ["role-aware evidence RLS", "derived-table direct writes denied", "cross-workspace denied", "transactional idempotent chain", "authority denial", "atomic decision/evidence/recommendation", "append-only audit trail", "frozen evidence", "exact assurance counts > 30", "idempotent seed", "authenticated API capture/derive/run/decision", "API 401/403 scope and role denials", "P2-03 source/raw/event separation", "P2-03 SHA-256 digests", "P2-03 idempotent duplicate and conflict", "P2-03 cross-tenant RLS", "P2-03 immutable raw/event", "P2-04 normalized-event-only Evidence derivation", "P2-04 SHA-256 digest and canonicalization version", "P2-04 duplicate replay and 409 conflict", "P2-04 no automatic intelligence", "P2-04 direct Evidence insert denial"] }, null, 2));
 } finally {
   await cleanup();
 }

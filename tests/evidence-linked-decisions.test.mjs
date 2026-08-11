@@ -6,7 +6,7 @@ const migration = readFileSync('supabase/migrations/20260616000003_evidence_link
 const types = readFileSync('src/lib/decision-governance/types.ts', 'utf8');
 const service = readFileSync('src/lib/decision-governance/service.ts', 'utf8');
 const platformTypes = readFileSync('src/lib/platform-events/types.ts', 'utf8');
-const docs = readFileSync('docs/evidence-linked-decisions.md', 'utf8');
+const docs = readFileSync('docs/evidence-linked-decisions.md', 'utf8').replaceAll('\r\n', '\n');
 
 test('decision registry migration creates first-class decision and lineage tables', () => {
   assert.match(migration, /create table if not exists public\.project_decisions/);

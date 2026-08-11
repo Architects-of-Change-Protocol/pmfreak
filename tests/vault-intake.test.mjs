@@ -149,15 +149,24 @@ test("persistence failure handling stops extraction because evidence was not sto
   assert.deepEqual(runtime.persistenceFailure.errors, ["db_down"]);
 });
 
-test("executive synthesis update trigger is invoked and UI/API are wired", () => {
+test("explicit document-ingestion pipeline invokes executive synthesis and remains API-wired", () => {
   assert.equal(runtime.result.executiveSynthesisUpdated, true);
   assert.equal(runtime.synthesisCalls, 1);
   assert.match(storage, /triggerExecutiveSynthesisUpdate/);
   assert.match(storage, /operational_memory_runtime_records/);
   assert.match(route, /ingestVaultDocument/);
-  assert.match(vaultIntakePanel, /Add project notes/);
-  assert.match(vaultIntakePanel, /Analyze notes/i);
-  assert.match(vaultIntakePanel, /postVaultIntake/);
+});
+
+test("manual P2-04 intake derives Evidence without invoking executive synthesis", () => {
+  assert.match(vaultIntakePanel, /Capture and derive Evidence/);
+  assert.match(vaultIntakePanel, /captureAndDeriveDemoEvidence/);
+  assert.match(vaultIntakePanel, /Intelligence has not run\./);
+  assert.doesNotMatch(vaultIntakePanel, /Analyze notes/i);
+  assert.doesNotMatch(vaultIntakePanel, /postVaultIntake/);
+  assert.doesNotMatch(
+    vaultIntakePanel,
+    /triggerExecutiveSynthesisUpdate|executiveSynthesisUpdated/,
+  );
 });
 
 test("source enums include all canonical source types", () => {

@@ -202,7 +202,7 @@ Update only after real verification; generated code is not progress.
 | P2-01 | WP1 | A | VERIFIED | `work` / P2-01 commit | none | 242 focused + 6 spine; typecheck/lint/AOC | contributes to G1 | — | P2-02 |
 | P2-02 | WP1 | A | VERIFIED | `feat/p2-02-compatibility-spine` / P2-02 commit | P2-01 VERIFIED | 7 compatibility + 6 spine + 19 flow/evidence + 508 bounded regressions; typecheck/lint/AOC/build | G1 VERIFIED | — | review; do not auto-start dependents |
 | P2-03 | WP2 | A | VERIFIED | `build/p2-03-raw-input-normalized-event` / P2-03 + recovery commits | G1 VERIFIED | 15 contract; fresh + existing-history migration; isolated DB/RLS/runtime; typecheck; lint 0 errors/614 warnings; build; AOC/auth-bypass | passed | — | P2-04 unlocked; do not auto-start |
-| P2-04 | WP2 | — | NOT_STARTED | — | see prompt | — | — | — | — |
+| P2-04 | WP2 | A/C | VERIFIED | `build/p2-04-evidence-provenance` / P2-04 commit | P2-03 VERIFIED | 27 focused/operational-flow; isolated fresh DB + 22 DB/RLS; browser; typecheck; lint 0 errors/614 warnings; build 411 pages; AOC/auth-bypass | passed; contributes to G2, which remains not eligible | — | P2-06 after P2-05; P2-11 after verified action contract; P2-13 and P2-16 unlocked; do not auto-start |
 | P2-05 | WP3 | — | NOT_STARTED | — | see prompt | — | — | — | — |
 | P2-06 | WP3 | — | NOT_STARTED | — | see prompt | — | — | — | — |
 | P2-07 | WP4 | — | NOT_STARTED | — | see prompt | — | — | — | — |

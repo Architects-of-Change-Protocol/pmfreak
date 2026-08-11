@@ -6,6 +6,30 @@ export const SIGNAL_TYPES = [
 export type SignalType = (typeof SIGNAL_TYPES)[number];
 export type Severity = "low" | "medium" | "high" | "critical";
 export type DecisionStatus = "accepted" | "rejected" | "modified" | "escalated" | "needs_more_evidence";
+export type EvidenceAssertionType = "FACT" | "INFERENCE" | "ASSUMPTION";
+export type EvidenceClassification = "UNCLASSIFIED" | "PROJECT_STATUS" | "RISK" | "ISSUE" | "DECISION_CONTEXT" | "DELIVERY";
+export type MissingDataState = "COMPLETE" | "PARTIAL" | "UNKNOWN";
+
+export type DeriveEvidenceInput = {
+  normalizedEventId: string;
+  idempotencyKey: string;
+  assertionType: EvidenceAssertionType;
+  classification: EvidenceClassification;
+  confidenceScore: number;
+  missingDataState: MissingDataState;
+  evaluatedAt: string;
+  staleAt?: string | null;
+};
+
+export type EvidenceProvenanceResult = {
+  disposition: "created" | "duplicate";
+  source: Record<string, unknown>;
+  rawInput: Record<string, unknown>;
+  normalizedEvent: Record<string, unknown>;
+  evidence: Record<string, unknown>;
+  auditEventId?: string | null;
+  intelligenceRan: false;
+};
 
 export type DetectedSignal = {
   signalType: SignalType;

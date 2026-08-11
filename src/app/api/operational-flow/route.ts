@@ -2,12 +2,15 @@ import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
-import { captureOperationalInput, createEvidenceItem, getOperationalSummary, recordHumanDecision, runEvidenceDecisionChain } from "@/lib/operational-flow/operational-flow-service";
+import { captureOperationalInput, deriveEvidence, getOperationalSummary, recordHumanDecision, runEvidenceDecisionChain } from "@/lib/operational-flow/operational-flow-service";
+import type { EvidenceAssertionType, EvidenceClassification, MissingDataState } from "@/lib/operational-flow/types";
 import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 
 const ROUTE_ID = "/api/operational-flow";
-const SOURCE_TYPES = new Set(["manual_note", "email", "meeting_minutes", "ticket", "conversation", "document_reference"]);
 const DECISION_STATUSES = new Set(["accepted", "rejected", "modified", "escalated", "needs_more_evidence"]);
+const ASSERTION_TYPES = new Set(["FACT", "INFERENCE", "ASSUMPTION"]);
+const CLASSIFICATIONS = new Set(["UNCLASSIFIED", "PROJECT_STATUS", "RISK", "ISSUE", "DECISION_CONTEXT", "DELIVERY"]);
+const MISSING_DATA_STATES = new Set(["COMPLETE", "PARTIAL", "UNKNOWN"]);
 
 async function authorize(projectId: string, workspaceId: string, permission: "read" | "write") {
   let userId: string | null = null;
@@ -57,7 +60,7 @@ export async function POST(request: Request) {
   const projectId = String(body.projectId ?? "").trim();
   const operation = String(body.operation ?? "").trim();
   if (!workspaceId || !projectId || !operation) return Response.json({ error: "workspaceId, projectId and operation are required." }, { status: 400 });
-  if (!["capture_input", "create_evidence", "run_chain", "record_decision"].includes(operation)) return Response.json({ error: "Unsupported public operation." }, { status: 400 });
+  if (!["capture_input", "derive_evidence", "run_chain", "record_decision"].includes(operation)) return Response.json({ error: "Unsupported public operation." }, { status: 400 });
   const authorized = await authorize(projectId, workspaceId, "write");
   if (authorized instanceof Response) return authorized;
   const scope = { workspaceId, projectId, userId: authorized.user.id, role: authorized.role };
@@ -71,15 +74,20 @@ export async function POST(request: Request) {
         externalId: body.externalId ? String(body.externalId) : null,
       }), { status: 201 });
     }
-    if (operation === "create_evidence") {
-      const sourceType = String(body.sourceType ?? "");
-      if (!SOURCE_TYPES.has(sourceType)) return Response.json({ error: "Invalid sourceType." }, { status: 400 });
-      return Response.json({ evidence: await createEvidenceItem(authorized.supabase, scope, {
-        sourceType: sourceType as "manual_note" | "email" | "meeting_minutes" | "ticket" | "conversation" | "document_reference",
-        title: String(body.title ?? ""), content: String(body.content ?? ""), sourceReference: body.sourceReference ? String(body.sourceReference) : null,
-        confidenceLevel: (["low", "medium", "high"].includes(String(body.confidenceLevel)) ? String(body.confidenceLevel) : "medium") as "low" | "medium" | "high",
-        metadata: body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata) ? body.metadata as Record<string, unknown> : {},
-      }) }, { status: 201 });
+    if (operation === "derive_evidence") {
+      const assertionType = String(body.assertionType ?? "");
+      const classification = String(body.classification ?? "");
+      const missingDataState = String(body.missingDataState ?? "");
+      if (!ASSERTION_TYPES.has(assertionType) || !CLASSIFICATIONS.has(classification) || !MISSING_DATA_STATES.has(missingDataState)) {
+        return Response.json({ error: "Explicit assertionType, classification and missingDataState are required." }, { status: 400 });
+      }
+      const result = await deriveEvidence(authorized.supabase, scope, {
+        normalizedEventId: String(body.normalizedEventId ?? ""), idempotencyKey: String(body.idempotencyKey ?? ""),
+        assertionType: assertionType as EvidenceAssertionType, classification: classification as EvidenceClassification,
+        confidenceScore: Number(body.confidenceScore), missingDataState: missingDataState as MissingDataState,
+        evaluatedAt: String(body.evaluatedAt ?? ""), staleAt: body.staleAt ? String(body.staleAt) : null,
+      });
+      return Response.json(result, { status: result.disposition === "created" ? 201 : 200 });
     }
     if (operation === "run_chain") return Response.json(await runEvidenceDecisionChain(authorized.supabase, scope, String(body.evidenceItemId ?? "")));
     const decisionStatus = String(body.decisionStatus ?? "");
@@ -92,7 +100,7 @@ export async function POST(request: Request) {
     }), { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Operational flow failed.";
-    const status = /denied|authority|access/.test(message) ? 403 : /required|mismatch|invalid|not_found|incomplete|malformed|conflict|source_(degraded|stale|unavailable|revoked)/.test(message) ? 400 : 500;
+    const status = /idempotency_conflict/.test(message) ? 409 : /denied|authority|access/.test(message) ? 403 : /required|mismatch|invalid|not_found|incomplete|malformed|source_(degraded|stale|unavailable|revoked)/.test(message) ? 400 : 500;
     // 4xx branches carry app-controlled vocabulary from the operational-flow
     // domain; anything else may be a raw driver error and must stay internal.
     if (status === 500) return safeLegacyErrorResponse("/api/operational-flow", error, "Operational flow failed. Please retry.");

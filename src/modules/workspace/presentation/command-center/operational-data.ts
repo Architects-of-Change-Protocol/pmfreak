@@ -29,6 +29,22 @@ export async function postOperationalFlow(workspaceId: string, projectId: string
   return result;
 }
 
+export async function captureAndDeriveDemoEvidence(workspaceId: string, projectId: string, input: {
+  title: string; content: string; assertionType?: "INFERENCE" | "ASSUMPTION"; classification?: string;
+  confidenceScore?: number; missingDataState?: "COMPLETE" | "PARTIAL" | "UNKNOWN";
+}) {
+  const requestId = crypto.randomUUID();
+  const captured = await postOperationalFlow(workspaceId, projectId, {
+    operation: "capture_input", sourceKey: "manual-demo:v1", idempotencyKey: `capture:${requestId}`,
+    title: input.title, content: input.content, occurredAt: new Date().toISOString(), correlationId: requestId,
+  });
+  return postOperationalFlow(workspaceId, projectId, {
+    operation: "derive_evidence", normalizedEventId: captured.normalizedEvent.id, idempotencyKey: `evidence:${requestId}`,
+    assertionType: input.assertionType ?? "ASSUMPTION", classification: input.classification ?? "UNCLASSIFIED",
+    confidenceScore: input.confidenceScore ?? 0.5, missingDataState: input.missingDataState ?? "UNKNOWN", evaluatedAt: new Date().toISOString(),
+  });
+}
+
 export async function postVaultIntake(params: { workspaceId: string; projectId: string; rawContent: string }) {
   const response = await fetch("/api/vault/intake", {
     method: "POST",
