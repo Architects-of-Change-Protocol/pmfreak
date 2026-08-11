@@ -40,7 +40,7 @@ itself did not have hosted credentials and did not run it — see
 npm run check:fresh-db-migrations
 ```
 
-This single command (`scripts/check-fresh-db-migrations.mjs`) validates the safety guard, checks migration inventory/ordering (duplicate timestamps, filename format), applies every file in `supabase/migrations/` in order, and reports schema contract results. It refuses to run at all without `ALLOW_DESTRUCTIVE_FRESH_DB_TEST=true`, and refuses hosted mode unless `FRESH_DB_EXPECTED_PROJECT_REF` exactly matches `SUPABASE_PROJECT_REF`. With no database variables set, it runs in `verify-only` mode (static checks only — safe to run anywhere, anytime, including CI on every PR).
+This single command (`scripts/check-fresh-db-migrations.mjs`) validates the safety guard, checks migration inventory/ordering (duplicate timestamps, filename format), applies `supabase/roles.sql` before every fresh migration chain, and reports schema contract results. Local Postgres mode applies the bootstrap with `psql`; hosted mode uses `supabase db push --include-roles`. It refuses to run at all without `ALLOW_DESTRUCTIVE_FRESH_DB_TEST=true`, and refuses hosted mode unless `FRESH_DB_EXPECTED_PROJECT_REF` exactly matches `SUPABASE_PROJECT_REF`. With no database variables set, it runs in `verify-only` mode (static checks only — safe to run anywhere, anytime, including CI on every PR).
 
 ## 3. Install extensions
 
@@ -108,8 +108,8 @@ plan, not a completed run):
 2. `npx supabase link --project-ref "$SUPABASE_PROJECT_REF"` — confirm the
    linked ref.
 3. `npx supabase migration list` — record local/remote counts (sanitized).
-4. `npm run check:fresh-db-migrations` — applies all 146 migrations
-   (144 at Perilla 13 close + 2 Perilla 13B SECURITY DEFINER fixes), then
+4. `npm run check:fresh-db-migrations` — applies `supabase/roles.sql` first via
+   `supabase db push --include-roles`, then applies all versioned migrations, then
    the new (Perilla 13B) post-push repeatability check
    (`verifyHostedRepeatability` in `scripts/check-fresh-db-migrations.mjs`)
    parses `supabase migration list --linked` and fails on remote-pending,

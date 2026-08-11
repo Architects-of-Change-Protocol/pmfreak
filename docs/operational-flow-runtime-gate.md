@@ -71,7 +71,7 @@ Create a throwaway project on [supabase.com](https://supabase.com) or use a bran
 supabase db reset
 
 # Remote
-supabase db push --db-url "postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres"
+supabase db push --include-roles --db-url "postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres"
 ```
 
 Confirm the most recent migration ran:

@@ -11,6 +11,7 @@ const route = readFileSync("src/app/api/operational-flow/route.ts", "utf8");
 const ui = readFileSync("src/modules/workspace/presentation/command-center/operational-decision-loop.tsx", "utf8");
 const seed = readFileSync("scripts/seed-operational-flow-demo.mjs", "utf8");
 const dbVerifier = readFileSync("scripts/check-operational-flow-db.mjs", "utf8");
+const freshDbVerifier = readFileSync("scripts/check-fresh-db-migrations.mjs", "utf8");
 const legacyWorkflow = readFileSync("src/lib/recommended-actions/decision-workflow.ts", "utf8");
 const legacyRoute = readFileSync("src/app/api/recommended-actions/route.ts", "utf8");
 const taskMaterializer = readFileSync("src/lib/task-drafts/materialize-task-draft.ts", "utf8");
@@ -127,6 +128,8 @@ test("P2-03: local fresh-replay compatibility does not backdate deployed migrati
   assert.doesNotMatch(pgcryptoCompatibility, /alter table|drop table|delete from/i);
   assert.match(pgcryptoCompatibility, /loads roles\.sql before[\s\S]*versioned migrations/);
   assert.equal(existsSync("supabase/migrations/20260610000000_pgcrypto_public_digest_compatibility.sql"), false);
+  assert.match(freshDbVerifier, /"db", "push", "--include-roles"/);
+  assert.match(freshDbVerifier, /dbUrl, "-f", ROLES_FILE/);
 });
 
 test("P2-03: Source, Raw Input, Normalized Event, and Evidence remain separate", () => {

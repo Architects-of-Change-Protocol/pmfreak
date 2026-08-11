@@ -36,6 +36,7 @@ import path from "node:path";
 
 const ROOT = process.cwd();
 const MIGRATIONS_DIR = path.join(ROOT, "supabase/migrations");
+const ROLES_FILE = path.join(ROOT, "supabase/roles.sql");
 const REPORT_DIR = path.join(ROOT, ".fresh-db-migration-logs");
 
 const KNOWN_PRODUCTION_HOST_FRAGMENTS = ["prod", "production", "pilot"];
@@ -137,6 +138,11 @@ function applyLocal(files) {
   const dbUrl = process.env.FRESH_DB_URL;
   console.log(`[apply:local] target: ${redact(dbUrl)}`);
 
+  const roles = sh("psql", ["-v", "ON_ERROR_STOP=1", dbUrl, "-f", ROLES_FILE]);
+  if (roles.status !== 0) {
+    return { ok: false, failedFile: "supabase/roles.sql", stderr: roles.stderr, applied: 0 };
+  }
+
   for (const file of files) {
     const full = path.join(MIGRATIONS_DIR, file);
     const result = sh("psql", ["-v", "ON_ERROR_STOP=1", dbUrl, "-f", full]);
@@ -156,7 +162,7 @@ function applyHosted() {
   });
   if (link.status !== 0) return { ok: false, stderr: link.stderr };
 
-  const push = sh("npx", ["-y", "supabase", "db", "push"], {
+  const push = sh("npx", ["-y", "supabase", "db", "push", "--include-roles"], {
     env: { ...process.env, SUPABASE_ACCESS_TOKEN: process.env.SUPABASE_ACCESS_TOKEN },
   });
   if (push.status !== 0) return { ok: false, stderr: push.stderr };

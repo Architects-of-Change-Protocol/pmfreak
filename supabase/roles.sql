@@ -5,8 +5,9 @@
 -- `public` and calls digest(text, text), while current local Supabase images
 -- install pgcrypto in `extensions`. This bridge lets an empty disposable local
 -- database replay immutable history without inserting a backdated migration
--- into the deployment ledger. Hosted migration deployment does not execute
--- this local roles bootstrap; the only forward P2-03 migration is 20260901000000.
+-- into the deployment ledger. Fresh hosted deployment must use
+-- `supabase db push --include-roles`; the only forward P2-03 migration remains
+-- 20260901000000.
 create extension if not exists pgcrypto with schema extensions;
 
 create or replace function public.digest(p_data text, p_type text)
