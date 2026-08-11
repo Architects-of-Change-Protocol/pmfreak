@@ -60,7 +60,7 @@ State previously persisted in local JSON files now lives in Supabase Postgres wi
 Apply the migration:
 
 ```bash
-npx supabase db push
+npx supabase db push --include-roles
 ```
 
 The migration file is:

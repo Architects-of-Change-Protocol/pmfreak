@@ -1,20 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 
 const migration = readFileSync("supabase/migrations/20260611000000_operational_evidence_decision_loop.sql", "utf8");
+const intakeMigration = readFileSync("supabase/migrations/20260901000000_raw_input_normalized_event_foundation.sql", "utf8");
+const pgcryptoCompatibility = readFileSync("supabase/roles.sql", "utf8");
 const service = readFileSync("src/lib/operational-flow/operational-flow-service.ts", "utf8");
 const route = readFileSync("src/app/api/operational-flow/route.ts", "utf8");
 const ui = readFileSync("src/modules/workspace/presentation/command-center/operational-decision-loop.tsx", "utf8");
 const seed = readFileSync("scripts/seed-operational-flow-demo.mjs", "utf8");
 const dbVerifier = readFileSync("scripts/check-operational-flow-db.mjs", "utf8");
+const freshDbVerifier = readFileSync("scripts/check-fresh-db-migrations.mjs", "utf8");
 const legacyWorkflow = readFileSync("src/lib/recommended-actions/decision-workflow.ts", "utf8");
 const legacyRoute = readFileSync("src/app/api/recommended-actions/route.ts", "utf8");
 const taskMaterializer = readFileSync("src/lib/task-drafts/materialize-task-draft.ts", "utf8");
 
 function tsxProbe(source) {
-  return JSON.parse(execFileSync("npx", ["tsx", "--eval", source], { encoding: "utf8" }).trim());
+  return JSON.parse(execFileSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "--eval", source], { encoding: "utf8" }).trim());
 }
 
 test("contract: migration defines role-aware RLS and closes direct writes to derived audit tables", () => {
@@ -117,4 +120,43 @@ test("real DB/RLS verifier fails explicitly when isolated Supabase infrastructur
   assert.equal(result.status, 2);
   assert.match(result.stderr, /requires an isolated, migrated Supabase project/);
   for (const probe of ["viewer evidence insert", "normal-user signal insert", "cross-workspace write", "authority denial", "totalGovernanceEvents > 30"]) assert.match(dbVerifier, new RegExp(probe));
+});
+
+test("P2-03: local fresh-replay compatibility does not backdate deployed migration history", () => {
+  assert.match(pgcryptoCompatibility, /extensions\.digest/);
+  assert.match(pgcryptoCompatibility, /set search_path = pg_catalog, extensions/);
+  assert.doesNotMatch(pgcryptoCompatibility, /alter table|drop table|delete from/i);
+  assert.match(pgcryptoCompatibility, /loads roles\.sql before[\s\S]*versioned migrations/);
+  assert.equal(existsSync("supabase/migrations/20260610000000_pgcrypto_public_digest_compatibility.sql"), false);
+  assert.match(freshDbVerifier, /"db", "push", "--include-roles"/);
+  assert.match(freshDbVerifier, /dbUrl, "-f", ROLES_FILE/);
+});
+
+test("P2-03: Source, Raw Input, Normalized Event, and Evidence remain separate", () => {
+  for (const table of ["operational_sources", "operational_raw_inputs", "operational_normalized_events"]) {
+    assert.match(intakeMigration, new RegExp(`create table public\\.${table}`));
+    assert.match(intakeMigration, new RegExp(`alter table public\\.${table} enable row level security`));
+  }
+  assert.doesNotMatch(intakeMigration, /insert into public\.evidence_items/i);
+  assert.match(intakeMigration, /'evidenceCreated',false/);
+  assert.match(service, /rpc\("capture_operational_input"/);
+  assert.match(route, /operation === "capture_input"/);
+});
+
+test("P2-03: intake is content-addressed, immutable, idempotent and versioned", () => {
+  assert.match(intakeMigration, /extensions\.digest[\s\S]*'sha256'/);
+  assert.match(intakeMigration, /content_digest.*sha256:/s);
+  assert.match(intakeMigration, /event_digest.*sha256:/s);
+  assert.match(intakeMigration, /unique \(source_id, idempotency_key\)/);
+  assert.match(intakeMigration, /intake_idempotency_conflict/);
+  assert.match(intakeMigration, /operational_raw_inputs_immutable/);
+  assert.match(intakeMigration, /operational_normalized_events_immutable/);
+  assert.match(intakeMigration, /schema_version integer not null/);
+  assert.match(intakeMigration, /NORMALIZED_EVENT_RECORDED/);
+});
+
+test("P2-03: fixture expiry and explicit degraded source states are enforced", () => {
+  assert.match(intakeMigration, /fixture_label = 'DEMO \/ FIXTURE'/);
+  for (const prompt of ["P2-04", "P2-13", "P2-17"]) assert.match(intakeMigration, new RegExp(prompt));
+  for (const state of ["degraded", "stale", "unavailable", "revoked"]) assert.match(intakeMigration, new RegExp(`intake_source_${state}`));
 });

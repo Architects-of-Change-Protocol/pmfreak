@@ -1,8 +1,8 @@
 import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
-import { requireAuthenticatedUser, requireProjectAccess } from "@/lib/security/server-authorization";
-import { createEvidenceItem, getOperationalSummary, recordHumanDecision, runEvidenceDecisionChain } from "@/lib/operational-flow/operational-flow-service";
+import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
+import { captureOperationalInput, createEvidenceItem, getOperationalSummary, recordHumanDecision, runEvidenceDecisionChain } from "@/lib/operational-flow/operational-flow-service";
 import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 
 const ROUTE_ID = "/api/operational-flow";
@@ -14,7 +14,6 @@ async function authorize(projectId: string, workspaceId: string, permission: "re
   try {
     const { user } = await requireAuthenticatedUser();
     userId = user.id;
-    await requireProjectAccess(projectId, permission);
     const supabase = await createSupabaseServerClient();
     const [{ data: project }, { data: membership }] = await Promise.all([
       supabase.from("projects").select("workspace_id").eq("id", projectId).eq("workspace_id", workspaceId).maybeSingle(),
@@ -58,12 +57,20 @@ export async function POST(request: Request) {
   const projectId = String(body.projectId ?? "").trim();
   const operation = String(body.operation ?? "").trim();
   if (!workspaceId || !projectId || !operation) return Response.json({ error: "workspaceId, projectId and operation are required." }, { status: 400 });
-  if (!["create_evidence", "run_chain", "record_decision"].includes(operation)) return Response.json({ error: "Unsupported public operation." }, { status: 400 });
+  if (!["capture_input", "create_evidence", "run_chain", "record_decision"].includes(operation)) return Response.json({ error: "Unsupported public operation." }, { status: 400 });
   const authorized = await authorize(projectId, workspaceId, "write");
   if (authorized instanceof Response) return authorized;
   const scope = { workspaceId, projectId, userId: authorized.user.id, role: authorized.role };
 
   try {
+    if (operation === "capture_input") {
+      return Response.json(await captureOperationalInput(authorized.supabase, scope, {
+        sourceKey: String(body.sourceKey ?? "manual-demo:v1"), idempotencyKey: String(body.idempotencyKey ?? ""),
+        title: String(body.title ?? ""), content: String(body.content ?? ""), occurredAt: String(body.occurredAt ?? ""),
+        correlationId: String(body.correlationId ?? ""), causationId: body.causationId ? String(body.causationId) : null,
+        externalId: body.externalId ? String(body.externalId) : null,
+      }), { status: 201 });
+    }
     if (operation === "create_evidence") {
       const sourceType = String(body.sourceType ?? "");
       if (!SOURCE_TYPES.has(sourceType)) return Response.json({ error: "Invalid sourceType." }, { status: 400 });
@@ -85,7 +92,7 @@ export async function POST(request: Request) {
     }), { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Operational flow failed.";
-    const status = /denied|authority|access/.test(message) ? 403 : /required|mismatch|invalid|not_found|incomplete/.test(message) ? 400 : 500;
+    const status = /denied|authority|access/.test(message) ? 403 : /required|mismatch|invalid|not_found|incomplete|malformed|conflict|source_(degraded|stale|unavailable|revoked)/.test(message) ? 400 : 500;
     // 4xx branches carry app-controlled vocabulary from the operational-flow
     // domain; anything else may be a raw driver error and must stay internal.
     if (status === 500) return safeLegacyErrorResponse("/api/operational-flow", error, "Operational flow failed. Please retry.");

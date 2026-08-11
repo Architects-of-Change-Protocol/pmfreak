@@ -12,7 +12,7 @@
 - **Unlocks:** P2-04, P2-13, P2-17
 - **Risk Level:** high
 - **Expected Review Size:** large
-- **Status:** `NOT_STARTED`
+- **Status:** `VERIFIED` — isolated fresh replay and existing-history migration simulation, database/RLS/authorization/runtime verification, contract tests, typecheck, repository-wide lint, build, AOC boundaries, and authorization-bypass checks pass.
 - **Migration:** yes additive; forward-only, additive if used; destructive changes prohibited.
 
 ## Role

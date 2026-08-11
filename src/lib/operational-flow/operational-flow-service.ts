@@ -17,6 +17,17 @@ type EvidenceInput = {
   metadata?: Record<string, unknown>;
 };
 
+export type CaptureOperationalInput = {
+  sourceKey: string;
+  idempotencyKey: string;
+  title: string;
+  content: string;
+  occurredAt: string;
+  correlationId: string;
+  causationId?: string | null;
+  externalId?: string | null;
+};
+
 function requireValue(value: string | undefined | null, name: string) {
   const normalized = value?.trim();
   if (!normalized) throw new Error(`${name}_required`);
@@ -45,6 +56,20 @@ export async function createEvidenceItem(client: Client, scope: Scope, input: Ev
     version: 1,
   }).select("*").single();
   return unwrap(result, "create_evidence_item") as Record<string, unknown>;
+}
+
+export async function captureOperationalInput(client: Client, scope: Scope, input: CaptureOperationalInput) {
+  if (!canCreateOperationalEvidence(scope.role ?? null)) throw new Error("intake_write_role_denied");
+  for (const [value, name] of [[input.sourceKey, "source_key"], [input.idempotencyKey, "idempotency_key"], [input.title, "title"], [input.content, "content"], [input.occurredAt, "occurred_at"], [input.correlationId, "correlation_id"]] as const) requireValue(value, name);
+  const occurredAt = new Date(input.occurredAt);
+  if (Number.isNaN(occurredAt.valueOf())) throw new Error("occurred_at_invalid");
+  const result = await client.rpc("capture_operational_input", {
+    p_workspace_id: scope.workspaceId, p_project_id: scope.projectId,
+    p_source_key: input.sourceKey.trim(), p_idempotency_key: input.idempotencyKey.trim(),
+    p_title: input.title.trim(), p_content: input.content.trim(), p_occurred_at: occurredAt.toISOString(),
+    p_correlation_id: input.correlationId, p_causation_id: input.causationId || null, p_external_id: input.externalId?.trim() || null,
+  });
+  return unwrap(result, "capture_operational_input") as Record<string, unknown>;
 }
 
 export async function runEvidenceDecisionChain(client: Client, scope: Scope, evidenceItemId: string) {
@@ -81,7 +106,10 @@ async function loadActorRole(client: Client, workspaceId: string, userId: string
 }
 
 export async function getOperationalSummary(client: Client, workspaceId: string, projectId: string, userId: string): Promise<OperationalSummary> {
-  const [evidence, signals, risks, governance, recommendations, decisions, assuranceResult, actorRole] = await Promise.all([
+  const [sources, rawInputs, normalizedEvents, evidence, signals, risks, governance, recommendations, decisions, assuranceResult, actorRole] = await Promise.all([
+    client.from("operational_sources").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(20),
+    client.from("operational_raw_inputs").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("captured_at", { ascending: false }).limit(20),
+    client.from("operational_normalized_events").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("recorded_at", { ascending: false }).limit(20),
     client.from("evidence_items").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(20),
     client.from("operational_signals").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(30),
     client.from("risk_issue_records").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(30),
@@ -91,7 +119,7 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     client.rpc("get_operational_assurance_summary", { p_workspace_id: workspaceId, p_project_id: projectId }),
     loadActorRole(client, workspaceId, userId),
   ]);
-  for (const result of [evidence, signals, risks, governance, recommendations, decisions]) {
+  for (const result of [sources, rawInputs, normalizedEvents, evidence, signals, risks, governance, recommendations, decisions]) {
     if (result.error) throw new Error(`load_operational_summary: ${result.error.message}`);
   }
   if (assuranceResult.error || !assuranceResult.data) throw new Error(`load_operational_assurance: ${assuranceResult.error?.message ?? "no_data"}`);
@@ -105,6 +133,9 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     return { ...row, actor_authority: Object.fromEntries(evaluations) };
   });
   return {
+    sources: sources.data ?? [],
+    rawInputs: rawInputs.data ?? [],
+    normalizedEvents: normalizedEvents.data ?? [],
     evidence: evidence.data ?? [],
     signals: signals.data ?? [],
     risksIssues: risks.data ?? [],

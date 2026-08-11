@@ -21,13 +21,19 @@ if (!url || !anonKey || !serviceRoleKey || !appBaseUrl || process.env.OPERATIONA
   process.exit(2);
 }
 
-// Production safeguard: reject any URL that looks like a real Supabase project
-// (i.e. not localhost and not a known local/CI pattern). Adjust the allowlist
-// if your isolated environment uses a custom domain.
-if (!/localhost|127\.0\.0\.1|0\.0\.0\.0|\.local(:\d+)?$/.test(url) && !process.env.OPERATIONAL_FLOW_TEST_ALLOW_REMOTE === "true") {
-  const { hostname } = new URL(url);
-  if (!hostname.includes("localhost") && !hostname.includes("127.0.0.1")) {
-    console.error(`SAFETY ABORT: OPERATIONAL_FLOW_TEST_SUPABASE_URL points to a remote host (${hostname}).\nThis check creates and deletes real data. Only run it against an isolated local Supabase instance.\nIf you intentionally want to run against a remote isolated project, set OPERATIONAL_FLOW_TEST_ALLOW_REMOTE=true.`);
+// Destructive verification is intentionally local-only. Literal loopback hosts
+// avoid DNS rebinding and prevent 0.0.0.0/listen addresses from being mistaken
+// for safe request targets.
+for (const [name, target] of [["OPERATIONAL_FLOW_TEST_SUPABASE_URL", url], ["OPERATIONAL_FLOW_TEST_BASE_URL", appBaseUrl]]) {
+  let hostname;
+  try {
+    hostname = new URL(target).hostname;
+  } catch {
+    console.error(`SAFETY ABORT: ${name} is not a valid URL.`);
+    process.exit(2);
+  }
+  if (hostname !== "127.0.0.1" && hostname !== "localhost" && hostname !== "[::1]") {
+    console.error(`SAFETY ABORT: ${name} must use a literal loopback host; received ${hostname}.`);
     process.exit(2);
   }
 }
@@ -59,6 +65,13 @@ async function expectDenied(promise, label) {
   return result.error;
 }
 
+async function expectNoMutableRows(promise, label) {
+  const result = await promise;
+  if (result.error) return result.error;
+  assert.equal(result.data?.length ?? 0, 0, `${label}: RLS must expose no mutable rows`);
+  return null;
+}
+
 async function loginCookie(email) {
   const form = new FormData(); form.set("email", email); form.set("password", password); form.set("next", "/command-center");
   const response = await fetch(`${appBaseUrl}/api/login`, { method: "POST", body: form, redirect: "manual" });
@@ -68,7 +81,7 @@ async function loginCookie(email) {
 }
 
 async function apiJson(path, options = {}) {
-  const response = await fetch(`${appBaseUrl}${path}`, options);
+  const response = await fetch(`${appBaseUrl}${path}`, { ...options, signal: options.signal ?? AbortSignal.timeout(15_000) });
   const payload = await response.json().catch(() => ({}));
   return { response, payload };
 }
@@ -121,6 +134,33 @@ try {
   const decisionApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ operation: "record_decision", workspaceId: workspaceA, projectId: projectA, recommendationId: apiRecommendation.data.id, decisionStatus: "accepted", decision: "Authorized API decision", rationale: "Owner role mapping verified." }) });
   assert.equal(decisionApi.response.status, 201);
 
+  const intakeCorrelationId = randomUUID();
+  const intakeBody = { operation: "capture_input", workspaceId: workspaceA, projectId: projectA, sourceKey: "manual-demo:v1", idempotencyKey: `p2-03-${suffix}`, title: "DEMO / FIXTURE scope update", content: "A controlled manual input, not evidence.", occurredAt: new Date().toISOString(), correlationId: intakeCorrelationId };
+  const intakeApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify(intakeBody) });
+  assert.equal(intakeApi.response.status, 201);
+  assert.equal(intakeApi.payload.disposition, "created");
+  assert.equal(intakeApi.payload.evidenceCreated, false);
+  assert.match(intakeApi.payload.rawInput.content_digest, /^sha256:[a-f0-9]{64}$/);
+  assert.match(intakeApi.payload.normalizedEvent.event_digest, /^sha256:[a-f0-9]{64}$/);
+  const duplicateIntake = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify(intakeBody) });
+  assert.equal(duplicateIntake.response.status, 201);
+  assert.equal(duplicateIntake.payload.disposition, "duplicate");
+  assert.equal(duplicateIntake.payload.rawInput.id, intakeApi.payload.rawInput.id);
+  const conflictingIntake = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ ...intakeBody, content: "Conflicting retry" }) });
+  assert.equal(conflictingIntake.response.status, 400);
+  const viewerIntake = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: viewerCookie }, body: JSON.stringify({ ...intakeBody, idempotencyKey: `viewer-${suffix}` }) });
+  assert.equal(viewerIntake.response.status, 403);
+  const outsiderRawRead = await (await createUser("second-outsider-reader")).from("operational_raw_inputs").select("id").eq("id", intakeApi.payload.rawInput.id);
+  assert.ifError(outsiderRawRead.error); assert.equal(outsiderRawRead.data.length, 0, "cross-workspace raw input read must be filtered by RLS");
+  const rawMutation = await owner.from("operational_raw_inputs").update({ status: "rejected" }).eq("id", intakeApi.payload.rawInput.id).select("id");
+  assert.ifError(rawMutation.error); assert.equal(rawMutation.data.length, 0, "RLS must expose no mutable raw input row");
+  const eventMutation = await owner.from("operational_normalized_events").delete().eq("id", intakeApi.payload.normalizedEvent.id).select("id");
+  assert.ifError(eventMutation.error); assert.equal(eventMutation.data.length, 0, "RLS must expose no deletable normalized event row");
+  const immutableRaw = await owner.from("operational_raw_inputs").select("status").eq("id", intakeApi.payload.rawInput.id).single();
+  assert.ifError(immutableRaw.error); assert.equal(immutableRaw.data.status, "received");
+  const immutableEvent = await owner.from("operational_normalized_events").select("status").eq("id", intakeApi.payload.normalizedEvent.id).single();
+  assert.ifError(immutableEvent.error); assert.equal(immutableEvent.data.status, "accepted");
+
   const evidenceInsert = {
     workspace_id: workspaceA, project_id: projectA, created_by: users.owner.id,
     source_type: "email", title: "Client asks for work outside scope",
@@ -152,7 +192,7 @@ try {
   const signalCount = await owner.from("operational_signals").select("id", { count: "exact", head: true }).eq("evidence_item_id", ownerEvidence.data.id);
   assert.equal(signalCount.count, 2, "reprocessing must not duplicate signals");
 
-  const recommendationResult = await owner.from("recommended_actions").select("id").eq("project_id", projectA).not("governance_event_id", "is", null).order("confidence_score", { ascending: true }).limit(1).single();
+  const recommendationResult = await owner.from("recommended_actions").select("id").eq("project_id", projectA).not("governance_event_id", "is", null).neq("id", apiRecommendation.data.id).order("confidence_score", { ascending: true }).limit(1).single();
   assert.ifError(recommendationResult.error);
   const recommendationId = recommendationResult.data.id;
   await expectDenied(pm.rpc("record_operational_decision", {
@@ -160,7 +200,7 @@ try {
     p_decision: "Accept", p_decision_status: "accepted", p_rationale: "PM lacks sponsor/PMO authority.",
   }), "PM sponsor-authority decision");
 
-  await expectDenied(owner.from("recommended_actions").update({ status: "accepted" }).eq("id", recommendationId), "legacy/direct governed transition");
+  await expectNoMutableRows(owner.from("recommended_actions").update({ status: "accepted" }).eq("id", recommendationId).select("id"), "legacy/direct governed transition");
   const decision = await owner.rpc("record_operational_decision", {
     p_recommendation_id: recommendationId, p_manual_evidence_item_id: null,
     p_decision: "Accept after authorized review", p_decision_status: "accepted", p_rationale: "Owner authority verified by role mapping v1.",
@@ -170,9 +210,11 @@ try {
   const decisionId = decision.data.decision.id;
   const recommendationAfter = await owner.from("recommended_actions").select("status,decided_by").eq("id", recommendationId).single();
   assert.deepEqual(recommendationAfter.data, { status: "accepted", decided_by: users.owner.id });
-  await expectDenied(owner.from("operational_decision_records").update({ rationale: "rewritten" }).eq("id", decisionId), "append-only decision");
-  await expectDenied(owner.from("decision_evidence_links").update({ link_reason: "rewritten" }).eq("decision_record_id", decisionId), "append-only evidence link");
-  await expectDenied(owner.from("evidence_items").update({ content: "rewritten" }).eq("id", ownerEvidence.data.id), "frozen evidence mutation");
+  await expectNoMutableRows(owner.from("operational_decision_records").update({ rationale: "rewritten" }).eq("id", decisionId).select("id"), "append-only decision");
+  await expectNoMutableRows(owner.from("decision_evidence_links").update({ link_reason: "rewritten" }).eq("decision_record_id", decisionId).select("id"), "append-only evidence link");
+  await expectNoMutableRows(owner.from("evidence_items").update({ content: "rewritten" }).eq("id", ownerEvidence.data.id).select("id"), "frozen evidence mutation");
+  const frozenEvidence = await owner.from("evidence_items").select("content").eq("id", ownerEvidence.data.id).single();
+  assert.ifError(frozenEvidence.error); assert.equal(frozenEvidence.data.content, evidenceInsert.content);
 
   const outsiderEvidence = await admin.from("evidence_items").insert({ ...evidenceInsert, id: randomUUID(), workspace_id: workspaceB, project_id: projectB, created_by: users.outsider.id }).select("id").single();
   assert.ifError(outsiderEvidence.error);
@@ -197,7 +239,7 @@ try {
   const secondSeed = JSON.parse(execFileSync(process.execPath, ["scripts/seed-operational-flow-demo.mjs", workspaceA, users.owner.id], { encoding: "utf8", env: seedEnv }));
   assert.equal(firstSeed.projectId, secondSeed.projectId); assert.equal(secondSeed.disposition, "reused");
 
-  console.log(JSON.stringify({ ok: true, checks: ["role-aware evidence RLS", "derived-table direct writes denied", "cross-workspace denied", "transactional idempotent chain", "authority denial", "atomic decision/evidence/recommendation", "append-only audit trail", "frozen evidence", "exact assurance counts > 30", "idempotent seed", "authenticated API create/run/decision", "API 401/403 scope and role denials"] }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: ["role-aware evidence RLS", "derived-table direct writes denied", "cross-workspace denied", "transactional idempotent chain", "authority denial", "atomic decision/evidence/recommendation", "append-only audit trail", "frozen evidence", "exact assurance counts > 30", "idempotent seed", "authenticated API create/run/decision", "API 401/403 scope and role denials", "P2-03 source/raw/event separation", "P2-03 SHA-256 digests", "P2-03 idempotent duplicate and conflict", "P2-03 cross-tenant RLS", "P2-03 immutable raw/event"] }, null, 2));
 } finally {
   await cleanup();
 }

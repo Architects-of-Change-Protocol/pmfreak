@@ -231,6 +231,6 @@ test("parseHostedMigrationList: migration count mismatch is detectable via match
 test("hosted apply path invokes the official Supabase CLI via npx, not a hand-rolled HTTP client", () => {
   const source = readFileSync(SCRIPT, "utf8");
   assert.match(source, /"npx",\s*\["-y",\s*"supabase",\s*"link"/);
-  assert.match(source, /"npx",\s*\["-y",\s*"supabase",\s*"db",\s*"push"\]/);
+  assert.ok(source.includes('sh("npx", ["-y", "supabase", "db", "push", "--include-roles"]'));
   assert.match(source, /"npx",\s*\["-y",\s*"supabase",\s*"migration",\s*"list",\s*"--linked"\]/);
 });

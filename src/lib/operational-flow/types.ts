@@ -39,6 +39,9 @@ export type OperationalAssuranceSummary = {
 };
 
 export type OperationalSummary = {
+  sources: Array<Record<string, unknown>>;
+  rawInputs: Array<Record<string, unknown>>;
+  normalizedEvents: Array<Record<string, unknown>>;
   evidence: Array<Record<string, unknown>>;
   signals: Array<Record<string, unknown>>;
   risksIssues: Array<Record<string, unknown>>;
