@@ -2,21 +2,12 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { canCreateOperationalEvidence, evaluateOperationalDecisionAuthority, type OperationalWorkspaceRole } from "./authority";
-import type { DecisionStatus, OperationalSummary } from "./types";
+import type { DecisionStatus, DeriveEvidenceInput, EvidenceProvenanceResult, OperationalSummary } from "./types";
 
 export const SIGNAL_DETECTOR_KEY = "system/deterministic:governance_signal_detector_v1";
 
 type Client = SupabaseClient;
 type Scope = { workspaceId: string; projectId: string; userId: string; role?: OperationalWorkspaceRole | null };
-type EvidenceInput = {
-  sourceType: "manual_note" | "email" | "meeting_minutes" | "ticket" | "conversation" | "document_reference";
-  title: string;
-  content: string;
-  sourceReference?: string | null;
-  confidenceLevel?: "low" | "medium" | "high";
-  metadata?: Record<string, unknown>;
-};
-
 export type CaptureOperationalInput = {
   sourceKey: string;
   idempotencyKey: string;
@@ -39,23 +30,22 @@ function unwrap<T>(result: { data: T | null; error: { message: string } | null }
   return result.data;
 }
 
-export async function createEvidenceItem(client: Client, scope: Scope, input: EvidenceInput) {
+export async function deriveEvidence(client: Client, scope: Scope, input: DeriveEvidenceInput): Promise<EvidenceProvenanceResult> {
   if (!canCreateOperationalEvidence(scope.role ?? null)) throw new Error("evidence_write_role_denied");
-  const result = await client.from("evidence_items").insert({
-    workspace_id: scope.workspaceId,
-    project_id: scope.projectId,
-    created_by: scope.userId,
-    source_type: input.sourceType,
-    title: requireValue(input.title, "title"),
-    content: requireValue(input.content, "content"),
-    source_reference: input.sourceReference?.trim() || null,
-    confidence_level: input.confidenceLevel ?? "medium",
-    status: "recorded",
-    metadata: input.metadata ?? {},
-    evidence_hash: "0".repeat(64),
-    version: 1,
-  }).select("*").single();
-  return unwrap(result, "create_evidence_item") as Record<string, unknown>;
+  for (const [value, name] of [[input.normalizedEventId, "normalized_event_id"], [input.idempotencyKey, "idempotency_key"], [input.evaluatedAt, "evaluated_at"]] as const) requireValue(value, name);
+  if (!Number.isFinite(input.confidenceScore) || input.confidenceScore < 0 || input.confidenceScore > 1) throw new Error("confidence_score_invalid");
+  const evaluatedAt = new Date(input.evaluatedAt);
+  if (Number.isNaN(evaluatedAt.valueOf())) throw new Error("evaluated_at_invalid");
+  const staleAt = input.staleAt ? new Date(input.staleAt) : null;
+  if (staleAt && Number.isNaN(staleAt.valueOf())) throw new Error("stale_at_invalid");
+  const result = await client.rpc("derive_operational_evidence", {
+    p_workspace_id: scope.workspaceId, p_project_id: scope.projectId,
+    p_normalized_event_id: input.normalizedEventId, p_idempotency_key: input.idempotencyKey.trim(),
+    p_assertion_type: input.assertionType, p_classification: input.classification,
+    p_confidence_score: input.confidenceScore, p_missing_data_state: input.missingDataState,
+    p_evaluated_at: evaluatedAt.toISOString(), p_stale_at: staleAt?.toISOString() ?? null,
+  });
+  return unwrap(result, "derive_operational_evidence") as EvidenceProvenanceResult;
 }
 
 export async function captureOperationalInput(client: Client, scope: Scope, input: CaptureOperationalInput) {

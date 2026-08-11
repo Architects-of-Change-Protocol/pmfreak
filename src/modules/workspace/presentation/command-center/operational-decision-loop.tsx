@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 import type { DecisionStatus, OperationalSummary } from "@/lib/operational-flow/types";
+import { captureAndDeriveDemoEvidence } from "./operational-data";
 
 type AnyRecord = Record<string, unknown>;
 type AuthorityView = { allowed?: boolean; authorityRequired?: string; authorityBasis?: string | null; reason?: string };
@@ -46,11 +47,10 @@ export function OperationalDecisionLoop({ workspaceId, projectId }: { workspaceI
   const addEvidence = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setFailure(""); setNotice("Recording evidence…");
     try {
-      const created = await post({ operation: "create_evidence", sourceType, title, content, sourceReference, confidenceLevel: "high" });
-      setNotice("Evidence recorded. Applying the system/deterministic rule set…");
-      const chain = await post({ operation: "run_chain", evidenceItemId: created.evidence.id });
+      await captureAndDeriveDemoEvidence(workspaceId, projectId, { title, content });
+      setNotice("Deriving Evidence from the verified Normalized Event…");
       setTitle(""); setContent(""); setSourceReference("");
-      setNotice(chain.chain.length ? `Recorded ${chain.chain.length} deterministic rule match(es). Governance checks and recommendations are ready.` : "Evidence recorded. No deterministic rule matched; no risk was invented.");
+      setNotice("DEMO / FIXTURE Evidence derived with complete provenance. Intelligence has not run.");
       await mutate();
     } catch (caught) { setFailure(caught instanceof Error ? caught.message : "Unable to process evidence."); setNotice(""); }
     finally { setBusy(false); }

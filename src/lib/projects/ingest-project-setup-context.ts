@@ -1,7 +1,8 @@
+import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseVaultIntakeStore, ingestVaultDocument } from "@/lib/vault/intake";
 import { materializeRecommendedActions } from "@/lib/recommended-actions";
-import { createEvidenceItem, runEvidenceDecisionChain } from "@/lib/operational-flow/operational-flow-service";
+import { captureOperationalInput, deriveEvidence } from "@/lib/operational-flow/operational-flow-service";
 import type { OperationalWorkspaceRole } from "@/lib/operational-flow/authority";
 
 export type ProjectSetupContextIngestionResult = {
@@ -76,14 +77,21 @@ export async function ingestProjectSetupContext(input: {
   if (["owner", "admin", "pm"].includes(String(input.role))) {
     try {
       const scope = { workspaceId: input.workspaceId, projectId: input.projectId, userId: input.userId, role: input.role };
-      const evidence = await createEvidenceItem(input.supabase, scope, {
-        sourceType: "manual_note",
+      const requestId = randomUUID();
+      const captured = await captureOperationalInput(input.supabase, scope, {
+        sourceKey: "manual-demo:v1",
+        idempotencyKey: `capture:${requestId}`,
         title: `${input.projectName} — setup context`,
         content,
-        confidenceLevel: "medium",
+        occurredAt: new Date().toISOString(),
+        correlationId: requestId,
+      });
+      await deriveEvidence(input.supabase, scope, {
+        normalizedEventId: String((captured.normalizedEvent as Record<string, unknown>).id), idempotencyKey: `evidence:${requestId}`,
+        assertionType: "ASSUMPTION", classification: "UNCLASSIFIED", confidenceScore: 0.5,
+        missingDataState: "UNKNOWN", evaluatedAt: new Date().toISOString(),
       });
       result.evidenceRecorded = true;
-      await runEvidenceDecisionChain(input.supabase, scope, String(evidence.id));
     } catch (error) {
       console.error("project.setup_context.operational_chain_failed", {
         projectId: input.projectId,
