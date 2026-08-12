@@ -2,7 +2,7 @@ import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
-import { captureOperationalInput, deriveEvidence, getOperationalSummary, proposeGovernedMaterialAction, recordHumanDecision, revokeGovernedMaterialAction, runEvidenceDecisionChain } from "@/lib/operational-flow/operational-flow-service";
+import { captureOperationalInput, deriveEvidence, dispatchGovernedMaterialActionToTask, getOperationalSummary, proposeGovernedMaterialAction, recordHumanDecision, revokeGovernedMaterialAction, runEvidenceDecisionChain } from "@/lib/operational-flow/operational-flow-service";
 import type { EvidenceAssertionType, EvidenceClassification, MissingDataState } from "@/lib/operational-flow/types";
 import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
   const projectId = String(body.projectId ?? "").trim();
   const operation = String(body.operation ?? "").trim();
   if (!workspaceId || !projectId || !operation) return Response.json({ error: "workspaceId, projectId and operation are required." }, { status: 400 });
-  if (!["capture_input", "derive_evidence", "run_chain", "record_decision", "propose_material_action", "revoke_material_action"].includes(operation)) return Response.json({ error: "Unsupported public operation." }, { status: 400 });
+  if (!["capture_input", "derive_evidence", "run_chain", "record_decision", "propose_material_action", "dispatch_material_action_to_task", "revoke_material_action"].includes(operation)) return Response.json({ error: "Unsupported public operation." }, { status: 400 });
   const authorized = await authorize(projectId, workspaceId, "write");
   if (authorized instanceof Response) return authorized;
   const scope = { workspaceId, projectId, userId: authorized.user.id, role: authorized.role };
@@ -105,6 +105,18 @@ export async function POST(request: Request) {
         justification: String(body.justification ?? ""), createdAt: String(body.createdAt ?? ""), evaluationTime: String(body.evaluationTime ?? ""), expiresAt: String(body.expiresAt ?? ""),
       });
       return Response.json(result, { status: result.disposition === "created" ? 201 : result.disposition === "conflict" ? 409 : 200 });
+    }
+    if (operation === "dispatch_material_action_to_task") {
+      const result = await dispatchGovernedMaterialActionToTask(authorized.supabase, scope, {
+        actionId: String(body.actionId ?? ""),
+        expectedProposalDigest: body.expectedProposalDigest ? String(body.expectedProposalDigest) : null,
+      });
+      const status =
+        result.disposition === "created" ? 201 :
+        result.disposition === "existing" ? 200 :
+        result.disposition === "conflict" ? 409 :
+        409;
+      return Response.json(result, { status });
     }
     if (operation === "revoke_material_action") return Response.json(await revokeGovernedMaterialAction(authorized.supabase, scope, {
       actionId: String(body.actionId ?? ""), evaluationTime: String(body.evaluationTime ?? ""), reasonCode: String(body.reasonCode ?? "governance_revoked"),

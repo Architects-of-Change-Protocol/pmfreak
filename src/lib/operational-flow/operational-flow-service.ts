@@ -167,6 +167,37 @@ export async function proposeGovernedMaterialAction(client: Client, scope: Scope
   return { ...(result.data as Record<string, unknown>), authorizationMessage: "Authorized does not mean Executed.", taskMessage: "No task has been created.", dispatchMessage: "No action has been dispatched.", remoteAocMessage: "Remote AOC writeback is not enabled." } as Record<string, unknown> & { disposition?: string };
 }
 
+export async function dispatchGovernedMaterialActionToTask(
+  client: Client,
+  scope: Scope,
+  input: { actionId: string; expectedProposalDigest?: string | null },
+) {
+  if (!canCreateOperationalEvidence(scope.role ?? null)) throw new Error("action_task_write_denied");
+
+  const actionId = requireValue(input.actionId, "action_id");
+  const expectedProposalDigest = input.expectedProposalDigest?.trim() || null;
+  if (expectedProposalDigest && !/^[a-f0-9]{64}$/.test(expectedProposalDigest)) {
+    throw new Error("action_task_expected_digest_invalid");
+  }
+
+  const result = await client.rpc("dispatch_governed_action_to_internal_task", {
+    p_workspace_id: scope.workspaceId,
+    p_project_id: scope.projectId,
+    p_action_id: actionId,
+    p_expected_proposal_digest: expectedProposalDigest,
+  });
+
+  if (result.error || !result.data) {
+    throw new Error(`dispatch_governed_action_to_internal_task:${result.error?.message ?? "no_data"}`);
+  }
+
+  return result.data as Record<string, unknown> & {
+    disposition?: "created" | "existing" | "conflict" | "denied";
+    failureClass?: string;
+  };
+}
+
+/** P2-06 revocation remains append-only governance evidence. */
 export async function revokeGovernedMaterialAction(client: Client, scope: Scope, input: { actionId: string; evaluationTime: string; reasonCode: string }) {
   if (!canCreateOperationalEvidence(scope.role ?? null)) throw new Error("material_action_revoke_denied");
   const evaluationTime = new Date(requireValue(input.evaluationTime, "evaluation_time"));
