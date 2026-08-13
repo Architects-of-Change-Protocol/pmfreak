@@ -77,6 +77,7 @@
     "check:p2-06-db": "node scripts/check-p2-06-db.mjs",
     "check:p2-07-db": "node scripts/check-p2-07-db.mjs",
     "check:p2-08-db": "node scripts/check-p2-08-db.mjs",
+    "check:p2-09-db": "node scripts/check-p2-09-db.mjs",
     "check:dependency-security": "node scripts/check-dependency-security.mjs",
     "check:beta-release": "node scripts/check-beta-release.mjs",
     "check:fresh-db-migrations": "node scripts/check-fresh-db-migrations.mjs",
