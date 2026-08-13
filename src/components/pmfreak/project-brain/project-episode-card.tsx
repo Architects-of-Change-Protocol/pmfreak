@@ -32,7 +32,7 @@ const TYPE_TONE: Partial<Record<ProjectEpisodeType, string>> = {
 };
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
 export function ProjectEpisodeCard({

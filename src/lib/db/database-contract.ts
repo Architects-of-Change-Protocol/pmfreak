@@ -852,6 +852,71 @@ export const EXECUTION_TASK_EVENT_SELECTABLE_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof ExecutionTaskEventRow>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// internal_task_executions
+// Source: 20260905000000_p2_08_internal_dispatch_execution.sql
+// Bounded execution state for one governed canonical Task. Not a Task model and
+// not an Outcome/Observation.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type InternalTaskExecutionStatus =
+  | "queued"
+  | "running"
+  | "blocked"
+  | "failed"
+  | "completed";
+
+export type InternalTaskExecutionRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  task_id: string;
+  source_action_id: string;
+  governance_evaluation_id: string;
+  provider_key: "pmfreak/internal-state-machine:v1";
+  status: InternalTaskExecutionStatus;
+  attempt_count: number;
+  idempotency_key: string;
+  correlation_id: string;
+  causation_id: string | null;
+  failure_class: string | null;
+  failure_message: string | null;
+  queued_at: string;
+  started_at: string | null;
+  blocked_at: string | null;
+  failed_at: string | null;
+  completed_at: string | null;
+  last_transition_at: string;
+  dispatched_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export const INTERNAL_TASK_EXECUTION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "task_id",
+  "source_action_id",
+  "governance_evaluation_id",
+  "provider_key",
+  "status",
+  "attempt_count",
+  "idempotency_key",
+  "correlation_id",
+  "causation_id",
+  "failure_class",
+  "failure_message",
+  "queued_at",
+  "started_at",
+  "blocked_at",
+  "failed_at",
+  "completed_at",
+  "last_transition_at",
+  "dispatched_by",
+  "created_at",
+  "updated_at",
+] as const satisfies ReadonlyArray<keyof InternalTaskExecutionRow>;
 // project_milestones
 // Source: 20260605090000_milestones_schedule_foundation.sql
 // Project milestones with planned, baseline, and forecast dates.

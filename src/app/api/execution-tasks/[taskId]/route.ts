@@ -122,10 +122,45 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     return NextResponse.json({ ok: false, error: "Task not found.", failureClass: "not_found" }, { status: 404 });
   }
 
-  // Write access is required for ANY field, including status — unlike the
-  // legacy /update sub-route (kept at "read" for backward compatibility),
-  // this route is the one meant to reject client-side-only status changes,
-  // so it gates on "write" from the start.
+  const governedTask =
+    (task.source_payload as { source?: unknown } | null)?.source === "governed_action";
+  const rawPatch = body as Record<string, unknown>;
+  const governedLifecycleMutation = governedTask && rawPatch.status !== undefined;
+
+  if (governedLifecycleMutation) {
+    const { data: membership, error: membershipError } = await supabase
+      .from("workspace_memberships")
+      .select("role")
+      .eq("workspace_id", task.workspace_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (membershipError) {
+      return NextResponse.json(
+        { ok: false, error: "Unable to verify task write role.", failureClass: "persistence_failed" },
+        { status: 500 },
+      );
+    }
+
+    if (!membership?.role || !["owner", "admin", "pm"].includes(String(membership.role))) {
+      return NextResponse.json(
+        { ok: false, error: "Access denied.", failureClass: "unauthorized" },
+        { status: 403 },
+      );
+    }
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Governed Task lifecycle must use internal execution.",
+        failureClass: "governed_task_status_requires_internal_execution",
+      },
+      { status: 409 },
+    );
+  }
+
+  // Preserve the existing Enterprise runtime authorization for every
+  // non-governed Task mutation.
   try {
     await requireProjectAccess(task.project_id, "write");
   } catch (error) {
@@ -134,7 +169,6 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     }
     return NextResponse.json({ ok: false, error: "Authorization check failed.", failureClass: "unauthorized" }, { status: 403 });
   }
-
   const validated = validateUpdateExecutionTaskInput(body, task.status);
   if (!validated.ok) {
     return NextResponse.json({ ok: false, error: "Invalid update.", failureClass: "validation_failed", fieldErrors: validated.errors }, { status: 400 });

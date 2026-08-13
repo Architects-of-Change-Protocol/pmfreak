@@ -3,6 +3,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { AddTaskCta } from "@/components/pmfreak/empty-states/add-task-cta";
+import { InternalExecutionControl } from "@/components/pmfreak/tasks/internal-execution-control";
 import { TaskDetailDrawer } from "@/components/pmfreak/execution/task-detail-drawer";
 import type { AssignableMemberOption } from "@/components/pmfreak/execution/task-assignee-control";
 import { isValidStatusTransition } from "@/lib/execution-tasks/lifecycle";
@@ -19,6 +20,10 @@ const fetcher = async (url: string) => {
 
 const NEXT_STATUSES: ExecutionTaskStatus[] = ["not_started", "in_progress", "blocked", "completed", "cancelled"];
 
+function isGovernedTask(task: ExecutionTaskRow): boolean {
+  const payload = task.source_payload as { source?: unknown } | null;
+  return payload?.source === "governed_action";
+}
 function TaskRow({
   task,
   canEdit,
@@ -79,7 +84,13 @@ function TaskRow({
         {error && <p className="mt-1 text-xs text-rose-700">{error}</p>}
       </div>
       <div className="flex items-center gap-2">
-        {canEdit ? (
+        {isGovernedTask(task) ? (
+          <InternalExecutionControl
+            task={task}
+            canEdit={canEdit}
+            onTaskUpdated={onStatusChanged}
+          />
+        ) : canEdit ? (
           <select
             aria-label={`Status for ${task.title}`}
             value={task.status}

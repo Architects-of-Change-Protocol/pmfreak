@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
 import { requireProjectAccess } from "@/lib/security/server-authorization";
-import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { isValidStatusTransition } from "@/lib/execution-tasks/lifecycle";
 import type { ExecutionTaskRow, ExecutionTaskStatus } from "@/lib/db/database-contract";
 
@@ -62,6 +61,43 @@ export async function handleUpdateExecutionTask(request: NextRequest, depsOverri
     return NextResponse.json({ ok: false, error: "Task not found.", failureClass: "not_found" }, { status: 404 });
   }
 
+  const governedTask =
+    (task.source_payload as { source?: unknown } | null)?.source === "governed_action";
+  const governedLifecycleMutation =
+    governedTask && (status !== undefined || progressPercent !== undefined);
+
+  if (governedLifecycleMutation) {
+    const { data: membership, error: membershipError } = await supabase
+      .from("workspace_memberships")
+      .select("role")
+      .eq("workspace_id", task.workspace_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (membershipError) {
+      return NextResponse.json(
+        { ok: false, error: "Unable to verify task write role.", failureClass: "persistence_failed" },
+        { status: 500 },
+      );
+    }
+
+    if (!membership?.role || !["owner", "admin", "pm"].includes(String(membership.role))) {
+      return NextResponse.json(
+        { ok: false, error: "Access denied.", failureClass: "unauthorized" },
+        { status: 403 },
+      );
+    }
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Governed Task lifecycle must use internal execution.",
+        failureClass: "governed_task_status_requires_internal_execution",
+      },
+      { status: 409 },
+    );
+  }
+
   try {
     await deps.requireProjectAccess(task.project_id, "write");
   } catch (error) {
@@ -70,7 +106,6 @@ export async function handleUpdateExecutionTask(request: NextRequest, depsOverri
     }
     return NextResponse.json({ ok: false, error: "Authorization check failed.", failureClass: "unauthorized" }, { status: 403 });
   }
-
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   const events: Array<{ event_type: string; event_payload: Record<string, unknown> }> = [];
 

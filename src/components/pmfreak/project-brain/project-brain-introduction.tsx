@@ -133,7 +133,7 @@ export function ProjectBrainIntroduction({
             {recentMemory.latestEpisodeTitle && (
               <p>
                 Latest memory: {recentMemory.latestEpisodeTitle}
-                {recentMemory.latestEpisodeAt ? ` (${new Date(recentMemory.latestEpisodeAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })})` : ""}.
+                {recentMemory.latestEpisodeAt ? ` (${new Date(recentMemory.latestEpisodeAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })})` : ""}.
               </p>
             )}
             {recentMemory.openQuestionCount > 0 && (

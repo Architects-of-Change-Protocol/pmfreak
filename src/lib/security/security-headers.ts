@@ -27,13 +27,20 @@ const BASE_CONTENT_SECURITY_POLICY = [
 
 export function getSecurityHeaders(input?: { environment?: RuntimeEnvironment }): Record<string, string> {
   const environment = input?.environment ?? getRuntimeEnvironment();
+  const contentSecurityPolicy =
+    environment === "development"
+      ? BASE_CONTENT_SECURITY_POLICY.replace(
+          "script-src 'self' 'unsafe-inline'",
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+        )
+      : BASE_CONTENT_SECURITY_POLICY;
 
   const headers: Record<string, string> = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(self), usb=(), interest-cohort=()",
-    "Content-Security-Policy": BASE_CONTENT_SECURITY_POLICY,
+    "Content-Security-Policy": contentSecurityPolicy,
     "X-DNS-Prefetch-Control": "off",
   };
 

@@ -2,6 +2,7 @@ import type { GovernanceEvaluationInput } from "@aoc-enterprise/runtime";
 import { authorizeRuntimeAction as authorizeEnterpriseRuntimeAction } from "@/aoc/enterprise/runtime/authorization-bridge";
 import { enforceRuntimeAuthorization as enforceEnterpriseRuntimeAuthorization } from "@/aoc/enterprise/runtime/authorization-bridge";
 import { RuntimeDependencyUnavailableError } from "./runtime-errors";
+import { bootstrapRuntimeConsumer } from "./runtime-bootstrap";
 
 const failClosedResponse = (routeId: string) =>
   Response.json(
@@ -18,6 +19,7 @@ const failClosedResponse = (routeId: string) =>
   );
 
 export async function enforceRuntimeAuthorization(input: GovernanceEvaluationInput) {
+  bootstrapRuntimeConsumer();
   try {
     return await enforceEnterpriseRuntimeAuthorization(input);
   } catch (error) {
@@ -47,6 +49,7 @@ export async function enforceRuntimeAuthorization(input: GovernanceEvaluationInp
 
 
 export async function authorizeRuntimeAction(input: Parameters<typeof authorizeEnterpriseRuntimeAction>[0]) {
+  bootstrapRuntimeConsumer();
   try {
     return await authorizeEnterpriseRuntimeAction(input);
   } catch (error) {

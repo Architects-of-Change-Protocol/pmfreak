@@ -12,7 +12,7 @@
 - **Unlocks:** P2-09, P2-12, G2
 - **Risk Level:** high
 - **Expected Review Size:** large
-- **Status:** `NOT_STARTED`
+- **Status:** `VERIFIED`
 - **Migration:** possible additive; forward-only, additive if used; destructive changes prohibited.
 
 ## Role
@@ -104,6 +104,97 @@ Expected areas: `src/app/api/execution-tasks/; src/components/pmfreak/tasks/; sr
 ## Prohibited Changes
 
 Do not enable remote writeback; delete/fuse legacy models; bypass AOC or membership/RLS; use zero/placeholder hashes; insert Evidence directly where Raw/Event is required; auto-create downstream canonical states; treat Task completion as Outcome; show fixtures as live; hardcode success; weaken tenant isolation; run destructive migration; redesign unrelated UI; or modify unrelated CI/dependencies.
+
+## Verification Evidence — 2026-08-13
+
+**Final status:** `VERIFIED`
+
+### Product outcome
+
+Retrying an authorized governed Action creates exactly one canonical internal Task and exposes a durable internal execution lifecycle without treating Task completion as Outcome achievement.
+
+Observed lifecycle:
+
+`Queued → Running → Blocked → Running → Failed → Queued (Attempt 2) → Running → Completed`
+
+The UI explicitly states:
+
+`Internal provider · Task completion does not create Outcome.`
+
+### Browser/runtime acceptance
+
+Authenticated disposable local browser fixture verified:
+
+- `Queued → Start → Running`
+- `Running → Block → Blocked`
+- F5 preserved `Blocked`
+- `Blocked → Resume → Running`
+- `Running → Mark failed → Failed`
+- F5 preserved `Failed`
+- `Retry → Queued · Attempt 2`
+- `Start → Running → Complete → Completed`
+- F5 preserved `Completed · Attempt 2`
+- revoked/governance-invalid queued execution rejected `Start`
+- rejected execution remained `Queued · Attempt 1`
+- denial surfaced as `governance_not_executable`
+- no optimistic success was shown
+
+### Automated acceptance
+
+Verified in disposable local Supabase/runtime infrastructure:
+
+- P2-08 focused contract: 13/13 PASS
+- P2-07 regression: PASS
+- P2-06 regression: PASS
+- Execution Task regressions: 108/108 PASS
+- DB schema contract: PASS
+- Operational flow DB: PASS
+- P2-06 live DB verifier: 46 assertions PASS
+- P2-07 live DB verifier: 115 assertions PASS
+- P2-08 live DB verifier: 132 assertions PASS
+- concurrency 2/5/10 each persisted exactly one internal execution
+- lineage verified:
+  `Task → Action → Decision → Evidence → Internal Execution`
+- completion verified `outcomeCreated=false`
+- typecheck: PASS
+- targeted ESLint with zero warnings: PASS
+- AOC boundaries: PASS
+- no-local-authority-bypass: PASS
+- production deployment/CSP regression: PASS
+- production build: PASS
+- `git diff --check`: PASS
+
+### Runtime/browser repairs discovered during acceptance
+
+Browser acceptance exposed pre-existing/runtime integration blockers that were repaired without weakening authorization:
+
+- local-development CSP supports Next development evaluation while production/test/preview remain strict
+- hydration-sensitive Project Brain date/time formatting uses deterministic locale
+- AccessVerification adapter terminates at host membership/RBAC primitives instead of recursively re-entering Enterprise Runtime
+- direct Runtime Consumer authorization bootstraps in-process authority dependencies before delegation
+- runtime composition order is explicit and regression-tested
+
+### Invariants preserved
+
+- canonical Task remains `public.execution_tasks`
+- no second Task aggregate introduced
+- dispatch is durable and idempotent
+- retries do not duplicate Task or execution
+- governance is revalidated for new executable work
+- historical execution truth is preserved
+- Task completion does not create or achieve Outcome
+- remote AOC decision writeback remains disabled
+- legacy/manual Task lifecycle remains distinct from governed internal execution
+
+### Dependency impact
+
+- P2-09: unlocked
+- P2-12: P2-08 prerequisite satisfied; remaining dependencies still apply
+- G2: remains NOT VERIFIED until all required prompts in the G2 ladder are VERIFIED
+
+### Repository operations
+
+No push, merge, PR, destructive reset or remote writeback was performed during verification.
 
 ## Required Delivery Report
 

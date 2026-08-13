@@ -325,6 +325,17 @@ test("26. CSP is implemented (with a documented residual)", () => {
   assert.match(doc, /unsafe-inline/);
 });
 
+test("26a. CSP allows eval only in local development", () => {
+  const developmentCsp = getSecurityHeaders({ environment: "development" })["Content-Security-Policy"];
+  const testCsp = getSecurityHeaders({ environment: "test" })["Content-Security-Policy"];
+  const previewCsp = getSecurityHeaders({ environment: "preview" })["Content-Security-Policy"];
+  const productionCsp = getSecurityHeaders({ environment: "production" })["Content-Security-Policy"];
+
+  assert.ok(developmentCsp?.includes("'unsafe-eval'"));
+  assert.ok(!testCsp?.includes("'unsafe-eval'"));
+  assert.ok(!previewCsp?.includes("'unsafe-eval'"));
+  assert.ok(!productionCsp?.includes("'unsafe-eval'"));
+});
 test("next.config.ts applies security headers via headers()", () => {
   const src = readFileSync("next.config.ts", "utf8");
   assert.match(src, /getSecurityHeaders/);

@@ -14,10 +14,8 @@ import { PmfreakAgentAttestationAdapter } from "./agent-attestation";
 import { PmfreakPolicyEvaluatorAdapter } from "./policy-evaluation";
 import { PmfreakTrustDomainAdapter } from "./trust-domain";
 import { PmfreakTrustCoordinationAdapter } from "./trust-coordination";
-import { ensureInProcessAuthorityDependenciesRegistered } from "@/lib/aoc/runtime-composition/in-process-authority-dependencies";
 
 export function registerPmfreakAocAdapters(): void {
-  ensureInProcessAuthorityDependenciesRegistered();
   registerAocAdapters({
     securityAudit: new PmfreakSecurityAuditAdapter(),
     privilegedDb: new PmfreakPrivilegedDbAdapter(),

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Drawer } from "@/components/pmfreak/ui/drawer";
 import { TaskStatusControl } from "./task-status-control";
+import { InternalExecutionControl } from "@/components/pmfreak/tasks/internal-execution-control";
 import { TaskPriorityControl } from "./task-priority-control";
 import { TaskAssigneeControl, type AssignableMemberOption } from "./task-assignee-control";
 import { TaskDueDateControl } from "./task-due-date-control";
@@ -11,6 +12,7 @@ import type { ExecutionTaskEventRow, ExecutionTaskRow, ExecutionTaskStatus, Exec
 
 function deriveTaskSource(task: ExecutionTaskRow): string | null {
   const payload = task.source_payload as { source?: unknown } | null;
+  if (payload && payload.source === "governed_action") return "Governed Action";
   if (payload && typeof payload.source === "string" && payload.source === "manual") return "Manual";
   if (task.task_draft_id) return "Recommendation";
   return null;
@@ -30,6 +32,12 @@ const EVENT_FIELD_LABEL: Record<string, string> = {
   task_due_date_changed: "Due date changed",
   due_date_changed: "Due date changed",
   progress_updated: "Progress updated",
+  internal_execution_queued: "Internal execution queued",
+  internal_execution_started: "Internal execution started",
+  internal_execution_blocked: "Internal execution blocked",
+  internal_execution_failed: "Internal execution failed",
+  internal_execution_retried: "Internal execution retried",
+  internal_execution_completed: "Internal execution completed",
 };
 
 function describeEvent(event: ExecutionTaskEventRow): string {
@@ -151,6 +159,8 @@ export function TaskDetailDrawer({
 
   const source = deriveTaskSource(task);
   const canEdit = permissions.canEdit;
+  const governedTask =
+    (task.source_payload as { source?: unknown } | null)?.source === "governed_action";
 
   return (
     <Drawer title="Task details" onClose={onClose} testId="task-detail-drawer">
@@ -189,14 +199,22 @@ export function TaskDetailDrawer({
           <div>
             <span className="block text-xs font-medium uppercase tracking-wide text-slate-500">Status</span>
             <div className="mt-1">
-              <TaskStatusControl
-                status={task.status}
-                canEdit={canEdit}
-                busy={savingField === "status"}
-                label="Task status"
-                size="md"
-                onChange={(next: ExecutionTaskStatus) => void applyPatch("status", { status: next })}
-              />
+              {governedTask ? (
+                <InternalExecutionControl
+                  task={task}
+                  canEdit={canEdit}
+                  onTaskUpdated={() => void load()}
+                />
+              ) : (
+                <TaskStatusControl
+                  status={task.status}
+                  canEdit={canEdit}
+                  busy={savingField === "status"}
+                  label="Task status"
+                  size="md"
+                  onChange={(next: ExecutionTaskStatus) => void applyPatch("status", { status: next })}
+                />
+              )}
             </div>
           </div>
           <div>
