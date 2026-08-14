@@ -1,6 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { canCreateOperationalEvidence, evaluateOperationalDecisionAuthority, type OperationalWorkspaceRole } from "./authority";
-import type { DecisionStatus, DeriveEvidenceInput, EvidenceProvenanceResult, OperationalSummary } from "./types";
+import type {
+  AuditReconstructionItem,
+  CanonicalOutcomeObservationState,
+  CanonicalTaskOutcomeState,
+  CompleteLineageProjection,
+  DecisionStatus,
+  DeriveEvidenceInput,
+  EnsureExpectedOutcomeInput,
+  EvidenceProvenanceResult,
+  LineageLinkRelationship,
+  LineageStepKind,
+  LineageStepNode,
+  LineageTransition,
+  OperationalSummary,
+  RecordOutcomeObservationInput,
+} from "./types";
 import { createHash, randomUUID } from "node:crypto";
 import {
   createPMFreakMaterialActionProposal,
@@ -210,6 +225,898 @@ export async function revokeGovernedMaterialAction(client: Client, scope: Scope,
   return result.data as Record<string, unknown>;
 }
 
+export async function ensureExpectedOutcome(
+  client: Client,
+  scope: Scope,
+  input: EnsureExpectedOutcomeInput,
+) {
+  if (!canCreateOperationalEvidence(scope.role ?? null)) throw new Error("outcome_write_denied");
+  for (const [value, name] of [
+    [input.taskId, "task_id"],
+    [input.expectedResult, "expected_result"],
+    [input.correlationId, "correlation_id"],
+  ] as const) {
+    requireValue(value, name);
+  }
+
+  const result = await client.rpc("ensure_expected_task_outcome", {
+    p_workspace_id: scope.workspaceId,
+    p_project_id: scope.projectId,
+    p_task_id: input.taskId,
+    p_expected_result: input.expectedResult.trim(),
+    p_success_criteria: input.successCriteria ?? [],
+    p_correlation_id: input.correlationId.trim(),
+    p_causation_id: input.causationId?.trim() || null,
+  });
+
+  return unwrap(result, "ensure_expected_task_outcome") as Record<string, unknown> & {
+    disposition: "created" | "existing";
+    outcome: Record<string, unknown>;
+    achievementInferred: false;
+  };
+}
+
+export async function recordOutcomeObservation(
+  client: Client,
+  scope: Scope,
+  input: RecordOutcomeObservationInput,
+) {
+  if (!canCreateOperationalEvidence(scope.role ?? null)) throw new Error("outcome_observation_write_denied");
+  for (const [value, name] of [
+    [input.outcomeId, "outcome_id"],
+    [input.summary, "observation_summary"],
+    [input.observedAt, "observed_at"],
+    [input.evaluatedAt, "evaluated_at"],
+    [input.correlationId, "correlation_id"],
+    [input.idempotencyKey, "idempotency_key"],
+  ] as const) {
+    requireValue(value, name);
+  }
+
+  if (!Number.isFinite(input.confidenceScore) || input.confidenceScore < 0 || input.confidenceScore > 1) {
+    throw new Error("observation_confidence_invalid");
+  }
+
+  if (!Array.isArray(input.evidenceReferenceIds) || input.evidenceReferenceIds.length === 0) {
+    throw new Error("observation_evidence_required");
+  }
+
+  const observedAt = new Date(input.observedAt);
+  const evaluatedAt = new Date(input.evaluatedAt);
+  if (Number.isNaN(observedAt.valueOf()) || Number.isNaN(evaluatedAt.valueOf())) {
+    throw new Error("observation_timestamp_invalid");
+  }
+  const staleAt = input.staleAt ? new Date(input.staleAt) : null;
+  if (staleAt && Number.isNaN(staleAt.valueOf())) {
+    throw new Error("stale_at_invalid");
+  }
+
+  const result = await client.rpc("record_canonical_outcome_observation", {
+    p_workspace_id: scope.workspaceId,
+    p_project_id: scope.projectId,
+    p_outcome_id: input.outcomeId,
+    p_observation_state: input.observationState,
+    p_summary: input.summary.trim(),
+    p_evidence_reference_ids: input.evidenceReferenceIds,
+    p_confidence_score: input.confidenceScore,
+    p_missing_data_state: input.missingDataState,
+    p_observed_at: observedAt.toISOString(),
+    p_evaluated_at: evaluatedAt.toISOString(),
+    p_stale_at: staleAt?.toISOString() ?? null,
+    p_correlation_id: input.correlationId.trim(),
+    p_causation_id: input.causationId?.trim() || null,
+    p_idempotency_key: input.idempotencyKey.trim(),
+  });
+
+  return unwrap(result, "record_canonical_outcome_observation") as Record<string, unknown> & {
+    disposition: "created" | "existing" | "conflict";
+    observation?: Record<string, unknown>;
+    outcomeState?: string;
+  };
+}
+
+export async function reconstructAuditTrail(
+  client: Client,
+  workspaceId: string,
+  projectId: string,
+  options?: { correlationId?: string; outcomeId?: string; limit?: number },
+): Promise<AuditReconstructionItem[]> {
+  let query = client
+    .from("platform_events")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .eq("project_id", projectId)
+    .order("occurred_at", { ascending: true })
+    .limit(options?.limit ?? 100);
+
+  if (options?.correlationId) {
+    query = query.eq("correlation_id", options.correlationId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(`reconstruct_audit_trail: ${error.message}`);
+
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    eventType: String(row.event_type),
+    eventCategory: String(row.event_category),
+    actorId: (row.actor_id as string | null) ?? null,
+    actorType: String(row.actor_type || "user"),
+    occurredAt: String(row.occurred_at),
+    recordedAt: String(row.created_at || row.occurred_at),
+    correlationId: (row.correlation_id as string | null) ?? null,
+    causationId: (row.causation_id as string | null) ?? null,
+    rawReferenceTable: (row.raw_reference_table as string | null) ?? null,
+    rawReferenceId: (row.raw_reference_id as string | null) ?? null,
+    payload: (row.event_payload as Record<string, unknown>) ?? {},
+    metadata: (row.metadata as Record<string, unknown>) ?? {},
+    relationship: row.causation_id ? "causation" : row.correlation_id ? "correlation_only" : "unlinked",
+  }));
+}
+
+export async function getCompleteLineageProjection(
+  client: Client,
+  workspaceId: string,
+  projectId: string,
+  options?: { outcomeId?: string; taskId?: string },
+): Promise<CompleteLineageProjection[]> {
+  const [
+    outcomesRes,
+    observationsRes,
+    tasksRes,
+    executionsRes,
+    actionsRes,
+    evaluationsRes,
+    decisionsRes,
+    decisionLinksRes,
+    recommendationsRes,
+    governanceRes,
+    signalsRes,
+    evidenceRes,
+    eventsRes,
+    rawInputsRes,
+    sourcesRes,
+    platformEventsRes,
+  ] = await Promise.all([
+    client
+      .from("canonical_task_outcomes")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false }),
+    client
+      .from("canonical_outcome_observations")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId)
+      .order("recorded_at", { ascending: false }),
+    client
+      .from("execution_tasks")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId),
+    client
+      .from("internal_task_executions")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId),
+    client
+      .from("material_action_proposals")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId),
+    client
+      .from("material_action_governance_evaluations")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId),
+    client
+      .from("operational_decision_records")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId),
+    client
+      .from("decision_evidence_links")
+      .select("*")
+      .eq("workspace_id", workspaceId),
+    client
+      .from("recommended_actions")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId),
+    client
+      .from("governance_events")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId),
+    client
+      .from("operational_signals")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId),
+    client
+      .from("evidence_items")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId),
+    client
+      .from("operational_normalized_events")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId),
+    client
+      .from("operational_raw_inputs")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId),
+    client
+      .from("operational_sources")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId),
+    client
+      .from("platform_events")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId)
+      .order("occurred_at", { ascending: true }),
+  ]);
+
+  for (const [name, res] of [
+    ["canonical_task_outcomes", outcomesRes],
+    ["canonical_outcome_observations", observationsRes],
+    ["execution_tasks", tasksRes],
+    ["internal_task_executions", executionsRes],
+    ["material_action_proposals", actionsRes],
+    ["material_action_governance_evaluations", evaluationsRes],
+    ["operational_decision_records", decisionsRes],
+    ["decision_evidence_links", decisionLinksRes],
+    ["recommended_actions", recommendationsRes],
+    ["governance_events", governanceRes],
+    ["operational_signals", signalsRes],
+    ["evidence_items", evidenceRes],
+    ["operational_normalized_events", eventsRes],
+    ["operational_raw_inputs", rawInputsRes],
+    ["operational_sources", sourcesRes],
+    ["platform_events", platformEventsRes],
+  ] as const) {
+    if (res.error) throw new Error(`load_${name}_for_lineage: ${res.error.message}`);
+  }
+
+  let outcomes = outcomesRes.data ?? [];
+  if (options?.outcomeId) {
+    outcomes = outcomes.filter((o) => o.id === options.outcomeId);
+  }
+  if (options?.taskId) {
+    outcomes = outcomes.filter((o) => o.task_id === options.taskId);
+  }
+
+  const observationsByOutcome = new Map<string, Array<Record<string, unknown>>>();
+  for (const obs of observationsRes.data ?? []) {
+    const list = observationsByOutcome.get(String(obs.outcome_id)) ?? [];
+    list.push(obs);
+    observationsByOutcome.set(String(obs.outcome_id), list);
+  }
+
+  const tasksById = new Map((tasksRes.data ?? []).map((r) => [String(r.id), r]));
+  const executionsByTaskId = new Map((executionsRes.data ?? []).map((r) => [String(r.task_id), r]));
+  const actionsById = new Map((actionsRes.data ?? []).map((r) => [String(r.id), r]));
+  const evaluationsByActionId = new Map((evaluationsRes.data ?? []).map((r) => [String(r.action_id), r]));
+  const decisionsById = new Map((decisionsRes.data ?? []).map((r) => [String(r.id), r]));
+  const decisionLinksByDecisionId = new Map<string, Array<Record<string, unknown>>>();
+  for (const link of decisionLinksRes.data ?? []) {
+    const list = decisionLinksByDecisionId.get(String(link.decision_record_id)) ?? [];
+    list.push(link);
+    decisionLinksByDecisionId.set(String(link.decision_record_id), list);
+  }
+  const recommendationsById = new Map((recommendationsRes.data ?? []).map((r) => [String(r.id), r]));
+  const governanceById = new Map((governanceRes.data ?? []).map((r) => [String(r.id), r]));
+  const signalsById = new Map((signalsRes.data ?? []).map((r) => [String(r.id), r]));
+  const evidenceById = new Map((evidenceRes.data ?? []).map((r) => [String(r.id), r]));
+  const eventsById = new Map((eventsRes.data ?? []).map((r) => [String(r.id), r]));
+  const rawInputsById = new Map((rawInputsRes.data ?? []).map((r) => [String(r.id), r]));
+  const sourcesById = new Map((sourcesRes.data ?? []).map((r) => [String(r.id), r]));
+
+  const projections: CompleteLineageProjection[] = [];
+
+  for (const outcome of outcomes) {
+    const steps: LineageStepNode[] = [];
+    const transitions: LineageTransition[] = [];
+    const gaps: string[] = [];
+    const disputes: string[] = [];
+
+    const task = tasksById.get(String(outcome.task_id));
+    const execution = executionsByTaskId.get(String(outcome.task_id));
+    const actionId = outcome.source_action_id || task?.source_action_id;
+    const action = actionId ? actionsById.get(String(actionId)) : undefined;
+    const evaluation = action ? evaluationsByActionId.get(String(action.id)) : undefined;
+    const decisionId = action?.source_decision_id || (action?.proposal as Record<string, unknown> | undefined)?.decisionReferenceId;
+    const decision = decisionId ? decisionsById.get(String(decisionId)) : undefined;
+    const recommendation = decision?.recommendation_id ? recommendationsById.get(String(decision.recommendation_id)) : undefined;
+    const governanceId = decision?.governance_event_id || recommendation?.governance_event_id;
+    const governance = governanceId ? governanceById.get(String(governanceId)) : undefined;
+    const signalId = recommendation?.signal_id || governance?.signal_id;
+    const signal = signalId ? signalsById.get(String(signalId)) : undefined;
+
+    // Upstream evidence for decision
+    const links = decision ? decisionLinksByDecisionId.get(String(decision.id)) ?? [] : [];
+    const decisionEvidenceId = signal?.evidence_item_id || decision?.manual_evidence_item_id || links[0]?.evidence_item_id;
+    const evidence = decisionEvidenceId ? evidenceById.get(String(decisionEvidenceId)) : undefined;
+    const normalizedEvent = evidence?.normalized_event_id ? eventsById.get(String(evidence.normalized_event_id)) : undefined;
+    const rawInput = normalizedEvent?.raw_input_id ? rawInputsById.get(String(normalizedEvent.raw_input_id)) : undefined;
+    const source = (rawInput?.source_id ? sourcesById.get(String(rawInput.source_id)) : undefined) ||
+                   (normalizedEvent?.source_id ? sourcesById.get(String(normalizedEvent.source_id)) : undefined);
+
+    // 1. Source
+    if (source) {
+      steps.push({
+        kind: "source",
+        id: String(source.id),
+        title: `Source: ${String(source.display_name || source.source_key)}`,
+        status: source.is_fixture ? "fixture" : "intact",
+        summary: `Kind: ${source.source_kind}, Status: ${source.status}`,
+        entity: source,
+        correlationId: null,
+        causationId: null,
+        isFixture: Boolean(source.is_fixture),
+        fixtureLabel: (source.fixture_label as string | null) ?? null,
+        gapReason: null,
+        occurredAt: null,
+        recordedAt: String(source.created_at || ""),
+        actorId: (source.created_by as string | null) ?? null,
+      });
+    } else {
+      steps.push({
+        kind: "source",
+        id: null,
+        title: "Source: missing",
+        status: "missing",
+        summary: "No operational source registered.",
+        entity: null,
+        correlationId: null,
+        causationId: null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: "No source registered for upstream input.",
+        occurredAt: null,
+        recordedAt: null,
+        actorId: null,
+      });
+      gaps.push("Source: missing upstream source registration.");
+    }
+
+    // 2. Raw Input
+    if (rawInput) {
+      steps.push({
+        kind: "raw_input",
+        id: String(rawInput.id),
+        title: "Raw Input",
+        status: "intact",
+        summary: `Digest: ${String(rawInput.content_digest || "").slice(0, 16)}... Status: ${rawInput.status}`,
+        entity: rawInput,
+        correlationId: (rawInput.correlation_id as string | null) ?? null,
+        causationId: (rawInput.causation_id as string | null) ?? null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: null,
+        occurredAt: String(rawInput.occurred_at || ""),
+        recordedAt: String(rawInput.captured_at || ""),
+        actorId: (rawInput.actor_user_id as string | null) ?? null,
+      });
+    } else {
+      steps.push({
+        kind: "raw_input",
+        id: null,
+        title: "Raw Input: missing",
+        status: "missing",
+        summary: "No immutable raw input payload captured.",
+        entity: null,
+        correlationId: null,
+        causationId: null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: "Raw input payload was not retained or is absent.",
+        occurredAt: null,
+        recordedAt: null,
+        actorId: null,
+      });
+      gaps.push("Raw Input: missing raw input payload.");
+    }
+
+    // 3. Normalized Event
+    if (normalizedEvent) {
+      steps.push({
+        kind: "normalized_event",
+        id: String(normalizedEvent.id),
+        title: `Event: ${String(normalizedEvent.event_type)}`,
+        status: "intact",
+        summary: `Schema v${normalizedEvent.schema_version}, Digest: ${String(normalizedEvent.event_digest || "").slice(0, 16)}...`,
+        entity: normalizedEvent,
+        correlationId: (normalizedEvent.correlation_id as string | null) ?? null,
+        causationId: (normalizedEvent.causation_id as string | null) ?? null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: null,
+        occurredAt: String(normalizedEvent.occurred_at || ""),
+        recordedAt: String(normalizedEvent.recorded_at || ""),
+        actorId: (normalizedEvent.actor_user_id as string | null) ?? null,
+      });
+    } else {
+      steps.push({
+        kind: "normalized_event",
+        id: null,
+        title: "Normalized Event: missing",
+        status: "missing",
+        summary: "No typed normalized event recorded.",
+        entity: null,
+        correlationId: null,
+        causationId: null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: "Normalized event absent.",
+        occurredAt: null,
+        recordedAt: null,
+        actorId: null,
+      });
+      gaps.push("Normalized Event: missing normalized event.");
+    }
+
+    // 4. Evidence
+    if (evidence) {
+      const isFixture = evidence.fixture_state === "DEMO_FIXTURE";
+      const isDegraded = evidence.freshness_state === "STALE" || evidence.degraded_reason !== null;
+      steps.push({
+        kind: "evidence",
+        id: String(evidence.id),
+        title: `Evidence (${evidence.assertion_type}): ${evidence.classification}`,
+        status: isFixture ? "fixture" : isDegraded ? "degraded" : "intact",
+        summary: `Confidence: ${(Number(evidence.confidence_score) * 100).toFixed(1)}%, Data: ${evidence.missing_data_state}, Freshness: ${evidence.freshness_state}`,
+        entity: evidence,
+        correlationId: null,
+        causationId: null,
+        isFixture,
+        fixtureLabel: isFixture ? "DEMO / FIXTURE" : null,
+        gapReason: null,
+        occurredAt: String(evidence.evaluated_at || ""),
+        recordedAt: String(evidence.created_at || ""),
+        actorId: (evidence.created_by as string | null) ?? null,
+        evidenceAssertionType: evidence.assertion_type as "FACT" | "INFERENCE" | "ASSUMPTION",
+        confidenceScore: Number(evidence.confidence_score),
+        missingDataState: evidence.missing_data_state as "COMPLETE" | "PARTIAL" | "UNKNOWN",
+      });
+    } else {
+      steps.push({
+        kind: "evidence",
+        id: null,
+        title: "Evidence: missing",
+        status: "missing",
+        summary: "No upstream evidence item found for this decision.",
+        entity: null,
+        correlationId: null,
+        causationId: null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: "Decision or signal has no verifiable evidence backing.",
+        occurredAt: null,
+        recordedAt: null,
+        actorId: null,
+      });
+      gaps.push("Evidence: missing upstream evidence link.");
+    }
+
+    // 5. Finding (Signal)
+    if (signal) {
+      steps.push({
+        kind: "finding",
+        id: String(signal.id),
+        title: `Finding: ${String(signal.signal_type).replace(/_/g, " ")}`,
+        status: "intact",
+        summary: `Severity: ${signal.severity}, Confidence: ${(Number(signal.confidence_score) * 100).toFixed(1)}% — ${signal.summary}`,
+        entity: signal,
+        correlationId: null,
+        causationId: null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: null,
+        occurredAt: String(signal.created_at || ""),
+        recordedAt: String(signal.created_at || ""),
+        actorId: null,
+        confidenceScore: Number(signal.confidence_score),
+      });
+    } else {
+      steps.push({
+        kind: "finding",
+        id: null,
+        title: "Finding: not present",
+        status: "missing",
+        summary: decision?.manual_evidence_item_id ? "Direct PM decision (manual entry, no deterministic signal)." : "No finding detected.",
+        entity: null,
+        correlationId: null,
+        causationId: null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: decision?.manual_evidence_item_id ? "Direct PM manual decision (no signal required)." : "Finding missing.",
+        occurredAt: null,
+        recordedAt: null,
+        actorId: null,
+      });
+      if (!decision?.manual_evidence_item_id) gaps.push("Finding: no operational finding linked.");
+    }
+
+    // 6. Recommendation
+    if (recommendation) {
+      steps.push({
+        kind: "recommendation",
+        id: String(recommendation.id),
+        title: `Recommendation: ${String(recommendation.title)}`,
+        status: "intact",
+        summary: `Status: ${recommendation.status}, Urgency: ${recommendation.urgency} — Proposed: ${recommendation.proposed_action}`,
+        entity: recommendation,
+        correlationId: null,
+        causationId: null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: null,
+        occurredAt: String(recommendation.created_at || ""),
+        recordedAt: String(recommendation.created_at || ""),
+        actorId: null,
+      });
+    } else {
+      steps.push({
+        kind: "recommendation",
+        id: null,
+        title: "Recommendation: not present",
+        status: "missing",
+        summary: decision?.manual_evidence_item_id ? "Direct PM decision without automated recommendation." : "No recommendation recorded.",
+        entity: null,
+        correlationId: null,
+        causationId: null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: decision?.manual_evidence_item_id ? "Manual PM decision." : "No recommendation recorded.",
+        occurredAt: null,
+        recordedAt: null,
+        actorId: null,
+      });
+      if (!decision?.manual_evidence_item_id) gaps.push("Recommendation: no recommendation found.");
+    }
+
+    // 7. Decision
+    if (decision) {
+      steps.push({
+        kind: "decision",
+        id: String(decision.id),
+        title: `Decision: ${decision.decision}`,
+        status: ["accepted", "modified"].includes(String(decision.decision_status)) ? "intact" : "degraded",
+        summary: `Status: ${decision.decision_status} — Rationale: ${decision.rationale}`,
+        entity: decision,
+        correlationId: null,
+        causationId: null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: null,
+        occurredAt: String(decision.created_at || ""),
+        recordedAt: String(decision.created_at || ""),
+        actorId: (decision.decided_by as string | null) ?? null,
+      });
+    } else {
+      steps.push({
+        kind: "decision",
+        id: null,
+        title: "Decision: missing",
+        status: "missing",
+        summary: "No source operational decision recorded.",
+        entity: null,
+        correlationId: null,
+        causationId: null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: "Task was created without an authorized PM decision record.",
+        occurredAt: null,
+        recordedAt: null,
+        actorId: null,
+      });
+      gaps.push("Decision: no source decision recorded.");
+    }
+
+    // 8. Governed Action
+    if (action) {
+      const govState = String(evaluation?.governance_state ?? "proposed");
+      const isDenied = govState === "denied";
+      const isDegraded = govState === "degraded" || govState === "unavailable";
+      steps.push({
+        kind: "material_action",
+        id: String(action.id),
+        title: `Governed Action (${action.action_class}): ${govState}`,
+        status: isDenied ? "disputed" : isDegraded ? "degraded" : "intact",
+        summary: `Materiality: ${action.materiality}, Digest: ${String(action.proposal_digest || "").slice(0, 16)}...`,
+        entity: { ...action, evaluation },
+        correlationId: (action.correlation_id as string | null) ?? null,
+        causationId: (action.causation_id as string | null) ?? null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: null,
+        occurredAt: String(action.persisted_at || ""),
+        recordedAt: String(evaluation?.recorded_at || action.persisted_at || ""),
+        actorId: null,
+      });
+      if (isDenied) disputes.push("Governed Action: AOC-E policy evaluation denied action.");
+    } else {
+      steps.push({
+        kind: "material_action",
+        id: null,
+        title: "Governed Action: not present",
+        status: "missing",
+        summary: "Task was created directly without a Governed Action proposal.",
+        entity: null,
+        correlationId: null,
+        causationId: null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: "Direct Task creation: Governed Action proposal bypassed or absent.",
+        occurredAt: null,
+        recordedAt: null,
+        actorId: null,
+      });
+      gaps.push("Governed Action: Task created directly without governed action proposal.");
+    }
+
+    // 9. Task & Execution
+    if (task) {
+      steps.push({
+        kind: "task",
+        id: String(task.id),
+        title: `Task: ${String(task.title)}`,
+        status: task.status === "completed" ? "intact" : "degraded",
+        summary: `Status: ${task.status}, Priority: ${task.priority}`,
+        entity: task,
+        correlationId: (task.correlation_id as string | null) ?? null,
+        causationId: (task.causation_id as string | null) ?? null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: null,
+        occurredAt: String(task.created_at || ""),
+        recordedAt: String(task.created_at || ""),
+        actorId: (task.assignee_id as string | null) ?? null,
+      });
+    } else {
+      steps.push({
+        kind: "task",
+        id: String(outcome.task_id),
+        title: "Task: missing reference",
+        status: "missing",
+        summary: "Execution task record not found in project scope.",
+        entity: null,
+        correlationId: null,
+        causationId: null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: "Task record missing.",
+        occurredAt: null,
+        recordedAt: null,
+        actorId: null,
+      });
+      gaps.push("Task: task record missing.");
+    }
+
+    if (execution) {
+      steps.push({
+        kind: "internal_execution",
+        id: String(execution.id),
+        title: `Execution: ${execution.status}`,
+        status: execution.status === "completed" ? "intact" : execution.status === "failed" ? "degraded" : "intact",
+        summary: `Provider: ${execution.provider_key}, Attempts: ${execution.attempt_count}, Idempotency: ${String(execution.idempotency_key).slice(0, 16)}...`,
+        entity: execution,
+        correlationId: (execution.correlation_id as string | null) ?? null,
+        causationId: (execution.causation_id as string | null) ?? null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: null,
+        occurredAt: String(execution.started_at || execution.queued_at || ""),
+        recordedAt: String(execution.completed_at || execution.created_at || ""),
+        actorId: (execution.dispatched_by as string | null) ?? null,
+      });
+    } else {
+      steps.push({
+        kind: "internal_execution",
+        id: null,
+        title: "Internal Execution: missing",
+        status: "missing",
+        summary: "No internal state machine execution recorded for this task.",
+        entity: null,
+        correlationId: null,
+        causationId: null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: "Task completed without internal state machine execution record.",
+        occurredAt: null,
+        recordedAt: null,
+        actorId: null,
+      });
+      gaps.push("Internal Execution: no internal execution recorded.");
+    }
+
+    // 10. Expected Outcome
+    const outcomeIsFixture = outcome.fixture_label === "DEMO / FIXTURE";
+    const outcomeIsDisputed = outcome.state === "disputed";
+    const outcomeIsInconclusive = outcome.state === "inconclusive";
+    steps.push({
+      kind: "outcome",
+      id: String(outcome.id),
+      title: `Expected Outcome (${outcome.state}): ${outcome.expected_result}`,
+      status: outcomeIsFixture ? "fixture" : outcomeIsDisputed ? "disputed" : outcomeIsInconclusive ? "inconclusive" : "intact",
+      summary: `State: ${outcome.state}. Criteria: ${JSON.stringify(outcome.success_criteria || [])}`,
+      entity: outcome,
+      correlationId: (outcome.correlation_id as string | null) ?? null,
+      causationId: (outcome.causation_id as string | null) ?? null,
+      isFixture: outcomeIsFixture,
+      fixtureLabel: (outcome.fixture_label as string | null) ?? null,
+      gapReason: null,
+      occurredAt: String(outcome.created_at || ""),
+      recordedAt: String(outcome.updated_at || outcome.created_at || ""),
+      actorId: (outcome.created_by as string | null) ?? null,
+    });
+    if (outcomeIsDisputed) disputes.push("Outcome: outcome is in disputed state.");
+    if (outcomeIsInconclusive) disputes.push("Outcome: outcome is inconclusive.");
+
+    // 11. Observations
+    const obsList = observationsByOutcome.get(String(outcome.id)) ?? [];
+    if (obsList.length > 0) {
+      for (const obs of obsList) {
+        const obsIsFixture = obs.fixture_label === "DEMO / FIXTURE";
+        const obsIsDisputed = obs.observation_state === "disputed";
+        const obsIsInconclusive = obs.observation_state === "inconclusive";
+        const obsEvRefIds = (obs.evidence_reference_ids as string[]) || [];
+        const loadedEv = obsEvRefIds.map((id) => evidenceById.get(String(id))).filter(Boolean);
+
+        steps.push({
+          kind: "observation",
+          id: String(obs.id),
+          title: `Observation (${obs.observation_state}): ${obs.summary}`,
+          status: obsIsFixture ? "fixture" : obsIsDisputed ? "disputed" : obsIsInconclusive ? "inconclusive" : "intact",
+          summary: `Confidence: ${(Number(obs.confidence_score) * 100).toFixed(1)}%, Data State: ${obs.missing_data_state}, Supporting Evidence items: ${obsEvRefIds.length}`,
+          entity: { ...obs, loadedEvidence: loadedEv },
+          correlationId: (obs.correlation_id as string | null) ?? null,
+          causationId: (obs.causation_id as string | null) ?? null,
+          isFixture: obsIsFixture,
+          fixtureLabel: (obs.fixture_label as string | null) ?? null,
+          gapReason: null,
+          occurredAt: String(obs.observed_at || ""),
+          recordedAt: String(obs.recorded_at || ""),
+          actorId: (obs.observed_by as string | null) ?? null,
+          confidenceScore: Number(obs.confidence_score),
+          missingDataState: obs.missing_data_state as "COMPLETE" | "PARTIAL" | "UNKNOWN",
+        });
+
+        if (obsIsDisputed) disputes.push(`Observation ${String(obs.id).slice(0, 8)}: observation is disputed.`);
+        if (obsIsInconclusive) disputes.push(`Observation ${String(obs.id).slice(0, 8)}: observation is inconclusive.`);
+        if (obs.missing_data_state === "PARTIAL" || obs.missing_data_state === "UNKNOWN") {
+          gaps.push(`Observation ${String(obs.id).slice(0, 8)}: missing data state is ${obs.missing_data_state}.`);
+        }
+      }
+    } else {
+      steps.push({
+        kind: "observation",
+        id: null,
+        title: "Observation: unobserved",
+        status: "missing",
+        summary: "No outcome observations recorded yet. Task completion does not imply Outcome achievement.",
+        entity: null,
+        correlationId: null,
+        causationId: null,
+        isFixture: false,
+        fixtureLabel: null,
+        gapReason: "Awaiting authorized, evidence-backed observation.",
+        occurredAt: null,
+        recordedAt: null,
+        actorId: null,
+      });
+      gaps.push("Observation: unobserved — achievement requires authorized observation.");
+    }
+
+    // Build transitions between sequential steps
+    const stepSequence: LineageStepKind[] = [
+      "source",
+      "raw_input",
+      "normalized_event",
+      "evidence",
+      "finding",
+      "recommendation",
+      "decision",
+      "material_action",
+      "task",
+      "internal_execution",
+      "outcome",
+      "observation",
+    ];
+
+    for (let i = 0; i < stepSequence.length - 1; i++) {
+      const fromKind = stepSequence[i];
+      const toKind = stepSequence[i + 1];
+      const fromNode = steps.find((s) => s.kind === fromKind);
+      const toNode = steps.find((s) => s.kind === toKind);
+
+      if (!fromNode || !toNode) continue;
+
+      const isCausal = Boolean(toNode.causationId && fromNode.id && toNode.causationId === fromNode.id);
+      const hasSharedCorrelation = Boolean(
+        toNode.correlationId && fromNode.correlationId && toNode.correlationId === fromNode.correlationId,
+      );
+
+      let relationship: LineageLinkRelationship = "unlinked";
+      let relationshipExplanation = "No link established between these steps.";
+
+      if (fromNode.status === "missing" || toNode.status === "missing") {
+        relationship = "unlinked";
+        relationshipExplanation = "Lineage gap: one or both steps are missing.";
+      } else if (isCausal) {
+        relationship = "causation";
+        relationshipExplanation = "Explicit causation pointer verified (causation ID matches source entity).";
+      } else if (hasSharedCorrelation) {
+        relationship = "correlation_only";
+        relationshipExplanation =
+          "Shared correlation identifier match only. Invariant: Correlation does NOT imply causation.";
+      } else if (fromNode.id && toNode.id) {
+        relationship = "direct_reference";
+        relationshipExplanation = "Direct relational foreign key reference.";
+      }
+
+      transitions.push({
+        fromKind,
+        toKind,
+        relationship,
+        relationshipExplanation,
+        isCausal,
+        correlationId: toNode.correlationId || fromNode.correlationId || null,
+        causationId: toNode.causationId || null,
+      });
+    }
+
+    // Collect linked audit platform events
+    const outcomeCorrelationId = outcome.correlation_id;
+    const linkedAuditEvents = (platformEventsRes.data ?? []).filter((e) => {
+      if (outcomeCorrelationId && e.correlation_id === outcomeCorrelationId) return true;
+      if (e.raw_reference_table === "canonical_task_outcomes" && e.raw_reference_id === outcome.id) return true;
+      if (e.raw_reference_table === "execution_tasks" && e.raw_reference_id === outcome.task_id) return true;
+      return false;
+    });
+
+    const hasCorrelationOnly = transitions.some((t) => t.relationship === "correlation_only");
+    const lineageStatus =
+      disputes.length > 0
+        ? "disputed"
+        : steps.some((s) => s.status === "inconclusive")
+          ? "inconclusive"
+          : steps.some((s) => s.status === "degraded")
+            ? "degraded"
+            : gaps.length > 0
+              ? "incomplete"
+              : "complete";
+
+    const latestObservation = obsList[0];
+
+    projections.push({
+      outcomeId: String(outcome.id),
+      taskId: String(outcome.task_id),
+      expectedResult: String(outcome.expected_result),
+      outcomeState: outcome.state as CanonicalTaskOutcomeState,
+      observationsCount: obsList.length,
+      latestObservationState: (latestObservation?.observation_state as CanonicalOutcomeObservationState | undefined) ?? null,
+      lineageStatus,
+      hasCorrelationOnly,
+      steps,
+      transitions,
+      auditEvents: linkedAuditEvents,
+      gaps,
+      disputes,
+      isFixture: outcomeIsFixture,
+      fixtureLabel: (outcome.fixture_label as string | null) ?? null,
+    });
+  }
+
+  return projections;
+}
+
 async function loadActorRole(client: Client, workspaceId: string, userId: string) {
   const { data, error } = await client.from("workspace_memberships").select("role").eq("workspace_id", workspaceId).eq("user_id", userId).maybeSingle();
   if (error) throw new Error(`load_operational_actor_role: ${error.message}`);
@@ -217,7 +1124,23 @@ async function loadActorRole(client: Client, workspaceId: string, userId: string
 }
 
 export async function getOperationalSummary(client: Client, workspaceId: string, projectId: string, userId: string): Promise<OperationalSummary> {
-  const [sources, rawInputs, normalizedEvents, evidence, signals, risks, governance, recommendations, decisions, materialActions, materialActionEvaluations, assuranceResult, actorRole] = await Promise.all([
+  const [
+    sources,
+    rawInputs,
+    normalizedEvents,
+    evidence,
+    signals,
+    risks,
+    governance,
+    recommendations,
+    decisions,
+    materialActions,
+    materialActionEvaluations,
+    outcomes,
+    observations,
+    assuranceResult,
+    actorRole,
+  ] = await Promise.all([
     client.from("operational_sources").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(20),
     client.from("operational_raw_inputs").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("captured_at", { ascending: false }).limit(20),
     client.from("operational_normalized_events").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("recorded_at", { ascending: false }).limit(20),
@@ -229,10 +1152,12 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     client.from("operational_decision_records").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(30),
     client.from("material_action_proposals").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("persisted_at", { ascending: false }).limit(30),
     client.from("material_action_governance_evaluations").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("recorded_at", { ascending: false }).limit(30),
+    client.from("canonical_task_outcomes").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(30),
+    client.from("canonical_outcome_observations").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("recorded_at", { ascending: false }).limit(30),
     client.rpc("get_operational_assurance_summary", { p_workspace_id: workspaceId, p_project_id: projectId }),
     loadActorRole(client, workspaceId, userId),
   ]);
-  for (const result of [sources, rawInputs, normalizedEvents, evidence, signals, risks, governance, recommendations, decisions, materialActions, materialActionEvaluations]) {
+  for (const result of [sources, rawInputs, normalizedEvents, evidence, signals, risks, governance, recommendations, decisions, materialActions, materialActionEvaluations, outcomes, observations]) {
     if (result.error) throw new Error(`load_operational_summary: ${result.error.message}`);
   }
   if (assuranceResult.error || !assuranceResult.data) throw new Error(`load_operational_assurance: ${assuranceResult.error?.message ?? "no_data"}`);
@@ -245,6 +1170,9 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     const evaluations = (["accepted", "rejected", "modified", "escalated", "needs_more_evidence"] as DecisionStatus[]).map((status) => [status, evaluateOperationalDecisionAuthority({ actorRole, authorityRequired: String(event?.authority_required ?? "baseline review"), decisionStatus: status })]);
     return { ...row, actor_authority: Object.fromEntries(evaluations) };
   });
+
+  const lineages = await getCompleteLineageProjection(client, workspaceId, projectId);
+
   return {
     sources: sources.data ?? [],
     rawInputs: rawInputs.data ?? [],
@@ -258,6 +1186,9 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     evidenceLinks: links.data ?? [],
     materialActions: materialActions.data ?? [],
     materialActionEvaluations: materialActionEvaluations.data ?? [],
+    outcomes: outcomes.data ?? [],
+    observations: observations.data ?? [],
+    lineages,
     assurance: assuranceResult.data as OperationalSummary["assurance"],
     actor: { role: actorRole, canCreateEvidence: canCreateOperationalEvidence(actorRole) },
   };
