@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import {
   ensureExpectedOutcome,
   getCompleteLineageProjection,
@@ -12,6 +13,83 @@ import type { CompleteLineageProjection } from "../src/lib/operational-flow/type
 const serviceCode = readFileSync("src/lib/operational-flow/operational-flow-service.ts", "utf8");
 const apiRouteCode = readFileSync("src/app/api/operational-flow/route.ts", "utf8");
 const typesCode = readFileSync("src/lib/operational-flow/types.ts", "utf8");
+
+/**
+ * Tables read by getCompleteLineageProjection that own workspace_id/project_id directly.
+ * Verified against supabase/migrations — every one of these declares both columns.
+ */
+const DIRECT_TENANCY_TABLES = [
+  "canonical_task_outcomes",
+  "canonical_outcome_observations",
+  "execution_tasks",
+  "internal_task_executions",
+  "material_action_proposals",
+  "material_action_governance_evaluations",
+  "operational_decision_records",
+  "recommended_actions",
+  "governance_events",
+  "operational_signals",
+  "evidence_items",
+  "operational_normalized_events",
+  "operational_raw_inputs",
+  "operational_sources",
+  "platform_events",
+] as const;
+
+/**
+ * Schema-truthful registry of columns runtime code may FILTER on (.eq/.in) for the
+ * tables the lineage projection reads. Deliberately narrow: it covers filter columns
+ * only, not every selectable column — this is a guard for the P2-10 queries, not a
+ * general database emulator.
+ *
+ * decision_evidence_links intentionally has NO workspace_id/project_id. Its tenancy is
+ * derived through operational_decision_records, mirroring the RLS policy
+ * decision_evidence_links_scoped_select in
+ * supabase/migrations/20260611000000_operational_evidence_decision_loop.sql.
+ */
+const FILTERABLE_COLUMNS: Record<string, readonly string[]> = {
+  ...Object.fromEntries(DIRECT_TENANCY_TABLES.map((t) => [t, ["id", "workspace_id", "project_id"]])),
+  decision_evidence_links: ["id", "decision_record_id", "evidence_item_id"],
+};
+
+/**
+ * Mock Supabase client that fails loudly on an unknown filter column instead of
+ * silently degrading to a JavaScript property lookup (which returns undefined and
+ * quietly filters everything out). This approximates Postgres 42703 / undefined_column,
+ * which is what the real database raises and what PostgREST surfaces as a query error.
+ */
+type FilterCall = { table: string; op: "eq" | "in"; col: string; values: unknown[] };
+
+const createStrictMockClient = (mockDb: Record<string, unknown[]>, calls: FilterCall[] = []) =>
+  ({
+    from: (table: string) => {
+      const allowed = FILTERABLE_COLUMNS[table];
+      if (!allowed) throw new Error(`relation "public.${table}" does not exist`);
+      let rows = [...(mockDb[table] ?? [])];
+      const assertColumn = (col: string) => {
+        if (!allowed.includes(col)) throw new Error(`column ${table}.${col} does not exist`);
+      };
+      const queryBuilder: any = {
+        select: () => queryBuilder,
+        eq: (col: string, val: unknown) => {
+          assertColumn(col);
+          calls.push({ table, op: "eq", col, values: [val] });
+          rows = rows.filter((r: any) => r[col] === val);
+          return queryBuilder;
+        },
+        in: (col: string, vals: unknown[]) => {
+          assertColumn(col);
+          calls.push({ table, op: "in", col, values: [...vals] });
+          rows = rows.filter((r: any) => vals.includes(r[col]));
+          return queryBuilder;
+        },
+        order: () => queryBuilder,
+        limit: () => queryBuilder,
+        then: (resolve: any) => resolve({ data: rows, error: null }),
+      };
+      return queryBuilder;
+    },
+  }) as any;
 
 test("P2-10: Type declarations define CompleteLineageProjection, LineageStepNode, LineageTransition, and AuditReconstructionItem", () => {
   assert.match(typesCode, /export type LineageStepKind\s*=/);
@@ -71,6 +149,94 @@ test("P2-10: Lineage reconstruction guarantees correlation is NEVER promoted to 
 test("P2-10: Lineage projection does NOT swallow errors with catch-all fallbacks", () => {
   assert.doesNotMatch(serviceCode, /getCompleteLineageProjection[\s\S]*?\.catch\(\(\)\s*=>\s*\[\]\)/);
   assert.match(serviceCode, /const lineages = await getCompleteLineageProjection\(client, workspaceId, projectId\);/);
+});
+
+test("P2-10 contract: decision_evidence_links tenancy is DERIVED through operational_decision_records, never filtered directly", () => {
+  // 1. Schema truth: the table owns no direct tenancy columns.
+  const migration = readFileSync(
+    "supabase/migrations/20260611000000_operational_evidence_decision_loop.sql",
+    "utf8",
+  );
+  const ddl = migration.slice(
+    migration.indexOf("create table if not exists public.decision_evidence_links"),
+  );
+  const createBlock = ddl.slice(0, ddl.indexOf("\n);"));
+  assert.doesNotMatch(
+    createBlock,
+    /\bworkspace_id\b/,
+    "decision_evidence_links must not declare workspace_id",
+  );
+  assert.doesNotMatch(
+    createBlock,
+    /\bproject_id\b/,
+    "decision_evidence_links must not declare project_id",
+  );
+
+  // 2. Runtime code must never filter the table by a tenancy column it does not have.
+  //    Regression guard for the 42703 defect in getCompleteLineageProjection.
+  const walk = (dir: string, files: string[] = []): string[] => {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) walk(full, files);
+      else if (full.endsWith(".ts") || full.endsWith(".tsx")) files.push(full);
+    }
+    return files;
+  };
+  // Match .from("decision_evidence_links") up to the next .from( call, then look for a
+  // tenancy filter inside that query chain.
+  const chainRe = /\.from\(["']decision_evidence_links["']\)(?:(?!\.from\()[\s\S])*/g;
+  const offenders: string[] = [];
+  for (const file of walk("src")) {
+    const src = readFileSync(file, "utf8");
+    for (const match of src.matchAll(chainRe)) {
+      if (/\.(?:eq|in|neq|filter)\(\s*["'](?:workspace_id|project_id)["']/.test(match[0])) {
+        offenders.push(file);
+      }
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `decision_evidence_links must not be filtered by workspace_id/project_id — it has neither. Scope it through operational_decision_records instead. Offending files: ${offenders.join(", ")}`,
+  );
+
+  // 3. The lineage projection uses the canonical derived pattern.
+  assert.match(
+    serviceCode,
+    /\.from\("decision_evidence_links"\)\.select\("\*"\)\.in\("decision_record_id", decisionIds\)/,
+    "getCompleteLineageProjection must load evidence links by decision_record_id",
+  );
+});
+
+test("P2-10 tenancy: evidence links are scoped to the caller's decisions only, never another workspace's", async () => {
+  const mockDb: Record<string, unknown[]> = {
+    operational_decision_records: [
+      { id: "dec-own", workspace_id: "ws-own", project_id: "proj-own" },
+      { id: "dec-foreign", workspace_id: "ws-foreign", project_id: "proj-foreign" },
+    ],
+    decision_evidence_links: [
+      { decision_record_id: "dec-own", evidence_item_id: "ev-own" },
+      { decision_record_id: "dec-foreign", evidence_item_id: "ev-foreign" },
+    ],
+  };
+
+  const calls: FilterCall[] = [];
+  const client = createStrictMockClient(mockDb, calls);
+  await getCompleteLineageProjection(client, "ws-own", "proj-own");
+
+  const linkCalls = calls.filter((c) => c.table === "decision_evidence_links");
+  assert.equal(linkCalls.length, 1, "evidence links must be loaded in exactly one scoped query");
+  assert.equal(linkCalls[0].op, "in");
+  assert.equal(linkCalls[0].col, "decision_record_id");
+  // The foreign workspace's decision must never enter the scoping set.
+  assert.deepEqual(linkCalls[0].values, ["dec-own"]);
+
+  // The parent decision query must itself be scoped by BOTH tenancy columns.
+  const decisionCols = calls
+    .filter((c) => c.table === "operational_decision_records")
+    .map((c) => c.col);
+  assert.ok(decisionCols.includes("workspace_id"));
+  assert.ok(decisionCols.includes("project_id"));
 });
 
 test("P2-10: Mocked complete lineage graph correctly traces Evidence → Finding → Recommendation → Decision → Action → Task → Observation", async () => {
@@ -197,9 +363,10 @@ test("P2-10: Mocked complete lineage graph correctly traces Evidence → Finding
         created_at: "2026-08-13T08:00:00Z",
       },
     ],
+    // Schema-truthful: decision_evidence_links owns NO workspace_id/project_id.
+    // Tenancy is derived through operational_decision_records.
     decision_evidence_links: [
       {
-        workspace_id: workspaceId,
         decision_record_id: decisionId,
         evidence_item_id: evidenceId,
       },
@@ -345,30 +512,7 @@ test("P2-10: Mocked complete lineage graph correctly traces Evidence → Finding
     ],
   };
 
-  const createMockClient = () => {
-    return {
-      from: (table: string) => {
-        let rows = [...(mockDb[table] ?? [])];
-        const queryBuilder: any = {
-          select: () => queryBuilder,
-          eq: (col: string, val: unknown) => {
-            rows = rows.filter((r: any) => r[col] === val);
-            return queryBuilder;
-          },
-          in: (col: string, vals: unknown[]) => {
-            rows = rows.filter((r: any) => vals.includes(r[col]));
-            return queryBuilder;
-          },
-          order: () => queryBuilder,
-          limit: () => queryBuilder,
-          then: (resolve: any) => resolve({ data: rows, error: null }),
-        };
-        return queryBuilder;
-      },
-    } as any;
-  };
-
-  const client = createMockClient();
+  const client = createStrictMockClient(mockDb);
   const projections = await getCompleteLineageProjection(client, workspaceId, projectId);
 
   assert.equal(projections.length, 1);
@@ -462,30 +606,7 @@ test("P2-10: Lineage projection detects gaps honestly when intermediate steps ar
     platform_events: [],
   };
 
-  const createMockClient = () => {
-    return {
-      from: (table: string) => {
-        let rows = [...(mockDb[table] ?? [])];
-        const queryBuilder: any = {
-          select: () => queryBuilder,
-          eq: (col: string, val: unknown) => {
-            rows = rows.filter((r: any) => r[col] === val);
-            return queryBuilder;
-          },
-          in: (col: string, vals: unknown[]) => {
-            rows = rows.filter((r: any) => vals.includes(r[col]));
-            return queryBuilder;
-          },
-          order: () => queryBuilder,
-          limit: () => queryBuilder,
-          then: (resolve: any) => resolve({ data: rows, error: null }),
-        };
-        return queryBuilder;
-      },
-    } as any;
-  };
-
-  const client = createMockClient();
+  const client = createStrictMockClient(mockDb);
   const projections = await getCompleteLineageProjection(client, workspaceId, projectId);
 
   assert.equal(projections.length, 1);
@@ -584,30 +705,7 @@ test("P2-10: Lineage projection detects disputed and inconclusive states honestl
     platform_events: [],
   };
 
-  const createMockClient = () => {
-    return {
-      from: (table: string) => {
-        let rows = [...(mockDb[table] ?? [])];
-        const queryBuilder: any = {
-          select: () => queryBuilder,
-          eq: (col: string, val: unknown) => {
-            rows = rows.filter((r: any) => r[col] === val);
-            return queryBuilder;
-          },
-          in: (col: string, vals: unknown[]) => {
-            rows = rows.filter((r: any) => vals.includes(r[col]));
-            return queryBuilder;
-          },
-          order: () => queryBuilder,
-          limit: () => queryBuilder,
-          then: (resolve: any) => resolve({ data: rows, error: null }),
-        };
-        return queryBuilder;
-      },
-    } as any;
-  };
-
-  const client = createMockClient();
+  const client = createStrictMockClient(mockDb);
   const projections = await getCompleteLineageProjection(client, workspaceId, projectId);
 
   assert.equal(projections.length, 1);

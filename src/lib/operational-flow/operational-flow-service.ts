@@ -368,7 +368,6 @@ export async function getCompleteLineageProjection(
     actionsRes,
     evaluationsRes,
     decisionsRes,
-    decisionLinksRes,
     recommendationsRes,
     governanceRes,
     signalsRes,
@@ -415,10 +414,6 @@ export async function getCompleteLineageProjection(
       .select("*")
       .eq("workspace_id", workspaceId)
       .eq("project_id", projectId),
-    client
-      .from("decision_evidence_links")
-      .select("*")
-      .eq("workspace_id", workspaceId),
     client
       .from("recommended_actions")
       .select("*")
@@ -470,7 +465,6 @@ export async function getCompleteLineageProjection(
     ["material_action_proposals", actionsRes],
     ["material_action_governance_evaluations", evaluationsRes],
     ["operational_decision_records", decisionsRes],
-    ["decision_evidence_links", decisionLinksRes],
     ["recommended_actions", recommendationsRes],
     ["governance_events", governanceRes],
     ["operational_signals", signalsRes],
@@ -503,6 +497,19 @@ export async function getCompleteLineageProjection(
   const actionsById = new Map((actionsRes.data ?? []).map((r) => [String(r.id), r]));
   const evaluationsByActionId = new Map((evaluationsRes.data ?? []).map((r) => [String(r.action_id), r]));
   const decisionsById = new Map((decisionsRes.data ?? []).map((r) => [String(r.id), r]));
+
+  // decision_evidence_links carries no workspace_id/project_id of its own: its tenancy is
+  // derived through operational_decision_records, exactly as the RLS policy
+  // decision_evidence_links_scoped_select does. decisionsRes is already scoped by both
+  // workspace_id and project_id, so scoping by decision_record_id preserves tenant isolation.
+  const decisionIds = [...decisionsById.keys()];
+  const decisionLinksRes = decisionIds.length
+    ? await client.from("decision_evidence_links").select("*").in("decision_record_id", decisionIds)
+    : { data: [], error: null };
+  if (decisionLinksRes.error) {
+    throw new Error(`load_decision_evidence_links_for_lineage: ${decisionLinksRes.error.message}`);
+  }
+
   const decisionLinksByDecisionId = new Map<string, Array<Record<string, unknown>>>();
   for (const link of decisionLinksRes.data ?? []) {
     const list = decisionLinksByDecisionId.get(String(link.decision_record_id)) ?? [];
