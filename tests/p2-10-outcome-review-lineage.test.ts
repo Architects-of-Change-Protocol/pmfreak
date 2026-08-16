@@ -60,36 +60,52 @@ const FILTERABLE_COLUMNS: Record<string, readonly string[]> = {
  */
 type FilterCall = { table: string; op: "eq" | "in"; col: string; values: unknown[] };
 
+type MockRow = Record<string, unknown>;
+type MockResult = { data: MockRow[]; error: null };
+
+/**
+ * Minimal PostgREST-shaped builder: only the surface the queries under test use.
+ * `then` makes it awaitable — a callable `then` is all `await` requires at runtime.
+ */
+interface MockQueryBuilder {
+  select: () => MockQueryBuilder;
+  eq: (col: string, val: unknown) => MockQueryBuilder;
+  in: (col: string, vals: unknown[]) => MockQueryBuilder;
+  order: () => MockQueryBuilder;
+  limit: () => MockQueryBuilder;
+  then: (resolve: (result: MockResult) => unknown) => unknown;
+}
+
 const createStrictMockClient = (mockDb: Record<string, unknown[]>, calls: FilterCall[] = []) =>
   ({
     from: (table: string) => {
       const allowed = FILTERABLE_COLUMNS[table];
       if (!allowed) throw new Error(`relation "public.${table}" does not exist`);
-      let rows = [...(mockDb[table] ?? [])];
+      let rows = [...(mockDb[table] ?? [])] as MockRow[];
       const assertColumn = (col: string) => {
         if (!allowed.includes(col)) throw new Error(`column ${table}.${col} does not exist`);
       };
-      const queryBuilder: any = {
+      const queryBuilder: MockQueryBuilder = {
         select: () => queryBuilder,
         eq: (col: string, val: unknown) => {
           assertColumn(col);
           calls.push({ table, op: "eq", col, values: [val] });
-          rows = rows.filter((r: any) => r[col] === val);
+          rows = rows.filter((r) => r[col] === val);
           return queryBuilder;
         },
         in: (col: string, vals: unknown[]) => {
           assertColumn(col);
           calls.push({ table, op: "in", col, values: [...vals] });
-          rows = rows.filter((r: any) => vals.includes(r[col]));
+          rows = rows.filter((r) => vals.includes(r[col]));
           return queryBuilder;
         },
         order: () => queryBuilder,
         limit: () => queryBuilder,
-        then: (resolve: any) => resolve({ data: rows, error: null }),
+        then: (resolve) => resolve({ data: rows, error: null }),
       };
       return queryBuilder;
     },
-  }) as any;
+  }) as unknown as Parameters<typeof getCompleteLineageProjection>[0];
 
 test("P2-10: Type declarations define CompleteLineageProjection, LineageStepNode, LineageTransition, and AuditReconstructionItem", () => {
   assert.match(typesCode, /export type LineageStepKind\s*=/);
@@ -769,7 +785,7 @@ test("P2-10: Audit trail reconstruction preserves occurredAt vs recordedAt and d
         }),
       }),
     }),
-  } as any;
+  } as unknown as Parameters<typeof reconstructAuditTrail>[0];
 
   const trail = await reconstructAuditTrail(client, workspaceId, projectId);
   assert.equal(trail.length, 2);
