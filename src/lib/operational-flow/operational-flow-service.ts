@@ -25,6 +25,37 @@ import {
 
 export const SIGNAL_DETECTOR_KEY = "system/deterministic:governance_signal_detector_v1";
 
+/**
+ * Explicit governance_state -> lineage integrity mapping. The 10 keys are exactly the
+ * check constraint on material_action_governance_evaluations.governance_state
+ * (supabase/migrations/20260903000000_p2_06_governed_decision_to_action.sql).
+ *
+ * Fail safe: any state NOT in this table — including a future state added to the
+ * constraint before this map is updated — resolves to "degraded", never "intact".
+ * can_execute is deliberately not consulted: it is constrained to false and carries
+ * no integrity signal.
+ */
+const GOVERNANCE_STATE_INTEGRITY: Record<string, "intact" | "disputed" | "degraded"> = {
+  authorized: "intact",
+  not_required: "intact",
+  denied: "disputed",
+  revoked: "disputed",
+  requires_review: "degraded",
+  requires_approval: "degraded",
+  expired: "degraded",
+  stale: "degraded",
+  unavailable: "degraded",
+  degraded: "degraded",
+};
+
+/**
+ * platform_events.correlation_id is uuid; canonical_outcome_observations.correlation_id and
+ * canonical_task_outcomes.correlation_id are text. A legitimate non-uuid correlation id must
+ * not make the platform_events query raise 22P02. Canonical 8-4-4-4-12 form only: a value
+ * this pattern rejects is treated as "cannot match a uuid column", never sent as a filter.
+ */
+const UUID_CANONICAL_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type Client = SupabaseClient;
 type Scope = { workspaceId: string; projectId: string; userId: string; role?: OperationalWorkspaceRole | null };
 export type CaptureOperationalInput = {
@@ -321,22 +352,97 @@ export async function reconstructAuditTrail(
   projectId: string,
   options?: { correlationId?: string; outcomeId?: string; limit?: number },
 ): Promise<AuditReconstructionItem[]> {
-  let query = client
-    .from("platform_events")
+  const limit = options?.limit ?? 100;
+  const rowsOrThrow = (
+    res: { data: unknown; error: { message: string } | null },
+    label: string,
+  ): Array<Record<string, unknown>> => {
+    if (res.error) throw new Error(`${label}: ${res.error.message}`);
+    return (res.data as Array<Record<string, unknown>> | null) ?? [];
+  };
+
+  // record_canonical_outcome_observation writes canonical_outcome_observations and updates
+  // the outcome state, but emits NO platform_event. Reading platform_events alone therefore
+  // omits every canonical outcome observation from the audit trail. Both sources are read
+  // here and merged service-side. Nothing is fabricated as an emitted event: reconstructed
+  // records are explicitly labelled as canonical-record reconstructions.
+  let observationsQuery = client
+    .from("canonical_outcome_observations")
     .select("*")
     .eq("workspace_id", workspaceId)
     .eq("project_id", projectId)
-    .order("occurred_at", { ascending: true })
-    .limit(options?.limit ?? 100);
+    .order("observed_at", { ascending: true })
+    .limit(limit);
+  // correlation_id is text on this table and is used verbatim — no uuid coercion, no guard.
+  if (options?.correlationId) observationsQuery = observationsQuery.eq("correlation_id", options.correlationId);
+  if (options?.outcomeId) observationsQuery = observationsQuery.eq("outcome_id", options.outcomeId);
 
-  if (options?.correlationId) {
-    query = query.eq("correlation_id", options.correlationId);
+  const loadPlatformEvents = async (correlationId: string | null) => {
+    // uuid column vs text filter value: skip the query rather than raise 22P02. Contributing
+    // zero rows is the honest degradation; it is never an assertion that none exist.
+    if (correlationId !== null && !UUID_CANONICAL_PATTERN.test(correlationId)) return [];
+    let query = client
+      .from("platform_events")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("project_id", projectId)
+      .order("occurred_at", { ascending: true })
+      .limit(limit);
+    if (correlationId !== null) query = query.eq("correlation_id", correlationId);
+    return rowsOrThrow(await query, "reconstruct_audit_trail");
+  };
+
+  let observationRows: Array<Record<string, unknown>>;
+  let eventRows: Array<Record<string, unknown>>;
+
+  if (options?.outcomeId) {
+    // No emitter in this repository tags platform_events with a canonical outcome id:
+    // raw_reference_table is only ever operational_raw_inputs / evidence_items /
+    // operational_decision_records, and no reachable payload carries one. correlation_id is
+    // therefore the ONLY association available without a schema or emission change, and it
+    // is correlation, NOT causation. The platform_events side of an outcome-filtered audit
+    // is consequently not provably complete; it is deterministic and honestly scoped only.
+    const [observationsRes, outcomeRes] = await Promise.all([
+      observationsQuery,
+      client
+        .from("canonical_task_outcomes")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .eq("project_id", projectId)
+        .eq("id", options.outcomeId),
+    ]);
+    observationRows = rowsOrThrow(observationsRes, "reconstruct_audit_trail_observations");
+    const outcomeRow = rowsOrThrow(outcomeRes, "reconstruct_audit_trail_outcome")[0];
+    const outcomeCorrelationId = outcomeRow ? String(outcomeRow.correlation_id ?? "") : "";
+    // Outcome absent from tenant scope, or an explicit correlationId that contradicts the
+    // outcome's own: the intersection is empty, so platform_events contributes nothing.
+    const contradictsExplicitFilter =
+      Boolean(options.correlationId) && options.correlationId !== outcomeCorrelationId;
+    eventRows =
+      !outcomeCorrelationId || contradictsExplicitFilter ? [] : await loadPlatformEvents(outcomeCorrelationId);
+  } else {
+    const [observationsRes, events] = await Promise.all([
+      observationsQuery,
+      loadPlatformEvents(options?.correlationId ?? null),
+    ]);
+    observationRows = rowsOrThrow(observationsRes, "reconstruct_audit_trail_observations");
+    eventRows = events;
   }
 
-  const { data, error } = await query;
-  if (error) throw new Error(`reconstruct_audit_trail: ${error.message}`);
+  // Under an outcomeId request a platform_event was selected ONLY because it shares the
+  // canonical outcome's correlation_id. That selection basis travels with the data instead
+  // of living in a source comment. It describes how the row was selected for the requested
+  // outcome and is independent of the row's own causation/correlation `relationship`.
+  // Observations are not annotated: they carry an exact stored outcome_id relationship.
+  const outcomeAssociationMetadata = options?.outcomeId
+    ? {
+        outcomeAssociation: "correlation_only",
+        requestedOutcomeId: options.outcomeId,
+        outcomeAssociationComplete: false,
+      }
+    : {};
 
-  return (data ?? []).map((row) => ({
+  const events: AuditReconstructionItem[] = eventRows.map((row) => ({
     id: String(row.id),
     eventType: String(row.event_type),
     eventCategory: String(row.event_category),
@@ -349,9 +455,112 @@ export async function reconstructAuditTrail(
     rawReferenceTable: (row.raw_reference_table as string | null) ?? null,
     rawReferenceId: (row.raw_reference_id as string | null) ?? null,
     payload: (row.event_payload as Record<string, unknown>) ?? {},
-    metadata: (row.metadata as Record<string, unknown>) ?? {},
+    metadata: { ...((row.metadata as Record<string, unknown>) ?? {}), ...outcomeAssociationMetadata },
     relationship: row.causation_id ? "causation" : row.correlation_id ? "correlation_only" : "unlinked",
   }));
+
+  // Forward guard only: no writer in this repository currently emits a platform_event
+  // referencing canonical_outcome_observations, so this set is empty against today's data.
+  // If one is ever emitted, that event is the record of truth and is not duplicated here.
+  const observationsAlreadyEmitted = new Set(
+    eventRows
+      .filter((row) => row.raw_reference_table === "canonical_outcome_observations")
+      .map((row) => String(row.raw_reference_id)),
+  );
+
+  const reconstructed: AuditReconstructionItem[] = observationRows
+    .filter((obs) => !observationsAlreadyEmitted.has(String(obs.id)))
+    .map((obs) => ({
+      // Namespaced so a reconstruction can never be mistaken for a platform_events.id.
+      id: `canonical_outcome_observations:${String(obs.id)}`,
+      eventType: "CANONICAL_OUTCOME_OBSERVATION_RECORDED",
+      eventCategory: "operational_assurance",
+      actorId: (obs.observed_by as string | null) ?? null,
+      // canonical_outcome_observations.observed_by carries no FK and no actor-class
+      // constraint, so the schema does not establish an actor type. None is asserted.
+      actorType: "unknown",
+      // Stored values only — observed_at and recorded_at stay distinct.
+      occurredAt: String(obs.observed_at ?? ""),
+      recordedAt: String(obs.recorded_at ?? ""),
+      correlationId: (obs.correlation_id as string | null) ?? null,
+      causationId: (obs.causation_id as string | null) ?? null,
+      rawReferenceTable: "canonical_outcome_observations",
+      rawReferenceId: String(obs.id),
+      payload: {
+        outcomeId: obs.outcome_id,
+        taskId: obs.task_id,
+        observationState: obs.observation_state,
+        summary: obs.summary,
+        confidenceScore: obs.confidence_score,
+        missingDataState: obs.missing_data_state,
+        evidenceReferenceIds: obs.evidence_reference_ids,
+      },
+      metadata: {
+        reconstructed: true,
+        reconstructedFrom: "canonical_outcome_observations",
+        reconstructionReason:
+          "record_canonical_outcome_observation emits no platform_event. This audit record is reconstructed from the stored canonical_outcome_observations row and is NOT an emitted platform event.",
+        actorAttribution:
+          "observed_by is stored without a schema-level actor classification; actor type is not asserted.",
+      },
+      relationship: obs.causation_id ? "causation" : obs.correlation_id ? "correlation_only" : "unlinked",
+    }));
+
+  const time = (value: string) => {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+  // Deterministic chronological merge, then ONE limit over the COMBINED result. Each source
+  // was fetched oldest-first bounded by the same limit, so the first `limit` of the merge is
+  // the true oldest-first prefix across both sources. Oldest-first direction preserved
+  // (T5 remains unresolved).
+  return [...events, ...reconstructed]
+    .sort(
+      (a, b) =>
+        time(a.occurredAt) - time(b.occurredAt) ||
+        time(a.recordedAt) - time(b.recordedAt) ||
+        a.id.localeCompare(b.id),
+    )
+    .slice(0, limit);
+}
+
+/**
+ * Deterministic recency ordering for governance evaluations: newest first by
+ * evaluated_at, then recorded_at, then id. Row arrival order is never authoritative.
+ * Missing/unparseable timestamps sort oldest rather than producing a NaN comparator.
+ */
+function compareGovernanceEvaluationRecency(
+  a: Record<string, unknown>,
+  b: Record<string, unknown>,
+): number {
+  const time = (value: unknown) => {
+    const parsed = Date.parse(String(value ?? ""));
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+  const byEvaluatedAt = time(b.evaluated_at) - time(a.evaluated_at);
+  if (byEvaluatedAt !== 0) return byEvaluatedAt;
+  const byRecordedAt = time(b.recorded_at) - time(a.recorded_at);
+  if (byRecordedAt !== 0) return byRecordedAt;
+  return String(b.id ?? "").localeCompare(String(a.id ?? ""));
+}
+
+/**
+ * Stable ordering for decision_evidence_links. created_at is the link-recording time;
+ * evidence_item_id is unique per decision_record_id (unique (decision_record_id,
+ * evidence_item_id) — 20260611000000_operational_evidence_decision_loop.sql), so this pair
+ * is a strict total order with no possible tie. Database row order is never consulted.
+ */
+function compareDecisionEvidenceLinkStability(
+  a: Record<string, unknown>,
+  b: Record<string, unknown>,
+): number {
+  const time = (value: unknown) => {
+    const parsed = Date.parse(String(value ?? ""));
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+  const byCreatedAt = time(a.created_at) - time(b.created_at);
+  if (byCreatedAt !== 0) return byCreatedAt;
+  return String(a.evidence_item_id ?? "").localeCompare(String(b.evidence_item_id ?? ""));
 }
 
 export async function getCompleteLineageProjection(
@@ -495,7 +704,15 @@ export async function getCompleteLineageProjection(
   const tasksById = new Map((tasksRes.data ?? []).map((r) => [String(r.id), r]));
   const executionsByTaskId = new Map((executionsRes.data ?? []).map((r) => [String(r.task_id), r]));
   const actionsById = new Map((actionsRes.data ?? []).map((r) => [String(r.id), r]));
-  const evaluationsByActionId = new Map((evaluationsRes.data ?? []).map((r) => [String(r.action_id), r]));
+  // Every evaluation is retained. Collapsing to one row per action here is what made
+  // selection depend on row arrival order.
+  const evaluationsById = new Map((evaluationsRes.data ?? []).map((r) => [String(r.id), r]));
+  const evaluationsByActionId = new Map<string, Array<Record<string, unknown>>>();
+  for (const evaluationRow of evaluationsRes.data ?? []) {
+    const list = evaluationsByActionId.get(String(evaluationRow.action_id)) ?? [];
+    list.push(evaluationRow);
+    evaluationsByActionId.set(String(evaluationRow.action_id), list);
+  }
   const decisionsById = new Map((decisionsRes.data ?? []).map((r) => [String(r.id), r]));
 
   // decision_evidence_links carries no workspace_id/project_id of its own: its tenancy is
@@ -536,7 +753,32 @@ export async function getCompleteLineageProjection(
     const execution = executionsByTaskId.get(String(outcome.task_id));
     const actionId = outcome.source_action_id || task?.source_action_id;
     const action = actionId ? actionsById.get(String(actionId)) : undefined;
-    const evaluation = action ? evaluationsByActionId.get(String(action.id)) : undefined;
+    // internal_task_executions.governance_evaluation_id is NOT NULL and is the historical
+    // authority for an action that was actually executed: it pins the evaluation the
+    // dispatch was authorized against. A newer evaluation must never be back-projected
+    // onto a past execution.
+    const executionEvaluationId = execution?.governance_evaluation_id
+      ? String(execution.governance_evaluation_id)
+      : null;
+    const executionEvaluation = executionEvaluationId
+      ? evaluationsById.get(executionEvaluationId)
+      : undefined;
+    // A referenced-but-absent evaluation is an integrity failure, NOT a cue to substitute
+    // another row. Substituting latest-per-action here would silently rewrite authorization
+    // history. The lineage is reported as broken instead.
+    const executionEvaluationMissing = executionEvaluationId !== null && executionEvaluation === undefined;
+    // Deterministic latest-per-action applies ONLY when no execution pins an evaluation:
+    // evaluated_at, then recorded_at, then id.
+    const actionEvaluations = action
+      ? [...(evaluationsByActionId.get(String(action.id)) ?? [])].sort(compareGovernanceEvaluationRecency)
+      : [];
+    const evaluation = executionEvaluationId !== null ? executionEvaluation : actionEvaluations[0];
+
+    if (executionEvaluationMissing) {
+      gaps.push(
+        `Governance evaluation: internal execution ${String(execution?.id)} references governance evaluation ${executionEvaluationId}, which is absent from project scope. Authorization history cannot be reconstructed and no substitute evaluation was used.`,
+      );
+    }
     const decisionId = action?.source_decision_id || (action?.proposal as Record<string, unknown> | undefined)?.decisionReferenceId;
     const decision = decisionId ? decisionsById.get(String(decisionId)) : undefined;
     const recommendation = decision?.recommendation_id ? recommendationsById.get(String(decision.recommendation_id)) : undefined;
@@ -547,8 +789,20 @@ export async function getCompleteLineageProjection(
 
     // Upstream evidence for decision
     const links = decision ? decisionLinksByDecisionId.get(String(decision.id)) ?? [] : [];
-    const decisionEvidenceId = signal?.evidence_item_id || decision?.manual_evidence_item_id || links[0]?.evidence_item_id;
+    // links[0] was raw database row order. The earliest-recorded link, tie-broken by
+    // evidence_item_id, is the deterministic primary when nothing upstream determines it.
+    const orderedLinks = [...links].sort(compareDecisionEvidenceLinkStability);
+    const decisionEvidenceId =
+      signal?.evidence_item_id || decision?.manual_evidence_item_id || orderedLinks[0]?.evidence_item_id;
     const evidence = decisionEvidenceId ? evidenceById.get(String(decisionEvidenceId)) : undefined;
+
+    // LineageStepNode renders exactly one primary evidence chain. Omission accounting is
+    // computed over decision_evidence_links itself and makes NO assumption that the primary
+    // evidence is one of those links: when it originates from a signal or a manual decision
+    // reference, every link may be unrepresented.
+    const linkedEvidenceIds = [...new Set(orderedLinks.map((link) => String(link.evidence_item_id)))];
+    const primaryEvidenceId = decisionEvidenceId ? String(decisionEvidenceId) : null;
+    const omittedDecisionEvidenceIds = linkedEvidenceIds.filter((id) => id !== primaryEvidenceId);
     const normalizedEvent = evidence?.normalized_event_id ? eventsById.get(String(evidence.normalized_event_id)) : undefined;
     const rawInput = normalizedEvent?.raw_input_id ? rawInputsById.get(String(normalizedEvent.raw_input_id)) : undefined;
     const source = (rawInput?.source_id ? sourcesById.get(String(rawInput.source_id)) : undefined) ||
@@ -679,8 +933,11 @@ export async function getCompleteLineageProjection(
         status: isFixture ? "fixture" : isDegraded ? "degraded" : "intact",
         summary: `Confidence: ${(Number(evidence.confidence_score) * 100).toFixed(1)}%, Data: ${evidence.missing_data_state}, Freshness: ${evidence.freshness_state}`,
         entity: evidence,
-        correlationId: null,
-        causationId: null,
+        // Provenance is used exactly as recorded on the evidence row. A null causation_id
+        // stays null: a structural reference (e.g. normalized_event_id) is never promoted
+        // into a causal claim.
+        correlationId: (evidence.correlation_id as string | null) ?? null,
+        causationId: (evidence.causation_id as string | null) ?? null,
         isFixture,
         fixtureLabel: isFixture ? "DEMO / FIXTURE" : null,
         gapReason: null,
@@ -709,6 +966,12 @@ export async function getCompleteLineageProjection(
         actorId: null,
       });
       gaps.push("Evidence: missing upstream evidence link.");
+    }
+
+    if (omittedDecisionEvidenceIds.length > 0) {
+      gaps.push(
+        `Evidence: decision has ${linkedEvidenceIds.length} linked evidence item(s) in decision_evidence_links; lineage renders one primary evidence chain (${primaryEvidenceId ?? "none"}). ${omittedDecisionEvidenceIds.length} linked evidence item(s) not represented: ${omittedDecisionEvidenceIds.join(", ")}.`,
+      );
     }
 
     // 5. Finding (Signal)
@@ -828,14 +1091,16 @@ export async function getCompleteLineageProjection(
 
     // 8. Governed Action
     if (action) {
-      const govState = String(evaluation?.governance_state ?? "proposed");
-      const isDenied = govState === "denied";
-      const isDegraded = govState === "degraded" || govState === "unavailable";
+      // "proposed" is not a governance_state the database can hold; synthesising it made an
+      // unevaluated action render as intact.
+      const govState = evaluation ? String(evaluation.governance_state ?? "") : null;
+      const govIntegrity: "intact" | "disputed" | "degraded" =
+        govState === null ? "degraded" : (GOVERNANCE_STATE_INTEGRITY[govState] ?? "degraded");
       steps.push({
         kind: "material_action",
         id: String(action.id),
-        title: `Governed Action (${action.action_class}): ${govState}`,
-        status: isDenied ? "disputed" : isDegraded ? "degraded" : "intact",
+        title: `Governed Action (${action.action_class}): ${govState ?? "no governance evaluation"}`,
+        status: govIntegrity,
         summary: `Materiality: ${action.materiality}, Digest: ${String(action.proposal_digest || "").slice(0, 16)}...`,
         entity: { ...action, evaluation },
         correlationId: (action.correlation_id as string | null) ?? null,
@@ -847,7 +1112,13 @@ export async function getCompleteLineageProjection(
         recordedAt: String(evaluation?.recorded_at || action.persisted_at || ""),
         actorId: null,
       });
-      if (isDenied) disputes.push("Governed Action: AOC-E policy evaluation denied action.");
+      if (govIntegrity === "disputed") {
+        disputes.push(`Governed Action: AOC-E governance evaluation state "${govState}" withholds authorization.`);
+      }
+      // The execution-referenced-but-absent case already emitted a more specific gap.
+      if (govState === null && !executionEvaluationMissing) {
+        gaps.push("Governed Action: no governance evaluation recorded; authorization cannot be attested.");
+      }
     } else {
       steps.push({
         kind: "material_action",
