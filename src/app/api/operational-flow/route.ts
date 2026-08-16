@@ -2,7 +2,20 @@ import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
-import { captureOperationalInput, deriveEvidence, dispatchGovernedMaterialActionToTask, getOperationalSummary, proposeGovernedMaterialAction, recordHumanDecision, revokeGovernedMaterialAction, runEvidenceDecisionChain } from "@/lib/operational-flow/operational-flow-service";
+import {
+  captureOperationalInput,
+  deriveEvidence,
+  dispatchGovernedMaterialActionToTask,
+  ensureExpectedOutcome,
+  getCompleteLineageProjection,
+  getOperationalSummary,
+  proposeGovernedMaterialAction,
+  reconstructAuditTrail,
+  recordHumanDecision,
+  recordOutcomeObservation,
+  revokeGovernedMaterialAction,
+  runEvidenceDecisionChain,
+} from "@/lib/operational-flow/operational-flow-service";
 import type { EvidenceAssertionType, EvidenceClassification, MissingDataState } from "@/lib/operational-flow/types";
 import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 
@@ -11,6 +24,7 @@ const DECISION_STATUSES = new Set(["accepted", "rejected", "modified", "escalate
 const ASSERTION_TYPES = new Set(["FACT", "INFERENCE", "ASSUMPTION"]);
 const CLASSIFICATIONS = new Set(["UNCLASSIFIED", "PROJECT_STATUS", "RISK", "ISSUE", "DECISION_CONTEXT", "DELIVERY"]);
 const MISSING_DATA_STATES = new Set(["COMPLETE", "PARTIAL", "UNKNOWN"]);
+const OBSERVATION_STATES = new Set(["achieved", "partial", "failed", "disputed", "inconclusive"]);
 
 async function authorize(projectId: string, workspaceId: string, permission: "read" | "write") {
   let userId: string | null = null;
@@ -38,15 +52,31 @@ async function authorize(projectId: string, workspaceId: string, permission: "re
 
 function scopeFromUrl(request: Request) {
   const url = new URL(request.url);
-  return { workspaceId: url.searchParams.get("workspaceId")?.trim() ?? "", projectId: url.searchParams.get("projectId")?.trim() ?? "" };
+  return {
+    workspaceId: url.searchParams.get("workspaceId")?.trim() ?? "",
+    projectId: url.searchParams.get("projectId")?.trim() ?? "",
+    view: url.searchParams.get("view")?.trim() ?? "",
+    outcomeId: url.searchParams.get("outcomeId")?.trim() || undefined,
+    taskId: url.searchParams.get("taskId")?.trim() || undefined,
+    correlationId: url.searchParams.get("correlationId")?.trim() || undefined,
+    limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
+  };
 }
 
 export async function GET(request: Request) {
-  const { workspaceId, projectId } = scopeFromUrl(request);
+  const { workspaceId, projectId, view, outcomeId, taskId, correlationId, limit } = scopeFromUrl(request);
   if (!workspaceId || !projectId) return Response.json({ error: "workspaceId and projectId are required." }, { status: 400 });
   const authorized = await authorize(projectId, workspaceId, "read");
   if (authorized instanceof Response) return authorized;
   try {
+    if (view === "lineage") {
+      const lineages = await getCompleteLineageProjection(authorized.supabase, workspaceId, projectId, { outcomeId, taskId });
+      return Response.json({ lineages });
+    }
+    if (view === "audit") {
+      const auditTrail = await reconstructAuditTrail(authorized.supabase, workspaceId, projectId, { correlationId, limit });
+      return Response.json({ auditTrail });
+    }
     return Response.json(await getOperationalSummary(authorized.supabase, workspaceId, projectId, authorized.user.id));
   } catch (error) {
     return safeLegacyErrorResponse("/api/operational-flow", error, "Unable to load operational flow. Please retry.");
@@ -60,7 +90,17 @@ export async function POST(request: Request) {
   const projectId = String(body.projectId ?? "").trim();
   const operation = String(body.operation ?? "").trim();
   if (!workspaceId || !projectId || !operation) return Response.json({ error: "workspaceId, projectId and operation are required." }, { status: 400 });
-  if (!["capture_input", "derive_evidence", "run_chain", "record_decision", "propose_material_action", "dispatch_material_action_to_task", "revoke_material_action"].includes(operation)) return Response.json({ error: "Unsupported public operation." }, { status: 400 });
+  if (![
+    "capture_input",
+    "derive_evidence",
+    "run_chain",
+    "record_decision",
+    "propose_material_action",
+    "dispatch_material_action_to_task",
+    "revoke_material_action",
+    "ensure_expected_outcome",
+    "record_outcome_observation",
+  ].includes(operation)) return Response.json({ error: "Unsupported public operation." }, { status: 400 });
   const authorized = await authorize(projectId, workspaceId, "write");
   if (authorized instanceof Response) return authorized;
   const scope = { workspaceId, projectId, userId: authorized.user.id, role: authorized.role };
@@ -121,6 +161,39 @@ export async function POST(request: Request) {
     if (operation === "revoke_material_action") return Response.json(await revokeGovernedMaterialAction(authorized.supabase, scope, {
       actionId: String(body.actionId ?? ""), evaluationTime: String(body.evaluationTime ?? ""), reasonCode: String(body.reasonCode ?? "governance_revoked"),
     }));
+    if (operation === "ensure_expected_outcome") {
+      const result = await ensureExpectedOutcome(authorized.supabase, scope, {
+        taskId: String(body.taskId ?? ""),
+        expectedResult: String(body.expectedResult ?? ""),
+        successCriteria: Array.isArray(body.successCriteria) ? body.successCriteria : [],
+        correlationId: String(body.correlationId ?? ""),
+        causationId: body.causationId ? String(body.causationId) : null,
+      });
+      return Response.json(result, { status: result.disposition === "created" ? 201 : 200 });
+    }
+    if (operation === "record_outcome_observation") {
+      const observationState = String(body.observationState ?? "");
+      if (!OBSERVATION_STATES.has(observationState)) return Response.json({ error: "Invalid observationState." }, { status: 400 });
+      const missingDataState = String(body.missingDataState ?? "COMPLETE");
+      if (!MISSING_DATA_STATES.has(missingDataState)) return Response.json({ error: "Invalid missingDataState." }, { status: 400 });
+      const evidenceReferenceIds = Array.isArray(body.evidenceReferenceIds) ? body.evidenceReferenceIds.map(String) : [];
+      const result = await recordOutcomeObservation(authorized.supabase, scope, {
+        outcomeId: String(body.outcomeId ?? ""),
+        observationState: observationState as "achieved" | "partial" | "failed" | "disputed" | "inconclusive",
+        summary: String(body.summary ?? ""),
+        evidenceReferenceIds,
+        confidenceScore: Number(body.confidenceScore ?? 1.0),
+        missingDataState: missingDataState as "COMPLETE" | "PARTIAL" | "UNKNOWN",
+        observedAt: String(body.observedAt ?? ""),
+        evaluatedAt: String(body.evaluatedAt ?? ""),
+        staleAt: body.staleAt ? String(body.staleAt) : null,
+        correlationId: String(body.correlationId ?? ""),
+        causationId: body.causationId ? String(body.causationId) : null,
+        idempotencyKey: String(body.idempotencyKey ?? ""),
+      });
+      const status = result.disposition === "created" ? 201 : result.disposition === "conflict" ? 409 : 200;
+      return Response.json(result, { status });
+    }
     const decisionStatus = String(body.decisionStatus ?? "");
     if (!DECISION_STATUSES.has(decisionStatus)) return Response.json({ error: "Invalid decisionStatus." }, { status: 400 });
     return Response.json(await recordHumanDecision(authorized.supabase, scope, {
@@ -132,8 +205,6 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Operational flow failed.";
     const status = /idempotency_conflict/.test(message) ? 409 : /denied|authority|access/.test(message) ? 403 : /required|mismatch|invalid|not_found|incomplete|malformed|source_(degraded|stale|unavailable|revoked)/.test(message) ? 400 : 500;
-    // 4xx branches carry app-controlled vocabulary from the operational-flow
-    // domain; anything else may be a raw driver error and must stay internal.
     if (status === 500) return safeLegacyErrorResponse("/api/operational-flow", error, "Operational flow failed. Please retry.");
     return Response.json({ error: message }, { status });
   }

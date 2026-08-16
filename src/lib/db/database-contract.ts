@@ -917,6 +917,120 @@ export const INTERNAL_TASK_EXECUTION_SELECTABLE_COLUMNS = [
   "created_at",
   "updated_at",
 ] as const satisfies ReadonlyArray<keyof InternalTaskExecutionRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// canonical_task_outcomes
+// Source: 20260906000000_p2_09_outcome_observation_contract.sql
+// Canonical expected Outcome for an execution Task. Task completion never implies Outcome achievement.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type CanonicalTaskOutcomeState =
+  | "expected"
+  | "observing"
+  | "achieved"
+  | "partially_achieved"
+  | "not_achieved"
+  | "disputed"
+  | "inconclusive"
+  | "superseded";
+
+export type CanonicalTaskOutcomeRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  task_id: string;
+  source_action_id: string | null;
+  internal_execution_id: string | null;
+  state: CanonicalTaskOutcomeState;
+  expected_result: string;
+  success_criteria: unknown[];
+  correlation_id: string;
+  causation_id: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  fixture_label: string | null;
+};
+
+export const CANONICAL_TASK_OUTCOME_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "task_id",
+  "source_action_id",
+  "internal_execution_id",
+  "state",
+  "expected_result",
+  "success_criteria",
+  "correlation_id",
+  "causation_id",
+  "created_by",
+  "created_at",
+  "updated_at",
+  "fixture_label",
+] as const satisfies ReadonlyArray<keyof CanonicalTaskOutcomeRow>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// canonical_outcome_observations
+// Source: 20260906000000_p2_09_outcome_observation_contract.sql
+// Evidence-backed observation of a canonical expected Task Outcome.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type CanonicalOutcomeObservationState =
+  | "achieved"
+  | "partial"
+  | "failed"
+  | "disputed"
+  | "inconclusive";
+
+export type CanonicalOutcomeObservationMissingDataState =
+  | "COMPLETE"
+  | "PARTIAL"
+  | "UNKNOWN";
+
+export type CanonicalOutcomeObservationRow = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  outcome_id: string;
+  task_id: string;
+  observation_state: CanonicalOutcomeObservationState;
+  summary: string;
+  evidence_reference_ids: string[];
+  confidence_score: number;
+  missing_data_state: CanonicalOutcomeObservationMissingDataState;
+  observed_by: string;
+  observed_at: string;
+  evaluated_at: string;
+  stale_at: string | null;
+  recorded_at: string;
+  correlation_id: string;
+  causation_id: string | null;
+  idempotency_key: string;
+  fixture_label: string | null;
+};
+
+export const CANONICAL_OUTCOME_OBSERVATION_SELECTABLE_COLUMNS = [
+  "id",
+  "workspace_id",
+  "project_id",
+  "outcome_id",
+  "task_id",
+  "observation_state",
+  "summary",
+  "evidence_reference_ids",
+  "confidence_score",
+  "missing_data_state",
+  "observed_by",
+  "observed_at",
+  "evaluated_at",
+  "stale_at",
+  "recorded_at",
+  "correlation_id",
+  "causation_id",
+  "idempotency_key",
+  "fixture_label",
+] as const satisfies ReadonlyArray<keyof CanonicalOutcomeObservationRow>;
 // project_milestones
 // Source: 20260605090000_milestones_schedule_foundation.sql
 // Project milestones with planned, baseline, and forecast dates.
