@@ -108,7 +108,7 @@ function MobileOverlay({ open, onClose, side, children }: { open: boolean; onClo
             <CloseIcon className="h-4 w-4" />
           </button>
         </div>
-        <div className="h-[calc(100%-2.5rem)]">{children}</div>
+        <div className="h-[calc(100%-2.5rem)] overflow-y-auto">{children}</div>
       </div>
     </div>
   );
