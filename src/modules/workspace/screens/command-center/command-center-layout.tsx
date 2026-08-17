@@ -5,6 +5,7 @@ import type { OperationalSummary } from "@/lib/operational-flow/types";
 import type { Agent, ChatMessage, DrawerContent, MemoryItem, NeedsYouItem, ProjectListItem, RepositoryItem } from "../../presentation/command-center/types";
 import {
   deriveAgents,
+  deriveAllGovernedAttention,
   deriveNeedsYou,
   deriveRaidNeedsYou,
   deriveRepository,
@@ -148,10 +149,10 @@ export function CommandCenterLayout({
     [projects, selectedProjectId]
   );
 
-  const { data: flowData, mutate: mutateFlow } = useOperationalFlow(workspaceId, selectedProject?.id ?? "");
+  const { data: flowData, error: flowError, mutate: mutateFlow } = useOperationalFlow(workspaceId, selectedProject?.id ?? "");
   const { data: raidActions, mutate: mutateRaidActions } = useRaidRecommendedActions(selectedProject?.id ?? "");
   const hasRealData = Boolean(flowData && flowData.evidence.length > 0);
-  const flowLoading = flowData === undefined;
+  const flowLoading = flowData === undefined && !flowError;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userInteracted, setUserInteracted] = useState(false);
@@ -163,7 +164,7 @@ export function CommandCenterLayout({
   if (!userInteracted && seededFromFlowData === undefined && flowData !== undefined && selectedProject) {
     setSeededFromFlowData(flowData);
     if (hasRealData) {
-      setMessages(buildRealMessages(selectedProject, deriveNeedsYou(flowData, () => {})));
+      setMessages(buildRealMessages(selectedProject, deriveNeedsYou(flowData, async () => {})));
     } else {
       // Honest first message: no invented findings, no fake sources — just the real state.
       setMessages([
@@ -176,48 +177,46 @@ export function CommandCenterLayout({
     }
   }
 
+  // Ad-hoc drawers (chat sources, agent cards) are content snapshots. Canonical attention items
+  // are addressed by their stable id instead, so an open drawer always re-reads the freshest
+  // persisted state — that is what reconciles it when a decision lands or another actor decides.
   const [drawerContent, setDrawerContent] = useState<DrawerContent | null>(null);
+  const [openAttentionId, setOpenAttentionId] = useState<string | null>(null);
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
 
-  const handleDecide = async (recommendationId: string, status: DecisionStatus, authorityRequired: string) => {
-    const decisionStatus = status === "deferred" ? "escalated" : status;
-    try {
-      await postOperationalFlow(workspaceId, selectedProject?.id ?? "", {
-        operation: "record_decision",
-        recommendationId,
-        decisionStatus,
-        decision: `Recommendation ${status} by an authorized reviewer.`,
-        rationale: `Decision recorded from Command Center. Authority: ${authorityRequired}.`,
-      });
-      await mutateFlow();
-      setDrawerContent(null);
-    } catch {
-      // Leave the drawer open so the user can retry.
-    }
+  /** Records a canonical Decision. Rejects on failure so the drawer keeps the rationale, stays
+   *  open and shows the error — never an optimistic success. The status posted is a canonical
+   *  `operational_decision_records` status; no UI-only status is invented or remapped here. */
+  const handleDecide = async (recommendationId: string, decisionStatus: string, rationale: string) => {
+    await postOperationalFlow(workspaceId, selectedProject?.id ?? "", {
+      operation: "record_decision",
+      recommendationId,
+      decisionStatus,
+      decision: `Recommendation ${decisionStatus.replaceAll("_", " ")} by an authorized reviewer.`,
+      rationale,
+    });
+    // The rendered result comes from persisted server state, not from the request payload.
+    await mutateFlow();
   };
 
   // Triage for RAID-derived suggestions: accepting/rejecting/deferring goes through
-  // /api/recommended-actions/decision (these are ungoverned actions — the governed
-  // operational-flow recommendations above use record_decision instead).
-  const handleRaidDecide = async (actionId: string, status: DecisionStatus) => {
-    try {
-      await postRaidActionDecision({
-        actionId,
-        decision: status,
-        reason: `Suggested action ${status} from the Command Center.`,
-        ...(status === "deferred" ? { deferredUntil: deferralDate() } : {}),
-      });
-      await Promise.all([mutateRaidActions(), mutateFlow()]);
-      onEvidenceAdded?.();
-      setDrawerContent(null);
-    } catch {
-      // Leave the drawer open so the user can retry.
-    }
+  // /api/recommended-actions/decision (these are bounded, ungoverned suggestions — the governed
+  // operational-flow recommendations above use record_decision and write a different table).
+  const handleRaidDecide = async (actionId: string, status: DecisionStatus, reason: string) => {
+    await postRaidActionDecision({
+      actionId,
+      decision: status,
+      reason: reason || `Suggested action ${status} from the Command Center.`,
+      ...(status === "deferred" ? { deferredUntil: deferralDate() } : {}),
+    });
+    await Promise.all([mutateRaidActions(), mutateFlow()]);
+    onEvidenceAdded?.();
   };
 
   const needsYouReal = useMemo(() => deriveNeedsYou(flowData, handleDecide), [flowData]); // eslint-disable-line react-hooks/exhaustive-deps
+  const governedAttentionAll = useMemo(() => deriveAllGovernedAttention(flowData, handleDecide), [flowData]); // eslint-disable-line react-hooks/exhaustive-deps
   const raidNeedsYou = useMemo(() => deriveRaidNeedsYou(raidActions, handleRaidDecide), [raidActions]); // eslint-disable-line react-hooks/exhaustive-deps
   const repositoryReal = useMemo(() => deriveRepository(flowData), [flowData]);
   const agentsReal = useMemo(() => deriveAgents(flowData, hasBrief), [flowData, hasBrief]);
@@ -270,6 +269,7 @@ export function CommandCenterLayout({
   };
 
   const handleSourceClick = (source: string) => {
+    setOpenAttentionId(null);
     setDrawerContent({
       title: source,
       why: "This source was used to help answer your question.",
@@ -279,6 +279,7 @@ export function CommandCenterLayout({
   };
 
   const handleTopBarSourceClick = (source: RepositoryItem) => {
+    setOpenAttentionId(null);
     setDrawerContent({
       title: source.label,
       why: "This is one of the sources of truth currently attached to this conversation.",
@@ -287,8 +288,25 @@ export function CommandCenterLayout({
     });
   };
 
-  const handleNeedsYouSelect = (item: NeedsYouItem) => setDrawerContent(item.drawer);
-  const handleAgentSelect = (agent: Agent) => setDrawerContent(agent.drawer);
+  // Canonical/RAID items open by stable id; everything else falls back to a content snapshot.
+  const handleNeedsYouSelect = (item: NeedsYouItem) => {
+    setDrawerContent(null);
+    setOpenAttentionId(item.id);
+  };
+  const handleAgentSelect = (agent: Agent) => {
+    setOpenAttentionId(null);
+    setDrawerContent(agent.drawer);
+  };
+  const closeDrawer = () => {
+    setOpenAttentionId(null);
+    setDrawerContent(null);
+  };
+
+  // Resolved fresh on every render: once a decision is persisted and the summary revalidates,
+  // the open drawer shows the recorded Decision and drops the now-unavailable controls.
+  const activeDrawer = openAttentionId
+    ? ([...governedAttentionAll, ...raidNeedsYou].find((item) => item.id === openAttentionId)?.drawer ?? null)
+    : drawerContent;
 
   const handleIntakeComplete = (summary: string) => {
     setUserInteracted(true);
@@ -353,7 +371,14 @@ export function CommandCenterLayout({
 
         <aside className="hidden w-[320px] shrink-0 space-y-6 overflow-y-auto border-l border-white/10 bg-white/[0.015] p-4 xl:block">
           <WorkspaceOnboardingPanel surface="dashboard" />
-          <NeedsYouQueue items={needsYouItems} onSelect={handleNeedsYouSelect} loading={flowLoading} onAddNotes={() => setNotesOpen(true)} />
+          <NeedsYouQueue
+            items={needsYouItems}
+            onSelect={handleNeedsYouSelect}
+            loading={flowLoading}
+            errorMessage={flowError ? "We couldn't load project attention." : null}
+            onRetry={() => void mutateFlow()}
+            onAddNotes={() => setNotesOpen(true)}
+          />
           <AgentDock agents={agentItems} onSelect={handleAgentSelect} loading={flowLoading} onAddContext={() => setNotesOpen(true)} />
         </aside>
       </div>
@@ -383,6 +408,8 @@ export function CommandCenterLayout({
             items={needsYouItems}
             onSelect={handleNeedsYouSelect}
             loading={flowLoading}
+            errorMessage={flowError ? "We couldn't load project attention." : null}
+            onRetry={() => void mutateFlow()}
             onAddNotes={() => {
               setNotesOpen(true);
               setRightOpen(false);
@@ -400,7 +427,7 @@ export function CommandCenterLayout({
         </div>
       </MobileOverlay>
 
-      <DetailDrawer content={drawerContent} onClose={() => setDrawerContent(null)} />
+      <DetailDrawer content={activeDrawer} onClose={closeDrawer} />
     </div>
   );
 }

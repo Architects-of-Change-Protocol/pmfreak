@@ -35,15 +35,90 @@ export type DrawerAction = {
   disabled?: boolean;
 };
 
+/** One labelled key/value row of real persisted provenance. Values are already redacted and
+ *  truncated by the read model — no raw payloads, secrets or provider errors reach this type. */
+export type DetailRow = {
+  label: string;
+  value: string;
+};
+
+/** A collapsible technical disclosure section beneath the plain-language summary. */
+export type DetailSection = {
+  id: string;
+  title: string;
+  rows: DetailRow[];
+};
+
+/** A single canonical Decision status the actor may or may not record. `allowed` comes from the
+ *  server-evaluated `actor_authority` map for that exact status — never from a client role check. */
+export type DecisionControl = {
+  /** The canonical status posted to `record_decision`, e.g. "accepted" / "escalated". */
+  status: string;
+  label: string;
+  /** What recording this status actually does to the Recommendation. */
+  effect: string;
+  terminal: boolean;
+  allowed: boolean;
+  /** Why this specific status is unavailable. Null when allowed. */
+  deniedExplanation: string | null;
+};
+
+/** A Decision already persisted against this Recommendation. */
+export type RecordedDecision = {
+  decisionId: string;
+  decisionStatus: string;
+  terminal: boolean;
+  rationale: string | null;
+  decidedBy: string | null;
+  recordedAt: string | null;
+  authorityBasis: string | null;
+  evidenceSnapshot: string | null;
+};
+
+/**
+ * The decision experience attached to an attention item. `kind` keeps the canonical governed
+ * path and the RAID-derived bounded path visibly and semantically distinct — they are different
+ * business objects with different write paths and different authority language.
+ */
+export type DecisionPanel = {
+  kind: "governed_recommendation" | "raid_suggestion";
+  /** Canonical Recommendation id (governed) or RAID recommended-action id (bounded). */
+  subjectId: string;
+  /** Short label for the write path, shown so a PM can tell what a decision here records. */
+  writePathLabel: string;
+  controls: DecisionControl[];
+  /** True when the actor may record at least one status. */
+  anyAllowed: boolean;
+  /** Shown when the actor may inspect but not decide. */
+  readOnlyNote: string | null;
+  /** Set when the item cannot be safely evaluated at all (e.g. supporting evidence missing). */
+  blockedReason: string | null;
+  /** Records the decision. Rejects on failure so the drawer can stay open and show the error. */
+  onDecide: (status: string, rationale: string) => Promise<void>;
+  /** Whether a free-text rationale is required before submitting. */
+  requiresRationale: boolean;
+  decisions: RecordedDecision[];
+};
+
 export type DrawerContent = {
   title: string;
   why: string;
   evidence: string[];
   nextStep: string;
-  /** Real actions (e.g. Accept/Reject/Defer a recommendation). No buttons are shown when omitted. */
+  /** Real actions (e.g. on an agent card). No buttons are shown when omitted. */
   actions?: DrawerAction[];
   /** e.g. "Requires an authorized decision-maker for: ..." shown below the actions. */
   note?: string;
+  /** Type badge (e.g. "Governed · decision required" vs "Suggestion · extracted intelligence"). */
+  badge?: ToneBadge;
+  /** One-line statement of what kind of business object this is. */
+  kindSummary?: string;
+  /** The Evidence -> Finding -> Governance -> Recommendation chain, in plain language. */
+  chain?: DetailRow[];
+  /** Collapsible technical provenance / evidence-quality disclosure. */
+  sections?: DetailSection[];
+  /** Present only for items backed by a real recommendation or suggested action. */
+  decisionPanel?: DecisionPanel;
 };
 
 export type NeedsYouItem = {
@@ -51,6 +126,8 @@ export type NeedsYouItem = {
   title: string;
   badge: ToneBadge;
   drawer: DrawerContent;
+  /** Distinguishes the canonical governed path from the RAID-derived bounded path. */
+  kind?: "governed_recommendation" | "raid_suggestion";
   /** Present when this item is backed by a real operational-flow recommendation awaiting a decision. */
   recommendationId?: string;
 };
