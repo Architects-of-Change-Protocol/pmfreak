@@ -12,10 +12,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   CANONICAL_AUDIT_EXPORT_FORMAT,
+  DEFAULT_AUDIT_RECORD_LIMIT,
   ENTITY_FIELD_ALLOWLIST,
   LEGACY_DECISION_AUDIT_COMPATIBILITY_FORMAT,
   REDACTION_MARKER,
   buildCanonicalAuditExportPackage,
+  isExportRedactedKey,
+  normalizeAuditRecordLimit,
 } from "../src/lib/audit-export";
 import type { AuditExportLineage, AuditExportPackage } from "../src/lib/audit-export";
 import { getCompleteLineageProjection } from "../src/lib/operational-flow/operational-flow-service";
@@ -1083,6 +1086,318 @@ test("P2-20 M: an unscoped package keeps project-scope semantics and unlinked as
   const event = pkg.auditRecords.find((r) => r.id === "pe-a");
   assert.equal(event?.associationBasis, "unlinked");
   assert.match(event?.associationExplanation ?? "", /workspace and project scope alone/);
+});
+
+// ─── N. Value-based credential redaction (F1) ───────────────────────────────────────────
+
+/**
+ * A credential stored under a NEUTRAL key escaped both mechanisms: the key sweep saw an
+ * innocuous name, and the shared value walker does not recognize a connection string.
+ * P2-20 claims connection strings and provider credentials are never emitted.
+ */
+const NEUTRAL_KEY_CREDENTIALS = {
+  postgresUrl: "postgresql://user:password@db/pmfreak",
+  postgresShortScheme: "postgres://svc:s3cr3t@db.internal:5432/pmfreak",
+  mysqlUrl: "mysql://root:toor@db.internal:3306/app",
+  openAiKey: "sk-abcdefghijklmnopqrstuvwxyz0123456789",
+  githubToken: "ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+  basicHeader: "Basic dXNlcjpwYXNzd29yZDEyMzQ1Ng==",
+};
+
+/** Values that carry no credential and must survive verbatim. */
+const PRESERVED_ORDINARY_VALUES = {
+  ordinaryUrl: "https://example.com/reports/cr-2026-08.pdf",
+  ordinaryUrlWithAt: "https://example.com/threads/reply@2026",
+  prose: "We migrated the postgres database and the sponsor signed off.",
+  identifier: "pmfreak/internal-state-machine:v1",
+  // A long word after "Basic" is prose, not an encoded credential.
+  basicProse: "Basic characterization of the sponsor's scope concern.",
+};
+
+const credentialEvent = (over: Row = {}): Row => ({
+  id: "pe-credentials", workspace_id: WS, project_id: PRJ, event_type: "PROVIDER_CALL_FAILED",
+  event_category: "task", actor_id: "user-1", actor_type: "user",
+  occurred_at: "2026-08-10T09:12:00Z", created_at: "2026-08-10T09:12:00Z",
+  correlation_id: CORR, causation_id: null, raw_reference_table: "execution_tasks",
+  raw_reference_id: "task-1",
+  event_payload: {
+    // Neutral key names throughout: nothing here is sensitive BY NAME.
+    value: NEUTRAL_KEY_CREDENTIALS.postgresUrl,
+    detail: NEUTRAL_KEY_CREDENTIALS.postgresShortScheme,
+    nested: { deeper: { note: NEUTRAL_KEY_CREDENTIALS.mysqlUrl } },
+    ...PRESERVED_ORDINARY_VALUES,
+  },
+  metadata: {
+    note: NEUTRAL_KEY_CREDENTIALS.openAiKey,
+    reference: NEUTRAL_KEY_CREDENTIALS.githubToken,
+    header: NEUTRAL_KEY_CREDENTIALS.basicHeader,
+  },
+  ...over,
+});
+
+test("P2-20 N: a credential-bearing connection string under a neutral key is redacted", async () => {
+  const pkg = await runExport(completeDb({ platform_events: [credentialEvent()] }), { outcomeId: "out-1" });
+  const record = pkg.auditRecords.find((r) => r.id === "pe-credentials");
+  assert.ok(record);
+
+  assert.equal(record.payload.value, REDACTION_MARKER);
+  assert.equal(record.payload.detail, REDACTION_MARKER);
+  // Nested under a neutral key, several levels down.
+  assert.deepEqual(record.payload.nested, { deeper: { note: REDACTION_MARKER } });
+
+  // Bounded provider credential shapes claimed by REDACTED_CATEGORIES.
+  assert.equal(record.metadata.note, REDACTION_MARKER);
+  assert.equal(record.metadata.reference, REDACTION_MARKER);
+  assert.equal(record.metadata.header, REDACTION_MARKER);
+
+  const serialized = JSON.stringify(pkg);
+  for (const credential of Object.values(NEUTRAL_KEY_CREDENTIALS)) {
+    assert.equal(serialized.includes(credential), false, `${credential.slice(0, 16)}… must not be emitted`);
+  }
+});
+
+test("P2-20 N: ordinary URLs and business prose survive value-based redaction", async () => {
+  const pkg = await runExport(completeDb({ platform_events: [credentialEvent()] }), { outcomeId: "out-1" });
+  const record = pkg.auditRecords.find((r) => r.id === "pe-credentials");
+  assert.ok(record);
+
+  assert.equal(record.payload.ordinaryUrl, PRESERVED_ORDINARY_VALUES.ordinaryUrl);
+  // An '@' in the PATH is not userinfo and must not make an ordinary URL look secret.
+  assert.equal(record.payload.ordinaryUrlWithAt, PRESERVED_ORDINARY_VALUES.ordinaryUrlWithAt);
+  // Prose containing the word "postgres" is not a connection string.
+  assert.equal(record.payload.prose, PRESERVED_ORDINARY_VALUES.prose);
+  assert.equal(record.payload.identifier, PRESERVED_ORDINARY_VALUES.identifier);
+  assert.equal(record.payload.basicProse, PRESERVED_ORDINARY_VALUES.basicProse);
+});
+
+test("P2-20 N: a credential embedded in a presentation surface is redacted, not the whole string", async () => {
+  const pkg = await runExport(completeDb({
+    canonical_task_outcomes: [outcome({
+      expected_result: `CR approved, evidence pulled from ${NEUTRAL_KEY_CREDENTIALS.postgresUrl} by the sponsor`,
+    })],
+  }));
+  const lineage = onlyLineage(pkg);
+  assert.equal(lineage.expectedResult, "CR approved, evidence pulled from [redacted] by the sponsor");
+  assert.ok(pkg.redaction.redactedTextSurfaces.includes("lineage.expectedResult"));
+  assert.equal(JSON.stringify(pkg).includes(NEUTRAL_KEY_CREDENTIALS.postgresUrl), false);
+});
+
+// ─── O. Boundary-aware sensitive key matching (F3) ──────────────────────────────────────
+
+test("P2-20 O: sensitive key names are still redacted", () => {
+  const mustRedact = [
+    "accessToken", "refresh_token", "api_key", "apiKey", "serviceRoleKey", "service_role_key",
+    "authorization", "auth_header", "authHeader", "clientSecret", "client_secret",
+    "connection_string", "connectionString", "providerError", "raw_error", "rawError",
+    "password", "passphrase", "cookie", "privateKey", "private_key", "signing_key",
+    "encryption_key", "access_key", "webhook_url", "hmac", "dsn", "database_url",
+    "session", "stack", "stack_trace", "stackTrace", "error_stack", "provider_credentials",
+    "service_role", "bearer", "sessionSecret", "session_key",
+  ];
+  for (const key of mustRedact) {
+    assert.equal(isExportRedactedKey(key), true, `${key} must be redacted`);
+  }
+});
+
+test("P2-20 O: legitimate audit keys are NOT redacted by substring overlap", () => {
+  const mustSurvive = [
+    // The three negative controls from the finding.
+    "session_type", "stack_rank", "credentials_excluded",
+    // Canonical identifiers that merely end in "key".
+    "idempotency_key", "derivation_idempotency_key", "source_key", "rule_key",
+    "normalizer_key", "provider_key", "partition_key",
+    // Ordinary audit facts that merely overlap a sensitive fragment.
+    "sessionType", "stackRank", "credentialsExcluded", "tokenizer_version",
+    "error_code", "failure_reason_code", "observation_state", "content_digest",
+    "correlation_id", "causation_id", "actor_user_id", "evidence_reference_ids",
+  ];
+  for (const key of mustSurvive) {
+    assert.equal(isExportRedactedKey(key), false, `${key} must NOT be redacted`);
+  }
+});
+
+test("P2-20 O: boundary-aware matching preserves structured audit evidence in a real export", async () => {
+  const platformEvent = {
+    id: "pe-keys", workspace_id: WS, project_id: PRJ, event_type: "TASK_SESSION_RECORDED",
+    event_category: "task", actor_id: "user-1", actor_type: "user",
+    occurred_at: "2026-08-10T09:15:00Z", created_at: "2026-08-10T09:15:00Z",
+    correlation_id: CORR, causation_id: null, raw_reference_table: "execution_tasks",
+    raw_reference_id: "task-1",
+    event_payload: {
+      session_type: "interactive_review",
+      stack_rank: 3,
+      credentials_excluded: true,
+      idempotency_key: "idem-pe-keys",
+      accessToken: SECRETS.bearer,
+    },
+    metadata: { provider_key: "pmfreak/internal-state-machine:v1" },
+  };
+  const pkg = await runExport(completeDb({ platform_events: [platformEvent] }), { outcomeId: "out-1" });
+  const record = pkg.auditRecords.find((r) => r.id === "pe-keys");
+  assert.ok(record);
+
+  assert.equal(record.payload.session_type, "interactive_review");
+  assert.equal(record.payload.stack_rank, 3);
+  assert.equal(record.payload.credentials_excluded, true);
+  assert.equal(record.payload.idempotency_key, "idem-pe-keys");
+  assert.equal(record.metadata.provider_key, "pmfreak/internal-state-machine:v1");
+  // Actual secret protection is unchanged.
+  assert.equal(record.payload.accessToken, REDACTION_MARKER);
+  assert.equal(pkg.redaction.redactedPayloadKeys.includes("session_type"), false);
+  assert.equal(pkg.redaction.redactedPayloadKeys.includes("accessToken"), true);
+
+  // The canonical allowlisted columns survive too.
+  const lineage = onlyLineage(pkg);
+  assert.equal(stepOf(lineage, "internal_execution").entityFields?.provider_key,
+    "pmfreak/internal-state-machine:v1");
+  assert.equal(stepOf(lineage, "internal_execution").entityFields?.idempotency_key, "idem-exec-1");
+  assert.equal(stepOf(lineage, "source").entityFields?.source_key, "manual-demo:v1");
+});
+
+// ─── P. Deterministic latest observation state (F2) ─────────────────────────────────────
+
+test("P2-20 P: observations tied on recordedAt produce a deterministic latestObservationState", async () => {
+  // Same recorded_at, different states, reversed database arrival order.
+  const tied = [
+    observation({ id: "obs-1", observation_state: "achieved", summary: "achieved reading",
+      observed_at: "2026-08-10T09:50:00Z", recorded_at: "2026-08-10T09:55:00Z" }),
+    observation({ id: "obs-2", observation_state: "inconclusive", summary: "inconclusive reading",
+      observed_at: "2026-08-10T09:50:00Z", recorded_at: "2026-08-10T09:55:00Z" }),
+  ];
+
+  const forward = await runExport(completeDb({ canonical_outcome_observations: tied }));
+  const reversed = await runExport(completeDb({ canonical_outcome_observations: [...tied].reverse() }));
+
+  // Byte-equivalent payload, not merely an equal field.
+  assert.deepEqual(JSON.stringify(reversed), JSON.stringify(forward));
+
+  // Documented tie-breaker: recordedAt DESC, then occurredAt DESC, then step id DESC.
+  // Both rows tie on both timestamps, so obs-2 wins on id DESC.
+  assert.equal(onlyLineage(forward).outcomeAssessment.latestObservationState, "inconclusive");
+  assert.equal(onlyLineage(reversed).outcomeAssessment.latestObservationState, "inconclusive");
+  assert.equal(onlyLineage(forward).outcomeAssessment.observationsCount, 2);
+});
+
+test("P2-20 P: a strictly later recordedAt wins regardless of arrival order or id", async () => {
+  const rows = [
+    observation({ id: "obs-z", observation_state: "partial",
+      observed_at: "2026-08-10T09:40:00Z", recorded_at: "2026-08-10T09:41:00Z" }),
+    observation({ id: "obs-a", observation_state: "achieved",
+      observed_at: "2026-08-10T09:50:00Z", recorded_at: "2026-08-10T09:59:00Z" }),
+  ];
+  for (const order of [rows, [...rows].reverse()]) {
+    const lineage = onlyLineage(await runExport(completeDb({ canonical_outcome_observations: order })));
+    assert.equal(lineage.outcomeAssessment.latestObservationState, "achieved");
+  }
+});
+
+test("P2-20 P: no observation still reports a null latest state", async () => {
+  const lineage = onlyLineage(await runExport(completeDb({ canonical_outcome_observations: [] })));
+  assert.equal(lineage.outcomeAssessment.latestObservationState, null);
+  assert.equal(lineage.outcomeAssessment.observationsCount, 0);
+});
+
+test("P2-20 P: the export does not reach into P2-10 for the latest observation state", () => {
+  assert.doesNotMatch(canonicalExport, /projection\.latestObservationState/);
+  assert.match(canonicalExport, /latestObservationStateOf\(observationSteps\)/);
+});
+
+// ─── Q. Correlation scope for nested lineage events (F4) ────────────────────────────────
+
+test("P2-20 Q: a correlation-scoped export excludes nested events of an unrelated correlation", async () => {
+  // task-b's lineage enters through shared UPSTREAM provenance carrying CORR (chain A's
+  // raw_input/normalized_event/evidence are genuinely shared), while its OUTCOME carries
+  // CORR_B. pe-b is a CORR_B event that raw-references task-b.
+  const pkg = await runExport(secondChainDb(), { taskId: "task-b", correlationId: CORR });
+
+  // The lineage legitimately stays: stored upstream provenance really does carry CORR.
+  assert.deepEqual(pkg.lineages.map((l) => l.outcomeId), ["out-b"]);
+  assert.equal(stepOf(pkg.lineages[0], "evidence").correlationId, CORR);
+  assert.equal(stepOf(pkg.lineages[0], "outcome").correlationId, CORR_B);
+
+  // The unrelated correlation-B event must NOT ride along inside it.
+  assert.deepEqual(pkg.lineages[0].lineageEvents.map((e) => e.id), []);
+  assert.equal(JSON.stringify(pkg).includes("B_EVENT"), false);
+
+  // Top-level records stay empty: the verified intersection is empty.
+  assert.deepEqual(pkg.auditRecords, []);
+
+  // The narrowing is reported, not silent.
+  assert.ok(pkg.integrity.notes.some((n) => /nested lineage event\(s\)/.test(n)));
+});
+
+test("P2-20 Q: a raw reference alone does not prove the requested correlation", async () => {
+  // pe-ref raw-references out-1 directly but carries a third correlation of its own, and
+  // out-1's stored correlation is CORR_OTHER while the upstream chain carries CORR.
+  const CORR_OTHER = "66666666-6666-4666-8666-666666666666";
+  const db = completeDb({
+    canonical_task_outcomes: [outcome({ correlation_id: CORR_OTHER })],
+    platform_events: [
+      { id: "pe-ref", workspace_id: WS, project_id: PRJ, event_type: "OUTCOME_TOUCHED",
+        event_category: "outcome", actor_id: "user-1", actor_type: "user",
+        occurred_at: "2026-08-10T09:33:00Z", created_at: "2026-08-10T09:33:00Z",
+        correlation_id: "77777777-7777-4777-8777-777777777777", causation_id: null,
+        raw_reference_table: "canonical_task_outcomes", raw_reference_id: "out-1",
+        event_payload: {}, metadata: {} },
+    ],
+  });
+
+  // Requesting the OUTCOME's correlation keeps it: the referenced canonical row carries it.
+  const matching = await runExport(db, { correlationId: CORR_OTHER });
+  assert.deepEqual(matching.lineages[0].lineageEvents.map((e) => e.id), ["pe-ref"]);
+  assert.equal(matching.lineages[0].lineageEvents[0].associationBasis, "direct_reference");
+
+  // Requesting a correlation the referenced row does not carry drops it.
+  const other = await runExport(db, { correlationId: CORR });
+  assert.deepEqual(other.lineages.map((l) => l.outcomeId), ["out-1"]);
+  assert.deepEqual(other.lineages[0].lineageEvents.map((e) => e.id), []);
+});
+
+test("P2-20 Q: without a correlationId nested lineage events keep current behavior", async () => {
+  const events = [
+    { id: "pe-outcome", workspace_id: WS, project_id: PRJ, event_type: "OUTCOME_RECORDED",
+      event_category: "outcome", actor_id: "user-1", actor_type: "user",
+      occurred_at: "2026-08-10T09:32:00Z", created_at: "2026-08-10T09:32:00Z",
+      correlation_id: "other-corr", causation_id: null,
+      raw_reference_table: "canonical_task_outcomes", raw_reference_id: "out-1",
+      event_payload: {}, metadata: {} },
+    { id: "pe-corr", workspace_id: WS, project_id: PRJ, event_type: "DECISION_RECORDED",
+      event_category: "decision", actor_id: "user-1", actor_type: "user",
+      occurred_at: "2026-08-10T08:01:00Z", created_at: "2026-08-10T08:01:00Z",
+      correlation_id: CORR, causation_id: null, raw_reference_table: "operational_decision_records",
+      raw_reference_id: "dec-1", event_payload: {}, metadata: {} },
+  ];
+  const lineage = onlyLineage(await runExport(completeDb({ platform_events: events })));
+  assert.deepEqual(lineage.lineageEvents.map((e) => e.id).sort(), ["pe-corr", "pe-outcome"]);
+});
+
+// ─── R. Audit limit normalization (F5) ──────────────────────────────────────────────────
+
+test("P2-20 R: an audit-record limit below 1 falls back to the default instead of flooring to 0", () => {
+  assert.equal(DEFAULT_AUDIT_RECORD_LIMIT, 100);
+  assert.equal(normalizeAuditRecordLimit(undefined), DEFAULT_AUDIT_RECORD_LIMIT);
+  assert.equal(normalizeAuditRecordLimit(0), DEFAULT_AUDIT_RECORD_LIMIT);
+  assert.equal(normalizeAuditRecordLimit(-1), DEFAULT_AUDIT_RECORD_LIMIT);
+  assert.equal(normalizeAuditRecordLimit(0.5), DEFAULT_AUDIT_RECORD_LIMIT);
+  assert.equal(normalizeAuditRecordLimit(0.999), DEFAULT_AUDIT_RECORD_LIMIT);
+  assert.equal(normalizeAuditRecordLimit(Number.NaN), DEFAULT_AUDIT_RECORD_LIMIT);
+  assert.equal(normalizeAuditRecordLimit(Number.POSITIVE_INFINITY), DEFAULT_AUDIT_RECORD_LIMIT);
+  assert.equal(normalizeAuditRecordLimit(Number.NEGATIVE_INFINITY), DEFAULT_AUDIT_RECORD_LIMIT);
+  assert.equal(normalizeAuditRecordLimit(1), 1);
+  assert.equal(normalizeAuditRecordLimit(100), 100);
+  // Documented behavior for a positive non-integer >= 1: floored, and never 0.
+  assert.equal(normalizeAuditRecordLimit(1.9), 1);
+  assert.equal(normalizeAuditRecordLimit(2.5), 2);
+});
+
+test("P2-20 R: a fractional limit below 1 no longer empties the exported audit trail", async () => {
+  const emptied = await runExport(completeDb(), { outcomeId: "out-1", auditRecordLimit: 0.5 });
+  assert.equal(emptied.requestedScope.auditRecordLimit, DEFAULT_AUDIT_RECORD_LIMIT);
+  assert.ok(emptied.auditRecords.length > 0, "a sub-1 limit must not silently empty the trail");
+
+  const one = await runExport(completeDb(), { outcomeId: "out-1", auditRecordLimit: 1 });
+  assert.equal(one.requestedScope.auditRecordLimit, 1);
+  assert.equal(one.auditRecords.length, 1);
 });
 
 test("P2-20 K: the canonical package states plainly which legacy models it did NOT merge", async () => {
