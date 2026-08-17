@@ -843,6 +843,248 @@ test("P2-20 K: the legacy compatibility adapter marks canonical lineage unsuppor
   assert.doesNotMatch(legacyCompatibility, /getCompleteLineageProjection|buildCanonicalAuditExportPackage/);
 });
 
+// ─── L. Presentation-surface redaction (REPAIR 1) ───────────────────────────────────────
+
+/**
+ * The verified projection builds `title`/`summary`/`expectedResult`/`gaps` by interpolating
+ * persisted free text. Those columns are withheld by the entity allowlist, so without
+ * presentation redaction a secret embedded in one of them would reach the export anyway.
+ */
+test("P2-20 L: secrets seeded into presentation-source free text never reach the package", async () => {
+  const pkg = await runExport(completeDb({
+    recommended_actions: [recommendation({
+      title: `Raise a change request ${STRIPE_LIVE_SHAPED}`,
+      proposed_action: `Raise CR using ${SECRETS.bearer}`,
+    })],
+    operational_decision_records: [decision({
+      decision: `Proceed with CR ${SECRETS.serviceRoleKey}`,
+      rationale: `Sponsor approved via ${SECRETS.bearer}`,
+    })],
+    execution_tasks: [task({ title: `Raise CR ${STRIPE_LIVE_SHAPED}` })],
+    canonical_task_outcomes: [outcome({
+      expected_result: `CR approved by sponsor ${SECRETS.serviceRoleKey}`,
+      success_criteria: [`signed CR verified with ${STRIPE_LIVE_SHAPED}`],
+    })],
+    canonical_outcome_observations: [observation({
+      summary: `Sponsor signed the CR, confirmation token ${SECRETS.serviceRoleKey}`,
+    })],
+    operational_sources: [source({ display_name: `Manual demo ${SECRETS.bearer}` })],
+  }));
+
+  assertNoSecrets(pkg, "the exported package");
+
+  // The redaction is reported, not silent.
+  assert.ok(pkg.redaction.redactedTextSurfaces.length > 0);
+  for (const surface of [
+    "step.recommendation.title", "step.decision.summary", "step.task.title",
+    "step.outcome.title", "step.outcome.summary", "step.observation.title",
+    "lineage.expectedResult", "step.source.title",
+  ]) {
+    assert.ok(
+      pkg.redaction.redactedTextSurfaces.includes(surface),
+      `${surface} must be reported as redacted`,
+    );
+  }
+  // Deterministic ordering of the report.
+  assert.deepEqual(pkg.redaction.redactedTextSurfaces, [...pkg.redaction.redactedTextSurfaces].sort());
+});
+
+test("P2-20 L: ordinary business text survives presentation redaction", async () => {
+  const lineage = onlyLineage(await runExport(completeDb({
+    operational_decision_records: [decision({ decision: `Proceed with CR ${SECRETS.serviceRoleKey}` })],
+    canonical_task_outcomes: [outcome({ expected_result: `CR approved by sponsor ${SECRETS.serviceRoleKey}` })],
+  })));
+
+  // The secret is gone; the surrounding human-readable text is intact and still readable.
+  assert.equal(lineage.expectedResult, "CR approved by sponsor [redacted]");
+  assert.match(stepOf(lineage, "decision").title, /^Decision: Proceed with CR /);
+  assert.match(stepOf(lineage, "recommendation").title, /Recommendation: Raise a change request/);
+  assert.match(stepOf(lineage, "task").title, /Task: Raise CR/);
+  assert.match(stepOf(lineage, "finding").title, /Finding: scope creep/);
+  assert.match(stepOf(lineage, "evidence").summary, /Confidence: 90\.0%/);
+  // Framework-generated explanatory strings are untouched.
+  const transition = lineage.transitions.find((t) => t.fromKind === "task");
+  assert.ok(transition && transition.relationshipExplanation.length > 0);
+});
+
+test("P2-20 L: a secret embedded in a gap or dispute string is redacted", async () => {
+  const pkg = await runExport(completeDb({
+    canonical_task_outcomes: [outcome({ state: "expected" })],
+    canonical_outcome_observations: [observation({
+      observation_state: "disputed",
+      summary: `Disputed because ${STRIPE_LIVE_SHAPED} was used`,
+      missing_data_state: "PARTIAL",
+    })],
+  }));
+  assertNoSecrets(pkg, "the exported package");
+  const lineage = onlyLineage(pkg);
+  assert.ok(lineage.disputes.length > 0);
+  assert.deepEqual(lineage.gaps, [...lineage.gaps].sort());
+  assert.deepEqual(lineage.disputes, [...lineage.disputes].sort());
+});
+
+// ─── M. Requested-scope coherence (REPAIR 2) ────────────────────────────────────────────
+
+const CORR_B = "44444444-4444-4444-8444-444444444444";
+
+/** A second, fully independent chain on task-b / out-b with correlation CORR_B. */
+const secondChainDb = () =>
+  completeDb({
+    execution_tasks: [task(), task({ id: "task-b", source_action_id: "act-b", correlation_id: CORR_B, causation_id: "act-b" })],
+    internal_task_executions: [execution(), execution({ id: "exec-b", task_id: "task-b", correlation_id: CORR_B, causation_id: "task-b" })],
+    material_action_proposals: [action(), action({ id: "act-b", correlation_id: CORR_B })],
+    material_action_governance_evaluations: [evaluation(), evaluation({ id: "eval-b", action_id: "act-b" })],
+    canonical_task_outcomes: [
+      outcome(),
+      outcome({ id: "out-b", task_id: "task-b", source_action_id: "act-b", correlation_id: CORR_B, causation_id: "task-b" }),
+    ],
+    canonical_outcome_observations: [
+      observation(),
+      observation({ id: "obs-b", outcome_id: "out-b", task_id: "task-b", correlation_id: CORR_B, summary: "Second chain observed" }),
+    ],
+    platform_events: [
+      { id: "pe-a", workspace_id: WS, project_id: PRJ, event_type: "A_EVENT", event_category: "task",
+        actor_id: "user-1", actor_type: "user", occurred_at: "2026-08-10T09:20:00Z",
+        created_at: "2026-08-10T09:20:00Z", correlation_id: CORR, causation_id: null,
+        raw_reference_table: "execution_tasks", raw_reference_id: "task-1", event_payload: {}, metadata: {} },
+      { id: "pe-b", workspace_id: WS, project_id: PRJ, event_type: "B_EVENT", event_category: "task",
+        actor_id: "user-1", actor_type: "user", occurred_at: "2026-08-10T09:21:00Z",
+        created_at: "2026-08-10T09:21:00Z", correlation_id: CORR_B, causation_id: null,
+        raw_reference_table: "execution_tasks", raw_reference_id: "task-b", event_payload: {}, metadata: {} },
+    ],
+  });
+
+test("P2-20 M1: a taskId-scoped package excludes the other task's lineage AND audit records", async () => {
+  const pkg = await runExport(secondChainDb(), { taskId: "task-1" });
+
+  assert.deepEqual(pkg.lineages.map((l) => l.outcomeId), ["out-1"]);
+  assert.equal(pkg.requestedScope.taskId, "task-1");
+  assert.equal(pkg.requestedScope.outcomeId, null);
+
+  const ids = pkg.auditRecords.map((r) => r.id);
+  assert.ok(ids.includes("pe-a"), "the requested task's event must be present");
+  assert.equal(ids.includes("pe-b"), false, "the other task's event must not leak in");
+  assert.ok(ids.includes("canonical_outcome_observations:obs-1"));
+  assert.equal(ids.includes("canonical_outcome_observations:obs-b"), false,
+    "the other task's observation reconstruction must not leak in");
+  assert.equal(JSON.stringify(pkg).includes("Second chain observed"), false);
+
+  // Association names the canonical outcome AND the requested task.
+  const event = pkg.auditRecords.find((r) => r.id === "pe-a");
+  assert.equal(event?.associationBasis, "correlation_only");
+  assert.match(event?.associationExplanation ?? "", /canonical outcome out-1/);
+  assert.match(event?.associationExplanation ?? "", /requested task task-1/);
+  assert.equal(event?.relationship, "correlation_only", "stored relationship is untouched");
+});
+
+test("P2-20 M2: a correlationId-scoped package excludes unrelated lineages and records", async () => {
+  const pkg = await runExport(secondChainDb(), { correlationId: CORR_B });
+
+  assert.deepEqual(pkg.lineages.map((l) => l.outcomeId), ["out-b"]);
+  assert.equal(pkg.requestedScope.correlationId, CORR_B);
+
+  const ids = pkg.auditRecords.map((r) => r.id);
+  assert.ok(ids.includes("pe-b"));
+  assert.equal(ids.includes("pe-a"), false);
+  assert.equal(ids.includes("canonical_outcome_observations:obs-1"), false);
+
+  const event = pkg.auditRecords.find((r) => r.id === "pe-b");
+  assert.equal(event?.associationBasis, "correlation_only");
+  assert.match(event?.associationExplanation ?? "", /no causal claim is made/);
+  assert.ok(pkg.integrity.notes.some((n) => /Association is by correlation only/.test(n)));
+});
+
+test("P2-20 M2: a correlation matching no lineage yields an empty, honest package", async () => {
+  const pkg = await runExport(secondChainDb(), { correlationId: "55555555-5555-4555-8555-555555555555" });
+  assert.deepEqual(pkg.lineages, []);
+  assert.equal(pkg.integrity.overallStatus, "incomplete");
+  assert.equal(pkg.integrity.isComplete, false);
+});
+
+test("P2-20 M3: taskId + correlationId intersect; a contradicting correlation adds no events", async () => {
+  const agreeing = await runExport(secondChainDb(), { taskId: "task-b", correlationId: CORR_B });
+  assert.deepEqual(agreeing.lineages.map((l) => l.outcomeId), ["out-b"]);
+  assert.ok(agreeing.auditRecords.some((r) => r.id === "pe-b"));
+  assert.equal(agreeing.auditRecords.some((r) => r.id === "pe-a"), false);
+
+  // task-b's OUTCOME carries CORR_B, so requesting task-b with CORR contradicts it at the
+  // outcome. Its upstream provenance (raw_input/normalized_event/evidence) is shared with
+  // chain A and genuinely stores CORR, so the lineage legitimately matches the correlation
+  // filter — suppressing it would be dishonest about what the rows actually record. What
+  // must NOT happen is unrelated events appearing, and they do not: the verified
+  // reconstruction sees correlationId CORR against outcome correlation CORR_B, finds the
+  // intersection empty, and contributes nothing.
+  const contradicting = await runExport(secondChainDb(), { taskId: "task-b", correlationId: CORR });
+  assert.deepEqual(contradicting.lineages.map((l) => l.outcomeId), ["out-b"]);
+  assert.equal(contradicting.lineages[0].canonicalReferences.taskId, "task-b",
+    "only the requested task's lineage is present");
+  assert.equal(stepOf(contradicting.lineages[0], "outcome").correlationId, CORR_B,
+    "the outcome's own correlation contradicts the requested one");
+  assert.equal(stepOf(contradicting.lineages[0], "evidence").correlationId, CORR,
+    "the match came from genuinely shared upstream provenance, by correlation only");
+  assert.deepEqual(contradicting.auditRecords, [], "no unrelated events appear");
+  // Correlation was never promoted into causation anywhere in the intersected package.
+  for (const transition of contradicting.lineages[0].transitions) {
+    if (!transition.isCausal) assert.notEqual(transition.relationship, "causation");
+  }
+});
+
+test("P2-20 M4: an outcomeId that does not belong to the requested taskId returns nothing", async () => {
+  const pkg = await runExport(secondChainDb(), { outcomeId: "out-b", taskId: "task-1" });
+  assert.deepEqual(pkg.lineages, []);
+  assert.deepEqual(pkg.auditRecords, [], "no project-wide fallback");
+  assert.equal(pkg.integrity.lineageCount, 0);
+  assert.equal(pkg.integrity.isComplete, false);
+  assert.equal(pkg.integrity.overallStatus, "incomplete");
+  assert.ok(pkg.integrity.notes.some((n) => /deliberately NOT used as a fallback/.test(n)));
+  assert.equal(pkg.requestedScope.outcomeId, "out-b");
+  assert.equal(pkg.requestedScope.taskId, "task-1");
+});
+
+test("P2-20 M5: a task with multiple outcomes merges, dedupes and applies ONE combined limit", async () => {
+  // Both outcomes hang off task-1 and share CORR, so the same platform event is reachable
+  // through each of them — the merge must emit it once.
+  const db = completeDb({
+    canonical_task_outcomes: [outcome(), outcome({ id: "out-2", task_id: "task-1" })],
+    canonical_outcome_observations: [
+      observation(),
+      observation({ id: "obs-2", outcome_id: "out-2", observed_at: "2026-08-10T09:52:00Z" }),
+    ],
+    platform_events: [
+      { id: "pe-shared", workspace_id: WS, project_id: PRJ, event_type: "SHARED", event_category: "task",
+        actor_id: "user-1", actor_type: "user", occurred_at: "2026-08-10T09:20:00Z",
+        created_at: "2026-08-10T09:20:00Z", correlation_id: CORR, causation_id: null,
+        raw_reference_table: "execution_tasks", raw_reference_id: "task-1", event_payload: {}, metadata: {} },
+    ],
+  });
+
+  const pkg = await runExport(db, { taskId: "task-1" });
+  assert.deepEqual(pkg.lineages.map((l) => l.outcomeId), ["out-1", "out-2"], "both task outcomes represented");
+
+  const ids = pkg.auditRecords.map((r) => r.id);
+  assert.equal(ids.filter((id) => id === "pe-shared").length, 1, "the shared event appears exactly once");
+  assert.ok(ids.includes("canonical_outcome_observations:obs-1"));
+  assert.ok(ids.includes("canonical_outcome_observations:obs-2"));
+  // Deterministic chronological order across the merged sources.
+  assert.deepEqual(ids, ["pe-shared", "canonical_outcome_observations:obs-1", "canonical_outcome_observations:obs-2"]);
+  // Attribution is deterministic: sorted outcome ids mean out-1 wins the shared record.
+  assert.match(pkg.auditRecords.find((r) => r.id === "pe-shared")?.associationExplanation ?? "", /canonical outcome out-1/);
+
+  // ONE combined limit applied after the merge, not per outcome.
+  const limited = await runExport(db, { taskId: "task-1", auditRecordLimit: 2 });
+  assert.equal(limited.auditRecords.length, 2);
+  assert.deepEqual(limited.auditRecords.map((r) => r.id), ["pe-shared", "canonical_outcome_observations:obs-1"]);
+  assert.ok(limited.integrity.notes.some((n) => /reached the requested limit of 2/.test(n)));
+});
+
+test("P2-20 M: an unscoped package keeps project-scope semantics and unlinked association", async () => {
+  const pkg = await runExport(secondChainDb());
+  assert.deepEqual(pkg.lineages.map((l) => l.outcomeId), ["out-1", "out-b"]);
+  const event = pkg.auditRecords.find((r) => r.id === "pe-a");
+  assert.equal(event?.associationBasis, "unlinked");
+  assert.match(event?.associationExplanation ?? "", /workspace and project scope alone/);
+});
+
 test("P2-20 K: the canonical package states plainly which legacy models it did NOT merge", async () => {
   const pkg = await runExport(completeDb());
   assert.deepEqual(pkg.compatibility.legacyModelsNotMerged.slice(0, 3), [

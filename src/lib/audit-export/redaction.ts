@@ -149,6 +149,41 @@ export function redactAuditValue(
   return redactSecretLikeValues(sweepSensitiveKeys(input, redactedKeys, depth), depth);
 }
 
+/**
+ * Redacts a single human-readable string that is DERIVED from persisted free text.
+ *
+ * The verified projection composes presentation values out of canonical columns —
+ * `Recommendation: ${recommendation.title}`, `Decision: ${decision.decision} — Rationale:
+ * ${decision.rationale}`, `Task: ${task.title}`, `Expected Outcome (…): ${expected_result}`,
+ * `Criteria: ${JSON.stringify(success_criteria)}`, `Observation (…): ${obs.summary}`. The
+ * entity-field allowlist withholds the underlying columns, so without this a secret-shaped
+ * value embedded in one of those strings would reach the export through the presentation
+ * surface even though its raw column was withheld.
+ *
+ * Only secret-SHAPED substrings are replaced; ordinary business prose passes through
+ * unchanged, and identifiers/timestamps are never structurally altered. `surface` names the
+ * field for the redaction report so a redaction here is visible rather than silent.
+ */
+export function redactText<T extends string | null>(
+  surface: string,
+  value: T,
+  redactedSurfaces: Set<string>,
+): T {
+  if (value === null || value === undefined) return value;
+  const redacted = redactSecretLikeValues(value) as string;
+  if (redacted !== value) redactedSurfaces.add(surface);
+  return redacted as T;
+}
+
+/** Applies `redactText` across a string array, preserving order. */
+export function redactTextArray(
+  surface: string,
+  values: readonly string[],
+  redactedSurfaces: Set<string>,
+): string[] {
+  return values.map((value) => redactText(surface, value, redactedSurfaces));
+}
+
 export function redactAuditRecord(
   payload: Record<string, unknown>,
   redactedKeys: Set<string>,

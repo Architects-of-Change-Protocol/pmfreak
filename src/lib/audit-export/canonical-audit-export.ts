@@ -31,6 +31,8 @@ import {
   REDACTED_CATEGORIES,
   applyEntityAllowlist,
   redactAuditRecord,
+  redactText,
+  redactTextArray,
 } from "./redaction";
 import {
   CANONICAL_AUDIT_EXPORT_FORMAT,
@@ -88,6 +90,12 @@ function boolOrNull(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
 
+/** Same tolerant timestamp parse reconstructAuditTrail uses: unparseable sorts oldest. */
+function parseTime(value: string): number {
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
 /** Deterministic (occurredAt, recordedAt, id) ordering. Row arrival order is never used. */
 function byTimeThenId(
   a: { occurredAt: string | null; recordedAt: string | null; id: string | null },
@@ -120,19 +128,25 @@ function orderStepsDeterministically(steps: readonly LineageStepNode[]): Lineage
   return kindOrder.flatMap((kind) => [...(grouped.get(kind) ?? [])].sort(byTimeThenId));
 }
 
-function toExportStep(step: LineageStepNode, redactedKeys: Set<string>): AuditExportStep {
+function toExportStep(
+  step: LineageStepNode,
+  redactedKeys: Set<string>,
+  redactedSurfaces: Set<string>,
+): AuditExportStep {
   const allowlisted = applyEntityAllowlist(step.kind, step.entity, redactedKeys);
   return {
     kind: step.kind,
     id: step.id,
-    title: step.title,
+    // title/summary/gapReason interpolate persisted free text from the canonical row whose
+    // raw columns the allowlist withholds; they are redacted on the same terms.
+    title: redactText(`step.${step.kind}.title`, step.title, redactedSurfaces),
     status: step.status,
-    summary: step.summary,
+    summary: redactText(`step.${step.kind}.summary`, step.summary, redactedSurfaces),
     correlationId: step.correlationId,
     causationId: step.causationId,
     isFixture: step.isFixture,
-    fixtureLabel: step.fixtureLabel,
-    gapReason: step.gapReason,
+    fixtureLabel: redactText(`step.${step.kind}.fixtureLabel`, step.fixtureLabel, redactedSurfaces),
+    gapReason: redactText(`step.${step.kind}.gapReason`, step.gapReason, redactedSurfaces),
     occurredAt: step.occurredAt,
     recordedAt: step.recordedAt,
     actorId: step.actorId,
@@ -151,25 +165,28 @@ function toExportStep(step: LineageStepNode, redactedKeys: Set<string>): AuditEx
  */
 function toGovernanceReferences(
   step: LineageStepNode | undefined,
+  redactedSurfaces: Set<string>,
 ): AuditExportGovernanceReference[] {
   if (!step) return [];
   const entity = step.entity as (Record<string, unknown> & { evaluation?: Record<string, unknown> }) | null;
   const evaluation = entity?.evaluation;
   if (!entity || !evaluation) return [];
+  const reference = (field: string, value: unknown) =>
+    redactText(`governanceReference.${field}`, text(value), redactedSurfaces);
   return [
     {
       evaluationId: text(evaluation.id),
       actionId: text(evaluation.action_id) ?? text(entity.id),
-      contractVersion: text(evaluation.contract_version),
-      evaluatorKind: text(evaluation.evaluator_kind),
-      governanceState: text(evaluation.governance_state),
+      contractVersion: reference("contractVersion", evaluation.contract_version),
+      evaluatorKind: reference("evaluatorKind", evaluation.evaluator_kind),
+      governanceState: reference("governanceState", evaluation.governance_state),
       // Reused from the verified P2-10 fail-safe mapping. Never recomputed here.
       governanceIntegrity: step.status,
-      policyDecisionReference: text(evaluation.policy_decision_reference),
-      grantReferences: stringArray(evaluation.grant_references),
-      obligationReferences: stringArray(evaluation.obligation_references),
-      approvalReferences: stringArray(evaluation.approval_references),
-      reasonCodes: stringArray(evaluation.reason_codes),
+      policyDecisionReference: reference("policyDecisionReference", evaluation.policy_decision_reference),
+      grantReferences: redactTextArray("governanceReference.grantReferences", stringArray(evaluation.grant_references), redactedSurfaces),
+      obligationReferences: redactTextArray("governanceReference.obligationReferences", stringArray(evaluation.obligation_references), redactedSurfaces),
+      approvalReferences: redactTextArray("governanceReference.approvalReferences", stringArray(evaluation.approval_references), redactedSurfaces),
+      reasonCodes: redactTextArray("governanceReference.reasonCodes", stringArray(evaluation.reason_codes), redactedSurfaces),
       evaluatedAt: text(evaluation.evaluated_at),
       recordedAt: text(evaluation.recorded_at),
       validUntil: text(evaluation.valid_until),
@@ -220,6 +237,7 @@ function toCanonicalReferences(
 function toOutcomeAssessment(
   projection: CompleteLineageProjection,
   taskStep: LineageStepNode | undefined,
+  redactedSurfaces: Set<string>,
 ): AuditExportOutcomeAssessment {
   const isAchieved = projection.outcomeState === "achieved";
   const achievementBasis: AuditExportOutcomeAssessment["achievementBasis"] =
@@ -235,7 +253,9 @@ function toOutcomeAssessment(
     observationsCount: projection.observationsCount,
     isAchieved,
     achievementBasis,
-    taskStatus: taskEntity ? text(taskEntity.status) : null,
+    taskStatus: taskEntity
+      ? redactText("outcomeAssessment.taskStatus", text(taskEntity.status), redactedSurfaces)
+      : null,
     taskCompletionImpliesOutcomeAchievement: false,
     note: "Outcome achievement is established only by canonical outcome state and evidence-backed observations. A completed Task never implies an achieved Outcome.",
   };
@@ -281,14 +301,15 @@ function classifyLineageEvent(
 function toLineageEvents(
   projection: CompleteLineageProjection,
   redactedKeys: Set<string>,
+  redactedSurfaces: Set<string>,
 ): AuditExportLineageEvent[] {
   return projection.auditEvents
     .map((row) => {
       const { basis, explanation } = classifyLineageEvent(row, projection);
       return {
         id: text(row.id),
-        eventType: text(row.event_type),
-        eventCategory: text(row.event_category),
+        eventType: redactText("lineageEvent.eventType", text(row.event_type), redactedSurfaces),
+        eventCategory: redactText("lineageEvent.eventCategory", text(row.event_category), redactedSurfaces),
         occurredAt: text(row.occurred_at),
         recordedAt: text(row.created_at) ?? text(row.occurred_at),
         correlationId: text(row.correlation_id),
@@ -306,30 +327,51 @@ function toLineageEvents(
     .sort(byTimeThenId);
 }
 
+/**
+ * How an audit item entered THIS export. Carried alongside each reconstructed batch so the
+ * exported `associationBasis` describes the actual selection path rather than a coarse
+ * "was an option set?" boolean — which stops being accurate once a task-scoped request
+ * reconstructs per canonical outcome.
+ */
+type AuditSelection =
+  | { kind: "canonical_outcome"; outcomeId: string; viaTaskId: string | null }
+  | { kind: "correlation"; correlationId: string }
+  | { kind: "project_scope" };
+
 function toAuditRecord(
   item: AuditReconstructionItem,
-  scopedByOutcomeId: boolean,
-  scopedByCorrelationId: boolean,
+  selection: AuditSelection,
   redactedKeys: Set<string>,
+  redactedSurfaces: Set<string>,
 ): AuditExportAuditRecord {
   const metadata = redactAuditRecord(item.metadata, redactedKeys);
   const isReconstructed = item.metadata.reconstructed === true;
-  const basis: AuditExportAssociationBasis = isReconstructed
-    ? "reconstruction"
-    : scopedByOutcomeId || scopedByCorrelationId
-      ? "correlation_only"
-      : "unlinked";
-  const explanation = isReconstructed
-    ? "Reconstructed from a canonical record by the verified P2-10 audit semantics. It is NOT an emitted platform_event."
-    : scopedByOutcomeId
-      ? "Selected because it shares the canonical outcome's correlation id. Correlation-only association; completeness is not asserted."
-      : scopedByCorrelationId
-        ? "Selected by the requested correlation id. Correlation-only association; no causal claim is made."
-        : "Selected by workspace and project scope alone; no narrower association was requested or established.";
+
+  let basis: AuditExportAssociationBasis;
+  let explanation: string;
+  if (isReconstructed) {
+    basis = "reconstruction";
+    explanation =
+      "Reconstructed from a canonical record by the verified P2-10 audit semantics. It is NOT an emitted platform_event.";
+  } else if (selection.kind === "canonical_outcome") {
+    basis = "correlation_only";
+    explanation = selection.viaTaskId
+      ? `Selected because it shares the correlation id of canonical outcome ${selection.outcomeId}, which belongs to the requested task ${selection.viaTaskId}. Correlation-only association; completeness is not asserted and no causal claim is made.`
+      : `Selected because it shares the correlation id of canonical outcome ${selection.outcomeId}. Correlation-only association; completeness is not asserted and no causal claim is made.`;
+  } else if (selection.kind === "correlation") {
+    basis = "correlation_only";
+    explanation =
+      "Selected by the requested correlation id. Correlation-only association; no causal claim is made.";
+  } else {
+    basis = "unlinked";
+    explanation =
+      "Selected by workspace and project scope alone; no narrower association was requested or established.";
+  }
+
   return {
     id: item.id,
-    eventType: item.eventType,
-    eventCategory: item.eventCategory,
+    eventType: redactText("auditRecord.eventType", item.eventType, redactedSurfaces),
+    eventCategory: redactText("auditRecord.eventCategory", item.eventCategory, redactedSurfaces),
     actorId: item.actorId,
     actorType: item.actorType,
     occurredAt: item.occurredAt,
@@ -352,37 +394,44 @@ function toExportLineage(
   projection: CompleteLineageProjection,
   redactedKeys: Set<string>,
   withheldFields: Set<string>,
+  redactedSurfaces: Set<string>,
 ): AuditExportLineage {
   const orderedSteps = orderStepsDeterministically(projection.steps);
-  const steps = orderedSteps.map((step) => toExportStep(step, redactedKeys));
+  const steps = orderedSteps.map((step) => toExportStep(step, redactedKeys, redactedSurfaces));
   for (const step of steps) for (const field of step.withheldEntityFields) withheldFields.add(field);
 
   const governanceReferences = toGovernanceReferences(
     orderedSteps.find((step) => step.kind === "material_action"),
+    redactedSurfaces,
   ).sort((a, b) => (a.evaluationId ?? "").localeCompare(b.evaluationId ?? ""));
 
   return {
     outcomeId: projection.outcomeId,
     taskId: projection.taskId,
-    expectedResult: projection.expectedResult,
+    // canonical_task_outcomes.expected_result is persisted free text.
+    expectedResult: redactText("lineage.expectedResult", projection.expectedResult, redactedSurfaces),
     lineageStatus: projection.lineageStatus,
     hasCorrelationOnly: projection.hasCorrelationOnly,
     isFixture: projection.isFixture,
-    fixtureLabel: projection.fixtureLabel,
+    fixtureLabel: redactText("lineage.fixtureLabel", projection.fixtureLabel, redactedSurfaces),
     canonicalReferences: toCanonicalReferences(projection, orderedSteps, governanceReferences),
     outcomeAssessment: toOutcomeAssessment(
       projection,
       orderedSteps.find((step) => step.kind === "task"),
+      redactedSurfaces,
     ),
     steps,
     // Verbatim. Relationship classification is the verified projection's, never this layer's.
+    // Its only free-text field is a fixed framework explanation, so nothing is redacted here.
     transitions: projection.transitions,
     governanceReferences,
-    lineageEvents: toLineageEvents(projection, redactedKeys),
-    // Gaps and disputes are an unordered set of findings; sorting makes the exported
-    // payload independent of the order the projection happened to append them in.
-    gaps: [...projection.gaps].sort(),
-    disputes: [...projection.disputes].sort(),
+    lineageEvents: toLineageEvents(projection, redactedKeys, redactedSurfaces),
+    // Gaps and disputes interpolate persisted free text (evidence ids, governance states,
+    // observation summaries), so they are redacted before ordering. They are an unordered
+    // set of findings; sorting makes the payload independent of the order the projection
+    // happened to append them in.
+    gaps: redactTextArray("lineage.gaps", projection.gaps, redactedSurfaces).sort(),
+    disputes: redactTextArray("lineage.disputes", projection.disputes, redactedSurfaces).sort(),
   };
 }
 
@@ -412,26 +461,90 @@ export async function buildCanonicalAuditExportPackage(
       : DEFAULT_AUDIT_RECORD_LIMIT;
   const redactedKeys = new Set<string>();
   const withheldFields = new Set<string>();
+  const redactedSurfaces = new Set<string>();
 
-  const [projections, auditTrail] = await Promise.all([
-    getCompleteLineageProjection(client, workspaceId, projectId, {
-      outcomeId: options.outcomeId,
-      taskId: options.taskId,
-    }),
-    reconstructAuditTrail(client, workspaceId, projectId, {
-      correlationId: options.correlationId,
-      outcomeId: options.outcomeId,
-      limit: auditRecordLimit,
-    }),
-  ]);
+  // 1. Canonical lineage. outcomeId and taskId are BOTH applied by the verified projection,
+  //    so an outcomeId that does not belong to the supplied taskId yields no lineage.
+  const projections = await getCompleteLineageProjection(client, workspaceId, projectId, {
+    outcomeId: options.outcomeId,
+    taskId: options.taskId,
+  });
 
-  const lineages = [...projections]
+  // 2. Correlation narrowing, in the composition layer, using ONLY correlation values the
+  //    verified projection already carries. Association by correlation, never causation: a
+  //    matching correlation id makes a lineage in scope, it does not make it caused.
+  const correlationId = options.correlationId;
+  const selectedProjections = correlationId
+    ? projections.filter(
+        (projection) =>
+          projection.steps.some((step) => step.correlationId === correlationId) ||
+          projection.transitions.some((transition) => transition.correlationId === correlationId),
+      )
+    : projections;
+
+  const lineages = [...selectedProjections]
     .sort((a, b) => a.outcomeId.localeCompare(b.outcomeId))
-    .map((projection) => toExportLineage(projection, redactedKeys, withheldFields));
+    .map((projection) => toExportLineage(projection, redactedKeys, withheldFields, redactedSurfaces));
 
-  const auditRecords = auditTrail.map((item) =>
-    toAuditRecord(item, Boolean(options.outcomeId), Boolean(options.correlationId), redactedKeys),
-  );
+  // 3. Audit trail, scoped to match the lineages actually exported.
+  //
+  //    A request narrowed to a canonical entity (outcomeId and/or taskId) reconstructs PER
+  //    SELECTED CANONICAL OUTCOME using the verified P2-10 outcome-scoped behavior, then
+  //    merges. Falling back to the project-wide trail here would attach unrelated records to
+  //    a package whose requestedScope claims to be narrower. No selected outcome therefore
+  //    means no audit records — never a widening fallback.
+  //
+  //    Each per-outcome trail is already the oldest-first prefix bounded by the same limit,
+  //    so the first `limit` of the merged result is the true oldest-first prefix across all
+  //    of them — the same reasoning reconstructAuditTrail applies across its two sources.
+  const narrowedToCanonicalEntity = Boolean(options.outcomeId || options.taskId);
+  const selectedOutcomeIds = [...new Set(lineages.map((lineage) => lineage.outcomeId))].sort();
+
+  let auditRecords: AuditExportAuditRecord[];
+  if (narrowedToCanonicalEntity) {
+    const perOutcome = await Promise.all(
+      selectedOutcomeIds.map(async (selectedOutcomeId) => {
+        const items = await reconstructAuditTrail(client, workspaceId, projectId, {
+          outcomeId: selectedOutcomeId,
+          correlationId,
+          limit: auditRecordLimit,
+        });
+        const selection: AuditSelection = {
+          kind: "canonical_outcome",
+          outcomeId: selectedOutcomeId,
+          viaTaskId: options.taskId ?? null,
+        };
+        return items.map((item) => ({ item, selection }));
+      }),
+    );
+    // Deduplicate by stable audit item id. Outcome ids are sorted, so when the same record
+    // is reachable through two outcomes the retained attribution is deterministic.
+    const seen = new Set<string>();
+    auditRecords = perOutcome
+      .flat()
+      .filter(({ item }) => {
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      })
+      .sort(
+        (a, b) =>
+          parseTime(a.item.occurredAt) - parseTime(b.item.occurredAt) ||
+          parseTime(a.item.recordedAt) - parseTime(b.item.recordedAt) ||
+          a.item.id.localeCompare(b.item.id),
+      )
+      .slice(0, auditRecordLimit)
+      .map(({ item, selection }) => toAuditRecord(item, selection, redactedKeys, redactedSurfaces));
+  } else {
+    const items = await reconstructAuditTrail(client, workspaceId, projectId, {
+      correlationId,
+      limit: auditRecordLimit,
+    });
+    const selection: AuditSelection = correlationId
+      ? { kind: "correlation", correlationId }
+      : { kind: "project_scope" };
+    auditRecords = items.map((item) => toAuditRecord(item, selection, redactedKeys, redactedSurfaces));
+  }
 
   const gapCount = lineages.reduce((total, lineage) => total + lineage.gaps.length, 0);
   const disputeCount = lineages.reduce((total, lineage) => total + lineage.disputes.length, 0);
@@ -454,6 +567,18 @@ export async function buildCanonicalAuditExportPackage(
   }
   if (gapCount > 0) notes.push(`${gapCount} explicit lineage gap(s) preserved without substitution.`);
   if (disputeCount > 0) notes.push(`${disputeCount} explicit dispute(s) preserved.`);
+  if (correlationId && projections.length !== selectedProjections.length) {
+    notes.push(
+      `Correlation scope excluded ${projections.length - selectedProjections.length} canonical lineage(s) that do not carry correlation id ${correlationId}. Association is by correlation only and implies no causation.`,
+    );
+  }
+  if (narrowedToCanonicalEntity) {
+    notes.push(
+      selectedOutcomeIds.length
+        ? `Audit records were reconstructed per selected canonical outcome (${selectedOutcomeIds.join(", ")}) and merged; no project-wide records were added.`
+        : "No canonical outcome matched the requested scope, so no audit records were included. The project-wide trail was deliberately NOT used as a fallback.",
+    );
+  }
   if (auditRecords.length === auditRecordLimit) {
     notes.push(
       `Audit records reached the requested limit of ${auditRecordLimit}; the trail is oldest-first and may be truncated.`,
@@ -493,6 +618,7 @@ export async function buildCanonicalAuditExportPackage(
       redactedCategories: [...REDACTED_CATEGORIES],
       withheldEntityFields: [...withheldFields].sort(),
       redactedPayloadKeys: [...redactedKeys].sort(),
+      redactedTextSurfaces: [...redactedSurfaces].sort(),
       preservedAuditFields: [...PRESERVED_AUDIT_FIELDS],
     },
     aocBoundary: {

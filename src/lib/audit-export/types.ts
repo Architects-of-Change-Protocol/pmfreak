@@ -254,6 +254,11 @@ export type AuditExportRedactionReport = {
   withheldEntityFields: string[];
   /** Payload/metadata keys whose values were replaced by the marker. */
   redactedPayloadKeys: string[];
+  /**
+   * Human-readable export surfaces derived from persisted free text in which a
+   * secret-shaped substring was replaced (e.g. `step.summary`, `lineage.expectedResult`).
+   */
+  redactedTextSurfaces: string[];
   preservedAuditFields: string[];
 };
 

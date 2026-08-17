@@ -89,6 +89,10 @@ export async function exportLegacyDecisionAuditCompatibilityPackage(
         // The legacy package is carried through whole, so no column allowlist applies.
         withheldEntityFields: [],
         redactedPayloadKeys: [...redactedKeys].sort(),
+        // Legacy free text (decision title/summary/rationale, implementation notes) is
+        // reached by the recursive value walker rather than by named export surfaces, so
+        // secret-shaped substrings there are already redacted with no surface list to report.
+        redactedTextSurfaces: [],
         preservedAuditFields: [...PRESERVED_AUDIT_FIELDS],
       },
       notes: [

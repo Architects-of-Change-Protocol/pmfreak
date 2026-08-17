@@ -38,6 +38,30 @@ verified projection verbatim.
 `generatedAt` (a replay seam; `generatedAt` is the only field allowed to vary between two
 exports of unchanged state).
 
+## Requested-scope semantics
+
+A package exposes one `requestedScope`, so lineages and audit records are scoped coherently
+— a narrowed request never returns project-wide records alongside a narrow lineage.
+
+| Request | Lineages | Audit records |
+| --- | --- | --- |
+| none | all project lineages | project-scope trail; `associationBasis: "unlinked"` |
+| `outcomeId` | exact outcome | verified P2-10 outcome-scoped reconstruction |
+| `taskId` | the task's canonical outcome lineage(s) | reconstructed **per selected outcome**, merged, deduplicated by audit item id, chronologically ordered, then **one** combined `auditRecordLimit`. Empty if the task has no canonical outcome — never a project-wide fallback |
+| `correlationId` | lineages carrying that correlation on a stored step or transition | correlation-scoped trail |
+| `taskId` + `correlationId` | intersection | correlation passed into each outcome-scoped reconstruction; a correlation contradicting the outcome's own contributes nothing |
+| `outcomeId` + `taskId` | both filters applied by the projection | scoped to the surviving outcome; a mismatch yields no lineages **and** no audit records |
+
+Correlation narrowing uses only correlation values the verified projection already carries.
+It is association by correlation and is never promoted into causation — a lineage can match
+because it genuinely shares upstream provenance rows with another chain, and the export says
+so rather than hiding it.
+
+`associationBasis` describes **how an item entered this export**, which stays distinct from
+the item's stored `relationship`. A platform event pulled in through a canonical outcome of
+the requested task is `correlation_only`, and its explanation names both the outcome and the
+task. Reconstructed canonical observations remain `reconstruction`.
+
 ## Honesty invariants
 
 - **Correlation is not causation.** `LineageTransition[]` is carried through verbatim; the
@@ -75,6 +99,20 @@ Two composed mechanisms, reported in `package.redaction`:
    export-specific sensitive-key sweep that records each redacted key, then the
    repository's existing `redactSecretLikeValues()` (`src/lib/security/redaction.ts`) for
    secret-*shaped* values.
+3. **Presentation-surface redaction** (`redactText`). The verified projection composes
+   human-readable values out of persisted free text — `Recommendation: ${title}`,
+   `Decision: ${decision} — Rationale: ${rationale}`, `Task: ${title}`,
+   `Expected Outcome (…): ${expected_result}`, `Criteria: ${JSON.stringify(success_criteria)}`,
+   `Observation (…): ${summary}` — whose underlying columns the allowlist withholds. Without
+   this, a secret embedded in one of those strings would reach the export through the
+   presentation surface even though its raw column was withheld. Covered surfaces: step
+   `title` / `summary` / `gapReason` / `fixtureLabel`, `lineage.expectedResult`,
+   `lineage.fixtureLabel`, `gaps[]`, `disputes[]`, `outcomeAssessment.taskStatus`,
+   governance reference strings and arrays, and audit/lineage event type and category. Only
+   secret-*shaped* substrings are replaced, so ordinary business prose stays readable and
+   identifiers and timestamps are never structurally altered. Each redacted surface is named
+   in `redaction.redactedTextSurfaces`. Fixed framework explanatory strings
+   (`relationshipExplanation`, `associationExplanation`, notes) are deliberately not touched.
 
 Preserved through redaction: canonical IDs, correlation/causation, `occurredAt` vs
 `recordedAt`, actor, step status and gap reason, transition classification, evidence
