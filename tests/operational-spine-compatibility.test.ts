@@ -81,10 +81,11 @@ test("event projection preserves missing lineage and never invents a canonical r
   assert.equal(event.lineageStatus, "unresolved");
 });
 
-test("consumer safety gate verifies all 30 paths and symbols and detects drift", () => {
+test("consumer safety gate verifies all 32 paths and symbols and detects drift", () => {
   const reader = { exists: fs.existsSync, read: (path: string) => fs.readFileSync(path, "utf8") };
   const result = runConsumerSafetyGate(reader);
-  assert.deepEqual(result, { ok: true, inspected: 30, issues: [] });
+  // 30 at P2-01 + the two P2-20 audit-export entries.
+  assert.deepEqual(result, { ok: true, inspected: 32, issues: [] });
   const drifted = OPERATIONAL_SPINE_CONSUMER_MAP.map((entry, index) => index === 0 ? { ...entry, symbol: "removedSymbol" } : entry);
   const drift = runConsumerSafetyGate(reader, drifted);
   assert.equal(drift.ok, false);

@@ -51,7 +51,9 @@ test("machine-readable consumer map is valid, complete across canonical kinds, a
   const covered = new Set(OPERATIONAL_SPINE_CONSUMER_MAP.flatMap((entry) => entry.objects));
   assert.deepEqual([...covered].sort(), [...CANONICAL_OBJECT_KINDS].sort());
   const summary = summarizeConsumerMap();
-  assert.equal(summary.total, 30);
+  // 30 at P2-01 + the two P2-20 audit-export entries (canonical export projection and the
+  // bounded legacy decision-audit compatibility adapter).
+  assert.equal(summary.total, 32);
   assert.equal(summary.unresolved, 0);
   assert.ok(summary.classifications.CANONICAL >= 3);
   assert.ok(summary.classifications.BOUNDED_CONTEXT_MODEL >= 5);
