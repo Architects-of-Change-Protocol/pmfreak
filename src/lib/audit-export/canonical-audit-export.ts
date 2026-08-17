@@ -22,6 +22,7 @@ import {
 } from "@/lib/operational-flow/operational-flow-service";
 import type {
   AuditReconstructionItem,
+  CanonicalOutcomeObservationState,
   CompleteLineageProjection,
   LineageStepKind,
   LineageStepNode,
@@ -52,7 +53,26 @@ import {
 export const CANONICAL_AUDIT_EXPORT_SOURCE =
   "src/lib/operational-flow/operational-flow-service.ts#getCompleteLineageProjection+reconstructAuditTrail";
 
-const DEFAULT_AUDIT_RECORD_LIMIT = 100;
+export const DEFAULT_AUDIT_RECORD_LIMIT = 100;
+
+/**
+ * A valid audit-record limit is a finite integer >= 1.
+ *
+ * Everything else falls back to the default rather than reaching the database: NaN,
+ * ±Infinity, 0, negatives, and fractions below 1 — the last of which previously passed the
+ * `> 0` positivity check and was then floored to 0, silently emptying the audit trail of a
+ * package that still reported a positive requested limit.
+ *
+ * DOCUMENTED BEHAVIOR for a positive non-integer >= 1: it is floored to an integer >= 1
+ * (1.9 -> 1). Flooring is backward compatible with every previously-valid input and can
+ * never produce 0, because the value is already known to be >= 1.
+ */
+export function normalizeAuditRecordLimit(requested: number | undefined): number {
+  if (typeof requested !== "number" || !Number.isFinite(requested) || requested < 1) {
+    return DEFAULT_AUDIT_RECORD_LIMIT;
+  }
+  return Math.floor(requested);
+}
 
 /**
  * Severity precedence for `lineageStatus`, identical to the ordering
@@ -231,12 +251,48 @@ function toCanonicalReferences(
 }
 
 /**
+ * Deterministic "latest observation" selection, derived inside the P2-20 composition layer.
+ *
+ * The verified projection exposes `latestObservationState` as `obsList[0]` — the first row
+ * its `recorded_at DESC` query happened to return. Observations tie on `recorded_at`
+ * routinely (a batch recorded in one transaction) and PostgreSQL guarantees no order among
+ * tied rows, so that value could differ between two exports of byte-identical state, which
+ * contradicts the P2-20 determinism promise.
+ *
+ * The export therefore re-derives it from the observation STEPS already present in the
+ * SELECTED projection, using a total order with an explicit, documented tie-breaker:
+ *
+ *     recordedAt DESC, then occurredAt DESC, then canonical step id DESC (lexicographic).
+ *
+ * Canonical ids are unique and stable, so the ordering is total and independent of row
+ * arrival order. P2-10 operational-flow semantics are unchanged: neither
+ * `getCompleteLineageProjection()` nor operational-flow-service.ts is touched, and this
+ * value can differ from the projection's own only where its source rows were genuinely
+ * tied — exactly the case where the projection's answer was arbitrary.
+ */
+function latestObservationStateOf(
+  observationSteps: readonly LineageStepNode[],
+): CanonicalOutcomeObservationState | null {
+  const recorded = observationSteps.filter((step) => step.id !== null && step.entity !== null);
+  if (recorded.length === 0) return null;
+  const latest = [...recorded].sort(
+    (a, b) =>
+      (b.recordedAt ?? "").localeCompare(a.recordedAt ?? "") ||
+      (b.occurredAt ?? "").localeCompare(a.occurredAt ?? "") ||
+      (b.id ?? "").localeCompare(a.id ?? ""),
+  )[0];
+  const state = latest.entity?.observation_state;
+  return typeof state === "string" ? (state as CanonicalOutcomeObservationState) : null;
+}
+
+/**
  * Task completion is NOT Outcome achievement. `isAchieved` reads the canonical outcome
  * state and nothing else — task status is exported alongside it purely as context.
  */
 function toOutcomeAssessment(
   projection: CompleteLineageProjection,
   taskStep: LineageStepNode | undefined,
+  observationSteps: readonly LineageStepNode[],
   redactedSurfaces: Set<string>,
 ): AuditExportOutcomeAssessment {
   const isAchieved = projection.outcomeState === "achieved";
@@ -249,7 +305,7 @@ function toOutcomeAssessment(
   const taskEntity = taskStep?.entity as Record<string, unknown> | null | undefined;
   return {
     outcomeState: projection.outcomeState,
-    latestObservationState: projection.latestObservationState,
+    latestObservationState: latestObservationStateOf(observationSteps),
     observationsCount: projection.observationsCount,
     isAchieved,
     achievementBasis,
@@ -298,12 +354,73 @@ function classifyLineageEvent(
   };
 }
 
+/**
+ * Requested correlation scope for nested lineage events, plus the count it excluded so the
+ * narrowing can be reported rather than applied silently.
+ */
+type LineageEventScope = {
+  requestedCorrelationId: string | null;
+  excludedByCorrelation: number;
+};
+
+/**
+ * Does STORED evidence place this platform event inside the REQUESTED correlation scope?
+ *
+ * The verified projection retains an event for a lineage when it shares the OUTCOME's
+ * correlation id or raw-references the outcome/task. A lineage can enter a
+ * correlation-scoped export through shared UPSTREAM provenance carrying correlation A while
+ * its own outcome carries correlation B — and then every nested B event rode along, even
+ * though the auditor asked for A.
+ *
+ * When a correlation id is requested, an event is kept only when a stored association
+ * proves THAT correlation:
+ *
+ *   - the event's own `correlation_id` equals the requested id, or
+ *   - the event raw-references the exported outcome/task AND that canonical row itself
+ *     carries the requested correlation id.
+ *
+ * A raw reference alone is deliberately NOT sufficient: an event pointing at an outcome
+ * whose own correlation differs from the requested one proves association with THAT
+ * outcome, not membership of the requested correlation scope. Nothing is inferred from
+ * causation or chronological proximity, and no association is invented.
+ */
+function isWithinRequestedCorrelation(
+  row: Record<string, unknown>,
+  projection: CompleteLineageProjection,
+  requestedCorrelationId: string,
+): boolean {
+  if (text(row.correlation_id) === requestedCorrelationId) return true;
+
+  const rawTable = text(row.raw_reference_table);
+  const rawId = text(row.raw_reference_id);
+  const correlationOf = (kind: LineageStepKind) =>
+    projection.steps.find((step) => step.kind === kind)?.correlationId ?? null;
+
+  if (rawTable === "canonical_task_outcomes" && rawId === projection.outcomeId) {
+    return correlationOf("outcome") === requestedCorrelationId;
+  }
+  if (rawTable === "execution_tasks" && rawId === projection.taskId) {
+    return correlationOf("task") === requestedCorrelationId;
+  }
+  return false;
+}
+
 function toLineageEvents(
   projection: CompleteLineageProjection,
+  scope: LineageEventScope,
   redactedKeys: Set<string>,
   redactedSurfaces: Set<string>,
 ): AuditExportLineageEvent[] {
-  return projection.auditEvents
+  const requestedCorrelationId = scope.requestedCorrelationId;
+  const rows = requestedCorrelationId
+    ? projection.auditEvents.filter((row) => {
+        const inScope = isWithinRequestedCorrelation(row, projection, requestedCorrelationId);
+        if (!inScope) scope.excludedByCorrelation += 1;
+        return inScope;
+      })
+    : projection.auditEvents;
+
+  return rows
     .map((row) => {
       const { basis, explanation } = classifyLineageEvent(row, projection);
       return {
@@ -392,6 +509,7 @@ function toAuditRecord(
 
 function toExportLineage(
   projection: CompleteLineageProjection,
+  scope: LineageEventScope,
   redactedKeys: Set<string>,
   withheldFields: Set<string>,
   redactedSurfaces: Set<string>,
@@ -418,6 +536,7 @@ function toExportLineage(
     outcomeAssessment: toOutcomeAssessment(
       projection,
       orderedSteps.find((step) => step.kind === "task"),
+      orderedSteps.filter((step) => step.kind === "observation"),
       redactedSurfaces,
     ),
     steps,
@@ -425,7 +544,7 @@ function toExportLineage(
     // Its only free-text field is a fixed framework explanation, so nothing is redacted here.
     transitions: projection.transitions,
     governanceReferences,
-    lineageEvents: toLineageEvents(projection, redactedKeys, redactedSurfaces),
+    lineageEvents: toLineageEvents(projection, scope, redactedKeys, redactedSurfaces),
     // Gaps and disputes interpolate persisted free text (evidence ids, governance states,
     // observation summaries), so they are redacted before ordering. They are an unordered
     // set of findings; sorting makes the payload independent of the order the projection
@@ -452,13 +571,7 @@ export async function buildCanonicalAuditExportPackage(
   projectId: string,
   options: BuildCanonicalAuditExportOptions = {},
 ): Promise<AuditExportPackage> {
-  // A non-finite or non-positive requested limit falls back to the default rather than
-  // reaching the database as NaN.
-  const requestedLimit = options.auditRecordLimit;
-  const auditRecordLimit =
-    typeof requestedLimit === "number" && Number.isFinite(requestedLimit) && requestedLimit > 0
-      ? Math.floor(requestedLimit)
-      : DEFAULT_AUDIT_RECORD_LIMIT;
+  const auditRecordLimit = normalizeAuditRecordLimit(options.auditRecordLimit);
   const redactedKeys = new Set<string>();
   const withheldFields = new Set<string>();
   const redactedSurfaces = new Set<string>();
@@ -482,9 +595,19 @@ export async function buildCanonicalAuditExportPackage(
       )
     : projections;
 
+  //    The same requested correlation scope is pushed down into each lineage's NESTED
+  //    platform events, so a lineage that entered through shared upstream provenance cannot
+  //    carry unrelated-correlation events along with it.
+  const lineageEventScope: LineageEventScope = {
+    requestedCorrelationId: correlationId ?? null,
+    excludedByCorrelation: 0,
+  };
+
   const lineages = [...selectedProjections]
     .sort((a, b) => a.outcomeId.localeCompare(b.outcomeId))
-    .map((projection) => toExportLineage(projection, redactedKeys, withheldFields, redactedSurfaces));
+    .map((projection) =>
+      toExportLineage(projection, lineageEventScope, redactedKeys, withheldFields, redactedSurfaces),
+    );
 
   // 3. Audit trail, scoped to match the lineages actually exported.
   //
@@ -570,6 +693,11 @@ export async function buildCanonicalAuditExportPackage(
   if (correlationId && projections.length !== selectedProjections.length) {
     notes.push(
       `Correlation scope excluded ${projections.length - selectedProjections.length} canonical lineage(s) that do not carry correlation id ${correlationId}. Association is by correlation only and implies no causation.`,
+    );
+  }
+  if (lineageEventScope.excludedByCorrelation > 0) {
+    notes.push(
+      `Correlation scope excluded ${lineageEventScope.excludedByCorrelation} nested lineage event(s) for which no stored association establishes correlation id ${correlationId}. A raw reference to a canonical row carrying a different correlation is not treated as membership of the requested scope.`,
     );
   }
   if (narrowedToCanonicalEntity) {

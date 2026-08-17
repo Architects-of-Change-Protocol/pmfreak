@@ -7,7 +7,9 @@ export {
 } from "./redaction";
 export {
   CANONICAL_AUDIT_EXPORT_SOURCE,
+  DEFAULT_AUDIT_RECORD_LIMIT,
   buildCanonicalAuditExportPackage,
+  normalizeAuditRecordLimit,
   type BuildCanonicalAuditExportOptions,
 } from "./canonical-audit-export";
 export {

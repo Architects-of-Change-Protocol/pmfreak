@@ -62,6 +62,36 @@ the item's stored `relationship`. A platform event pulled in through a canonical
 the requested task is `correlation_only`, and its explanation names both the outcome and the
 task. Reconstructed canonical observations remain `reconstruction`.
 
+### Correlation scope reaches nested lineage events
+
+A requested `correlationId` narrows lineages, top-level `auditRecords` **and** each lineage's
+nested `lineageEvents`. A lineage can legitimately enter a correlation-A export through
+shared upstream provenance while its own outcome carries correlation B; without pushing the
+requested scope down, every nested correlation-B event rode along inside it.
+
+When `correlationId` is supplied, a nested lineage event is exported only when **stored**
+evidence places it in that scope:
+
+- the event's own `correlation_id` equals the requested id, **or**
+- the event raw-references the exported outcome/task *and that canonical row itself carries
+  the requested correlation id*.
+
+A raw reference alone is deliberately not sufficient: an event pointing at an outcome whose
+own correlation differs proves association with that outcome, not membership of the requested
+scope. Nothing is inferred from causation or chronological proximity. Excluded events are
+counted in `integrity.notes` rather than dropped silently. Without a `correlationId`, nested
+lineage-event selection is unchanged.
+
+### Audit-record limit normalization
+
+A valid `auditRecordLimit` is a **finite integer ≥ 1**. `undefined`, `NaN`, `±Infinity`, `0`,
+negatives and fractions below `1` all fall back to `DEFAULT_AUDIT_RECORD_LIMIT` (100) — the
+last of those previously passed a `> 0` positivity check and was then floored to `0`,
+silently emptying the trail of a package still reporting a positive requested limit. A
+positive non-integer ≥ 1 is **floored** (`1.9 → 1`); flooring is backward compatible with
+every previously valid input and can never produce `0`. The normalized value is what appears
+in `requestedScope.auditRecordLimit`.
+
 ## Honesty invariants
 
 - **Correlation is not causation.** `LineageTransition[]` is carried through verbatim; the
@@ -95,10 +125,39 @@ Two composed mechanisms, reported in `package.redaction`:
    silently dropped. Where a digest exists it is exported instead, so provenance survives
    without the payload.
 2. **Bounded recursive value redaction** over everything that survives, plus the audit
-   record payload/metadata (which are the audit evidence and cannot be dropped): an
-   export-specific sensitive-key sweep that records each redacted key, then the
-   repository's existing `redactSecretLikeValues()` (`src/lib/security/redaction.ts`) for
-   secret-*shaped* values.
+   record payload/metadata (which are the audit evidence and cannot be dropped): a
+   boundary-aware export-specific sensitive-key sweep that records each redacted key, then
+   the repository's existing `redactSecretLikeValues()` (`src/lib/security/redaction.ts`)
+   for secret-*shaped* values, then an export-specific **value-based credential pass**
+   (below).
+
+   **Key classification is boundary-aware.** Keys are normalized into lowercase tokens
+   (separators *and* camel-case boundaries) and matched by four enumerable rules — sensitive
+   tokens in any position, sensitive terminal tokens, exact whole keys, and qualified pairs
+   (`<qualifier> key` / `<qualifier> error` / `<qualifier> stack`). Raw substring containment
+   redacted legitimate audit facts purely through overlap: `session_type`, `stack_rank` and
+   `credentials_excluded` are evidence, not secrets, as are the many canonical `*_key`
+   identifiers (`idempotency_key`, `source_key`, `rule_key`, `normalizer_key`,
+   `provider_key`). Every name the previous fragment list protected is still protected —
+   `accessToken`, `refresh_token`, `api_key`, `serviceRoleKey`, `authorization`,
+   `auth_header`, `clientSecret`, `connection_string`, `providerError`, `raw_error` — with
+   the only deliberate narrowings being `session`, `stack` and `credential`, which now
+   require an exact match or a sensitive qualifier/terminal position.
+
+   **Value-based credential detection.** A credential stored under a *neutral* key —
+   `{ "value": "postgresql://user:password@db/pmfreak" }` — escaped both the key sweep (the
+   name is innocuous) and the shared walker (the shape is not one it knows), while
+   `redactedCategories` claims connection strings and provider credentials are never
+   emitted. The export therefore also matches, by value: any URI carrying userinfo
+   credentials (`scheme://user:password@host/…`, userinfo anchored before the first
+   path/query/fragment separator, mirroring the established
+   `CONNECTION_STRING_WITH_CREDENTIALS_PATTERN` in the AOC governance handoff redactor);
+   `postgres://` and `postgresql://` connection strings, the schemes this repository
+   actually uses; and the provider credential shapes the shared walker misses for providers
+   this repository configures (`sk-…`, `ghp_…`/`github_pat_…`, and the `Basic …`
+   counterpart of `Bearer …`). This is bounded and enumerable, not a general secret
+   detector: an ordinary `https://` URL, an `@` inside a URL path, and prose mentioning
+   "postgres" are all preserved verbatim.
 3. **Presentation-surface redaction** (`redactText`). The verified projection composes
    human-readable values out of persisted free text — `Recommendation: ${title}`,
    `Decision: ${decision} — Rationale: ${rationale}`, `Task: ${title}`,
@@ -158,14 +217,35 @@ Same persisted state ⇒ same logical export, independent of row arrival order:
 - `lineageEvents` ordered by `(occurredAt, recordedAt, id)`;
 - `gaps`, `disputes`, `observationIds`, `governanceEvaluationIds`, `withheldEntityFields`
   and `redactedPayloadKeys` sorted;
-- `auditRecords` in the verified `reconstructAuditTrail()` order.
+- `auditRecords` in the verified `reconstructAuditTrail()` order;
+- `outcomeAssessment.latestObservationState` re-derived in this layer from the observation
+  steps of the selected projection.
+
+**Latest observation state.** The verified projection exposes `latestObservationState` as
+`obsList[0]` — the first row its `recorded_at DESC` query happened to return. Observations
+tie on `recorded_at` routinely (a batch recorded in one transaction) and PostgreSQL
+guarantees no order among tied rows, so that value could differ between two exports of
+byte-identical state. The export re-derives it with a total order and an explicit,
+documented tie-breaker:
+
+> `recordedAt` DESC, then `occurredAt` DESC, then canonical step `id` DESC (lexicographic).
+
+Canonical ids are unique and stable, so the ordering is total and independent of row arrival
+order. This is confined to the P2-20 composition layer: `getCompleteLineageProjection()` and
+`operational-flow-service.ts` are untouched, and the exported value can differ from the
+projection's own only where its source rows were genuinely tied — exactly the case where the
+projection's answer was arbitrary.
 
 ## Tests
 
 `tests/p2-20-audit-export-compatibility-gate.test.ts` — complete canonical export,
 correlation-not-causation, gap preservation, multiple evidence links, Task ≠ Outcome,
 observation reconstruction, redaction (positive and negative), tenant isolation, AOC
-ownership, determinism under shuffled rows, and legacy regression.
+ownership, determinism under shuffled rows, and legacy regression. Review-closure sections:
+**N** value-based credential redaction (neutral key, nested neutral key, ordinary URL and
+prose preserved), **O** boundary-aware key matching (positive and negative controls),
+**P** deterministic latest observation state under tied `recordedAt` with reversed arrival
+order, **Q** correlation scope for nested lineage events, **R** audit-limit normalization.
 
 ## Known limitations
 
