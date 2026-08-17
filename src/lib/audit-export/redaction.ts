@@ -16,9 +16,11 @@
  *  2. BOUNDED RECURSIVE VALUE REDACTION. Everything that survives the allowlist — plus the
  *     audit-record payload/metadata, which ARE the audit evidence and cannot be dropped —
  *     is walked by `redactSecretLikeValues()` from src/lib/security/redaction.ts (the
- *     repository's existing Perilla 10 mechanism, depth-bounded at 8) after an
+ *     repository's existing Perilla 10 mechanism, depth-bounded at 8) after a boundary-aware
  *     export-specific key sweep for categories that module does not cover by name
- *     (credential/bearer/session/connection-string/raw provider error objects).
+ *     (credential/bearer/session/connection-string/raw provider error objects), and followed
+ *     by an export-specific VALUE pass for credential-bearing URIs and provider credential
+ *     shapes the shared walker does not recognize.
  *
  * Redaction never deletes audit metadata. Provenance, actor, timestamps, canonical IDs,
  * evidence references, governance references, relationship classification and material
@@ -30,50 +32,76 @@ import type { LineageStepKind } from "@/lib/operational-flow/types";
 import { REDACTION_MARKER } from "./types";
 
 /**
- * Key fragments redacted by NAME anywhere in the export.
+ * ── Sensitive key classification ────────────────────────────────────────────────────────
  *
- * The first block mirrors REDACTED_KEY_FRAGMENTS in src/lib/security/redaction.ts. It is
- * restated rather than imported because that constant is module-private, and because the
- * export must be able to NAME every key it redacted in its redaction report — running the
- * shared walker alone would redact silently. The shared walker still runs afterwards for
- * secret-SHAPED values, so the two mechanisms compose rather than replace each other.
+ * Keys are classified on TOKEN BOUNDARIES, never by raw substring containment.
+ *
+ * Substring containment redacted legitimate structured audit evidence purely because a
+ * sensitive fragment happened to appear inside an unrelated word: `session_type`,
+ * `stack_rank` and `credentials_excluded` are audit FACTS, not secrets, and losing them
+ * destroys evidence the export exists to carry. A key is therefore normalized into
+ * lowercase tokens (separators AND camel-case boundaries) and matched by four deliberate,
+ * enumerable rules:
+ *
+ *   1. SENSITIVE_KEY_TOKENS       — a token that is sensitive wherever it appears.
+ *   2. SENSITIVE_TERMINAL_TOKENS  — a token that is sensitive only as the LAST token.
+ *   3. SENSITIVE_EXACT_KEYS       — the whole normalized key, verbatim.
+ *   4. QUALIFIED PAIRS            — `<qualifier> key`, `<qualifier> error`, `<qualifier> stack`.
+ *
+ * This preserves every name the previous fragment list protected. The only deliberate
+ * narrowings are `session`, `stack` and `credential`, which now require either an exact
+ * match or a sensitive qualifier/terminal position — the three fragments that were
+ * destroying legitimate audit facts.
  */
-const EXPORT_REDACTED_KEY_FRAGMENTS = [
-  "secret",
-  "token",
-  "password",
-  "authorization",
-  "cookie",
-  "service_role",
-  "servicerole",
-  "webhook",
-  "hmac",
-  "apikey",
-  "api_key",
-  "privatekey",
-  "private_key",
-  "credential",
-  "bearer",
-  "session",
-  "passphrase",
-  "connectionstring",
-  "connection_string",
-  "dsn",
-  "rawerror",
-  "raw_error",
-  "providererror",
-  "provider_error",
-  "stack",
-  "authheader",
-  "auth_header",
-  "accesskey",
-  "access_key",
-  "clientsecret",
-  "signingkey",
-  "signing_key",
-  "encryptionkey",
-  "encryption_key",
-] as const;
+
+/** Sensitive wherever the token appears in the key. */
+const SENSITIVE_KEY_TOKENS = new Set([
+  "secret", "secrets", "token", "password", "passwd", "passphrase",
+  "authorization", "cookie", "cookies", "hmac", "jwt", "bearer", "webhook", "dsn",
+  // Separator-less spellings, which normalize to a single token.
+  "apikey", "privatekey", "servicerole", "connectionstring", "stacktrace", "authheader",
+  "accesskey", "clientsecret", "signingkey", "encryptionkey", "rawerror", "providererror",
+]);
+
+/**
+ * Sensitive only as the LAST token. `provider_credentials` is a secret;
+ * `credentials_excluded` is an audit fact recording that credentials were NOT included.
+ */
+const SENSITIVE_TERMINAL_TOKENS = new Set(["credential", "credentials"]);
+
+/** Sensitive as a whole key only. Each of these names a secret when it stands alone. */
+const SENSITIVE_EXACT_KEYS = new Set([
+  "session", "stack", "stack_trace", "auth_header", "service_role",
+  "connection_string", "connection_uri", "connection_url", "database_url", "db_url",
+  "raw_error", "provider_error",
+]);
+
+/**
+ * Qualifiers that make a trailing `key` token sensitive. Deliberately excludes the many
+ * legitimate `*_key` audit columns — `idempotency_key`, `source_key`, `rule_key`,
+ * `normalizer_key`, `provider_key`, `derivation_idempotency_key` — which are canonical
+ * identifiers, not credentials.
+ */
+const SENSITIVE_KEY_QUALIFIERS = new Set([
+  "api", "private", "access", "secret", "signing", "encryption", "service", "role",
+  "client", "session", "auth", "master", "shared",
+]);
+
+/** Qualifiers that make a trailing `error` token a RAW PROVIDER error object. */
+const SENSITIVE_ERROR_QUALIFIERS = new Set(["raw", "provider", "upstream", "driver", "sdk"]);
+
+/** Qualifiers that make a trailing `stack` token a stack trace. */
+const SENSITIVE_STACK_QUALIFIERS = new Set(["error", "exception", "call", "raw", "provider"]);
+
+/** Splits a key on separators AND camel-case boundaries into lowercase tokens. */
+function normalizeKeyTokens(key: string): string[] {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(/[^a-zA-Z0-9]+/)
+    .filter((part) => part.length > 0)
+    .map((part) => part.toLowerCase());
+}
 
 /** Categories reported to the auditor as never emitted. */
 export const REDACTED_CATEGORIES = [
@@ -108,8 +136,89 @@ export const PRESERVED_AUDIT_FIELDS = [
 ] as const;
 
 export function isExportRedactedKey(key: string): boolean {
-  const lower = key.toLowerCase();
-  return EXPORT_REDACTED_KEY_FRAGMENTS.some((fragment) => lower.includes(fragment));
+  const tokens = normalizeKeyTokens(key);
+  if (tokens.length === 0) return false;
+  if (SENSITIVE_EXACT_KEYS.has(tokens.join("_"))) return true;
+  if (tokens.some((token) => SENSITIVE_KEY_TOKENS.has(token))) return true;
+
+  const last = tokens[tokens.length - 1];
+  if (SENSITIVE_TERMINAL_TOKENS.has(last)) return true;
+
+  const qualifier = tokens.length > 1 ? tokens[tokens.length - 2] : null;
+  if (!qualifier) return false;
+  if (last === "key") return SENSITIVE_KEY_QUALIFIERS.has(qualifier);
+  if (last === "error" || last === "errors") return SENSITIVE_ERROR_QUALIFIERS.has(qualifier);
+  if (last === "stack") return SENSITIVE_STACK_QUALIFIERS.has(qualifier);
+  return false;
+}
+
+/**
+ * ── Value-based credential detection ────────────────────────────────────────────────────
+ *
+ * `redactSecretLikeValues()` matches secret-SHAPED values (Stripe keys, JWTs, `Bearer …`,
+ * `service_role…`) but does not recognize a credential-bearing URI. A credential stored
+ * under a NEUTRAL key — `{ "value": "postgresql://user:password@db/pmfreak" }` — therefore
+ * survived both the key sweep (the key is innocuous) and the shared walker (the value is
+ * not a shape it knows), while REDACTED_CATEGORIES claims connection strings and provider
+ * credentials are never emitted.
+ *
+ * These patterns close that gap and nothing wider. They are bounded, enumerable and
+ * anchored on structure a credential must have, so ordinary URLs and business prose are
+ * untouched: `https://example.com/report` has no userinfo, and prose mentioning "postgres"
+ * is not a URI. This is NOT a general secret detector and must not grow into one.
+ */
+const EXPORT_SECRET_VALUE_PATTERNS: RegExp[] = [
+  /**
+   * Any URI carrying userinfo credentials: `scheme://user:password@host/…`. The userinfo
+   * must sit before the first path/query/fragment separator, so a `@` inside a path does
+   * not make an ordinary URL look like a credential. Mirrors the established
+   * CONNECTION_STRING_WITH_CREDENTIALS_PATTERN in
+   * src/features/pmfreak-integrations/aoc-governance-request-client/
+   * pmfreak-aoc-evidence-requirement-handoff-redaction.ts, restated because that constant
+   * is module-private to a feature the export layer does not depend on.
+   */
+  /\b[a-z][a-z0-9+.-]*:\/\/[^\s/?#@"'()<>]+(?::[^\s/?#@"'()<>]*)?@[^\s"'()<>]+/gi,
+  /**
+   * PostgreSQL connection strings, credentials or not. These are the connection-string
+   * schemes this repository actually uses (SUPABASE_DB_URL / FRESH_DB_URL in .env.example,
+   * docs/release/database-bootstrap-runbook.md, tests/fresh-db-migrations-safety-guard);
+   * no other scheme has repository evidence, and any other scheme carrying credentials is
+   * already covered by the userinfo pattern above.
+   */
+  /\b(?:postgresql|postgres):\/\/[^\s"'()<>]+/gi,
+  /**
+   * Provider credential shapes claimed by REDACTED_CATEGORIES that the shared walker does
+   * not match by value. Each is bounded to a provider this repository configures:
+   * OPENAI_API_KEY (`sk-…`, which also covers `sk-ant-…`), GITHUB_TOKEN (`ghp_…`,
+   * `github_pat_…`), and the Basic counterpart of the `Bearer …` authorization header.
+   *
+   * The Basic credential additionally requires a digit or base64 punctuation, so the phrase
+   * "Basic characterization…" in ordinary prose is not mistaken for an encoded credential.
+   */
+  /\bsk-[A-Za-z0-9_-]{20,}/g,
+  /\bgh[pousr]_[A-Za-z0-9]{20,}/g,
+  /\bgithub_pat_[A-Za-z0-9_]{20,}/g,
+  /\bBasic\s+(?=[A-Za-z0-9+/=]*[0-9+/=])[A-Za-z0-9+/=]{20,}/g,
+];
+
+/** Applies the export's value-based credential patterns to one string. */
+function redactExportSecretValues(value: string): string {
+  let result = value;
+  for (const pattern of EXPORT_SECRET_VALUE_PATTERNS) result = result.replace(pattern, REDACTION_MARKER);
+  return result;
+}
+
+/** Bounded recursive walk applying `redactExportSecretValues` to every nested string. */
+function redactExportSecretValuesDeep(input: unknown, depth: number): unknown {
+  if (depth > 8) return "[max-depth]";
+  if (typeof input === "string") return redactExportSecretValues(input);
+  if (input === null || typeof input !== "object") return input;
+  if (Array.isArray(input)) return input.map((item) => redactExportSecretValuesDeep(item, depth + 1));
+  const output: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    output[key] = redactExportSecretValuesDeep(value, depth + 1);
+  }
+  return output;
 }
 
 /**
@@ -139,14 +248,19 @@ function sweepSensitiveKeys(input: unknown, redactedKeys: Set<string>, depth: nu
  *
  * Pass 1 removes sensitive-by-name keys and records them; pass 2 runs the repository's
  * existing `redactSecretLikeValues()` so secret-SHAPED values (JWTs, `sk_live_…`,
- * `Bearer …`, `service_role…`) are removed even when the key name is innocuous.
+ * `Bearer …`, `service_role…`) are removed even when the key name is innocuous; pass 3
+ * applies the export's value-based credential patterns, which catch a credential-bearing
+ * connection string stored under a neutral key.
  */
 export function redactAuditValue(
   input: unknown,
   redactedKeys: Set<string>,
   depth = 0,
 ): unknown {
-  return redactSecretLikeValues(sweepSensitiveKeys(input, redactedKeys, depth), depth);
+  return redactExportSecretValuesDeep(
+    redactSecretLikeValues(sweepSensitiveKeys(input, redactedKeys, depth), depth),
+    depth,
+  );
 }
 
 /**
@@ -160,9 +274,10 @@ export function redactAuditValue(
  * value embedded in one of those strings would reach the export through the presentation
  * surface even though its raw column was withheld.
  *
- * Only secret-SHAPED substrings are replaced; ordinary business prose passes through
- * unchanged, and identifiers/timestamps are never structurally altered. `surface` names the
- * field for the redaction report so a redaction here is visible rather than silent.
+ * Only secret-SHAPED substrings and credential-bearing URIs are replaced; ordinary business
+ * prose — including an ordinary `https://` link — passes through unchanged, and
+ * identifiers/timestamps are never structurally altered. `surface` names the field for the
+ * redaction report so a redaction here is visible rather than silent.
  */
 export function redactText<T extends string | null>(
   surface: string,
@@ -170,7 +285,7 @@ export function redactText<T extends string | null>(
   redactedSurfaces: Set<string>,
 ): T {
   if (value === null || value === undefined) return value;
-  const redacted = redactSecretLikeValues(value) as string;
+  const redacted = redactExportSecretValues(redactSecretLikeValues(value) as string);
   if (redacted !== value) redactedSurfaces.add(surface);
   return redacted as T;
 }
