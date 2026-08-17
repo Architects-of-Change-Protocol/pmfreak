@@ -2,7 +2,8 @@
 
 import useSWR from "swr";
 import type { OperationalSummary } from "@/lib/operational-flow/types";
-import type { Agent, NeedsYouItem, RepositoryItem, StatusTone } from "./types";
+import type { Agent, DetailRow, NeedsYouItem, RepositoryItem, StatusTone, ToneBadge } from "./types";
+import { buildCanonicalAttention, selectPendingAttention, type CanonicalAttentionItem } from "./attention-read-model";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -112,68 +113,182 @@ export async function postRaidActionDecision(payload: {
   return result;
 }
 
-function severityTone(severity: unknown): StatusTone {
-  return severity === "critical" || severity === "high" ? "danger" : "approval";
-}
-
-/** Joins the evidence -> signal -> risk -> governance -> recommendation -> decision chain,
- *  mirroring the join logic the operational decision loop used before this redesign. */
-function buildChainRows(data: OperationalSummary) {
-  return (data.signals ?? []).map((signal) => {
-    const evidence = data.evidence.find((item) => item.id === signal.evidence_item_id);
-    const risk = data.risksIssues.find((item) => item.signal_id === signal.id);
-    const governance = data.governanceEvents.find((item) => item.related_entity_id === risk?.id);
-    const recommendation = data.recommendations.find((item) => item.governance_event_id === governance?.id);
-    const recommendationDecisions = data.decisions.filter((item) => item.recommendation_id === recommendation?.id);
-    const terminalDecision = recommendationDecisions.find((item) => ["accepted", "rejected", "modified"].includes(String(item.decision_status)));
-    return { evidence, signal, risk, governance, recommendation, terminalDecision };
-  });
-}
-
+/** RAID-derived suggested actions have their own bounded decision vocabulary, served by
+ *  `/api/recommended-actions/decision`. `deferred` exists here and NOT on the governed path. */
 export type DecisionStatus = "accepted" | "rejected" | "deferred";
 
-/** Builds Needs You cards from real recommendations awaiting a decision. `onDecide` is called with
- *  the recommendation id and chosen status; the caller is responsible for posting it and refreshing. */
+function labelize(value: string | null): string | null {
+  return value ? value.replaceAll("_", " ") : null;
+}
+
+function describeEvidenceQuality(quality: CanonicalAttentionItem["evidenceQuality"]): DetailRow[] {
+  const rows: DetailRow[] = [];
+  if (quality.evidenceConfidence !== null) {
+    rows.push({ label: "Evidence confidence", value: `${Math.round(quality.evidenceConfidence * 100)}% (recorded at derivation)` });
+  }
+  if (quality.ruleMatchScore !== null) {
+    // Explicitly not an "AI confidence": the detector is a deterministic rule engine.
+    rows.push({ label: "Rule match score", value: `${quality.ruleMatchScore}% (deterministic rule, not a model score)` });
+  }
+  if (quality.missingDataState) rows.push({ label: "Missing data", value: String(labelize(quality.missingDataState)) });
+  if (quality.freshnessState) rows.push({ label: "Freshness", value: String(labelize(quality.freshnessState)) });
+  if (quality.lifecycle) rows.push({ label: "Evidence lifecycle", value: String(labelize(quality.lifecycle)) });
+  if (quality.staleAt) rows.push({ label: "Stale after", value: quality.staleAt });
+  if (quality.degradedReason) rows.push({ label: "Degraded reason", value: quality.degradedReason });
+  if (quality.fixtureState) rows.push({ label: "Data state", value: quality.isFixture ? "DEMO / FIXTURE" : "Live" });
+  if (rows.length === 0) rows.push({ label: "Evidence quality", value: "Not recorded for this evidence item." });
+  return rows;
+}
+
+function describeProvenance(item: CanonicalAttentionItem): DetailRow[] {
+  const p = item.provenance;
+  const rows: DetailRow[] = [];
+  if (p.sourceType) rows.push({ label: "Source type", value: String(labelize(p.sourceType)) });
+  if (p.sourceReference) rows.push({ label: "Source reference", value: p.sourceReference });
+  if (p.evidenceTitle) rows.push({ label: "Evidence", value: p.evidenceTitle });
+  if (p.assertionType) rows.push({ label: "Assertion type", value: p.assertionType });
+  if (p.classification) rows.push({ label: "Classification", value: String(labelize(p.classification)) });
+  if (p.occurredAt) rows.push({ label: "Occurred at", value: p.occurredAt });
+  if (p.recordedAt) rows.push({ label: "Recorded at", value: p.recordedAt });
+  if (p.evaluatedAt) rows.push({ label: "Evaluated at", value: p.evaluatedAt });
+  if (rows.length === 0) rows.push({ label: "Provenance", value: "No linked evidence provenance is recorded." });
+  return rows;
+}
+
+function describeReferences(item: CanonicalAttentionItem): DetailRow[] {
+  const rows: DetailRow[] = [{ label: "Recommendation ID", value: item.recommendationId }];
+  if (item.governanceEventId) rows.push({ label: "Governance event ID", value: item.governanceEventId });
+  if (item.riskIssueId) rows.push({ label: "Risk / Issue ID", value: item.riskIssueId });
+  if (item.signalId) rows.push({ label: "Finding / Signal ID", value: item.signalId });
+  for (const evidenceId of item.evidenceIds) rows.push({ label: "Evidence ID", value: evidenceId });
+  if (item.provenance.normalizedEventId) rows.push({ label: "Normalized event ID", value: item.provenance.normalizedEventId });
+  if (item.provenance.rawInputId) rows.push({ label: "Raw input ID", value: item.provenance.rawInputId });
+  if (item.provenance.evidenceHashShort) rows.push({ label: "Evidence digest", value: `sha256 ${item.provenance.evidenceHashShort}` });
+  return rows;
+}
+
+/**
+ * Builds Needs You cards from canonical governed Recommendations awaiting a human Decision.
+ *
+ * `onDecide` receives the canonical Recommendation id, the canonical Decision status and the
+ * PM's rationale, and must reject on failure so the drawer can keep the input and show the error.
+ */
 export function deriveNeedsYou(
   data: OperationalSummary | undefined,
-  onDecide: (recommendationId: string, status: DecisionStatus, authorityRequired: string) => void
+  onDecide: (recommendationId: string, status: string, rationale: string) => Promise<void>
 ): NeedsYouItem[] {
-  if (!data) return [];
-  const rows = buildChainRows(data);
-  return rows
-    .filter((row) => row.recommendation && row.recommendation.status === "proposed" && !row.terminalDecision)
-    .map((row) => {
-      const recommendation = row.recommendation as AnyRecord;
-      const recommendationId = String(recommendation.id);
-      const tone = severityTone(row.signal.severity);
-      const authorityRequired = String(row.governance?.authority_required ?? "an authorized reviewer");
-      const authority = (recommendation.actor_authority ?? {}) as Record<string, { allowed?: boolean }>;
-      const canDecide = Object.values(authority).some((a) => a?.allowed);
-      const evidenceLines = [
-        row.evidence ? `${String(row.evidence.source_reference ?? row.evidence.title ?? "Evidence")}` : null,
-        row.signal ? String(row.signal.summary ?? "") : null,
-      ].filter(Boolean) as string[];
-      return {
-        id: `rec-${recommendationId}`,
-        title: String(recommendation.recommendation ?? "Review recommendation"),
-        badge: { tone, label: tone === "danger" ? "Warning" : "Approval" },
-        drawer: {
-          title: String(recommendation.recommendation ?? "Review recommendation"),
-          why: String(row.risk?.rationale ?? row.governance?.explanation ?? "This needs a human decision before it proceeds."),
-          evidence: evidenceLines.length ? evidenceLines : ["No linked evidence yet"],
-          nextStep: `Requires ${authorityRequired} to accept, reject, or defer.`,
-          actions: canDecide
-            ? [
-                { label: "Accept", onClick: () => onDecide(recommendationId, "accepted", authorityRequired) },
-                { label: "Reject", onClick: () => onDecide(recommendationId, "rejected", authorityRequired) },
-                { label: "Defer", onClick: () => onDecide(recommendationId, "deferred", authorityRequired) },
-              ]
-            : [],
-          note: canDecide ? undefined : `Requires an authorized decision-maker for: ${authorityRequired}.`,
+  return selectPendingAttention(buildCanonicalAttention(data)).map((item) => toNeedsYouItem(item, onDecide));
+}
+
+/** Projects every governed Recommendation — pending and already decided — so an open drawer can
+ *  reconcile against persisted state instead of showing a stale snapshot. */
+export function deriveAllGovernedAttention(
+  data: OperationalSummary | undefined,
+  onDecide: (recommendationId: string, status: string, rationale: string) => Promise<void>
+): NeedsYouItem[] {
+  return buildCanonicalAttention(data).map((item) => toNeedsYouItem(item, onDecide));
+}
+
+function toNeedsYouItem(
+  item: CanonicalAttentionItem,
+  onDecide: (recommendationId: string, status: string, rationale: string) => Promise<void>
+): NeedsYouItem {
+  const decided = item.state === "decided";
+  const badge: ToneBadge = decided
+    ? { tone: "success", label: "Decision recorded" }
+    : { tone: item.tone, label: "Governed · decision required" };
+
+  const chain: DetailRow[] = [
+    { label: "Evidence", value: item.provenance.evidenceTitle ?? item.provenance.sourceReference ?? "No linked evidence" },
+    { label: "Finding", value: labelize(item.signalType) ?? "No detected signal" },
+    { label: "Risk / Issue", value: labelize(item.riskIssueType) ?? "Not created" },
+    { label: "Governance", value: labelize(item.governance.ruleKey) ?? "Pending" },
+    { label: "Authority required", value: item.governance.authorityRequired },
+    { label: "Recommendation", value: `${item.title} · ${labelize(item.recommendationStatus)}` },
+    {
+      label: "Decision",
+      value: item.terminalDecision
+        ? `${labelize(item.terminalDecision.decisionStatus)} · recorded`
+        : "Not yet recorded — a human decision is required",
+    },
+  ];
+
+  const evidenceLines = [
+    item.provenance.sourceReference ?? item.provenance.evidenceTitle,
+    item.evidenceQuality.evidenceMissing ? "No supporting evidence is linked to this recommendation." : null,
+    item.evidenceQuality.isFixture ? "DEMO / FIXTURE evidence — not live project data." : null,
+  ].filter(Boolean) as string[];
+
+  const readOnlyNote = item.anyDecisionAllowed
+    ? null
+    : `You can review this item, but your role cannot record a Decision on it. This governance rule requires: ${item.governance.authorityRequired}.`;
+
+  return {
+    id: item.id,
+    kind: "governed_recommendation",
+    title: item.title,
+    badge,
+    recommendationId: item.recommendationId,
+    drawer: {
+      title: item.title,
+      badge,
+      kindSummary:
+        "Governed Recommendation — system output produced by the evidence chain. It is a proposal, not a decision, and not an action.",
+      why: item.why,
+      evidence: evidenceLines.length ? evidenceLines : ["No linked evidence yet"],
+      nextStep: decided
+        ? "A Decision is already recorded. Any governed Action is a separate, later step."
+        : `Requires ${item.governance.authorityRequired}. Recording a Decision does not create an Action, Task or Outcome.`,
+      chain,
+      sections: [
+        { id: "provenance", title: "Provenance", rows: describeProvenance(item) },
+        { id: "evidence-quality", title: "Evidence quality", rows: describeEvidenceQuality(item.evidenceQuality) },
+        {
+          id: "governance",
+          title: "Governance",
+          rows: [
+            { label: "Rule", value: labelize(item.governance.ruleKey) ?? "Not recorded" },
+            { label: "Status", value: labelize(item.governance.governanceStatus) ?? "Not recorded" },
+            { label: "Authority required", value: item.governance.authorityRequired },
+            { label: "Explanation", value: item.governance.explanation ?? "Not recorded" },
+          ],
         },
-        recommendationId,
-      } satisfies NeedsYouItem;
-    });
+        { id: "references", title: "Canonical references", rows: describeReferences(item) },
+      ],
+      decisionPanel: {
+        kind: "governed_recommendation",
+        subjectId: item.recommendationId,
+        writePathLabel: "Records a canonical operational_decision_records entry with a frozen evidence snapshot.",
+        controls: item.decisionOptions.map((option) => ({
+          status: option.status,
+          label: option.label,
+          effect: option.effect,
+          terminal: option.terminal,
+          allowed: option.allowed,
+          deniedExplanation: option.deniedExplanation,
+        })),
+        anyAllowed: item.anyDecisionAllowed,
+        readOnlyNote,
+        blockedReason: item.evidenceQuality.evidenceMissing
+          ? "This Decision cannot be safely evaluated because the supporting evidence is missing."
+          : null,
+        requiresRationale: true,
+        onDecide: (status, rationale) => onDecide(item.recommendationId, status, rationale),
+        decisions: item.decisions.map((decision) => ({
+          decisionId: decision.decisionId,
+          decisionStatus: decision.decisionStatus,
+          terminal: decision.terminal,
+          rationale: decision.rationale,
+          decidedBy: decision.decidedBy,
+          recordedAt: decision.recordedAt,
+          authorityBasis: decision.authorityBasis,
+          evidenceSnapshot: decision.evidenceSnapshotHashShort
+            ? `sha256 ${decision.evidenceSnapshotHashShort}${decision.evidenceSnapshotVersion ? ` · v${decision.evidenceSnapshotVersion}` : ""}`
+            : null,
+        })),
+      },
+    },
+  } satisfies NeedsYouItem;
 }
 
 /** Builds Needs You cards from RAID-derived recommended actions awaiting triage.
@@ -181,7 +296,7 @@ export function deriveNeedsYou(
  *  extracted risk doesn't flood the queue. `onDecide` receives the action id. */
 export function deriveRaidNeedsYou(
   actions: RaidRecommendedAction[] | undefined,
-  onDecide: (actionId: string, status: DecisionStatus) => void
+  onDecide: (actionId: string, status: DecisionStatus, reason: string) => Promise<void>
 ): NeedsYouItem[] {
   if (!actions || actions.length === 0) return [];
   const bestPerRaidItem = new Map<string, RaidRecommendedAction>();
@@ -207,20 +322,53 @@ export function deriveRaidNeedsYou(
       action.recommended_owner ? `Suggested owner: ${action.recommended_owner}.` : null,
       action.recommended_due_window ? `Suggested timing: ${action.recommended_due_window}.` : null,
     ].filter(Boolean);
+    // Deliberately different badge, kind summary and write-path language from the governed
+    // chain above: this is extracted intelligence in a bounded workflow, not a governed
+    // Recommendation, and deciding it does NOT write an operational_decision_records row.
+    const badge: ToneBadge = { tone, label: "Suggestion · extracted intelligence" };
     return {
       id: `raid-action-${action.id}`,
+      kind: "raid_suggestion",
       title: action.title,
-      badge: { tone, label: tone === "danger" ? "Warning" : "Suggested" },
+      badge,
       drawer: {
         title: action.title,
+        badge,
+        kindSummary:
+          "RAID-derived suggested action — extracted from your notes in a bounded workflow. It is not a governed Recommendation and carries no governance authority requirement.",
         why: action.description,
         evidence: evidenceLines.length ? evidenceLines : ["Extracted from the project's recorded notes."],
-        nextStep: nextStepParts.length ? nextStepParts.join(" ") : "Accept, reject, or defer this suggested action.",
-        actions: [
-          { label: "Accept", onClick: () => onDecide(action.id, "accepted") },
-          { label: "Reject", onClick: () => onDecide(action.id, "rejected") },
-          { label: "Defer", onClick: () => onDecide(action.id, "deferred") },
+        nextStep: nextStepParts.length ? nextStepParts.join(" ") : "Triage this suggested action.",
+        sections: [
+          {
+            id: "raid-detail",
+            title: "Suggestion detail",
+            rows: [
+              { label: "Action type", value: String(labelize(action.recommended_action_type) ?? action.recommended_action_type) },
+              { label: "Impact", value: impact },
+              { label: "Extraction confidence", value: `${Math.round(Number(action.confidence_score) * 100)}%` },
+              { label: "Suggested action ID", value: action.id },
+              ...(action.raid_item_id ? [{ label: "RAID item ID", value: action.raid_item_id }] : []),
+            ],
+          },
         ],
+        decisionPanel: {
+          kind: "raid_suggestion",
+          subjectId: action.id,
+          writePathLabel:
+            "Triage only — updates this suggested action through /api/recommended-actions/decision. No canonical operational Decision record is created.",
+          controls: [
+            { status: "accepted", label: "Accept", effect: "Marks this suggested action as accepted for triage.", terminal: true, allowed: true, deniedExplanation: null },
+            { status: "rejected", label: "Reject", effect: "Dismisses this suggested action.", terminal: true, allowed: true, deniedExplanation: null },
+            { status: "deferred", label: "Defer", effect: "Snoozes this suggested action for a week.", terminal: false, allowed: true, deniedExplanation: null },
+          ],
+          anyAllowed: true,
+          readOnlyNote: null,
+          blockedReason: null,
+          requiresRationale: false,
+          onDecide: (status, reason) => onDecide(action.id, status as DecisionStatus, reason),
+          decisions: [],
+        },
       },
     } satisfies NeedsYouItem;
   });
