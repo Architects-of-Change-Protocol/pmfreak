@@ -16,6 +16,7 @@ import {
   revokeGovernedMaterialAction,
   runEvidenceDecisionChain,
 } from "@/lib/operational-flow/operational-flow-service";
+import { buildCanonicalAuditExportPackage } from "@/lib/audit-export";
 import type { EvidenceAssertionType, EvidenceClassification, MissingDataState } from "@/lib/operational-flow/types";
 import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
 
@@ -76,6 +77,14 @@ export async function GET(request: Request) {
     if (view === "audit") {
       const auditTrail = await reconstructAuditTrail(authorized.supabase, workspaceId, projectId, { correlationId, limit });
       return Response.json({ auditTrail });
+    }
+    if (view === "audit_export") {
+      // P2-20: one canonical, redacted, gap-aware package. Same authorize() gate, same
+      // request-scoped client — the export layer adds no data access of its own.
+      const auditExport = await buildCanonicalAuditExportPackage(authorized.supabase, workspaceId, projectId, {
+        outcomeId, taskId, correlationId, auditRecordLimit: limit,
+      });
+      return Response.json({ auditExport });
     }
     return Response.json(await getOperationalSummary(authorized.supabase, workspaceId, projectId, authorized.user.id));
   } catch (error) {
