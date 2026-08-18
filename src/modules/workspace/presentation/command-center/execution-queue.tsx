@@ -2,18 +2,18 @@ import type { GovernedExecutionChain } from "./execution-read-model";
 import { StatusBadge } from "./status-badge";
 import { SectionEmptyState, SectionLoadingState } from "./section-empty-state";
 
-/** Short, honest one-liner for where a chain currently stands. */
-function describe(chain: GovernedExecutionChain): string {
-  if (!chain.action) {
-    return chain.decisionStatus === "rejected"
-      ? "Decision recorded — rejected, so no action follows"
-      : "Decision recorded — no action requested yet";
-  }
-  if (!chain.task) return "Action authorized — no task yet";
-  if (!chain.outcome) return chain.boundary.executionCompleted ? "Work completed — no expected outcome yet" : "Task created — work in progress";
-  if (chain.observations.length === 0) return "Outcome expected — no observation yet";
-  return `Observed: ${chain.observations[0].observationState.replaceAll("_", " ")}`;
-}
+/*
+ * Badge and summary both come from `chain.status`, which the read model derives from
+ * persisted state: the canonical Decision status, the latest governance evaluation of each
+ * Action, and whether an authorization has expired.
+ *
+ * Two things this must never do. It must not describe a terminal stopped Decision as
+ * unfinished work — a rejected Decision is reported as rejected before any progress
+ * reading. And it must not describe an Action as "authorized" unless the governance state
+ * P2-07 requires is the one actually persisted; `requires_approval`, `denied`,
+ * `unavailable`, `degraded`, `revoked` and expired authorizations are each named as the
+ * contract names them.
+ */
 
 export function ExecutionQueue({
   chains,
@@ -54,11 +54,9 @@ export function ExecutionQueue({
             >
               <span className="min-w-0">
                 <span className="block truncate text-sm text-zinc-200">{chain.title}</span>
-                <span className="block truncate text-[11px] text-zinc-500">{describe(chain)}</span>
+                <span className="block truncate text-[11px] text-zinc-500">{chain.status.detail}</span>
               </span>
-              <StatusBadge tone={chain.boundary.outcomeAchieved ? "success" : "task"}>
-                {chain.boundary.outcomeAchieved ? "Outcome achieved" : "In progress"}
-              </StatusBadge>
+              <StatusBadge tone={chain.status.tone}>{chain.status.label}</StatusBadge>
             </button>
           </li>
         ))}

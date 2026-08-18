@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { OperationalSummary } from "@/lib/operational-flow/types";
 import type { Agent, ChatMessage, DrawerContent, MemoryItem, NeedsYouItem, ProjectListItem, RepositoryItem } from "../../presentation/command-center/types";
 import {
@@ -13,6 +13,7 @@ import {
   deriveRepository,
   postOperationalFlow,
   postRaidActionDecision,
+  reconcileExecutionAttempts,
   runExecutionOperation,
   useOperationalFlow,
   useRaidRecommendedActions,
@@ -229,6 +230,12 @@ export function CommandCenterLayout({
   // evidence a PM may cite when recording an Observation.
   const executionChains = useMemo(() => deriveExecutionChains(flowData), [flowData]);
   const evidenceOptions = useMemo(() => deriveEvidenceOptions(flowData), [flowData]);
+  // A submission whose response was lost still landed. Retire its pending attempt from the
+  // server's own persisted idempotency key, so a later honest re-submission is recorded as
+  // its own event instead of colliding with the row that attempt already wrote.
+  useEffect(() => {
+    reconcileExecutionAttempts(workspaceId, selectedProject?.id ?? "", executionChains);
+  }, [workspaceId, selectedProject?.id, executionChains]);
 
   const repositoryReal = useMemo(() => deriveRepository(flowData), [flowData]);
   const agentsReal = useMemo(() => deriveAgents(flowData, hasBrief), [flowData, hasBrief]);
@@ -330,24 +337,42 @@ export function CommandCenterLayout({
     setOpenChainId(chain.decisionId);
   };
 
-  /** Builds the drawer for a governed chain, resolved fresh so it reconciles after each write. */
-  const buildChainDrawer = (chain: GovernedExecutionChain): DrawerContent => ({
-    title: chain.title,
-    why: chain.rationale ?? "A human decision was recorded for this recommendation.",
-    evidence: chain.action?.evidenceReferenceIds ?? [],
-    nextStep: chain.boundary.statement,
-    badge: { tone: chain.boundary.outcomeAchieved ? "success" : "task", label: "Governed · after decision" },
-    kindSummary: "The governed chain that follows your recorded decision.",
-    chain: [
-      { label: "Decision", value: `${chain.decisionStatus.replaceAll("_", " ")} · ${chain.decisionId}` },
-      { label: "Material action", value: chain.action ? `${chain.action.governanceState.replaceAll("_", " ")} · ${chain.action.actionId}` : "Not requested" },
-      { label: "Task", value: chain.task ? `${chain.task.status.replaceAll("_", " ")} · ${chain.task.taskId}` : "Not created" },
-      { label: "Execution", value: chain.latestExecution ? `${chain.latestExecution.status.replaceAll("_", " ")} · ${chain.latestExecution.executionId}` : "Not started" },
-      { label: "Expected outcome", value: chain.outcome ? `${chain.outcome.state.replaceAll("_", " ")} · ${chain.outcome.outcomeId}` : "Not defined" },
-      { label: "Observation", value: chain.observations.length > 0 ? `${chain.observations[0].observationState.replaceAll("_", " ")} · ${chain.observations[0].observationId}` : "None recorded" },
-    ],
-    executionPanel: { chain, evidenceOptions, onRun: handleRunExecution },
-  });
+  /** Builds the drawer for a governed chain, resolved fresh so it reconciles after each write.
+   *  The summary rows describe the branch the chain currently speaks for; every other
+   *  canonical Action stays rendered in full inside the panel below. */
+  const buildChainDrawer = (chain: GovernedExecutionChain): DrawerContent => {
+    const leading =
+      chain.branches.find((branch) => branch.boundary.outcomeAchieved) ??
+      chain.branches.find((branch) => branch.task !== null || branch.action.dispatchable) ??
+      chain.branches[0] ??
+      null;
+    const actionValue = leading
+      ? `${leading.action.governanceState.replaceAll("_", " ")}${leading.action.expired ? " (expired)" : ""} · ${leading.action.actionId}` +
+        (chain.branches.length > 1 ? ` · ${chain.branches.length} actions on this decision` : "")
+      : "Not requested";
+    return {
+      title: chain.title,
+      why: chain.rationale ?? "A human decision was recorded for this recommendation.",
+      evidence: leading?.action.evidenceReferenceIds ?? [],
+      nextStep: chain.boundary.statement,
+      badge: { tone: chain.status.tone, label: `Governed · ${chain.status.label}` },
+      kindSummary: "The governed chain that follows your recorded decision.",
+      chain: [
+        { label: "Decision", value: `${chain.decisionStatus.replaceAll("_", " ")} · ${chain.decisionId}` },
+        { label: "Material action", value: actionValue },
+        { label: "Task", value: leading?.task ? `${leading.task.status.replaceAll("_", " ")} · ${leading.task.taskId}` : "Not created" },
+        { label: "Execution", value: leading?.latestExecution ? `${leading.latestExecution.status.replaceAll("_", " ")} · ${leading.latestExecution.executionId}` : "Not started" },
+        { label: "Expected outcome", value: leading?.outcome ? `${leading.outcome.state.replaceAll("_", " ")} · ${leading.outcome.outcomeId}` : "Not defined" },
+        {
+          label: "Observation",
+          value: leading && leading.observations.length > 0
+            ? `${leading.observations[0].observationState.replaceAll("_", " ")} · ${leading.observations[0].observationId}`
+            : "None recorded",
+        },
+      ],
+      executionPanel: { chain, evidenceOptions, onRun: handleRunExecution },
+    };
+  };
 
   // Resolved fresh on every render: once a decision is persisted and the summary revalidates,
   // the open drawer shows the recorded Decision and drops the now-unavailable controls.

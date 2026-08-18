@@ -6,11 +6,23 @@ import type { Agent, DetailRow, NeedsYouItem, RepositoryItem, StatusTone, ToneBa
 import { buildCanonicalAttention, selectPendingAttention, type CanonicalAttentionItem } from "./attention-read-model";
 import {
   buildExecutionChains,
+  canonicalMaterialActionDraft,
   isObservationEligibleEvidence,
   observationIdempotencyKey,
+  sha256Hex,
+  MATERIAL_ACTION_WINDOW_MS,
+  OBSERVATION_ATTEMPT_WINDOW_MS,
   type ExecutionOperation,
   type GovernedExecutionChain,
 } from "./execution-read-model";
+import {
+  clearSubmissionAttempt,
+  loadSubmissionAttempt,
+  materialActionAttemptKey,
+  observationAttemptKey,
+  reconcileSubmissionAttempt,
+  rememberSubmittedKey,
+} from "./submission-attempt";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -209,13 +221,28 @@ export async function runExecutionOperation(
   operation: ExecutionOperation
 ): Promise<void> {
   if (operation.kind === "material_action") {
-    const now = new Date();
+    // One logical submission, one identity. P2-06 folds `createdAt` and `expiresAt` into
+    // the proposal digest and compares that digest against the row already stored under
+    // this idempotency key, so a retry that mints fresh timestamps is not a replay — it is
+    // a `material_action_idempotency_conflict`. The attempt therefore carries BOTH the key
+    // and the single wall-clock reading, and survives a remount (see `submission-attempt`).
+    //
+    // The attempt is scoped to this Decision and lives only as long as the proposal it
+    // describes could still be accepted. Once that window passes, the next submission is a
+    // genuinely new proposal and takes a new key — which is what lets an expired
+    // authorization be replaced instead of leaving the chain stuck. P2-06 is append-only,
+    // so the superseded Action and its audit trail are untouched.
+    // Scoped by the classification too: correcting a mis-stated answer after a failed
+    // request is a NEW submission, not a conflicting retry of the old one.
+    const draftDigest = await sha256Hex(canonicalMaterialActionDraft(operation.draft, operation.justification));
+    const attemptKey = materialActionAttemptKey(workspaceId, projectId, operation.decisionId, draftDigest);
+    const attempt = loadSubmissionAttempt(attemptKey, { ttlMs: MATERIAL_ACTION_WINDOW_MS });
+    const startedAt = new Date(attempt.startedAt);
+    const idempotencyKey = `p2-12:material-action:${operation.decisionId}:${attempt.attemptId}`;
     await postOperationalFlow(workspaceId, projectId, {
       operation: "propose_material_action",
       decisionId: operation.decisionId,
-      // Deterministic per Decision: retrying reconciles to the same Action instead of
-      // creating a second one (P2-06 idempotency key).
-      idempotencyKey: `p2-12:material-action:${operation.decisionId}`,
+      idempotencyKey,
       // P2-06 derives `materiality` — and therefore the governance state — from these
       // four. They are the authorized human's classification of their own action; the
       // experience never assumes them.
@@ -232,10 +259,14 @@ export async function runExecutionOperation(
       targetResourceId: projectId,
       // The recorded human Decision is the justification for acting.
       justification: operation.justification,
-      createdAt: now.toISOString(),
-      evaluationTime: now.toISOString(),
-      expiresAt: new Date(now.getTime() + 60 * 60 * 1000).toISOString(),
+      // Read once for the attempt, not once per request: identical on every retry.
+      createdAt: attempt.startedAt,
+      evaluationTime: attempt.startedAt,
+      expiresAt: new Date(startedAt.getTime() + MATERIAL_ACTION_WINDOW_MS).toISOString(),
     });
+    // Accepted (created or replayed): this submission is closed, and the next one — a
+    // replacement authorization, say — must take its own identity.
+    clearSubmissionAttempt(attemptKey);
     return;
   }
 
@@ -277,6 +308,25 @@ export async function runExecutionOperation(
     return;
   }
 
+  // The Observation's submission identity has to outlive this component. When the row is
+  // committed but the response is lost, the PM's recovery is to close the drawer, navigate
+  // or refresh and try again; a per-mount token would arrive with a fresh nonce and insert
+  // a SECOND canonical Observation rather than reconciling with the committed one.
+  const attemptKey = observationAttemptKey(workspaceId, projectId, operation.outcomeId);
+  const attempt = loadSubmissionAttempt(attemptKey, { ttlMs: OBSERVATION_ATTEMPT_WINDOW_MS });
+  // Derived from the submission's content AND its attempt token, so a retry reconciles
+  // to the same canonical Observation while a later genuine re-observation with
+  // identical content is recorded as its own event.
+  const idempotencyKey = await observationIdempotencyKey({
+    outcomeId: operation.outcomeId,
+    observationState: operation.observationState,
+    summary: operation.summary,
+    evidenceReferenceIds: operation.evidenceReferenceIds,
+    attemptNonce: attempt.attemptId,
+  });
+  // Recorded BEFORE the request so a lost response can still be reconciled from persisted
+  // state on a later load.
+  rememberSubmittedKey(attemptKey, idempotencyKey);
   const now = new Date().toISOString();
   await postOperationalFlow(workspaceId, projectId, {
     operation: "record_outcome_observation",
@@ -290,17 +340,37 @@ export async function runExecutionOperation(
     observedAt: now,
     evaluatedAt: now,
     correlationId: operation.correlationId,
-    // Derived from the submission's content AND its attempt token, so a retry reconciles
-    // to the same canonical Observation while a later genuine re-observation with
-    // identical content is recorded as its own event.
-    idempotencyKey: await observationIdempotencyKey({
-      outcomeId: operation.outcomeId,
-      observationState: operation.observationState,
-      summary: operation.summary,
-      evidenceReferenceIds: operation.evidenceReferenceIds,
-      attemptNonce: operation.attemptNonce,
-    }),
+    idempotencyKey,
   });
+  // Only a server-accepted submission retires the attempt. A failure — including a
+  // canonical idempotency conflict — keeps it, so the retry carries the same identity
+  // instead of writing a second Observation.
+  clearSubmissionAttempt(attemptKey);
+}
+
+/**
+ * Retires pending submission attempts that persisted state proves already landed.
+ *
+ * The lost-response case never reaches the success path above, so the attempt would
+ * otherwise outlive the row it wrote and make a later honest re-observation collide with
+ * it. Reading the persisted `idempotency_key` back off the canonical Observation closes
+ * that loop from the server's own record rather than from client memory.
+ */
+export function reconcileExecutionAttempts(
+  workspaceId: string,
+  projectId: string,
+  chains: GovernedExecutionChain[]
+): void {
+  for (const chain of chains) {
+    for (const branch of chain.branches) {
+      if (!branch.outcome) continue;
+      const persistedKeys = branch.observations
+        .map((observation) => observation.idempotencyKey)
+        .filter((key): key is string => typeof key === "string");
+      if (persistedKeys.length === 0) continue;
+      reconcileSubmissionAttempt(observationAttemptKey(workspaceId, projectId, branch.outcome.outcomeId), persistedKeys);
+    }
+  }
 }
 
 /**

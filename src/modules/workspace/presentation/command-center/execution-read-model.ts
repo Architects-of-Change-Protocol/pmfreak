@@ -43,6 +43,101 @@ export const EXECUTION_COMMANDS: readonly string[] = ["queue", "start", "block",
  *  nothing whatsoever about the Outcome — see `boundary` below. */
 export const COMPLETED_EXECUTION_STATES: readonly string[] = ["completed"];
 
+/** `execution_tasks.status` values that are canonically completed. `ensure_expected_task_outcome`
+ *  compares `status = 'completed'` exactly, so no friendlier synonym is accepted here. */
+export const COMPLETED_TASK_STATES: readonly string[] = ["completed"];
+
+/** P2-08 opens a new execution only from a `not_started` Task
+ *  (`new_internal_execution_requires_not_started_task`). */
+export const QUEUEABLE_TASK_STATES: readonly string[] = ["not_started"];
+
+/**
+ * Canonical P2-08 transition table, read from
+ * `p2_08_transition_internal_execution` — offering a command the contract cannot accept
+ * would be a knowingly invalid control policed only by a server error.
+ */
+export const EXECUTION_TRANSITIONS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  none: ["queue"],
+  queued: ["start", "block", "fail"],
+  running: ["block", "fail", "complete"],
+  blocked: ["start", "fail"],
+  failed: ["retry"],
+  completed: [],
+});
+
+export function allowedExecutionCommands(status: string | null | undefined): readonly string[] {
+  return EXECUTION_TRANSITIONS[status ?? "none"] ?? [];
+}
+
+/** Governance states P2-07 will dispatch. Anything else is not "authorized". */
+export function isDispatchableGovernanceState(state: string): boolean {
+  return TASK_ELIGIBLE_GOVERNANCE_STATES.includes(state);
+}
+
+/**
+ * Why P2-07 would refuse to turn this Action into a Task right now — or null when it
+ * would not — stated in the order `dispatch_governed_action_to_internal_task` checks.
+ *
+ * The actor check the server performs FIRST is deliberately not here: it needs the
+ * requesting actor, which this view does not carry. `buildBranchStages` applies it ahead
+ * of this call, so the combined order still matches the contract.
+ *
+ * Only gates whose inputs this projection actually holds are mirrored. The server also
+ * verifies the source Decision's status, its evidence lineage, the project's archival
+ * state and the proposer's workspace membership; those stay server-enforced rather than
+ * being restated here from data this surface does not have. Mirroring is for telling the
+ * PM the truth up front — it never becomes the authority.
+ */
+export function dispatchBlockReason(action: GovernedActionView): string | null {
+  // `governance_evaluation_missing`: an unevaluated proposal authorizes nothing.
+  if (!action.hasEvaluation) {
+    return "This Action has no persisted governance evaluation yet, so it cannot become work.";
+  }
+  // `action_expired`: the authorization window on the Action itself has closed.
+  if (action.expired) {
+    return "This Action's authorization has expired, so it can no longer become work. Request a replacement authorization to continue.";
+  }
+  // `governance_evaluation_stale`: the evaluation's own `valid_until` has passed. The
+  // Action may still be inside its window, but the grant that justified it is not.
+  if (action.evaluationStale) {
+    return "This Action's governance evaluation is no longer valid, so it cannot become work. Request a replacement authorization to continue.";
+  }
+  if (action.revoked) return "This Action's authorization was revoked.";
+  // `governed_action_not_dispatchable`, which the server raises for a false
+  // `can_commit_action` just as much as for an ineligible state.
+  if (!action.canCommitAction) {
+    return `Governance evaluated this Action as "${action.governanceState.replaceAll("_", " ")}" without permitting it to be committed, so it cannot become work.`;
+  }
+  if (!isDispatchableGovernanceState(action.governanceState)) {
+    return `Governance evaluated this Action as "${action.governanceState.replaceAll("_", " ")}", so it cannot become work.`;
+  }
+  // `policy_or_grant_reference_missing`: authorized material work must retain the
+  // policy decision and grant evidence that made it allowable.
+  if (action.governanceState === "authorized" && !action.authorizationEvidenceComplete) {
+    return "This Action's authorization does not carry the policy decision and grant references it requires, so it cannot become work.";
+  }
+  return null;
+}
+
+/** Plain-language rendering of the persisted governance state — never a positive
+ *  interpretation of a state the server did not grant. */
+export function describeGovernanceState(state: string): string {
+  const labels: Record<string, string> = {
+    authorized: "Action authorized",
+    not_required: "Action allowed (no governance required)",
+    requires_approval: "Action requires approval",
+    requires_review: "Action requires review",
+    denied: "Action denied",
+    degraded: "Action evaluation degraded",
+    unavailable: "Action governance unavailable",
+    expired: "Action authorization expired",
+    stale: "Action authorization stale",
+    revoked: "Action authorization revoked",
+    proposed: "Action proposed, not yet evaluated",
+  };
+  return labels[state] ?? `Action governance: ${state.replaceAll("_", " ")}`;
+}
+
 export type ExecutionStageKey = "material_action" | "task" | "execution" | "outcome" | "observation" | "review";
 
 /** P2-06 classification inputs. `classifyPMFreakMaterialAction` derives `materiality`
@@ -83,10 +178,12 @@ export type ObservationQuality = {
  * One governed continuation operation the PM can request. Each maps 1:1 onto an
  * operation that already existed before P2-12; none collapses two canonical transitions.
  */
+export type ExecutionCommand = "queue" | "start" | "block" | "fail" | "retry" | "complete";
+
 export type ExecutionOperation =
   | { kind: "material_action"; decisionId: string; draft: MaterialActionDraft; justification: string }
   | { kind: "task"; actionId: string }
-  | { kind: "execution"; taskId: string; command: "queue" | "start" | "complete" }
+  | { kind: "execution"; taskId: string; command: ExecutionCommand }
   | { kind: "outcome"; taskId: string; expectedResult: string; correlationId: string }
   | {
       kind: "observation";
@@ -96,8 +193,6 @@ export type ExecutionOperation =
       evidenceReferenceIds: string[];
       quality: ObservationQuality;
       correlationId: string;
-      /** Per-submission-attempt token folded into the idempotency key. */
-      attemptNonce: string;
     };
 
 export type ObservationSubmission = {
@@ -131,6 +226,32 @@ export type ObservationSubmission = {
  * deliberately NOT part of the identity: it is the fact being recorded, and including it
  * would break retry stability.
  */
+/**
+ * The classification the PM actually stated, canonicalised.
+ *
+ * One submission is one payload: P2-06 compares the stored proposal digest against the
+ * row already held under an idempotency key and answers
+ * `material_action_idempotency_conflict` on any difference. So a retry of the SAME
+ * classification must resolve to the same submission identity, and a CHANGED
+ * classification must not — otherwise a PM who mis-stated the materiality inputs would be
+ * locked out of correcting them until the attempt aged out, which is the same stuck chain
+ * an expired authorization used to create.
+ *
+ * Every field the server folds into its digest is folded in here, so the two agree on
+ * what "the same submission" means.
+ */
+export function canonicalMaterialActionDraft(draft: MaterialActionDraft, justification: string): string {
+  return JSON.stringify([
+    draft.actionType.trim(),
+    draft.intendedEffect.trim(),
+    draft.actionClass,
+    draft.risk,
+    draft.reversibility,
+    draft.sideEffect,
+    justification,
+  ]);
+}
+
 export function canonicalObservationPayload(input: ObservationSubmission): string {
   return JSON.stringify([
     input.outcomeId,
@@ -141,42 +262,19 @@ export function canonicalObservationPayload(input: ObservationSubmission): strin
   ]);
 }
 
-export type AttemptTracker = {
-  /** Returns the current attempt token, minting one on first use. */
-  begin: () => string;
-  /** Called only after the server has accepted the submission. */
-  succeed: () => void;
-  current: () => string | null;
-};
-
 /**
- * Tracks one submission attempt so a retry keeps its idempotency identity while a later
- * genuine submission gets a new one.
+ * How long one Material Action submission stays "the same submission".
  *
- * Retained on failure — including a canonical `idempotency_conflict`, which is an
- * integrity signal that must stay visible and fail closed rather than silently rotating
- * into a second write. Cleared only on success, so the next submission mints a fresh
- * token.
- *
- * The token is opaque and client-owned: it is not a canonical entity id, not a
- * correlation id, not a causation id, and is never persisted as domain identity — it
- * only ever contributes to the idempotency key digest.
+ * P2-06 folds `createdAt`/`expiresAt` into the proposal digest and P2-07 refuses to
+ * dispatch an Action past `expires_at`, so an attempt can only be retried for as long as
+ * the proposal it describes could still be accepted. Past that window the next submission
+ * is genuinely new and takes a new identity — see `submission-attempt.ts`.
  */
-export function createAttemptTracker(mint: () => string = () => crypto.randomUUID()): AttemptTracker {
-  let attempt: string | null = null;
-  return {
-    begin() {
-      if (attempt === null) attempt = mint();
-      return attempt;
-    },
-    succeed() {
-      attempt = null;
-    },
-    current() {
-      return attempt;
-    },
-  };
-}
+export const MATERIAL_ACTION_WINDOW_MS = 60 * 60 * 1000;
+
+/** Observation submissions carry no server-side expiry, so the retry window only has to
+ *  outlive a lost response and the remount that follows it. */
+export const OBSERVATION_ATTEMPT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Deterministic SHA-256 over the canonical submission, via the platform Web Crypto
@@ -235,6 +333,28 @@ export type GovernedActionView = {
   grantReferences: string[];
   evidenceReferenceIds: string[];
   revoked: boolean;
+  /** P2-06 persists the proposer; P2-07 refuses dispatch by anyone else. */
+  proposedBy: string | null;
+  expiresAt: string | null;
+  /** P2-07 denies dispatch once `expires_at` has passed (failureClass `expired`). */
+  expired: boolean;
+  /** False when no governance evaluation has been persisted for this Action at all.
+   *  `governanceState` then reads "proposed", which is this surface's word, not a
+   *  canonical evaluation result. */
+  hasEvaluation: boolean;
+  /** The evaluation's own validity horizon, distinct from the Action's `expires_at`. */
+  validUntil: string | null;
+  /** P2-07 denies dispatch once `valid_until` has passed (failureClass `stale`). */
+  evaluationStale: boolean;
+  /** P2-06's own verdict on whether the Action may be committed. P2-07 requires it
+   *  alongside an eligible governance state, so an eligible state is not sufficient. */
+  canCommitAction: boolean;
+  /** P2-07 requires an `authorized` evaluation to retain the policy decision and grant
+   *  references that made it allowable (`policy_or_grant_reference_missing`). */
+  authorizationEvidenceComplete: boolean;
+  /** True when governance would let this Action become work right now. Derived from
+   *  `dispatchBlockReason`, so it can never drift from the reason shown to the PM. */
+  dispatchable: boolean;
 };
 
 export type GovernedTaskView = {
@@ -254,6 +374,8 @@ export type InternalExecutionView = {
   attemptCount: number | null;
   providerKey: string | null;
   failureClass: string | null;
+  /** P2-08 refuses a transition by anyone other than the dispatching actor. */
+  dispatchedBy: string | null;
   queuedAt: string | null;
   startedAt: string | null;
   completedAt: string | null;
@@ -278,6 +400,9 @@ export type OutcomeObservationView = {
   summary: string | null;
   evidenceReferenceIds: string[];
   recordedAt: string | null;
+  /** P2-09 persists the submission's idempotency key. Reading it back is what lets a
+   *  pending client attempt be retired once persisted state proves it landed. */
+  idempotencyKey: string | null;
 };
 
 /**
@@ -298,6 +423,34 @@ export type OutcomeBoundary = {
   statement: string;
 };
 
+/** One canonical Material Action and everything persisted beneath it. `source_decision_id`
+ *  is NOT unique, so a Decision may legitimately carry several — each stays reachable. */
+export type GovernedActionBranch = {
+  /** Stable identity derived from the canonical Action — never random. */
+  id: string;
+  action: GovernedActionView;
+  task: GovernedTaskView | null;
+  executions: InternalExecutionView[];
+  latestExecution: InternalExecutionView | null;
+  /** Execution commands P2-08 would accept from this actor right now. The panel renders
+   *  exactly these — it never re-derives the list, so it cannot offer a rejected one. */
+  offeredCommands: readonly ExecutionCommand[];
+  outcome: ExpectedOutcomeView | null;
+  observations: OutcomeObservationView[];
+  /** P2-10 projection for this branch's Outcome. Null when none exists — reported, never synthesised. */
+  lineage: CompleteLineageProjection | null;
+  stages: ExecutionStage[];
+  boundary: OutcomeBoundary;
+};
+
+/** How a chain reads at a glance. Derived from persisted state so the queue cannot
+ *  describe a rejected Decision or an unauthorized Action as generic progress. */
+export type ChainStatus = {
+  label: string;
+  tone: "success" | "task" | "danger" | "info";
+  detail: string;
+};
+
 export type GovernedExecutionChain = {
   kind: "governed_execution_chain";
   /** Stable identity derived from the canonical Decision — never random. */
@@ -310,16 +463,12 @@ export type GovernedExecutionChain = {
   rationale: string | null;
   recommendationId: string | null;
   title: string;
-  action: GovernedActionView | null;
-  task: GovernedTaskView | null;
-  executions: InternalExecutionView[];
-  latestExecution: InternalExecutionView | null;
-  outcome: ExpectedOutcomeView | null;
-  observations: OutcomeObservationView[];
-  /** P2-10 projection for this chain's Outcome. Null when no Outcome exists yet — the
-   *  absence is reported, never synthesised. */
-  lineage: CompleteLineageProjection | null;
-  stages: ExecutionStage[];
+  /** Every canonical Action for this Decision, newest first. Never truncated to one. */
+  branches: GovernedActionBranch[];
+  /** Requesting a first or replacement governed Action. */
+  proposalStage: ExecutionStage;
+  status: ChainStatus;
+  /** Boundary of the most advanced branch, or the decision-level default when none. */
   boundary: OutcomeBoundary;
 };
 
@@ -379,10 +528,24 @@ export function isObservationEligibleEvidence(row: AnyRecord, evaluatedAt: Date 
   return true;
 }
 
-function buildActionView(action: AnyRecord, evaluation: AnyRecord | undefined): GovernedActionView {
+function buildActionView(
+  action: AnyRecord,
+  evaluation: AnyRecord | undefined,
+  now: Date
+): GovernedActionView {
   const proposal = (action.proposal ?? {}) as AnyRecord;
   const governanceState = str(evaluation?.governance_state) ?? "proposed";
-  return {
+  const expiresAt = str(action.expires_at);
+  // P2-07 denies dispatch once expires_at has passed, so expiry is part of the view
+  // rather than something the PM discovers only from a server rejection.
+  const expired = expiresAt !== null && new Date(expiresAt) <= now;
+  // The evaluation carries its own, separate horizon. Both comparisons use `<=`, exactly
+  // as the server does, so the surface and the contract agree on the boundary instant.
+  const validUntil = str(evaluation?.valid_until);
+  const evaluationStale = validUntil !== null && new Date(validUntil) <= now;
+  const policyDecisionReference = str(evaluation?.policy_decision_reference);
+  const grantReferences = strList(evaluation?.grant_references);
+  const view: GovernedActionView = {
     actionId: String(action.id),
     actionClass: str(action.action_class),
     actionType: str(proposal.actionType),
@@ -394,11 +557,24 @@ function buildActionView(action: AnyRecord, evaluation: AnyRecord | undefined): 
     correlationId: str(action.correlation_id),
     causationId: str(action.causation_id),
     evaluatedAt: str(evaluation?.evaluated_at),
-    policyDecisionReference: str(evaluation?.policy_decision_reference),
-    grantReferences: strList(evaluation?.grant_references),
+    policyDecisionReference,
+    grantReferences,
     evidenceReferenceIds: strList(proposal.evidenceReferenceIds),
     revoked: governanceState === "revoked",
+    proposedBy: str(action.proposed_by),
+    expiresAt,
+    expired,
+    hasEvaluation: evaluation !== undefined,
+    validUntil,
+    evaluationStale,
+    canCommitAction: evaluation?.can_commit_action === true,
+    authorizationEvidenceComplete: policyDecisionReference !== null && grantReferences.length > 0,
+    // Provisional: `dispatchBlockReason` reads the fields above, so the real value is
+    // settled once they exist. Deriving it from that one function is what keeps
+    // "the control is offered" and "here is why it is not" from ever disagreeing.
+    dispatchable: false,
   };
+  return { ...view, dispatchable: dispatchBlockReason(view) === null };
 }
 
 function buildBoundary(input: {
@@ -408,7 +584,7 @@ function buildBoundary(input: {
   observations: OutcomeObservationView[];
 }): OutcomeBoundary {
   const executionCompleted = Boolean(input.latestExecution && COMPLETED_EXECUTION_STATES.includes(input.latestExecution.status));
-  const taskCompleted = Boolean(input.task && ["completed", "done"].includes(String(input.task.status)));
+  const taskCompleted = Boolean(input.task && COMPLETED_TASK_STATES.includes(String(input.task.status)));
   const outcomeState = input.outcome?.state ?? null;
   // `achieved` is the only canonical achieved state. Every other value the contract
   // allows — `expected`, `observing`, `partially_achieved`, `not_achieved`, `disputed`,
@@ -442,63 +618,145 @@ function buildBoundary(input: {
   };
 }
 
-function buildStages(input: {
-  decisionStatus: string;
-  decisionIsOwnedByActor: boolean;
-  hasEvidenceLink: boolean;
-  canWrite: boolean;
-  action: GovernedActionView | null;
+/** The decision-level boundary used before any Material Action exists. */
+function emptyBoundary(): OutcomeBoundary {
+  return buildBoundary({ latestExecution: null, task: null, outcome: null, observations: [] });
+}
+
+/**
+ * Commands that authorize NEW work, and therefore re-run the whole governance gate.
+ *
+ * `dispatch_internal_task_execution` and the `start`/`retry` arms of
+ * `transition_internal_task_execution` both call `p2_08_validate_execution_governance`,
+ * which repeats every P2-07 check against the source Action: proposer identity, evaluation
+ * present, `expires_at`, `valid_until`, `can_commit_action`, eligible state, and the
+ * policy/grant evidence behind an `authorized` verdict.
+ *
+ * `block`, `fail` and `complete` deliberately do NOT revalidate, and must stay offered
+ * even after an authorization lapses — otherwise a PM whose grant expired mid-flight could
+ * no longer record that the work stopped, and the canonical execution would be stranded
+ * in `running` forever. Recording that work ended is not authorizing new work.
+ */
+export const GOVERNANCE_REVALIDATED_COMMANDS: readonly ExecutionCommand[] = ["queue", "start", "retry"];
+
+/**
+ * Execution commands the P2-08 contract can actually accept right now.
+ *
+ * Three gates, all mirrored from the server rather than approximated:
+ *
+ *  1. The transition table above — `internal_execution_transition_invalid` otherwise.
+ *  2. `queue` additionally requires a `not_started` Task, because
+ *     `dispatch_internal_task_execution` refuses to open a first execution against a Task
+ *     already in flight (`new_internal_execution_requires_not_started_task`).
+ *  3. Governance revalidation for `queue`/`start`/`retry`, which is the same gate the task
+ *     stage applies — so an authorization that lapsed after the Task was created stops
+ *     offering new work here too, instead of failing at the server.
+ */
+export function offeredExecutionCommands(input: {
+  action: GovernedActionView;
   task: GovernedTaskView | null;
   latestExecution: InternalExecutionView | null;
+  actorUserId: string | null;
+}): readonly ExecutionCommand[] {
+  if (!input.task) return [];
+  // `p2_08_validate_execution_governance` checks the ACTION's proposer, not the
+  // execution's dispatcher, before authorizing new work.
+  const actorIsProposer = !input.action.proposedBy || input.action.proposedBy === input.actorUserId;
+  const newWorkAllowed = actorIsProposer && dispatchBlockReason(input.action) === null;
+  const commands = allowedExecutionCommands(input.latestExecution?.status).filter((command) => {
+    if (command === "queue" && !QUEUEABLE_TASK_STATES.includes(String(input.task!.status))) return false;
+    if (!newWorkAllowed && GOVERNANCE_REVALIDATED_COMMANDS.includes(command as ExecutionCommand)) return false;
+    return true;
+  });
+  return commands as readonly ExecutionCommand[];
+}
+
+/**
+ * Stages for ONE canonical Material Action and the work persisted beneath it.
+ *
+ * Every gate below mirrors a rule the authoritative server function enforces, so the
+ * surface never offers an operation the contract must reject. Where the server would
+ * refuse, the PM is told why here instead of discovering it from a rejected write.
+ */
+function buildBranchStages(input: {
+  canWrite: boolean;
+  actorUserId: string | null;
+  action: GovernedActionView;
+  task: GovernedTaskView | null;
+  latestExecution: InternalExecutionView | null;
+  /** Computed once by `offeredExecutionCommands` and shared with the branch, so the
+   *  controls rendered and the stage gate can never be derived differently. */
+  offeredCommands: readonly ExecutionCommand[];
   outcome: ExpectedOutcomeView | null;
   observations: OutcomeObservationView[];
   lineage: CompleteLineageProjection | null;
 }): ExecutionStage[] {
-  const eligibleStatus = isActionEligibleDecisionStatus(input.decisionStatus);
-
-  // ---- Material Action -----------------------------------------------------
-  let actionBlocked: string | null = null;
-  if (!input.canWrite) actionBlocked = "Your role cannot record governed operations in this project.";
-  else if (!eligibleStatus) actionBlocked = `A ${String(input.decisionStatus).replaceAll("_", " ")} Decision does not authorize a material action.`;
-  else if (!input.decisionIsOwnedByActor) actionBlocked = "Only the person who recorded this Decision can request its material action.";
-  else if (!input.hasEvidenceLink) actionBlocked = "This Decision has no linked evidence snapshot, which a material action requires.";
+  const roleBlocked = "Your role cannot record governed operations in this project.";
 
   // ---- Task ----------------------------------------------------------------
+  // `dispatch_governed_action_to_internal_task`, in the order it checks: write capability,
+  // then the actor who proposed it, then every governance gate — the last of which is the
+  // single `dispatchBlockReason` predicate `action.dispatchable` is also derived from, so
+  // the offered control and the stated reason can never disagree.
   let taskBlocked: string | null = null;
-  if (!input.action) taskBlocked = "No governed Material Action exists yet.";
-  else if (input.action.revoked) taskBlocked = "This Action's authorization was revoked.";
-  else if (!TASK_ELIGIBLE_GOVERNANCE_STATES.includes(input.action.governanceState)) {
-    taskBlocked = `Governance evaluated this Action as "${input.action.governanceState.replaceAll("_", " ")}", so it cannot become work.`;
-  } else if (!input.canWrite) taskBlocked = "Your role cannot record governed operations in this project.";
+  if (!input.canWrite) taskBlocked = roleBlocked;
+  else if (input.action.proposedBy && input.action.proposedBy !== input.actorUserId) {
+    // The P2-06 in-process grant is actor-scoped and P2-07 refuses to transfer it
+    // (`governed_action_actor_mismatch`). Ownership is read from the persisted
+    // `proposed_by`, never inferred from a workspace role.
+    taskBlocked = "Only the person who proposed this Material Action can turn it into a Task.";
+  } else taskBlocked = dispatchBlockReason(input.action);
 
   // ---- Execution -----------------------------------------------------------
+  const commands = input.offeredCommands;
   let executionBlocked: string | null = null;
   if (!input.task) executionBlocked = "No canonical Task exists yet.";
-  else if (!input.canWrite) executionBlocked = "Your role cannot record governed operations in this project.";
+  else if (!input.canWrite) executionBlocked = roleBlocked;
+  else if (input.latestExecution?.dispatchedBy && input.latestExecution.dispatchedBy !== input.actorUserId) {
+    // `transition_internal_task_execution` refuses a transition by anyone other than the
+    // dispatching actor (`internal_execution_actor_mismatch`).
+    executionBlocked = "Only the person who dispatched this internal execution can change its state.";
+  } else if (commands.length === 0) {
+    // Distinguish "the state machine has nothing left" from "governance withdrew the
+    // authorization new work needs". Both stop the control; only one is recoverable by a
+    // replacement authorization, so the PM must be told which one this is.
+    const transitionable = allowedExecutionCommands(input.latestExecution?.status);
+    const governanceBlocked = dispatchBlockReason(input.action);
+    if (transitionable.length > 0 && governanceBlocked) {
+      executionBlocked = governanceBlocked;
+    } else if (transitionable.length > 0 && input.action.proposedBy && input.action.proposedBy !== input.actorUserId) {
+      executionBlocked = "Only the person who proposed this Material Action can authorize further work on it.";
+    } else {
+      executionBlocked = input.latestExecution
+        ? `Internal execution is "${input.latestExecution.status.replaceAll("_", " ")}", which has no further transition available.`
+        : `The canonical Task is "${String(input.task.status).replaceAll("_", " ")}", so a new internal execution cannot be opened for it.`;
+    }
+  }
 
   // ---- Expected Outcome ----------------------------------------------------
+  // `ensure_expected_task_outcome` requires a completed Task AND a completed internal
+  // execution. Defining an expected Outcome still says nothing about achievement.
+  const executionCompleted = Boolean(input.latestExecution && COMPLETED_EXECUTION_STATES.includes(input.latestExecution.status));
+  const taskCompleted = Boolean(input.task && COMPLETED_TASK_STATES.includes(String(input.task.status)));
   let outcomeBlocked: string | null = null;
   if (!input.task) outcomeBlocked = "An expected Outcome is defined against a canonical Task.";
-  else if (!input.canWrite) outcomeBlocked = "Your role cannot record governed operations in this project.";
+  else if (!input.canWrite) outcomeBlocked = roleBlocked;
+  else if (!taskCompleted) {
+    outcomeBlocked = `The canonical Task is "${String(input.task.status).replaceAll("_", " ")}". An expected Outcome can only be defined once the Task is completed.`;
+  } else if (!executionCompleted) {
+    outcomeBlocked = "This Task has no completed internal execution yet, which an expected Outcome requires.";
+  }
 
   // ---- Observation ---------------------------------------------------------
   let observationBlocked: string | null = null;
   if (!input.outcome) observationBlocked = "No expected Outcome exists to observe.";
-  else if (!input.canWrite) observationBlocked = "Your role cannot record governed operations in this project.";
+  else if (!input.canWrite) observationBlocked = roleBlocked;
 
   const executionState: ExecutionStageState = input.latestExecution
     ? COMPLETED_EXECUTION_STATES.includes(input.latestExecution.status) ? "complete" : "present"
     : "not_started";
 
   return [
-    {
-      key: "material_action",
-      label: "Governed material action",
-      state: input.action ? "present" : "not_started",
-      actionable: actionBlocked === null && !input.action,
-      blockedReason: actionBlocked,
-      effect: "Records a governed authorization to act. It does not execute anything and does not create a Task.",
-    },
     {
       key: "task",
       label: "Canonical internal task",
@@ -511,7 +769,7 @@ function buildStages(input: {
       key: "execution",
       label: "Internal execution",
       state: executionState,
-      actionable: executionBlocked === null,
+      actionable: executionBlocked === null && commands.length > 0,
       blockedReason: executionBlocked,
       effect: "Records internal execution state against the Task. It does not decide whether the Outcome happened.",
     },
@@ -547,32 +805,178 @@ function buildStages(input: {
 }
 
 /**
- * Projects one execution chain per persisted Decision.
+ * The stage that requests a governed Material Action for this Decision.
+ *
+ * It stays available for a REPLACEMENT once no existing Action can still carry the chain
+ * forward — the recovery path an expired authorization needs. P2-06 is append-only, so a
+ * replacement never mutates or hides the earlier Action: it is a new canonical proposal
+ * with its own idempotency key, evaluated on its own terms, and the expired one remains
+ * visible with its audit lineage intact.
+ */
+function buildProposalStage(input: {
+  decisionStatus: string;
+  decisionIsOwnedByActor: boolean;
+  hasEvidenceLink: boolean;
+  canWrite: boolean;
+  branches: GovernedActionBranch[];
+}): ExecutionStage {
+  const eligibleStatus = isActionEligibleDecisionStatus(input.decisionStatus);
+  // A branch still carrying the chain: it either produced a Task (work exists and
+  // continues there) or its authorization is still dispatchable.
+  const liveBranch = input.branches.find((branch) => branch.task !== null || branch.action.dispatchable);
+
+  let blocked: string | null = null;
+  if (!input.canWrite) blocked = "Your role cannot record governed operations in this project.";
+  else if (!eligibleStatus) blocked = `A ${String(input.decisionStatus).replaceAll("_", " ")} Decision does not authorize a material action.`;
+  else if (!input.decisionIsOwnedByActor) blocked = "Only the person who recorded this Decision can request its material action.";
+  else if (!input.hasEvidenceLink) blocked = "This Decision has no linked evidence snapshot, which a material action requires.";
+  else if (liveBranch) {
+    blocked = liveBranch.task
+      ? "A governed Material Action for this Decision has already become a canonical Task."
+      : "A governed Material Action for this Decision is still authorized to proceed.";
+  }
+
+  const replacement = input.branches.length > 0;
+  return {
+    key: "material_action",
+    label: replacement ? "Replacement governed material action" : "Governed material action",
+    state: input.branches.length > 0 ? "present" : "not_started",
+    actionable: blocked === null,
+    blockedReason: blocked,
+    effect: replacement
+      ? "Records a NEW governed authorization for this Decision. The earlier Action and its audit trail are preserved unchanged."
+      : "Records a governed authorization to act. It does not execute anything and does not create a Task.",
+  };
+}
+
+/** Every stage of a chain, proposal first, then each branch in order. Used for gating
+ *  and ordering — never to hide a stage. */
+export function chainStages(chain: GovernedExecutionChain): ExecutionStage[] {
+  return [chain.proposalStage, ...chain.branches.flatMap((branch) => branch.stages)];
+}
+
+/**
+ * A short, honest summary of one branch, derived from the persisted governance state.
+ *
+ * "Authorized" is reserved for states P2-07 will actually dispatch. Every other state is
+ * named as the contract names it rather than given a positive reading.
+ */
+export function describeBranch(branch: GovernedActionBranch): string {
+  if (!branch.task) {
+    const action = branch.action;
+    // The positive reading is reachable ONLY through `dispatchable`, which answers every
+    // gate P2-07 applies. `governance_state` alone can say "authorized" while the
+    // evaluation has lapsed, withheld `can_commit_action`, or lost the grant evidence that
+    // made it allowable — none of which authorizes anything.
+    if (action.dispatchable) return `${describeGovernanceState(action.governanceState)} — no task yet`;
+    if (action.revoked) return describeGovernanceState(action.governanceState);
+    // A lapsed grant is named for what lapsed: the evaluation's `valid_until` counts here
+    // exactly as the Action's own `expires_at` does, because dispatch dies on either.
+    if (action.expired) return "Action authorization expired — no task";
+    if (action.evaluationStale) return "Action authorization stale — no task";
+    if (!action.hasEvaluation) return "Action proposed, not yet evaluated — no task";
+    if (!isDispatchableGovernanceState(action.governanceState)) {
+      return `${describeGovernanceState(action.governanceState)} — cannot become work`;
+    }
+    // An eligible state whose evaluation still withheld what dispatch requires.
+    return "Action not dispatchable — governance withheld what dispatch requires";
+  }
+  if (!branch.outcome) {
+    return branch.boundary.executionCompleted
+      ? "Work completed — no expected outcome yet"
+      : `Task ${String(branch.task.status).replaceAll("_", " ")} — work in progress`;
+  }
+  if (branch.observations.length === 0) return "Outcome expected — no observation yet";
+  return `Observed: ${branch.observations[0].observationState.replaceAll("_", " ")}`;
+}
+
+/**
+ * How the chain reads at a glance.
+ *
+ * A terminal stopped Decision is reported as stopped BEFORE any generic progress reading,
+ * so a rejected Decision cannot sit in a queue looking like unfinished work forever. It is
+ * never called "failed": the canonical Decision says rejected, and that is what is shown.
+ */
+export function describeChainStatus(
+  decisionStatus: string,
+  branches: GovernedActionBranch[]
+): ChainStatus {
+  if (decisionStatus === "rejected") {
+    return {
+      label: "Decision rejected",
+      tone: "danger",
+      detail: "Decision rejected — no governed action follows",
+    };
+  }
+
+  const achieved = branches.find((branch) => branch.boundary.outcomeAchieved);
+  if (achieved) return { label: "Outcome achieved", tone: "success", detail: describeBranch(achieved) };
+
+  if (branches.length === 0) {
+    return { label: "No action yet", tone: "info", detail: "Decision recorded — no material action requested yet" };
+  }
+
+  const live = branches.filter((branch) => branch.task !== null || branch.action.dispatchable);
+  if (live.length === 0) {
+    const expired = branches.some((branch) => branch.action.expired);
+    const stale = branches.some((branch) => branch.action.evaluationStale);
+    return {
+      label: expired ? "Authorization expired" : stale ? "Authorization stale" : "Not authorized to proceed",
+      tone: "danger",
+      detail: describeBranch(branches[0]),
+    };
+  }
+
+  return { label: "In progress", tone: "task", detail: describeBranch(live[0]) };
+}
+
+/**
+ * Projects one execution chain per persisted Decision, carrying EVERY canonical Material
+ * Action beneath it.
+ *
+ * `material_action_proposals.source_decision_id` is not unique — the only uniqueness the
+ * schema declares is `(workspace_id, idempotency_key)` — so one Decision may legitimately
+ * hold several Actions, whether created by another surface or as a replacement after an
+ * authorization expired. Keeping only the first would make the others' Tasks, Executions,
+ * Outcomes and Observations unreachable here, so each is projected as its own branch with
+ * a stable identity derived from the canonical Action id.
  *
  * Non-terminal Decisions (escalated / needs_more_evidence) are deliberately excluded:
  * they leave the Recommendation open and authorize nothing downstream. Rejected
  * Decisions ARE included so the PM can see that they legitimately stop here, rather
  * than the surface quietly hiding them.
  */
-export function buildExecutionChains(summary: OperationalSummary | undefined): GovernedExecutionChain[] {
+export function buildExecutionChains(
+  summary: OperationalSummary | undefined,
+  now: Date = new Date()
+): GovernedExecutionChain[] {
   if (!summary) return [];
 
-  const actionsByDecision = new Map<string, AnyRecord>();
+  const actionsByDecision = new Map<string, AnyRecord[]>();
   for (const action of summary.materialActions ?? []) {
     const decisionId = str(action.source_decision_id);
-    if (decisionId && !actionsByDecision.has(decisionId)) actionsByDecision.set(decisionId, action);
+    if (!decisionId) continue;
+    const bucket = actionsByDecision.get(decisionId);
+    if (bucket) bucket.push(action);
+    else actionsByDecision.set(decisionId, [action]);
   }
 
-  // Newest evaluation wins: P2-06 appends an evaluation row per governance transition.
-  const evaluationByAction = new Map<string, AnyRecord>();
+  // Newest evaluation wins: P2-06 appends an evaluation row per governance transition,
+  // and `dispatch_governed_action_to_internal_task` reads the latest one the same way.
+  const evaluationsByAction = new Map<string, AnyRecord>();
   for (const evaluation of summary.materialActionEvaluations ?? []) {
     const actionId = str(evaluation.action_id);
-    if (actionId && !evaluationByAction.has(actionId)) evaluationByAction.set(actionId, evaluation);
+    if (!actionId) continue;
+    const previous = evaluationsByAction.get(actionId);
+    if (!previous || evaluationOrder(evaluation) >= evaluationOrder(previous)) {
+      evaluationsByAction.set(actionId, evaluation);
+    }
   }
 
   const taskByActionId = new Map<string, AnyRecord>();
   for (const task of summary.tasks ?? []) {
     const sourceActionId = readSourceActionId(task);
+    // P2-07's unique expression index makes this at most one Task per Action.
     if (sourceActionId && !taskByActionId.has(sourceActionId)) taskByActionId.set(sourceActionId, task);
   }
 
@@ -595,72 +999,115 @@ export function buildExecutionChains(summary: OperationalSummary | undefined): G
     const terminal = ["accepted", "rejected", "modified"].includes(decisionStatus);
     if (!terminal) continue;
 
-    const actionRow = actionsByDecision.get(decisionId);
-    const action = actionRow ? buildActionView(actionRow, evaluationByAction.get(String(actionRow.id))) : null;
+    // Newest Action first, so a replacement leads and the superseded one stays visible
+    // beneath it rather than disappearing.
+    const actionRows = [...(actionsByDecision.get(decisionId) ?? [])].sort(
+      (a, b) => actionOrder(b) - actionOrder(a)
+    );
 
-    const taskRow = action ? taskByActionId.get(action.actionId) : undefined;
-    const task: GovernedTaskView | null = taskRow
-      ? {
-          taskId: String(taskRow.id),
-          title: str(taskRow.title) ?? "Governed task",
-          status: String(taskRow.status ?? "unknown"),
-          sourceActionId: readSourceActionId(taskRow),
-          createdAt: str(taskRow.created_at),
-          completedAt: str(taskRow.completed_at),
-        }
-      : null;
+    const branches: GovernedActionBranch[] = actionRows.map((actionRow) => {
+      const action = buildActionView(actionRow, evaluationsByAction.get(String(actionRow.id)), now);
 
-    const executions: InternalExecutionView[] = (summary.executions ?? [])
-      .filter((row) => task && str(row.task_id) === task.taskId)
-      .map((row) => ({
-        executionId: String(row.id),
-        taskId: str(row.task_id),
-        sourceActionId: str(row.source_action_id),
-        status: String(row.status ?? "unknown"),
-        attemptCount: num(row.attempt_count),
-        providerKey: str(row.provider_key),
-        failureClass: str(row.failure_class),
-        queuedAt: str(row.queued_at),
-        startedAt: str(row.started_at),
-        completedAt: str(row.completed_at),
-      }))
-      .sort((a, b) => String(b.queuedAt ?? "").localeCompare(String(a.queuedAt ?? "")));
-    const latestExecution = executions[0] ?? null;
+      const taskRow = taskByActionId.get(action.actionId);
+      const task: GovernedTaskView | null = taskRow
+        ? {
+            taskId: String(taskRow.id),
+            title: str(taskRow.title) ?? "Governed task",
+            status: String(taskRow.status ?? "unknown"),
+            sourceActionId: readSourceActionId(taskRow),
+            createdAt: str(taskRow.created_at),
+            completedAt: str(taskRow.completed_at),
+          }
+        : null;
 
-    const outcomeRow = task ? (summary.outcomes ?? []).find((row) => str(row.task_id) === task.taskId) : undefined;
-    const outcome: ExpectedOutcomeView | null = outcomeRow
-      ? {
-          outcomeId: String(outcomeRow.id),
-          taskId: str(outcomeRow.task_id),
-          sourceActionId: str(outcomeRow.source_action_id),
-          internalExecutionId: str(outcomeRow.internal_execution_id),
-          state: String(outcomeRow.state ?? "unknown"),
-          expectedResult: str(outcomeRow.expected_result),
-        }
-      : null;
+      const executions: InternalExecutionView[] = task
+        ? (summary.executions ?? [])
+            .filter((row) => str(row.task_id) === task.taskId)
+            .map((row) => ({
+              executionId: String(row.id),
+              taskId: str(row.task_id),
+              sourceActionId: str(row.source_action_id),
+              status: String(row.status ?? "unknown"),
+              attemptCount: num(row.attempt_count),
+              providerKey: str(row.provider_key),
+              failureClass: str(row.failure_class),
+              dispatchedBy: str(row.dispatched_by),
+              queuedAt: str(row.queued_at),
+              startedAt: str(row.started_at),
+              completedAt: str(row.completed_at),
+            }))
+            .sort((a, b) => String(b.queuedAt ?? "").localeCompare(String(a.queuedAt ?? "")))
+        : [];
+      const latestExecution = executions[0] ?? null;
 
-    const observations: OutcomeObservationView[] = outcome
-      ? (summary.observations ?? [])
-          .filter((row) => str(row.outcome_id) === outcome.outcomeId)
-          .map((row) => ({
-            observationId: String(row.id),
-            outcomeId: str(row.outcome_id),
-            taskId: str(row.task_id),
-            observationState: String(row.observation_state ?? "unknown"),
-            missingDataState: str(row.missing_data_state),
-            confidenceScore: num(row.confidence_score),
-            summary: str(row.summary),
-            evidenceReferenceIds: strList(row.evidence_reference_ids),
-            recordedAt: str(row.recorded_at),
-          }))
-          .sort((a, b) => String(b.recordedAt ?? "").localeCompare(String(a.recordedAt ?? "")))
-      : [];
+      const outcomeRow = task ? (summary.outcomes ?? []).find((row) => str(row.task_id) === task.taskId) : undefined;
+      const outcome: ExpectedOutcomeView | null = outcomeRow
+        ? {
+            outcomeId: String(outcomeRow.id),
+            taskId: str(outcomeRow.task_id),
+            sourceActionId: str(outcomeRow.source_action_id),
+            internalExecutionId: str(outcomeRow.internal_execution_id),
+            state: String(outcomeRow.state ?? "unknown"),
+            expectedResult: str(outcomeRow.expected_result),
+          }
+        : null;
 
-    const lineage = outcome
-      ? (summary.lineages ?? []).find((projection) => projection.outcomeId === outcome.outcomeId) ?? null
-      : null;
+      const observations: OutcomeObservationView[] = outcome
+        ? (summary.observations ?? [])
+            .filter((row) => str(row.outcome_id) === outcome.outcomeId)
+            .map((row) => ({
+              observationId: String(row.id),
+              outcomeId: str(row.outcome_id),
+              taskId: str(row.task_id),
+              observationState: String(row.observation_state ?? "unknown"),
+              missingDataState: str(row.missing_data_state),
+              confidenceScore: num(row.confidence_score),
+              summary: str(row.summary),
+              evidenceReferenceIds: strList(row.evidence_reference_ids),
+              recordedAt: str(row.recorded_at),
+              idempotencyKey: str(row.idempotency_key),
+            }))
+            .sort((a, b) => String(b.recordedAt ?? "").localeCompare(String(a.recordedAt ?? "")))
+        : [];
 
-    const boundary = buildBoundary({ latestExecution, task, outcome, observations });
+      const lineage = outcome
+        ? (summary.lineages ?? []).find((projection) => projection.outcomeId === outcome.outcomeId) ?? null
+        : null;
+
+      const offeredCommands = offeredExecutionCommands({ action, task, latestExecution, actorUserId });
+
+      return {
+        id: `governed-branch-${action.actionId}`,
+        action,
+        task,
+        executions,
+        latestExecution,
+        offeredCommands,
+        outcome,
+        observations,
+        lineage,
+        stages: buildBranchStages({
+          canWrite,
+          actorUserId,
+          action,
+          task,
+          latestExecution,
+          offeredCommands,
+          outcome,
+          observations,
+          lineage,
+        }),
+        boundary: buildBoundary({ latestExecution, task, outcome, observations }),
+      };
+    });
+
+    // The chain speaks for its most advanced branch: an achieved Outcome if one exists,
+    // otherwise the newest branch that is still carrying work.
+    const leading =
+      branches.find((branch) => branch.boundary.outcomeAchieved) ??
+      branches.find((branch) => branch.task !== null || branch.action.dispatchable) ??
+      branches[0] ??
+      null;
 
     chains.push({
       kind: "governed_execution_chain",
@@ -676,30 +1123,38 @@ export function buildExecutionChains(summary: OperationalSummary | undefined): G
         (decision.recommendation_id ? recommendationTitleById.get(String(decision.recommendation_id)) : null) ??
         str(decision.decision) ??
         "Recorded decision",
-      action,
-      task,
-      executions,
-      latestExecution,
-      outcome,
-      observations,
-      lineage,
-      stages: buildStages({
+      branches,
+      proposalStage: buildProposalStage({
         decisionStatus,
         decisionIsOwnedByActor: Boolean(actorUserId) && str(decision.decided_by) === actorUserId,
         hasEvidenceLink: evidenceLinkedDecisionIds.has(decisionId),
         canWrite,
-        action,
-        task,
-        latestExecution,
-        outcome,
-        observations,
-        lineage,
+        branches,
       }),
-      boundary,
+      status: describeChainStatus(decisionStatus, branches),
+      boundary: leading?.boundary ?? emptyBoundary(),
     });
   }
 
   return chains;
+}
+
+/** Sort key for Material Actions of one Decision. Uses persisted times only. */
+function actionOrder(action: AnyRecord): number {
+  const value = str(action.persisted_at) ?? str(action.created_at);
+  const parsed = value ? new Date(value).valueOf() : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/** Sort key for governance evaluations, matching the server's own
+ *  `order by evaluated_at desc, recorded_at desc`. */
+function evaluationOrder(evaluation: AnyRecord): number {
+  for (const column of ["evaluated_at", "recorded_at"]) {
+    const value = str(evaluation[column]);
+    const parsed = value ? new Date(value).valueOf() : Number.NaN;
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
 }
 
 export function findExecutionChainByDecisionId(
@@ -709,7 +1164,12 @@ export function findExecutionChainByDecisionId(
   return chains.find((chain) => chain.decisionId === decisionId);
 }
 
+/** Every canonical Action projected across all chains. Nothing persisted is dropped. */
+export function selectAllBranches(chains: GovernedExecutionChain[]): GovernedActionBranch[] {
+  return chains.flatMap((chain) => chain.branches);
+}
+
 /** Chains a PM can still move forward. Used for ordering only — never to hide a chain. */
 export function selectAdvanceableChains(chains: GovernedExecutionChain[]): GovernedExecutionChain[] {
-  return chains.filter((chain) => chain.stages.some((stage) => stage.actionable));
+  return chains.filter((chain) => chainStages(chain).some((stage) => stage.actionable));
 }

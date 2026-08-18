@@ -1,0 +1,176 @@
+/**
+ * P2-12 — durable identity for ONE logical submission attempt.
+ *
+ * A canonical write in this experience is idempotent: the server reconciles a retry to
+ * the row it already persisted, provided the retry carries the SAME submission identity.
+ * That identity therefore has to outlive the thing most likely to disappear at exactly
+ * the wrong moment — the React component. When a request is persisted but its response
+ * is lost, the PM's natural recovery is to close the drawer, navigate, or refresh and try
+ * again; a per-mount `useRef` token does not survive any of those, so the retry would
+ * arrive with a fresh identity and either duplicate the canonical row (P2-09) or collide
+ * with it (P2-06).
+ *
+ * What is stored here is deliberately minimal and deliberately NOT canonical:
+ *
+ *   - `attemptId` is an opaque client-owned nonce. It is never a canonical entity id,
+ *     never a correlation id, never a causation id, and is never persisted as domain
+ *     identity. It only ever contributes to an idempotency key.
+ *   - `startedAt` is the single wall-clock reading for the whole attempt, so a retry
+ *     re-sends the same timestamps rather than minting new ones. P2-06 folds `createdAt`
+ *     and `expiresAt` into the proposal digest, so a fresh `new Date()` on retry turns an
+ *     idempotent replay into `material_action_idempotency_conflict`.
+ *   - `lastKey` is the idempotency key the attempt last submitted, kept so persisted
+ *     state can prove the attempt succeeded and retire it.
+ *
+ * Nothing secret is written. Storage failures are never fatal: an in-memory map backs the
+ * same contract, so the identity still survives a component remount within the page.
+ *
+ * An attempt is retired when EITHER the server accepts it, OR persisted canonical state
+ * proves it landed, OR it ages past `ttlMs`. The TTL matters: an attempt is only a
+ * "retry of the same submission" for as long as that submission could still be accepted.
+ * Past that window the next submission is a genuinely new one and must take a new
+ * identity — which is exactly the reauthorization path an expired Material Action needs.
+ */
+
+export type SubmissionAttempt = {
+  /** Opaque per-attempt nonce. Not a canonical id. */
+  attemptId: string;
+  /** The one wall-clock reading for this attempt, ISO-8601. */
+  startedAt: string;
+  /** Idempotency key last submitted under this attempt, if any. */
+  lastKey?: string;
+};
+
+/** Attempts are per-tab, per-actor working state, so the store is namespaced and scoped
+ *  by the canonical ids the attempt belongs to — never global. */
+export const ATTEMPT_KEY_PREFIX = "pmfreak.p2-12.attempt";
+
+/**
+ * Scoped by the Decision AND the classification being proposed.
+ *
+ * The draft digest is what makes "the same submission" mean the same thing here as it
+ * does to P2-06. Keyed on the Decision alone, a PM who corrected a misclassification
+ * after a failed request would resubmit under the retained identity with a different
+ * digest and get `material_action_idempotency_conflict` — unable to fix their own answer
+ * until the attempt aged out.
+ */
+export function materialActionAttemptKey(
+  workspaceId: string,
+  projectId: string,
+  decisionId: string,
+  draftDigest: string
+): string {
+  return `${ATTEMPT_KEY_PREFIX}.material-action.${workspaceId}.${projectId}.${decisionId}.${draftDigest}`;
+}
+
+export function observationAttemptKey(workspaceId: string, projectId: string, outcomeId: string): string {
+  return `${ATTEMPT_KEY_PREFIX}.observation.${workspaceId}.${projectId}.${outcomeId}`;
+}
+
+/** Survives a remount even where `localStorage` is unavailable (SSR, private modes,
+ *  storage denied). Same contract, smaller durability envelope — never an exception. */
+const fallback = new Map<string, SubmissionAttempt>();
+
+function store(): Storage | null {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    // Storage access can throw outright when blocked by policy.
+    return null;
+  }
+}
+
+function readRaw(key: string): SubmissionAttempt | null {
+  const backing = store();
+  if (backing) {
+    try {
+      const raw = backing.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<SubmissionAttempt>;
+        if (typeof parsed?.attemptId === "string" && typeof parsed?.startedAt === "string") {
+          return {
+            attemptId: parsed.attemptId,
+            startedAt: parsed.startedAt,
+            ...(typeof parsed.lastKey === "string" ? { lastKey: parsed.lastKey } : {}),
+          };
+        }
+      }
+    } catch {
+      // Unparseable or unreadable state is treated as no attempt, never as a crash.
+    }
+  }
+  return fallback.get(key) ?? null;
+}
+
+function writeRaw(key: string, attempt: SubmissionAttempt): void {
+  fallback.set(key, attempt);
+  const backing = store();
+  if (!backing) return;
+  try {
+    backing.setItem(key, JSON.stringify(attempt));
+  } catch {
+    // Quota or policy failure: the in-memory copy still holds the attempt.
+  }
+}
+
+export function clearSubmissionAttempt(key: string): void {
+  fallback.delete(key);
+  const backing = store();
+  if (!backing) return;
+  try {
+    backing.removeItem(key);
+  } catch {
+    // Nothing further to do; the authoritative in-memory copy is already gone.
+  }
+}
+
+/** The pending attempt, without creating one. Used to reconcile against persisted state. */
+export function peekSubmissionAttempt(key: string): SubmissionAttempt | null {
+  return readRaw(key);
+}
+
+export type LoadAttemptOptions = {
+  /** How long one submission stays "the same submission". Beyond it, a new identity. */
+  ttlMs: number;
+  now?: Date;
+  mint?: () => string;
+};
+
+/**
+ * The attempt identity to submit under. Returns the pending one while it is still live,
+ * so a retry reconciles; mints a fresh one once no live attempt remains, so a genuinely
+ * later submission is recorded as its own event rather than reconciling into an older row.
+ */
+export function loadSubmissionAttempt(key: string, options: LoadAttemptOptions): SubmissionAttempt {
+  const now = options.now ?? new Date();
+  const mint = options.mint ?? (() => crypto.randomUUID());
+  const existing = readRaw(key);
+  if (existing) {
+    const startedAt = new Date(existing.startedAt).valueOf();
+    if (Number.isFinite(startedAt) && now.valueOf() - startedAt < options.ttlMs) return existing;
+    clearSubmissionAttempt(key);
+  }
+  const created: SubmissionAttempt = { attemptId: mint(), startedAt: now.toISOString() };
+  writeRaw(key, created);
+  return created;
+}
+
+/** Records the idempotency key an attempt submitted, so persisted state can retire it. */
+export function rememberSubmittedKey(key: string, idempotencyKey: string): void {
+  const existing = readRaw(key);
+  if (!existing) return;
+  writeRaw(key, { ...existing, lastKey: idempotencyKey });
+}
+
+/**
+ * Retires the attempt when persisted canonical state proves it landed.
+ *
+ * Called on every render with what the server actually returned, so a lost response is
+ * reconciled by the next revalidation rather than leaving a token that would make a later
+ * honest re-submission collide with the row it already wrote.
+ */
+export function reconcileSubmissionAttempt(key: string, persistedKeys: readonly string[]): void {
+  const pending = readRaw(key);
+  if (!pending?.lastKey) return;
+  if (persistedKeys.includes(pending.lastKey)) clearSubmissionAttempt(key);
+}

@@ -1401,6 +1401,9 @@ async function loadActorRole(client: Client, workspaceId: string, userId: string
   return (data?.role as OperationalWorkspaceRole | undefined) ?? null;
 }
 
+/** A canonical row as the Data API returns it: column names, untyped values. */
+type SummaryRow = Record<string, unknown>;
+
 export async function getOperationalSummary(client: Client, workspaceId: string, projectId: string, userId: string): Promise<OperationalSummary> {
   const [
     sources,
@@ -1451,6 +1454,98 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
   const decisionIds = (decisions.data ?? []).map((row) => row.id);
   const links = decisionIds.length ? await client.from("decision_evidence_links").select("*").in("decision_record_id", decisionIds) : { data: [], error: null };
   if (links.error) throw new Error(`load_evidence_links: ${links.error.message}`);
+
+  /**
+   * Complete the governed chain BY PERSISTED CANONICAL ID.
+   *
+   * The collections above are independently windowed to the newest N rows project-wide.
+   * That is fine for listing recent activity, but a consumer that JOINS them cannot tell
+   * "this chain has no Observation" from "this chain's Observation fell outside a
+   * different collection's window". Reading absence out of a truncated projection is a
+   * false statement about the domain — after thirty newer observations elsewhere in the
+   * project, an older achieved Outcome would be reported as having no evidence at all.
+   *
+   * So each linked level is additionally fetched by the exact persisted reference that
+   * defines it, seeded from the bounded root set already loaded, and unioned with the
+   * windowed rows. Unioning rather than replacing keeps every row the windows already
+   * surfaced — no existing surface loses anything — while guaranteeing that for any row
+   * present here, its own linked children are present too:
+   *
+   *   Decision.id -> material_action_proposals.source_decision_id
+   *   Action.id   -> material_action_governance_evaluations.action_id
+   *   Action.id   -> execution_tasks.source_payload.sourceActionId   (P2-07)
+   *   Task.id     -> internal_task_executions.task_id
+   *   Task.id     -> canonical_task_outcomes.task_id
+   *   Outcome.id  -> canonical_outcome_observations.outcome_id
+   *
+   * Every link is an exact id match. Nothing is joined by timestamp, title or proximity,
+   * and no unbounded project-wide read is introduced: each query is bounded by the id set
+   * it is given, which is itself bounded by the Decision window.
+   */
+  const linkedRows = async (
+    table: string,
+    column: string,
+    values: string[],
+    /** Extra equality the WINDOWED query for this table also applies. A by-id completion
+     *  that widened the set would silently change what the collection means. */
+    match?: readonly [string, string]
+  ): Promise<SummaryRow[]> => {
+    if (values.length === 0) return [];
+    const scoped = client.from(table).select("*").eq("workspace_id", workspaceId).eq("project_id", projectId);
+    const result = await (match ? scoped.eq(match[0], match[1]) : scoped).in(column, values);
+    if (result.error) throw new Error(`load_operational_summary: ${result.error.message}`);
+    return (result.data ?? []) as unknown as SummaryRow[];
+  };
+
+  /**
+   * Union, then restore the window's own ordering.
+   *
+   * Each collection above is ordered by a specific column descending, and consumers read
+   * that order as meaning "newest first" — the Material Action panel, for instance, folds
+   * evaluations into a map expecting the newest to win. Appending by-id rows in arbitrary
+   * Data API order would leave the collection looking the same while quietly changing
+   * which evaluation a consumer resolves as current. Re-sorting on the same column makes
+   * the result indistinguishable from a wider window, which is the whole intent.
+   */
+  const unionById = (orderColumn: string, ...groups: Array<SummaryRow[] | null | undefined>): SummaryRow[] => {
+    const byId = new Map<string, SummaryRow>();
+    for (const group of groups) for (const row of group ?? []) byId.set(String(row.id), row);
+    const at = (row: SummaryRow): number => {
+      const value = row[orderColumn];
+      const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    return [...byId.values()].sort((a, b) => at(b) - at(a));
+  };
+  const idsOf = (rows: SummaryRow[]): string[] => [...new Set(rows.map((row) => String(row.id)))];
+
+  const allMaterialActions = unionById(
+    "persisted_at",
+    materialActions.data as unknown as SummaryRow[] | null,
+    await linkedRows("material_action_proposals", "source_decision_id", decisionIds.map(String))
+  );
+  const actionIds = idsOf(allMaterialActions);
+  const [linkedEvaluations, linkedTasks] = await Promise.all([
+    linkedRows("material_action_governance_evaluations", "action_id", actionIds),
+    // Governed tasks only, exactly as the window above. A RAID or draft task may also
+    // carry a `sourceActionId`, and letting one in here would put an ungoverned row into
+    // a collection every consumer is entitled to read as governed.
+    linkedRows("execution_tasks", "source_payload->>sourceActionId", actionIds, ["source_payload->>source", "governed_action"]),
+  ]);
+  const allMaterialActionEvaluations = unionById("recorded_at", materialActionEvaluations.data as unknown as SummaryRow[] | null, linkedEvaluations);
+  const allTasks = unionById("created_at", tasks.data as unknown as SummaryRow[] | null, linkedTasks);
+  const taskIds = idsOf(allTasks);
+  const [linkedExecutions, linkedOutcomes] = await Promise.all([
+    linkedRows("internal_task_executions", "task_id", taskIds),
+    linkedRows("canonical_task_outcomes", "task_id", taskIds),
+  ]);
+  const allExecutions = unionById("created_at", executions.data as unknown as SummaryRow[] | null, linkedExecutions);
+  const allOutcomes = unionById("created_at", outcomes.data as unknown as SummaryRow[] | null, linkedOutcomes);
+  const allObservations = unionById(
+    "recorded_at",
+    observations.data as unknown as SummaryRow[] | null,
+    await linkedRows("canonical_outcome_observations", "outcome_id", idsOf(allOutcomes))
+  );
   const governanceById = new Map((governance.data ?? []).map((row) => [row.id, row]));
   const safeRecommendations = (recommendations.data ?? []).map((row) => {
     const event = governanceById.get(row.governance_event_id) as Record<string, unknown> | undefined;
@@ -1471,12 +1566,12 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     recommendations: safeRecommendations,
     decisions: decisions.data ?? [],
     evidenceLinks: links.data ?? [],
-    materialActions: materialActions.data ?? [],
-    materialActionEvaluations: materialActionEvaluations.data ?? [],
-    outcomes: outcomes.data ?? [],
-    observations: observations.data ?? [],
-    tasks: tasks.data ?? [],
-    executions: executions.data ?? [],
+    materialActions: allMaterialActions,
+    materialActionEvaluations: allMaterialActionEvaluations,
+    outcomes: allOutcomes,
+    observations: allObservations,
+    tasks: allTasks,
+    executions: allExecutions,
     lineages,
     assurance: assuranceResult.data as OperationalSummary["assurance"],
     // `userId` is the requesting actor's own id. P2-06 refuses a Material Action whose
