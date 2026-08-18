@@ -292,11 +292,31 @@ test("P2-12 H4: the canonical operations predate P2-12 rather than being added b
 test("P2-12 H5: no migration and no new API route is introduced", (t) => {
   const base = resolveBaseCommit();
   if (!base) return t.skip("no base ref in this checkout (shallow CI clone); scope is enforced at staging review");
-  const changed = execFileSync("git", ["diff", "--name-only", `${base}...HEAD`], { encoding: "utf8" })
-    .split("\n")
-    .filter(Boolean);
+  const list = (...args) =>
+    execFileSync("git", ["diff", "--name-only", ...args, `${base}...HEAD`], { encoding: "utf8" })
+      .split("\n")
+      .filter(Boolean);
+  const changed = list();
+  const added = list("--diff-filter=A");
+
+  // No migration at all — added or modified.
   assert.deepEqual(changed.filter((file) => file.startsWith("supabase/migrations/")), []);
-  assert.deepEqual(changed.filter((file) => /^src\/app\/api\/.*route\.ts$/.test(file)), []);
+
+  // No NEW API route. An EXISTING route may be modified: closing N5 required removing
+  // `createdAt`/`evaluationTime`/`expiresAt` from the operational-flow handler so a
+  // browser clock could no longer define a governance window. That is a removal of client
+  // authority at an existing boundary, not new API surface.
+  assert.deepEqual(added.filter((file) => /^src\/app\/api\/.*route\.ts$/.test(file)), []);
+
+  // …and the surface area of the existing routes must not grow: no operation branch may
+  // be added. This is stricter than a file-level check, which could not tell a removal
+  // from a new endpoint hidden inside an existing file.
+  const routeDiff = execFileSync("git", ["diff", `${base}...HEAD`, "--", "src/app/api"], { encoding: "utf8" });
+  const addedOperations = routeDiff
+    .split("\n")
+    .filter((line) => line.startsWith("+") && /operation === "/.test(line))
+    .map((line) => line.trim());
+  assert.deepEqual(addedOperations, [], "no new operation may be added to an existing route");
 });
 
 test("P2-12 H2: the read model owns no records and stays framework-free", () => {
