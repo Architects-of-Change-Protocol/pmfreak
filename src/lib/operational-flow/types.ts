@@ -211,7 +211,13 @@ export type OperationalSummary = {
   materialActionEvaluations: Array<Record<string, unknown>>;
   outcomes?: Array<Record<string, unknown>>;
   observations?: Array<Record<string, unknown>>;
+  /** Governed `execution_tasks` rows (P2-07). Linked to their Action by
+   *  `source_payload.sourceActionId`; never client-minted. */
+  tasks?: Array<Record<string, unknown>>;
+  /** `internal_task_executions` rows (P2-08). A Task's execution history is a
+   *  separate record from the Task itself and is never collapsed into it. */
+  executions?: Array<Record<string, unknown>>;
   lineages?: CompleteLineageProjection[];
   assurance: OperationalAssuranceSummary;
-  actor: { role: string | null; canCreateEvidence: boolean };
+  actor: { role: string | null; userId?: string | null; canCreateEvidence: boolean };
 };

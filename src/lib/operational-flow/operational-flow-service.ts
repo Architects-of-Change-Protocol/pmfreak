@@ -1416,6 +1416,8 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     materialActionEvaluations,
     outcomes,
     observations,
+    tasks,
+    executions,
     assuranceResult,
     actorRole,
   ] = await Promise.all([
@@ -1432,10 +1434,17 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     client.from("material_action_governance_evaluations").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("recorded_at", { ascending: false }).limit(30),
     client.from("canonical_task_outcomes").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(30),
     client.from("canonical_outcome_observations").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("recorded_at", { ascending: false }).limit(30),
+    // P2-12 reads the two canonical nodes the summary did not already carry, so the
+    // PM Execution Center can project Action -> Task -> Execution from persisted rows
+    // instead of holding them in browser memory. Governed tasks only: the Action->Task
+    // link is `source_payload->>'sourceActionId'` under `source = 'governed_action'`
+    // (P2-07), which is exactly the set this experience continues.
+    client.from("execution_tasks").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).eq("source_payload->>source", "governed_action").order("created_at", { ascending: false }).limit(30),
+    client.from("internal_task_executions").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(30),
     client.rpc("get_operational_assurance_summary", { p_workspace_id: workspaceId, p_project_id: projectId }),
     loadActorRole(client, workspaceId, userId),
   ]);
-  for (const result of [sources, rawInputs, normalizedEvents, evidence, signals, risks, governance, recommendations, decisions, materialActions, materialActionEvaluations, outcomes, observations]) {
+  for (const result of [sources, rawInputs, normalizedEvents, evidence, signals, risks, governance, recommendations, decisions, materialActions, materialActionEvaluations, outcomes, observations, tasks, executions]) {
     if (result.error) throw new Error(`load_operational_summary: ${result.error.message}`);
   }
   if (assuranceResult.error || !assuranceResult.data) throw new Error(`load_operational_assurance: ${assuranceResult.error?.message ?? "no_data"}`);
@@ -1466,8 +1475,13 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     materialActionEvaluations: materialActionEvaluations.data ?? [],
     outcomes: outcomes.data ?? [],
     observations: observations.data ?? [],
+    tasks: tasks.data ?? [],
+    executions: executions.data ?? [],
     lineages,
     assurance: assuranceResult.data as OperationalSummary["assurance"],
-    actor: { role: actorRole, canCreateEvidence: canCreateOperationalEvidence(actorRole) },
+    // `userId` is the requesting actor's own id. P2-06 refuses a Material Action whose
+    // source Decision was recorded by a different actor, so the experience needs it to
+    // avoid offering a control the server would always deny. It is never authority.
+    actor: { role: actorRole, userId, canCreateEvidence: canCreateOperationalEvidence(actorRole) },
   };
 }

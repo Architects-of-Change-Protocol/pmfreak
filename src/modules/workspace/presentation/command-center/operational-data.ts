@@ -4,6 +4,13 @@ import useSWR from "swr";
 import type { OperationalSummary } from "@/lib/operational-flow/types";
 import type { Agent, DetailRow, NeedsYouItem, RepositoryItem, StatusTone, ToneBadge } from "./types";
 import { buildCanonicalAttention, selectPendingAttention, type CanonicalAttentionItem } from "./attention-read-model";
+import {
+  buildExecutionChains,
+  isObservationEligibleEvidence,
+  observationIdempotencyKey,
+  type ExecutionOperation,
+  type GovernedExecutionChain,
+} from "./execution-read-model";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -187,6 +194,137 @@ export function deriveAllGovernedAttention(
   onDecide: (recommendationId: string, status: string, rationale: string) => Promise<void>
 ): NeedsYouItem[] {
   return buildCanonicalAttention(data).map((item) => toNeedsYouItem(item, onDecide));
+}
+
+/**
+ * P2-12 — dispatch one governed continuation operation.
+ *
+ * Every branch calls an operation that existed before P2-12; none of them is a composite
+ * command collapsing canonical transitions. Each rejects on failure so the calling panel
+ * surfaces the real server error instead of reporting optimistic success.
+ */
+export async function runExecutionOperation(
+  workspaceId: string,
+  projectId: string,
+  operation: ExecutionOperation
+): Promise<void> {
+  if (operation.kind === "material_action") {
+    const now = new Date();
+    await postOperationalFlow(workspaceId, projectId, {
+      operation: "propose_material_action",
+      decisionId: operation.decisionId,
+      // Deterministic per Decision: retrying reconciles to the same Action instead of
+      // creating a second one (P2-06 idempotency key).
+      idempotencyKey: `p2-12:material-action:${operation.decisionId}`,
+      // P2-06 derives `materiality` — and therefore the governance state — from these
+      // four. They are the authorized human's classification of their own action; the
+      // experience never assumes them.
+      actionClass: operation.draft.actionClass,
+      risk: operation.draft.risk,
+      reversibility: operation.draft.reversibility,
+      sideEffect: operation.draft.sideEffect,
+      actionType: operation.draft.actionType,
+      intendedEffect: operation.draft.intendedEffect,
+      // Factual, not assumed: P2-06 persists an inert authorization (`canExecute` is
+      // always false), and the action concerns the project this chain belongs to.
+      intendedOperation: "propose_only",
+      targetResourceType: "project",
+      targetResourceId: projectId,
+      // The recorded human Decision is the justification for acting.
+      justification: operation.justification,
+      createdAt: now.toISOString(),
+      evaluationTime: now.toISOString(),
+      expiresAt: new Date(now.getTime() + 60 * 60 * 1000).toISOString(),
+    });
+    return;
+  }
+
+  if (operation.kind === "task") {
+    await postOperationalFlow(workspaceId, projectId, {
+      operation: "dispatch_material_action_to_task",
+      actionId: operation.actionId,
+    });
+    return;
+  }
+
+  if (operation.kind === "execution") {
+    const response = await fetch("/api/execution-tasks/internal-execution", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taskId: operation.taskId, command: operation.command }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(String(result.error ?? "Execution command failed."));
+    // A denied transition returns 200 with a disposition, so it is checked explicitly
+    // rather than inferred from the HTTP status alone.
+    if (result.disposition === "denied" || result.disposition === "conflict") {
+      throw new Error(String(result.reason ?? result.failureClass ?? "Execution command was not accepted."));
+    }
+    return;
+  }
+
+  if (operation.kind === "outcome") {
+    await postOperationalFlow(workspaceId, projectId, {
+      operation: "ensure_expected_outcome",
+      taskId: operation.taskId,
+      expectedResult: operation.expectedResult,
+      successCriteria: [operation.expectedResult],
+      // The chain's persisted correlation, carried forward from the Action (P2-08 copies
+      // the Action's correlation onto the Execution). A fresh id here would detach the
+      // Outcome from the very chain that produced it.
+      correlationId: operation.correlationId,
+    });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  await postOperationalFlow(workspaceId, projectId, {
+    operation: "record_outcome_observation",
+    outcomeId: operation.outcomeId,
+    observationState: operation.observationState,
+    summary: operation.summary,
+    evidenceReferenceIds: operation.evidenceReferenceIds,
+    // Epistemic state is the observer's, never assumed to be certain.
+    confidenceScore: operation.quality.confidenceScore,
+    missingDataState: operation.quality.missingDataState,
+    observedAt: now,
+    evaluatedAt: now,
+    correlationId: operation.correlationId,
+    // Derived from the submission's content AND its attempt token, so a retry reconciles
+    // to the same canonical Observation while a later genuine re-observation with
+    // identical content is recorded as its own event.
+    idempotencyKey: await observationIdempotencyKey({
+      outcomeId: operation.outcomeId,
+      observationState: operation.observationState,
+      summary: operation.summary,
+      evidenceReferenceIds: operation.evidenceReferenceIds,
+      attemptNonce: operation.attemptNonce,
+    }),
+  });
+}
+
+/**
+ * Canonical evidence a PM can cite when recording an Observation.
+ *
+ * Filtered to what P2-09 will actually accept: offering fixture or degraded evidence
+ * would present a control the server always rejects with
+ * `observation_evidence_scope_invalid`.
+ */
+export function deriveEvidenceOptions(data: OperationalSummary | undefined): Array<{ id: string; title: string }> {
+  return (data?.evidence ?? [])
+    .filter((row) => isObservationEligibleEvidence(row))
+    .map((row) => ({
+      id: String(row.id),
+      title: String(row.title ?? row.id),
+    }));
+}
+
+/**
+ * P2-12 — governed chains that continue past a recorded Decision. Rejected Decisions are
+ * included so the surface shows honestly that they stop here, rather than hiding them.
+ */
+export function deriveExecutionChains(data: OperationalSummary | undefined): GovernedExecutionChain[] {
+  return buildExecutionChains(data);
 }
 
 function toNeedsYouItem(

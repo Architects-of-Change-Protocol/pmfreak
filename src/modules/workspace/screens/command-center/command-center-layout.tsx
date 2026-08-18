@@ -8,13 +8,18 @@ import {
   deriveAllGovernedAttention,
   deriveNeedsYou,
   deriveRaidNeedsYou,
+  deriveEvidenceOptions,
+  deriveExecutionChains,
   deriveRepository,
   postOperationalFlow,
   postRaidActionDecision,
+  runExecutionOperation,
   useOperationalFlow,
   useRaidRecommendedActions,
 } from "../../presentation/command-center/operational-data";
 import type { DecisionStatus } from "../../presentation/command-center/operational-data";
+import type { ExecutionOperation, GovernedExecutionChain } from "../../presentation/command-center/execution-read-model";
+import { ExecutionQueue } from "../../presentation/command-center/execution-queue";
 import { chatMessagesToConversationTurns, conversationResultToAssistantMessage, postConversationMessage } from "../../presentation/command-center/conversation-data";
 import { ProjectSidebar } from "../../presentation/command-center/project-sidebar";
 import { ProjectTopBar } from "../../presentation/command-center/project-top-bar";
@@ -182,6 +187,8 @@ export function CommandCenterLayout({
   // persisted state — that is what reconciles it when a decision lands or another actor decides.
   const [drawerContent, setDrawerContent] = useState<DrawerContent | null>(null);
   const [openAttentionId, setOpenAttentionId] = useState<string | null>(null);
+  /** P2-12: the canonical Decision whose governed chain is open in the drawer. */
+  const [openChainId, setOpenChainId] = useState<string | null>(null);
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
@@ -218,6 +225,11 @@ export function CommandCenterLayout({
   const needsYouReal = useMemo(() => deriveNeedsYou(flowData, handleDecide), [flowData]); // eslint-disable-line react-hooks/exhaustive-deps
   const governedAttentionAll = useMemo(() => deriveAllGovernedAttention(flowData, handleDecide), [flowData]); // eslint-disable-line react-hooks/exhaustive-deps
   const raidNeedsYou = useMemo(() => deriveRaidNeedsYou(raidActions, handleRaidDecide), [raidActions]); // eslint-disable-line react-hooks/exhaustive-deps
+  // P2-12: governed chains that continue past a recorded Decision, plus the canonical
+  // evidence a PM may cite when recording an Observation.
+  const executionChains = useMemo(() => deriveExecutionChains(flowData), [flowData]);
+  const evidenceOptions = useMemo(() => deriveEvidenceOptions(flowData), [flowData]);
+
   const repositoryReal = useMemo(() => deriveRepository(flowData), [flowData]);
   const agentsReal = useMemo(() => deriveAgents(flowData, hasBrief), [flowData, hasBrief]);
   const memoryReal = useMemo(() => deriveMemory(flowData), [flowData]);
@@ -295,18 +307,58 @@ export function CommandCenterLayout({
   };
   const handleAgentSelect = (agent: Agent) => {
     setOpenAttentionId(null);
+    setOpenChainId(null);
     setDrawerContent(agent.drawer);
   };
   const closeDrawer = () => {
     setOpenAttentionId(null);
+    setOpenChainId(null);
     setDrawerContent(null);
   };
 
+  // P2-12 — every stage runs the authoritative request first and only then revalidates,
+  // so nothing is reported as persisted before the server has accepted it. Errors are
+  // rethrown for the panel to display.
+  const handleRunExecution = async (operation: ExecutionOperation) => {
+    await runExecutionOperation(workspaceId, selectedProject?.id ?? "", operation);
+    await mutateFlow();
+  };
+
+  const handleChainSelect = (chain: GovernedExecutionChain) => {
+    setDrawerContent(null);
+    setOpenAttentionId(null);
+    setOpenChainId(chain.decisionId);
+  };
+
+  /** Builds the drawer for a governed chain, resolved fresh so it reconciles after each write. */
+  const buildChainDrawer = (chain: GovernedExecutionChain): DrawerContent => ({
+    title: chain.title,
+    why: chain.rationale ?? "A human decision was recorded for this recommendation.",
+    evidence: chain.action?.evidenceReferenceIds ?? [],
+    nextStep: chain.boundary.statement,
+    badge: { tone: chain.boundary.outcomeAchieved ? "success" : "task", label: "Governed · after decision" },
+    kindSummary: "The governed chain that follows your recorded decision.",
+    chain: [
+      { label: "Decision", value: `${chain.decisionStatus.replaceAll("_", " ")} · ${chain.decisionId}` },
+      { label: "Material action", value: chain.action ? `${chain.action.governanceState.replaceAll("_", " ")} · ${chain.action.actionId}` : "Not requested" },
+      { label: "Task", value: chain.task ? `${chain.task.status.replaceAll("_", " ")} · ${chain.task.taskId}` : "Not created" },
+      { label: "Execution", value: chain.latestExecution ? `${chain.latestExecution.status.replaceAll("_", " ")} · ${chain.latestExecution.executionId}` : "Not started" },
+      { label: "Expected outcome", value: chain.outcome ? `${chain.outcome.state.replaceAll("_", " ")} · ${chain.outcome.outcomeId}` : "Not defined" },
+      { label: "Observation", value: chain.observations.length > 0 ? `${chain.observations[0].observationState.replaceAll("_", " ")} · ${chain.observations[0].observationId}` : "None recorded" },
+    ],
+    executionPanel: { chain, evidenceOptions, onRun: handleRunExecution },
+  });
+
   // Resolved fresh on every render: once a decision is persisted and the summary revalidates,
   // the open drawer shows the recorded Decision and drops the now-unavailable controls.
-  const activeDrawer = openAttentionId
-    ? ([...governedAttentionAll, ...raidNeedsYou].find((item) => item.id === openAttentionId)?.drawer ?? null)
-    : drawerContent;
+  const activeDrawer = openChainId
+    ? (() => {
+        const chain = executionChains.find((entry) => entry.decisionId === openChainId);
+        return chain ? buildChainDrawer(chain) : null;
+      })()
+    : openAttentionId
+      ? ([...governedAttentionAll, ...raidNeedsYou].find((item) => item.id === openAttentionId)?.drawer ?? null)
+      : drawerContent;
 
   const handleIntakeComplete = (summary: string) => {
     setUserInteracted(true);
@@ -379,6 +431,7 @@ export function CommandCenterLayout({
             onRetry={() => void mutateFlow()}
             onAddNotes={() => setNotesOpen(true)}
           />
+          <ExecutionQueue chains={executionChains} onSelect={handleChainSelect} loading={flowLoading} />
           <AgentDock agents={agentItems} onSelect={handleAgentSelect} loading={flowLoading} onAddContext={() => setNotesOpen(true)} />
         </aside>
       </div>
@@ -414,6 +467,14 @@ export function CommandCenterLayout({
               setNotesOpen(true);
               setRightOpen(false);
             }}
+          />
+          <ExecutionQueue
+            chains={executionChains}
+            onSelect={(chain) => {
+              handleChainSelect(chain);
+              setRightOpen(false);
+            }}
+            loading={flowLoading}
           />
           <AgentDock
             agents={agentItems}

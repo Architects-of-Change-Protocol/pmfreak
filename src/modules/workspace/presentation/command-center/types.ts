@@ -1,3 +1,5 @@
+import type { ExecutionOperation, GovernedExecutionChain } from "./execution-read-model";
+
 export type StatusTone = "danger" | "task" | "approval" | "insight" | "success" | "info";
 
 export type ToneBadge = {
@@ -119,6 +121,17 @@ export type DrawerContent = {
   sections?: DetailSection[];
   /** Present only for items backed by a real recommendation or suggested action. */
   decisionPanel?: DecisionPanel;
+  /** P2-12: the governed continuation after a Decision — action, task, execution,
+   *  outcome, observation and lineage. Present only for a decided canonical chain. */
+  executionPanel?: ExecutionPanel;
+};
+
+/** P2-12 continuation surface inputs. `onRun` must reject on failure so the panel can
+ *  show the real error rather than reporting optimistic success. */
+export type ExecutionPanel = {
+  chain: GovernedExecutionChain;
+  evidenceOptions: Array<{ id: string; title: string }>;
+  onRun: (operation: ExecutionOperation) => Promise<void>;
 };
 
 export type NeedsYouItem = {
