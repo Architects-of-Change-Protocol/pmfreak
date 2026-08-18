@@ -173,6 +173,29 @@ const TABLES: Record<string, Row[]> = {
     oldObservation,
     ...noise("obs", (i) => ({ outcome_id: `out-${i}`, observation_state: "achieved" }), "recorded_at"),
   ],
+  // N2 — one OLDER eligible LIVE row, buried under 25 NEWER ineligible ones. A recency
+  // window would return only the ineligible newer rows and the surface would claim no
+  // Evidence exists, while `record_canonical_outcome_observation` would accept "ev-old".
+  evidence_items: [
+    scoped({
+      id: "ev-old", title: "Client confirmation email", normalized_event_id: "ne-old",
+      fixture_state: "LIVE", freshness_state: "CURRENT", lifecycle: "RECORDED",
+      rejection_reason: null, degraded_reason: null, evaluated_at: OLD, stale_at: null,
+      created_at: OLD,
+    }),
+    ...Array.from({ length: 25 }, (_, index) =>
+      scoped({
+        id: `ev-new-${index}`, title: `Newer ineligible ${index}`,
+        normalized_event_id: index % 5 === 0 ? null : `ne-new-${index}`,
+        fixture_state: index % 5 === 1 ? "FIXTURE" : "LIVE",
+        freshness_state: index % 5 === 2 ? "STALE" : "CURRENT",
+        lifecycle: index % 5 === 3 ? "DRAFT" : "RECORDED",
+        rejection_reason: null,
+        degraded_reason: index % 5 === 4 ? "provenance_incomplete" : null,
+        evaluated_at: NEWER(index), stale_at: null, created_at: NEWER(index),
+      })
+    ),
+  ],
   decision_evidence_links: [{ decision_record_id: "dec-old", evidence_item_id: "ev-old" }],
   governance_events: [scoped({ id: "gov-old", authority_required: "baseline review", created_at: OLD })],
   recommended_actions: [scoped({ id: "rec-old", recommendation: "Old recommendation", governance_event_id: "gov-old", created_at: OLD })],
@@ -187,6 +210,7 @@ type QueryBuilder = {
   eq: (column: string, value: unknown) => QueryBuilder;
   in: (column: string, values: unknown[]) => QueryBuilder;
   not: (column: string, operator: string, value: unknown) => QueryBuilder;
+  is: (column: string, value: unknown) => QueryBuilder;
   order: (column: string, options?: { ascending?: boolean }) => QueryBuilder;
   limit: (value: number) => QueryBuilder;
   maybeSingle: () => Promise<{ data: Row | null; error: null }>;
@@ -206,6 +230,7 @@ function makeClient() {
     const eqs: Array<[string, unknown]> = [];
     const ins: Array<[string, unknown[]]> = [];
     const notNull: string[] = [];
+    const isNull: string[] = [];
     let orderColumn: string | null = null;
     let limit: number | null = null;
     const filters: string[] = [];
@@ -223,6 +248,7 @@ function makeClient() {
       for (const [column, value] of eqs) rows = rows.filter((row) => String(read(column, row)) === String(value));
       for (const [column, values] of ins) rows = rows.filter((row) => values.map(String).includes(String(read(column, row))));
       for (const column of notNull) rows = rows.filter((row) => read(column, row) !== null && read(column, row) !== undefined);
+      for (const column of isNull) rows = rows.filter((row) => read(column, row) === null || read(column, row) === undefined);
       if (orderColumn) {
         rows.sort((a, b) => String(b[orderColumn!] ?? "").localeCompare(String(a[orderColumn!] ?? "")));
       }
@@ -235,6 +261,11 @@ function makeClient() {
       select: () => chain,
       eq: (column: string, value: unknown) => { eqs.push([column, value]); filters.push(`eq:${column}`); return chain; },
       in: (column: string, values: unknown[]) => { ins.push([column, values]); filters.push(`in:${column}`); return chain; },
+      is: (column: string, value: unknown) => {
+        if (value !== null) throw new Error(`unsupported_stub_filter: is(${column}, ${String(value)})`);
+        isNull.push(column);
+        return chain;
+      },
       not: (column: string, operator: string, value: unknown) => {
         // The service only ever issues `.not(col, "is", null)`. Anything else would be a
         // filter this stub does not implement, and silently ignoring it would make the
@@ -265,6 +296,93 @@ function makeClient() {
       rpc: async (name: string) => (name === "get_operational_assurance_summary" ? { data: {}, error: null } : { data: null, error: null }),
     },
     queries,
+  };
+}
+
+/**
+ * N5 — the governance window must come from server time, not the browser clock.
+ *
+ * Runs the REAL `proposeGovernedMaterialAction` against a stub that records what reached
+ * `persist_governed_material_action`. The client no longer sends timestamps at all, so the
+ * only thing that can move the window is the server clock — and a retry must reuse the
+ * PERSISTED window so the proposal digest still matches (F1).
+ */
+async function materialActionWindowProof() {
+  const { proposeGovernedMaterialAction } = await import("@/lib/operational-flow/operational-flow-service");
+
+  const makeActionClient = (persistedWindow: { created_at: string; expires_at: string } | null) => {
+    const calls: Array<Record<string, unknown>> = [];
+    const builder = (table: string) => {
+      const chain: Record<string, unknown> = {};
+      for (const name of ["select", "eq"]) chain[name] = () => chain;
+      chain.maybeSingle = async () =>
+        table === "material_action_proposals"
+          ? { data: persistedWindow, error: null }
+          : {
+              data: {
+                id: "dec-1", workspace_id: WORKSPACE, project_id: PROJECT, decided_by: ACTOR,
+                decision_status: "accepted", recommendation_id: "rec-1",
+                governance_event_id: "gov-1", created_at: OLD,
+              },
+              error: null,
+            };
+      chain.then = (resolve: (value: unknown) => unknown) =>
+        resolve({ data: [{ evidence_item_id: "ev-old", evidence_hash_at_decision: "a".repeat(64), evidence_version_at_decision: 1 }], error: null });
+      return chain;
+    };
+    return {
+      client: {
+        from: builder,
+        rpc: async (_name: string, args: Record<string, unknown>) => {
+          calls.push(args);
+          return { data: { disposition: "created" }, error: null };
+        },
+      },
+      calls,
+    };
+  };
+
+  const intent = {
+    decisionId: "dec-1", idempotencyKey: "p2-12:material-action:dec-1:attempt-A",
+    actionClass: "external_write" as const, actionType: "update_schedule",
+    targetResourceType: "project", targetResourceId: PROJECT, intendedOperation: "propose_only",
+    intendedEffect: "Move milestone", risk: "high" as const,
+    reversibility: "partially_reversible" as const, sideEffect: "external" as const,
+    justification: "Recorded human decision.",
+  };
+  const scope = { workspaceId: WORKSPACE, projectId: PROJECT, userId: ACTOR, role: "owner" };
+
+  // First submission: no persisted row, no client timestamps. Server clock decides.
+  const fresh = makeActionClient(null);
+  const before = Date.now();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- stub stands in for the Data API client
+  await proposeGovernedMaterialAction(fresh.client as any, scope, intent);
+  const after = Date.now();
+  const firstProposal = fresh.calls[0].p_proposal as Record<string, unknown>;
+  const createdAt = Date.parse(String(firstProposal.createdAt));
+  const expiresAt = Date.parse(String(firstProposal.expiresAt));
+
+  // Retry: a row already exists under this key. Its persisted window must be reused
+  // verbatim, whatever the clock now says — otherwise the digest changes and the replay
+  // becomes `material_action_idempotency_conflict`.
+  const persisted = { created_at: "2026-03-01T00:00:00.000Z", expires_at: "2026-03-01T01:00:00.000Z" };
+  const replay = makeActionClient(persisted);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- stub stands in for the Data API client
+  await proposeGovernedMaterialAction(replay.client as any, scope, intent);
+  const replayProposal = replay.calls[0].p_proposal as Record<string, unknown>;
+
+  return {
+    // Derived from the server clock at call time, not from any client value.
+    createdAtWithinServerCall: createdAt >= before && createdAt <= after,
+    windowMs: expiresAt - createdAt,
+    // A retry reuses the persisted window exactly, so the digest is stable.
+    replayCreatedAt: String(replayProposal.createdAt),
+    replayExpiresAt: String(replayProposal.expiresAt),
+    replayReusesPersistedWindow:
+      String(replayProposal.createdAt) === persisted.created_at &&
+      String(replayProposal.expiresAt) === persisted.expires_at,
+    // Same idempotency key + same reused window => identical digest.
+    replayDigest: String(replayProposal.deterministicDigest),
   };
 }
 
@@ -304,6 +422,9 @@ async function main() {
     )
   );
 
+  const { deriveEvidenceOptions } = await import(
+    "@/modules/workspace/presentation/command-center/operational-data"
+  );
   const { buildExecutionChains } = await import(
     "@/modules/workspace/presentation/command-center/execution-read-model"
   );
@@ -349,6 +470,15 @@ async function main() {
       evaluationOrder: (summary.materialActionEvaluations ?? [])
         .filter((row) => String(row.action_id) === "act-old")
         .map((row) => String(row.id)),
+      // N2 — eligibility is applied as a SERVER predicate before the row limit, so the
+      // older eligible row survives 25 newer ineligible ones.
+      evidenceEligibility: {
+        recencyWindowIds: (summary.evidence ?? []).map((row) => String(row.id)),
+        recencyWindowHasEligible: (summary.evidence ?? []).some((row) => String(row.id) === "ev-old"),
+        eligibleIds: (summary.observationEligibleEvidence ?? []).map((row) => String(row.id)),
+        optionIds: deriveEvidenceOptions(summary).map((option) => option.id),
+      },
+      materialActionWindow: await materialActionWindowProof(),
       // The completion reads are by exact persisted reference, never a widened window.
       linkedByIdQueries: queries
         .filter((query) => query.filters.some((filter) => filter.startsWith("in:")))

@@ -32,6 +32,8 @@ const panel = readFileSync("src/modules/workspace/presentation/command-center/ex
 const operationalData = readFileSync("src/modules/workspace/presentation/command-center/operational-data.ts", "utf8");
 const layout = readFileSync("src/modules/workspace/screens/command-center/command-center-layout.tsx", "utf8");
 const service = readFileSync("src/lib/operational-flow/operational-flow-service.ts", "utf8");
+const route = readFileSync("src/app/api/operational-flow/route.ts", "utf8");
+const queueSource = readFileSync("src/modules/workspace/presentation/command-center/execution-queue.tsx", "utf8");
 
 const text = (html) =>
   html
@@ -366,11 +368,13 @@ test("P2-12 L1c2: the attempt outlives the component and holds nothing canonical
 });
 
 test("P2-12 L1d: a conflict does not rotate the attempt — it stays visible and fails closed", () => {
-  // The attempt is cleared only after the request resolves. A conflict is surfaced as a
-  // thrown error (the route answers 409), so the identity is retained rather than
-  // silently rotating into a second write.
-  assert.match(operationalData, /idempotencyKey,\n  \}\);[\s\S]{0,400}clearSubmissionAttempt\(attemptKey\)/);
+  // A conflict is surfaced as a thrown error (the route answers 409), so the identity is
+  // retained rather than silently rotating into a second write. Since N1 the attempt is
+  // not retired on the response at all — only persisted state retires it — so a conflict
+  // and a lost response are handled by the same rule.
+  assert.match(operationalData, /idempotencyKey,\n  \}\);[\s\S]{0,400}markSubmissionAcknowledged\(attemptKey\)/);
   assert.doesNotMatch(stripComments(operationalData), /catch[\s\S]{0,200}clearSubmissionAttempt/);
+  assert.doesNotMatch(stripComments(operationalData), /catch[\s\S]{0,200}markSubmissionAcknowledged/);
   assert.match(panel, /catch \(caught\) \{[\s\S]{0,200}setError\(/);
 });
 
@@ -390,9 +394,12 @@ test("P2-12 L2c: the hashed payload is canonically and unambiguously serialized"
   // submission, and evidence is compared as a set rather than a sequence. The attempt
   // token is the final element; `observedAt` is deliberately absent — it is the fact
   // being recorded, and including it would break retry stability.
+  // Since N3 the persisted epistemic fields participate too: P2-09 stores both NOT NULL
+  // while its replay check ignores them, so leaving them out let a quality-only retry be
+  // acknowledged as a replay with the corrected values discarded.
   assert.equal(
     harness.idempotency.canonicalPayload,
-    '["out-1","inconclusive","The client replied.",["ev-1","ev-2"],"attempt-A"]'
+    '["out-1","inconclusive","The client replied.",["ev-1","ev-2"],"0.4000","PARTIAL","attempt-A"]'
   );
   assert.doesNotMatch(readModel, /observedAt[\s\S]{0,80}canonicalObservationPayload/);
 });
@@ -482,7 +489,9 @@ test("P2-12 L7: the action stage says governance depends on the human's answers"
 // ── I. Persistence and reconciliation ────────────────────────────────────────
 
 test("P2-12 I1: every stage awaits the server write before revalidating", () => {
-  assert.match(layout, /await runExecutionOperation\([\s\S]{0,120}\);\s*await mutateFlow\(\);/);
+  // The write is still awaited before any revalidation. Since N1 the revalidation is a
+  // separately guarded step, so its failure cannot be reported as a write failure.
+  assert.match(layout, /await runExecutionOperation\([\s\S]{0,140}\);\s*\n\s*setRefreshFailedAfterWrite\(false\);\s*\n\s*try \{\s*\n\s*await mutateFlow\(\);/);
 });
 
 test("P2-12 I2: a denied execution disposition is treated as failure, not success", () => {
@@ -499,10 +508,18 @@ test("P2-12 I3: retrying a Material Action reconciles instead of duplicating", (
   assert.equal(attempt.retryKeepsTimestamp, true, "a retry re-sends the same createdAt, so the digest matches");
   // The key is attempt-scoped, and both digest-bearing timestamps come from the attempt.
   assert.match(operationalData, /idempotencyKey = `p2-12:material-action:\$\{operation\.decisionId\}:\$\{attempt\.attemptId\}`/);
-  assert.match(operationalData, /createdAt: attempt\.startedAt/);
-  assert.match(operationalData, /evaluationTime: attempt\.startedAt/);
-  assert.match(operationalData, /expiresAt: new Date\(startedAt\.getTime\(\) \+ MATERIAL_ACTION_WINDOW_MS\)/);
-  // No timestamp is read at request time, which is what made the retry diverge.
+  // Since N5 the timestamps are server-owned, and the server reuses the PERSISTED window
+  // on a retry — so the digest still matches without the client supplying wall time.
+  assert.doesNotMatch(stripComments(operationalData), /createdAt:|evaluationTime:|expiresAt:/);
+  assert.match(service, /\.select\("created_at,expires_at"\)/);
+  // The persisted-row lookup is tenant AND project scoped, so no other project's window
+  // can be read into this proposal.
+  assert.match(
+    service,
+    /\.select\("created_at,expires_at"\)\s*\n\s*\.eq\("workspace_id", scope\.workspaceId\)\s*\n\s*\.eq\("project_id", scope\.projectId\)\s*\n\s*\.eq\("idempotency_key", input\.idempotencyKey\)/
+  );
+  assert.match(service, /return \{ createdAt: persistedCreatedAt, evaluationTime: now, expiresAt: persistedExpiresAt \};/);
+  // No timestamp is read at request time on the client, which is what made the retry diverge.
   assert.doesNotMatch(stripComments(operationalData), /createdAt: now\.toISOString\(\)/);
 });
 
@@ -976,4 +993,192 @@ test("P2-12 M7d: the union preserves the window's ordering, so 'newest' still me
   assert.match(service, /const unionById = \(orderColumn: string/);
   assert.match(service, /unionById\("recorded_at", materialActionEvaluations\.data/);
   assert.match(service, /unionById\(\s*"persisted_at",\s*materialActions\.data/);
+});
+
+// ── N. Second review closure: findings raised against the review-closure head ─────────
+
+test("P2-12 N1: a failed post-write refresh is not reported as a failed write", () => {
+  // CANONICAL WRITE SUCCESS != POST-WRITE READ REFRESH SUCCESS.
+  // The refresh is a separate request against a summary the write already committed to.
+  assert.match(layout, /await runExecutionOperation\([^)]*\);\s*\n\s*setRefreshFailedAfterWrite\(false\);\s*\n\s*try \{\s*\n\s*await mutateFlow\(\);\s*\n\s*\} catch \{\s*\n\s*setRefreshFailedAfterWrite\(true\);/);
+  // Only the write's own rejection propagates to the panel.
+  assert.doesNotMatch(stripComments(layout), /await runExecutionOperation\([^)]*\);\s*\n\s*await mutateFlow\(\);/);
+  // The condition is surfaced as a read-side status, never as an error role.
+  assert.match(panel, /refreshFailedAfterWrite && \([\s\S]{0,200}role="status"/);
+  assert.match(panel, /does not mean the operation failed/i);
+});
+
+test("P2-12 N1b: an acknowledged write does NOT retire the durable attempt", () => {
+  // Retiring on the POST response alone would let a retry after a failed refresh mint a
+  // fresh nonce and append a duplicate canonical row. Only persisted state retires it.
+  assert.match(operationalData, /markSubmissionAcknowledged\(attemptKey\)/);
+  assert.equal(
+    (stripComments(operationalData).match(/clearSubmissionAttempt\(attemptKey\)/g) ?? []).length,
+    0,
+    "no code path may clear an attempt on the POST response alone"
+  );
+  assert.match(submissionAttempt, /export function markSubmissionAcknowledged/);
+  // Both governed submissions behave the same way.
+  assert.equal((operationalData.match(/markSubmissionAcknowledged\(attemptKey\)/g) ?? []).length, 2,
+    "Material Action and Observation both acknowledge rather than retire");
+  // Persisted state is still what retires them.
+  assert.match(operationalData, /reconcileSubmissionAttemptsByKey\(ATTEMPT_KEY_PREFIX, actionKeys\)/);
+  assert.match(operationalData, /reconcileSubmissionAttempt\(observationAttemptKey/);
+});
+
+test("P2-12 N2: eligible Evidence is selected by server predicate, not a recency window", () => {
+  // Proof the regression bites: the 20-row recency window contains none of the eligible row.
+  const e = projection.evidenceEligibility;
+  assert.equal(e.recencyWindowHasEligible, false, "the older eligible row is outside the recency window");
+  assert.equal(e.recencyWindowIds.length, 20, "and that window is full of newer ineligible rows");
+  // And the fix holds: eligibility is applied server-side BEFORE the limit.
+  assert.deepEqual(e.eligibleIds, ["ev-old"]);
+  assert.deepEqual(e.optionIds, ["ev-old"], "so the PM can still cite it");
+  // The surface must not read the presentation window for this.
+  assert.match(operationalData, /data\?\.observationEligibleEvidence \?\? \[\]/);
+  assert.doesNotMatch(stripComments(operationalData), /deriveEvidenceOptions[\s\S]{0,200}data\?\.evidence \?\? \[\]/);
+  // Tenant/project scoping is still enforced on the eligibility query.
+  assert.match(service, /from\("evidence_items"\)\.select\("\*"\)\s*\n\s*\.eq\("workspace_id", workspaceId\)\.eq\("project_id", projectId\)/);
+});
+
+test("P2-12 N3: Observation quality is part of submission identity", () => {
+  // P2-09 persists confidence_score and missing_data_state NOT NULL, but its replay check
+  // compares only outcome/state/summary/evidence — so a quality-only retry would be
+  // acknowledged as a replay while the corrected values were silently dropped.
+  const i = harness.idempotency;
+  assert.equal(i.differsOnConfidence, true, "changed confidence is a new submission identity");
+  assert.equal(i.differsOnMissingData, true, "changed missing-data state is a new submission identity");
+  // But a numerically identical confidence is the same value, not a new identity.
+  assert.equal(i.confidenceFormatStable, true, "0.4 and 0.4000 are one value");
+  // Established normalizations are unchanged.
+  assert.equal(i.stable, true);
+  assert.equal(i.reorderedEvidence, true, "evidence order alone does not change identity");
+  assert.equal(i.whitespaceNormalised, true);
+  // observedAt/evaluatedAt must NOT be in identity — they move every attempt.
+  assert.doesNotMatch(stripComments(readModel), /canonicalObservationPayload[\s\S]{0,400}observedAt/);
+  assert.match(operationalData, /confidenceScore: operation\.quality\.confidenceScore,\n\s*missingDataState: operation\.quality\.missingDataState,\n\s*attemptNonce/);
+});
+
+test("P2-12 N4: opening one drawer clears the others", () => {
+  // `activeDrawer` resolves openChainId first, so any handler leaving it set would mask
+  // the newest click and the drawer would look unresponsive.
+  assert.match(layout, /const selectDrawer = \(next: \{ chainId\?[\s\S]{0,320}setOpenChainId\(next\.chainId \?\? null\);\s*\n\s*setOpenAttentionId\(next\.attentionId \?\? null\);\s*\n\s*setDrawerContent\(next\.content \?\? null\);/);
+  // Every selection path goes through it — no handler sets these directly any more.
+  const body = stripComments(layout).replace(/const selectDrawer[\s\S]*?\n  \};/, "");
+  for (const setter of ["setOpenChainId", "setOpenAttentionId", "setDrawerContent"]) {
+    const direct = (body.match(new RegExp(`${setter}\\(`, "g")) ?? []).length;
+    assert.equal(direct, 0, `${setter} must only be called inside selectDrawer`);
+  }
+  for (const handler of ["handleNeedsYouSelect", "handleChainSelect", "handleAgentSelect", "handleSourceClick", "handleTopBarSourceClick", "closeDrawer"]) {
+    assert.match(layout, new RegExp(`${handler}[\\s\\S]{0,260}selectDrawer\\(`), `${handler} must route through selectDrawer`);
+  }
+});
+
+test("P2-12 N5: the governance window is server time, never the browser clock", () => {
+  // `expires_at` is enforced against database now(). A device two hours behind would
+  // persist already-expired authorizations; one two hours ahead would extend the grant.
+  assert.doesNotMatch(stripComments(operationalData), /createdAt:|evaluationTime:|expiresAt:/);
+  assert.doesNotMatch(stripComments(route), /createdAt: String\(body\.createdAt/);
+  assert.doesNotMatch(stripComments(route), /expiresAt: String\(body\.expiresAt/);
+  assert.doesNotMatch(stripComments(route), /evaluationTime: String\(body\.evaluationTime[\s\S]{0,80}proposeGoverned/);
+  // The server owns the window and its length.
+  assert.match(service, /export const MATERIAL_ACTION_WINDOW_MS = 60 \* 60 \* 1000;/);
+  assert.match(service, /async function resolveMaterialActionWindow/);
+  assert.match(service, /expiresAt: new Date\(now\.getTime\(\) \+ MATERIAL_ACTION_WINDOW_MS\)/);
+  // F1 is preserved: a retry reuses the PERSISTED window so the digest still matches.
+  assert.match(service, /\.from\("material_action_proposals"\)\s*\n\s*\.select\("created_at,expires_at"\)/);
+  assert.match(service, /return \{ createdAt: persistedCreatedAt, evaluationTime: now, expiresAt: persistedExpiresAt \};/);
+  // The client constant that remains is a retry window, not authority.
+  assert.match(readModel, /MATERIAL_ACTION_ATTEMPT_WINDOW_MS/);
+  assert.match(readModel, /carries no governance authority/i);
+});
+
+test("P2-12 N5b: the server derives the window, and a retry reuses the persisted one", () => {
+  // Runs the REAL proposeGovernedMaterialAction. Browser clock skew cannot reach the
+  // window at all, because the client sends no timestamp for it to skew — the structural
+  // proof is N5's assertions above; this proves what the server then does.
+  const w = projection.materialActionWindow;
+  assert.equal(w.createdAtWithinServerCall, true, "createdAt is the server clock at call time");
+  assert.equal(w.windowMs, 60 * 60 * 1000, "exactly the one-hour grant, whatever any client thinks");
+  // F1 preserved: a retry reuses the PERSISTED window verbatim, so the digest matches and
+  // the replay reconciles instead of raising material_action_idempotency_conflict.
+  assert.equal(w.replayReusesPersistedWindow, true);
+  assert.equal(w.replayCreatedAt, "2026-03-01T00:00:00.000Z");
+  assert.equal(w.replayExpiresAt, "2026-03-01T01:00:00.000Z");
+  assert.match(w.replayDigest, /^[a-f0-9]{64}$/);
+});
+
+test("P2-12 N6: a superseded Outcome is not observable", () => {
+  // `record_canonical_outcome_observation` raises `canonical_outcome_superseded`.
+  const s = harness.supersededOutcome;
+  assert.equal(s.outcomeState, "superseded");
+  assert.equal(s.observationStage.actionable, false);
+  assert.match(s.observationStage.blockedReason, /superseded/i);
+  // History is preserved, not deleted.
+  assert.equal(s.existingObservations, 1);
+  assert.match(text(s.rendered), /no longer the current Outcome to observe/i);
+
+  // It is the ONLY refused state; every other canonical state stays observable.
+  const states = harness.observableOutcomeStates;
+  for (const state of ["expected", "observing", "achieved", "partially_achieved", "not_achieved", "disputed", "inconclusive"]) {
+    assert.equal(states[state].actionable, true, `${state} must remain observable`);
+    assert.equal(states[state].blockedReason, null);
+  }
+  assert.equal(states.superseded.actionable, false);
+});
+
+test("P2-12 N7: a stranded Task does not block replacement authorization", () => {
+  // Liveness is reachability of a completed execution over the canonical matrix, not
+  // `task != null`. With authorization lapsed, queue/start/retry are withdrawn.
+  const b = harness.strandedBranches;
+
+  for (const state of ["no_execution_not_started", "queued", "blocked", "failed"]) {
+    assert.equal(b[state].taskExists, true, `${state}: a Task exists`);
+    assert.equal(b[state].actionExpired, true);
+    assert.equal(b[state].live, false, `${state}: cannot reach a completed execution, so it is stranded`);
+    assert.equal(b[state].proposalActionable, true, `${state}: replacement authorization must open`);
+    assert.match(b[state].proposalLabel, /replacement/i);
+  }
+  // A running execution can still `complete`; a completed one already opens the Outcome
+  // path. Neither is stranded merely because the Action authorization expired.
+  for (const state of ["running", "completed"]) {
+    assert.equal(b[state].live, true, `${state}: still has a canonical way forward`);
+    assert.equal(b[state].proposalActionable, false, `${state}: no replacement needed`);
+  }
+  // `block`/`fail` survive revalidation but do not make a branch live.
+  assert.deepEqual(b.queued.offeredCommands, ["block", "fail"]);
+  assert.deepEqual(b.blocked.offeredCommands, ["fail"]);
+  assert.deepEqual(b.failed.offeredCommands, []);
+  assert.deepEqual(b.running.offeredCommands, ["block", "fail", "complete"]);
+
+  // With authorization VALID, none of those states is stranded and no replacement opens.
+  for (const state of ["queued", "blocked", "failed"]) {
+    assert.equal(harness.liveBranches[state].live, true, `${state} with valid auth is live`);
+    assert.equal(harness.liveBranches[state].proposalActionable, false,
+      `${state} with valid auth must not offer a duplicate replacement`);
+  }
+  // History is never rewritten to recover.
+  assert.doesNotMatch(stripComments(readModel), /governanceState = "authorized"/);
+
+  // The underlying matrix walk, independent of any fixture.
+  const r = harness.reachability;
+  for (const state of ["none", "queued", "running", "blocked", "failed", "completed"]) {
+    assert.equal(r[`${state}_auth_valid`], true, `${state}: with authorization, completed is reachable`);
+  }
+  assert.deepEqual(
+    ["none", "queued", "running", "blocked", "failed", "completed"].map((s) => r[`${s}_auth_invalid`]),
+    [false, false, true, false, false, true],
+    "without authorization only running and completed can still reach a completed execution"
+  );
+});
+
+test("P2-12 N8: simultaneous ExecutionQueue instances have distinct heading ids", () => {
+  const html = harness.duplicateQueueRender;
+  const ids = [...html.matchAll(/<h2 id="([^"]+)"/g)].map((m) => m[1]);
+  const labelled = [...html.matchAll(/<section aria-labelledby="([^"]+)"/g)].map((m) => m[1]);
+  assert.equal(ids.length, 2, "both instances render a heading");
+  assert.equal(new Set(ids).size, 2, "and their ids are distinct");
+  assert.deepEqual(labelled, ids, "each section points at its own heading, in order");
+  assert.doesNotMatch(html, /execution-chain-heading/);
+  assert.match(queueSource, /const headingId = useId\(\)/);
 });

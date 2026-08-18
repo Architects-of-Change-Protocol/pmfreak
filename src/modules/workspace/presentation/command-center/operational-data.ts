@@ -10,18 +10,20 @@ import {
   isObservationEligibleEvidence,
   observationIdempotencyKey,
   sha256Hex,
-  MATERIAL_ACTION_WINDOW_MS,
+  MATERIAL_ACTION_ATTEMPT_WINDOW_MS,
   OBSERVATION_ATTEMPT_WINDOW_MS,
   type ExecutionOperation,
   type GovernedExecutionChain,
 } from "./execution-read-model";
 import {
-  clearSubmissionAttempt,
+  markSubmissionAcknowledged,
   loadSubmissionAttempt,
   materialActionAttemptKey,
   observationAttemptKey,
   reconcileSubmissionAttempt,
+  reconcileSubmissionAttemptsByKey,
   rememberSubmittedKey,
+  ATTEMPT_KEY_PREFIX,
 } from "./submission-attempt";
 
 type AnyRecord = Record<string, unknown>;
@@ -236,9 +238,9 @@ export async function runExecutionOperation(
     // request is a NEW submission, not a conflicting retry of the old one.
     const draftDigest = await sha256Hex(canonicalMaterialActionDraft(operation.draft, operation.justification));
     const attemptKey = materialActionAttemptKey(workspaceId, projectId, operation.decisionId, draftDigest);
-    const attempt = loadSubmissionAttempt(attemptKey, { ttlMs: MATERIAL_ACTION_WINDOW_MS });
-    const startedAt = new Date(attempt.startedAt);
+    const attempt = loadSubmissionAttempt(attemptKey, { ttlMs: MATERIAL_ACTION_ATTEMPT_WINDOW_MS });
     const idempotencyKey = `p2-12:material-action:${operation.decisionId}:${attempt.attemptId}`;
+    rememberSubmittedKey(attemptKey, idempotencyKey);
     await postOperationalFlow(workspaceId, projectId, {
       operation: "propose_material_action",
       decisionId: operation.decisionId,
@@ -259,14 +261,16 @@ export async function runExecutionOperation(
       targetResourceId: projectId,
       // The recorded human Decision is the justification for acting.
       justification: operation.justification,
-      // Read once for the attempt, not once per request: identical on every retry.
-      createdAt: attempt.startedAt,
-      evaluationTime: attempt.startedAt,
-      expiresAt: new Date(startedAt.getTime() + MATERIAL_ACTION_WINDOW_MS).toISOString(),
+      // No createdAt / evaluationTime / expiresAt. The governance window is server-owned:
+      // `expires_at` is enforced against database now(), so a skewed browser clock must
+      // never be able to persist an already-expired authorization or extend a granted one.
+      // The server reuses the persisted window on a retry, so the proposal digest — and
+      // therefore F1's retry stability — is preserved without any client wall time.
     });
-    // Accepted (created or replayed): this submission is closed, and the next one — a
-    // replacement authorization, say — must take its own identity.
-    clearSubmissionAttempt(attemptKey);
+    // The write was acknowledged. The attempt is NOT retired here: only persisted
+    // canonical state proves it landed (see `reconcileExecutionAttempts`). If the
+    // post-write refresh fails, a retry must still resolve this same identity.
+    markSubmissionAcknowledged(attemptKey);
     return;
   }
 
@@ -322,6 +326,11 @@ export async function runExecutionOperation(
     observationState: operation.observationState,
     summary: operation.summary,
     evidenceReferenceIds: operation.evidenceReferenceIds,
+    // P2-09 persists both, and its replay check ignores both — so a retry that changed
+    // only the confidence or missing-data answer would be acknowledged as a replay while
+    // the corrected values were dropped. Changing them is a new identity.
+    confidenceScore: operation.quality.confidenceScore,
+    missingDataState: operation.quality.missingDataState,
     attemptNonce: attempt.attemptId,
   });
   // Recorded BEFORE the request so a lost response can still be reconciled from persisted
@@ -342,10 +351,11 @@ export async function runExecutionOperation(
     correlationId: operation.correlationId,
     idempotencyKey,
   });
-  // Only a server-accepted submission retires the attempt. A failure — including a
-  // canonical idempotency conflict — keeps it, so the retry carries the same identity
-  // instead of writing a second Observation.
-  clearSubmissionAttempt(attemptKey);
+  // The write was acknowledged, which is NOT the same as this client having seen it in
+  // persisted state. The attempt stays until `reconcileExecutionAttempts` finds the key on
+  // a canonical Observation, so a failed post-write refresh followed by a retry resolves
+  // the same identity rather than appending a second Observation.
+  markSubmissionAcknowledged(attemptKey);
 }
 
 /**
@@ -361,7 +371,15 @@ export function reconcileExecutionAttempts(
   projectId: string,
   chains: GovernedExecutionChain[]
 ): void {
+  // Material Actions. The persisted key is scoped per Decision, and the attempt key is
+  // additionally scoped by the draft digest — which this projection does not carry — so
+  // reconciliation matches on the persisted key itself via `reconcileSubmissionAttemptByKey`.
   for (const chain of chains) {
+    const actionKeys = chain.branches
+      .map((branch) => branch.action.idempotencyKey)
+      .filter((key): key is string => typeof key === "string");
+    if (actionKeys.length > 0) reconcileSubmissionAttemptsByKey(ATTEMPT_KEY_PREFIX, actionKeys);
+
     for (const branch of chain.branches) {
       if (!branch.outcome) continue;
       const persistedKeys = branch.observations
@@ -380,8 +398,21 @@ export function reconcileExecutionAttempts(
  * would present a control the server always rejects with
  * `observation_evidence_scope_invalid`.
  */
+/**
+ * Evidence a PM may cite when recording an Observation.
+ *
+ * Reads `observationEligibleEvidence`, which the server selects with P2-09's eligibility
+ * predicates BEFORE applying a row limit. The `evidence` collection must not be used here:
+ * it is the newest-N presentation window, so filtering it answers "which of the newest
+ * rows are eligible" rather than "is any eligible Evidence available" — and the panel
+ * would then say no Evidence exists whenever the newest rows happen to be fixtures, stale
+ * or degraded, even though the RPC would accept an older LIVE row.
+ *
+ * The client-side predicate is still applied on top: it is the same rule, and it also
+ * re-evaluates `stale_at` against the current instant rather than query time.
+ */
 export function deriveEvidenceOptions(data: OperationalSummary | undefined): Array<{ id: string; title: string }> {
-  return (data?.evidence ?? [])
+  return (data?.observationEligibleEvidence ?? [])
     .filter((row) => isObservationEligibleEvidence(row))
     .map((row) => ({
       id: String(row.id),

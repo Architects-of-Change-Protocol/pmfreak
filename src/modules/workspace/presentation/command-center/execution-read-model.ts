@@ -65,6 +65,17 @@ export const EXECUTION_TRANSITIONS: Readonly<Record<string, readonly string[]>> 
   completed: [],
 });
 
+/** Where each canonical command lands, read from the same server function as the table
+ *  above. Used to walk the matrix rather than assume its shape. */
+export const EXECUTION_COMMAND_TARGETS: Readonly<Record<string, string>> = Object.freeze({
+  queue: "queued",
+  start: "running",
+  block: "blocked",
+  fail: "failed",
+  retry: "queued",
+  complete: "completed",
+});
+
 export function allowedExecutionCommands(status: string | null | undefined): readonly string[] {
   return EXECUTION_TRANSITIONS[status ?? "none"] ?? [];
 }
@@ -138,6 +149,11 @@ export function describeGovernanceState(state: string): string {
   return labels[state] ?? `Action governance: ${state.replaceAll("_", " ")}`;
 }
 
+/** Outcome states `record_canonical_outcome_observation` refuses. `superseded` is the
+ *  only one; `expected`, `observing`, `achieved`, `partially_achieved`, `not_achieved`,
+ *  `disputed` and `inconclusive` are all observable. */
+export const UNOBSERVABLE_OUTCOME_STATES: readonly string[] = ["superseded"];
+
 export type ExecutionStageKey = "material_action" | "task" | "execution" | "outcome" | "observation" | "review";
 
 /** P2-06 classification inputs. `classifyPMFreakMaterialAction` derives `materiality`
@@ -195,12 +211,23 @@ export type ExecutionOperation =
       correlationId: string;
     };
 
+/** Canonical rendering of a confidence score, so `0.40`, `0.4` and `.4` are one value
+ *  rather than three identities. P2-09 persists `numeric(5,4)`. */
+export function canonicalConfidenceScore(value: number): string {
+  return Number.isFinite(value) ? value.toFixed(4) : "invalid";
+}
+
 export type ObservationSubmission = {
   outcomeId: string;
   observationState: string;
   summary: string;
   evidenceReferenceIds: string[];
-  /** Opaque per-submission-attempt token — see `createAttemptTracker`. */
+  /** P2-09 persists `confidence_score` NOT NULL. It is material epistemic content, so it
+   *  belongs to the submission's identity — see `canonicalObservationPayload`. */
+  confidenceScore: number;
+  /** P2-09 persists `missing_data_state` NOT NULL. Likewise material. */
+  missingDataState: string;
+  /** Opaque per-submission-attempt token. Never a canonical id. */
   attemptNonce: string;
 };
 
@@ -252,12 +279,29 @@ export function canonicalMaterialActionDraft(draft: MaterialActionDraft, justifi
   ]);
 }
 
+/**
+ * The canonical content of one Observation submission.
+ *
+ * `confidenceScore` and `missingDataState` are included because P2-09 persists both as
+ * NOT NULL columns while its replay check compares only outcome, state, summary and
+ * evidence ids. Without them, a PM who retried after an ambiguous failure having changed
+ * *only* the confidence or missing-data answer would submit the same key, and the server
+ * would return the previously persisted row as `existing` — acknowledging the submission
+ * while silently discarding the corrected epistemic values. Changing them must therefore
+ * be a new identity, not a replay.
+ *
+ * Deliberately absent: `observedAt`/`evaluatedAt`. Those move on every attempt, so folding
+ * them in would make every retry a new canonical Observation — the duplication F4 exists
+ * to prevent.
+ */
 export function canonicalObservationPayload(input: ObservationSubmission): string {
   return JSON.stringify([
     input.outcomeId,
     input.observationState,
     input.summary.trim(),
     [...input.evidenceReferenceIds].sort(),
+    canonicalConfidenceScore(input.confidenceScore),
+    input.missingDataState,
     input.attemptNonce,
   ]);
 }
@@ -265,12 +309,13 @@ export function canonicalObservationPayload(input: ObservationSubmission): strin
 /**
  * How long one Material Action submission stays "the same submission".
  *
- * P2-06 folds `createdAt`/`expiresAt` into the proposal digest and P2-07 refuses to
- * dispatch an Action past `expires_at`, so an attempt can only be retried for as long as
- * the proposal it describes could still be accepted. Past that window the next submission
- * is genuinely new and takes a new identity — see `submission-attempt.ts`.
+ * This is a CLIENT retry window only. It carries no governance authority: the
+ * authorization window itself is owned by the server, which derives `created_at` /
+ * `expires_at` from its own clock and reuses the persisted pair on a retry. This constant
+ * only bounds how long the browser keeps offering the same submission identity, matched to
+ * the server window's nominal length so a retry cannot outlive the grant it describes.
  */
-export const MATERIAL_ACTION_WINDOW_MS = 60 * 60 * 1000;
+export const MATERIAL_ACTION_ATTEMPT_WINDOW_MS = 60 * 60 * 1000;
 
 /** Observation submissions carry no server-side expiry, so the retry window only has to
  *  outlive a lost response and the remount that follows it. */
@@ -333,6 +378,10 @@ export type GovernedActionView = {
   grantReferences: string[];
   evidenceReferenceIds: string[];
   revoked: boolean;
+  /** P2-06 persists the submission's idempotency key. Reading it back is what lets a
+   *  pending client attempt be retired once persisted state proves it landed — the same
+   *  mechanism P2-09 Observations use. */
+  idempotencyKey: string | null;
   /** P2-06 persists the proposer; P2-07 refuses dispatch by anyone else. */
   proposedBy: string | null;
   expiresAt: string | null;
@@ -561,6 +610,7 @@ function buildActionView(
     grantReferences,
     evidenceReferenceIds: strList(proposal.evidenceReferenceIds),
     revoked: governanceState === "revoked",
+    idempotencyKey: str(action.idempotency_key),
     proposedBy: str(action.proposed_by),
     expiresAt,
     expired,
@@ -672,6 +722,71 @@ export function offeredExecutionCommands(input: {
 }
 
 /**
+ * Can this branch still reach a completed internal execution, using only the commands the
+ * contract would accept right now?
+ *
+ * Walks `EXECUTION_TRANSITIONS` as a real graph rather than hard-coding an answer, so it
+ * stays correct if the canonical matrix changes. Governance-revalidated commands
+ * (`queue`/`start`/`retry`) are removed from the edge set when new work is not authorized,
+ * because `p2_08_validate_execution_governance` would reject them.
+ *
+ * A completed execution matters because it is the sole gate to an expected Outcome, which
+ * is the only route to an Observation. If `completed` is unreachable, the branch cannot
+ * advance toward its canonical terminal no matter what the PM clicks.
+ */
+export function canReachCompletedExecution(
+  currentStatus: string | null | undefined,
+  taskStatus: string | null,
+  newWorkAllowed: boolean
+): boolean {
+  const start = currentStatus ?? "none";
+  const seen = new Set<string>();
+  const frontier = [start];
+  while (frontier.length > 0) {
+    const state = frontier.pop()!;
+    if (state === "completed") return true;
+    if (seen.has(state)) continue;
+    seen.add(state);
+    for (const command of EXECUTION_TRANSITIONS[state] ?? []) {
+      if (!newWorkAllowed && GOVERNANCE_REVALIDATED_COMMANDS.includes(command as ExecutionCommand)) continue;
+      // `queue` opens a first execution only from a not_started Task.
+      if (command === "queue" && !QUEUEABLE_TASK_STATES.includes(String(taskStatus))) continue;
+      const next = EXECUTION_COMMAND_TARGETS[command];
+      if (next) frontier.push(next);
+    }
+  }
+  return false;
+}
+
+/**
+ * Whether this branch can still carry the chain forward at all.
+ *
+ * A Task existing is NOT proof of this. When the Action's authorization lapses after the
+ * Task was created, `queue`/`start`/`retry` are withdrawn by governance revalidation, and
+ * a Task sitting at `not_started`, `queued`, `blocked` or `failed` then has no accepted
+ * operation that advances it — the chain is stranded, and treating the Task as proof of
+ * life would deny the very replacement authorization that could recover it.
+ *
+ * Live means one of:
+ *   - an Outcome already exists (the Observation path is open, and P2-09 needs no Action
+ *     authorization), or
+ *   - the work already finished (completed Task and execution — the Outcome path is open), or
+ *   - a completed execution is still reachable from here, or
+ *   - no Task exists yet and the authorization is still dispatchable.
+ */
+export function isBranchLive(branch: GovernedActionBranch): boolean {
+  if (branch.outcome) return true;
+  if (!branch.task) return branch.action.dispatchable;
+  const executionCompleted = Boolean(
+    branch.latestExecution && COMPLETED_EXECUTION_STATES.includes(branch.latestExecution.status)
+  );
+  const taskCompleted = COMPLETED_TASK_STATES.includes(String(branch.task.status));
+  if (executionCompleted && taskCompleted) return true;
+  const newWorkAllowed = dispatchBlockReason(branch.action) === null;
+  return canReachCompletedExecution(branch.latestExecution?.status, branch.task.status, newWorkAllowed);
+}
+
+/**
  * Stages for ONE canonical Material Action and the work persisted beneath it.
  *
  * Every gate below mirrors a rule the authoritative server function enforces, so the
@@ -748,9 +863,16 @@ function buildBranchStages(input: {
   }
 
   // ---- Observation ---------------------------------------------------------
+  // `record_canonical_outcome_observation` rejects a superseded Outcome outright
+  // (`canonical_outcome_superseded`). It is the only outcome state the contract refuses;
+  // every other state — including `disputed` and `inconclusive` — remains observable.
   let observationBlocked: string | null = null;
   if (!input.outcome) observationBlocked = "No expected Outcome exists to observe.";
   else if (!input.canWrite) observationBlocked = roleBlocked;
+  else if (UNOBSERVABLE_OUTCOME_STATES.includes(input.outcome.state)) {
+    observationBlocked =
+      "This Outcome was superseded, so it is no longer the current Outcome to observe. Its recorded Observations remain part of the lineage.";
+  }
 
   const executionState: ExecutionStageState = input.latestExecution
     ? COMPLETED_EXECUTION_STATES.includes(input.latestExecution.status) ? "complete" : "present"
@@ -823,7 +945,7 @@ function buildProposalStage(input: {
   const eligibleStatus = isActionEligibleDecisionStatus(input.decisionStatus);
   // A branch still carrying the chain: it either produced a Task (work exists and
   // continues there) or its authorization is still dispatchable.
-  const liveBranch = input.branches.find((branch) => branch.task !== null || branch.action.dispatchable);
+  const liveBranch = input.branches.find((branch) => isBranchLive(branch));
 
   let blocked: string | null = null;
   if (!input.canWrite) blocked = "Your role cannot record governed operations in this project.";
@@ -916,7 +1038,7 @@ export function describeChainStatus(
     return { label: "No action yet", tone: "info", detail: "Decision recorded — no material action requested yet" };
   }
 
-  const live = branches.filter((branch) => branch.task !== null || branch.action.dispatchable);
+  const live = branches.filter((branch) => isBranchLive(branch));
   if (live.length === 0) {
     const expired = branches.some((branch) => branch.action.expired);
     const stale = branches.some((branch) => branch.action.evaluationStale);
@@ -1105,7 +1227,7 @@ export function buildExecutionChains(
     // otherwise the newest branch that is still carrying work.
     const leading =
       branches.find((branch) => branch.boundary.outcomeAchieved) ??
-      branches.find((branch) => branch.task !== null || branch.action.dispatchable) ??
+      branches.find((branch) => isBranchLive(branch)) ??
       branches[0] ??
       null;
 

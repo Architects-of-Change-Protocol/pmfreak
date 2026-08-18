@@ -39,6 +39,16 @@ export type SubmissionAttempt = {
   startedAt: string;
   /** Idempotency key last submitted under this attempt, if any. */
   lastKey?: string;
+  /**
+   * The server accepted the write, but persisted state has not yet confirmed it here.
+   *
+   * An acknowledged attempt is NOT retired. The post-write summary refresh is a separate
+   * request that can fail on its own, and if it does the PM still sees the submission form
+   * over stale state. Retiring on the POST response alone would let their next click mint
+   * a fresh identity and append a duplicate canonical row. Only persisted state — or the
+   * TTL — retires an attempt.
+   */
+  acknowledgedAt?: string;
 };
 
 /** Attempts are per-tab, per-actor working state, so the store is namespaced and scoped
@@ -92,6 +102,7 @@ function readRaw(key: string): SubmissionAttempt | null {
             attemptId: parsed.attemptId,
             startedAt: parsed.startedAt,
             ...(typeof parsed.lastKey === "string" ? { lastKey: parsed.lastKey } : {}),
+            ...(typeof parsed.acknowledgedAt === "string" ? { acknowledgedAt: parsed.acknowledgedAt } : {}),
           };
         }
       }
@@ -155,6 +166,19 @@ export function loadSubmissionAttempt(key: string, options: LoadAttemptOptions):
   return created;
 }
 
+/**
+ * Marks an attempt as server-accepted without retiring it.
+ *
+ * The distinction matters: "the write committed" and "this client has seen it committed"
+ * are different facts, and only the second one makes it safe to forget the identity that
+ * would reconcile a retry.
+ */
+export function markSubmissionAcknowledged(key: string, now: Date = new Date()): void {
+  const existing = readRaw(key);
+  if (!existing) return;
+  writeRaw(key, { ...existing, acknowledgedAt: now.toISOString() });
+}
+
 /** Records the idempotency key an attempt submitted, so persisted state can retire it. */
 export function rememberSubmittedKey(key: string, idempotencyKey: string): void {
   const existing = readRaw(key);
@@ -169,6 +193,36 @@ export function rememberSubmittedKey(key: string, idempotencyKey: string): void 
  * reconciled by the next revalidation rather than leaving a token that would make a later
  * honest re-submission collide with the row it already wrote.
  */
+/**
+ * Retires ANY pending attempt under `prefix` whose submitted key now appears in persisted
+ * state, without needing to reconstruct that attempt's storage key.
+ *
+ * A Material Action attempt is keyed partly by a digest of the draft, which the canonical
+ * projection does not carry — so it cannot be addressed the way an Observation attempt can.
+ * Matching on the submitted idempotency key instead is exact: that key is what was sent,
+ * and finding it persisted is proof this attempt landed.
+ */
+export function reconcileSubmissionAttemptsByKey(prefix: string, persistedKeys: readonly string[]): void {
+  const wanted = new Set(persistedKeys);
+  const candidates = new Set<string>(fallback.keys());
+  const backing = store();
+  if (backing) {
+    try {
+      for (let index = 0; index < backing.length; index += 1) {
+        const key = backing.key(index);
+        if (key && key.startsWith(prefix)) candidates.add(key);
+      }
+    } catch {
+      // Enumeration can be denied by policy; the in-memory keys still reconcile.
+    }
+  }
+  for (const key of candidates) {
+    if (!key.startsWith(prefix)) continue;
+    const pending = readRaw(key);
+    if (pending?.lastKey && wanted.has(pending.lastKey)) clearSubmissionAttempt(key);
+  }
+}
+
 export function reconcileSubmissionAttempt(key: string, persistedKeys: readonly string[]): void {
   const pending = readRaw(key);
   if (!pending?.lastKey) return;

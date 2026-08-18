@@ -201,6 +201,17 @@ export type OperationalSummary = {
   rawInputs: Array<Record<string, unknown>>;
   normalizedEvents: Array<Record<string, unknown>>;
   evidence: Array<Record<string, unknown>>;
+  /**
+   * Evidence that satisfies P2-09's Observation eligibility predicate, selected by that
+   * predicate on the server BEFORE any row limit.
+   *
+   * `evidence` above is a presentation window — the newest N rows, whatever their state.
+   * Filtering it client-side answers "which of the newest rows are eligible", not "is any
+   * eligible Evidence available", and those differ the moment the newest rows are
+   * fixtures, stale or degraded. A surface that offers Evidence must read this collection,
+   * or it will tell a PM there is none while the RPC would happily accept an older row.
+   */
+  observationEligibleEvidence?: Array<Record<string, unknown>>;
   signals: Array<Record<string, unknown>>;
   risksIssues: Array<Record<string, unknown>>;
   governanceEvents: Array<Record<string, unknown>>;

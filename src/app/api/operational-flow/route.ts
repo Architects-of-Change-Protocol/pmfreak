@@ -151,7 +151,12 @@ export async function POST(request: Request) {
         actionType: String(body.actionType ?? ""), targetResourceType: String(body.targetResourceType ?? ""), targetResourceId: String(body.targetResourceId ?? ""),
         intendedOperation: String(body.intendedOperation ?? ""), intendedEffect: String(body.intendedEffect ?? ""), risk: risk as "low" | "medium" | "high" | "critical" | "unknown",
         reversibility: reversibility as "reversible" | "partially_reversible" | "irreversible" | "unknown", sideEffect: sideEffect as "internal" | "external" | "authority" | "knowledge" | "unknown",
-        justification: String(body.justification ?? ""), createdAt: String(body.createdAt ?? ""), evaluationTime: String(body.evaluationTime ?? ""), expiresAt: String(body.expiresAt ?? ""),
+        justification: String(body.justification ?? ""),
+        // createdAt / evaluationTime / expiresAt are deliberately NOT read from the request.
+        // `expires_at` is enforced against database now(), so letting the browser clock
+        // define the governance window would let a skewed device persist already-expired
+        // authorizations or silently extend a one-hour grant. The service derives the
+        // window from server time and reuses the persisted one on a retry.
       });
       return Response.json(result, { status: result.disposition === "created" ? 201 : result.disposition === "conflict" ? 409 : 200 });
     }

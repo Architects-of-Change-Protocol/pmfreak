@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { GovernedExecutionChain } from "./execution-read-model";
 import { StatusBadge } from "./status-badge";
 import { SectionEmptyState, SectionLoadingState } from "./section-empty-state";
@@ -25,10 +26,15 @@ export function ExecutionQueue({
   loading?: boolean;
 }) {
   const showEmpty = !loading && chains.length === 0;
+  // `CommandCenterLayout` mounts this component twice — desktop sidebar and the mobile
+  // overlay, which is never unmounted — so a document-global id would appear twice and
+  // `aria-labelledby` would resolve to whichever came first, naming the visible section
+  // after a hidden heading. Each instance names its own heading.
+  const headingId = useId();
   return (
-    <section aria-labelledby="execution-chain-heading">
+    <section aria-labelledby={headingId}>
       <div className="flex items-center justify-between gap-2 px-1">
-        <h2 id="execution-chain-heading" className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+        <h2 id={headingId} className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
           After Your Decision
         </h2>
       </div>

@@ -132,6 +132,11 @@ export type ExecutionPanel = {
   chain: GovernedExecutionChain;
   evidenceOptions: Array<{ id: string; title: string }>;
   onRun: (operation: ExecutionOperation) => Promise<void>;
+  /** A governed write was accepted but the follow-up summary read failed, so what is shown
+   *  below may be stale. This is a READ condition — it never means the write failed. */
+  refreshFailedAfterWrite?: boolean;
+  /** Retry just the read. */
+  onRetryRefresh?: () => void;
 };
 
 export type NeedsYouItem = {

@@ -152,10 +152,22 @@ export type ProposeMaterialActionInput = {
   reversibility: "reversible" | "partially_reversible" | "irreversible" | "unknown";
   sideEffect: "internal" | "external" | "authority" | "knowledge" | "unknown";
   justification: string;
-  createdAt: string;
-  evaluationTime: string;
-  expiresAt: string;
+  /**
+   * Governance-window timestamps. OPTIONAL, and deliberately not supplied by any browser
+   * caller: `expires_at` is enforced against database `now()`, so a client clock two hours
+   * behind would persist Actions that are already expired, and one two hours ahead would
+   * silently extend the authorization by the skew. When omitted, this function derives
+   * them from the server clock — see `resolveMaterialActionWindow`.
+   *
+   * Server-side callers (tests, fixtures) may still pin them explicitly.
+   */
+  createdAt?: string;
+  evaluationTime?: string;
+  expiresAt?: string;
 };
+
+/** The authorization window P2-06 grants. Server-owned; no client may widen or narrow it. */
+export const MATERIAL_ACTION_WINDOW_MS = 60 * 60 * 1000;
 
 function deterministicUuid(value: string): string {
   const hex = createHash("sha256").update(value, "utf8").digest("hex");
@@ -163,12 +175,64 @@ function deterministicUuid(value: string): string {
 }
 
 /** P2-06 ends at a persisted, inert authorization record. */
+/**
+ * The effective governance window for this proposal, on trusted server time.
+ *
+ * A retry must re-send byte-identical `createdAt`/`expiresAt`, because both are folded
+ * into the proposal digest that `persist_governed_material_action` compares for the
+ * idempotency key — a fresh reading would turn an idempotent replay into
+ * `material_action_idempotency_conflict`. So the already-persisted row is authoritative
+ * whenever one exists for this key, and the server clock is consulted only for a genuinely
+ * first submission. That is what lets the client stop sending wall time without losing
+ * retry stability.
+ */
+async function resolveMaterialActionWindow(
+  client: Client,
+  scope: Scope,
+  input: ProposeMaterialActionInput
+): Promise<{ createdAt: Date; evaluationTime: Date; expiresAt: Date }> {
+  const now = new Date();
+  // An explicit window is a server-side caller pinning time (tests, fixtures). Browser
+  // callers do not supply one; the API route does not forward client values.
+  if (input.createdAt && input.expiresAt) {
+    const createdAt = new Date(input.createdAt);
+    const expiresAt = new Date(input.expiresAt);
+    const evaluationTime = new Date(input.evaluationTime ?? input.createdAt);
+    if ([createdAt, evaluationTime, expiresAt].some((value) => Number.isNaN(value.valueOf()))) {
+      throw new Error("material_action_timestamp_invalid");
+    }
+    return { createdAt, evaluationTime, expiresAt };
+  }
+
+  // Scoped to this workspace AND this project. `persist_governed_material_action` treats
+  // (workspace_id, idempotency_key) as the uniqueness scope, so this lookup is deliberately
+  // NARROWER than the authoritative one: a key belonging to another project is simply not
+  // found here, a fresh window is minted, and the RPC then answers
+  // `material_action_idempotency_conflict` — fail-closed, and no other project's persisted
+  // timestamps can ever be read into this proposal. RLS independently restricts the read to
+  // projects the actor can access.
+  const existing = await client.from("material_action_proposals")
+    .select("created_at,expires_at")
+    .eq("workspace_id", scope.workspaceId)
+    .eq("project_id", scope.projectId)
+    .eq("idempotency_key", input.idempotencyKey)
+    .maybeSingle();
+  const persistedCreatedAt = existing?.data?.created_at ? new Date(String(existing.data.created_at)) : null;
+  const persistedExpiresAt = existing?.data?.expires_at ? new Date(String(existing.data.expires_at)) : null;
+  if (
+    persistedCreatedAt && persistedExpiresAt &&
+    !Number.isNaN(persistedCreatedAt.valueOf()) && !Number.isNaN(persistedExpiresAt.valueOf())
+  ) {
+    // Replay: reuse the persisted window so the digest matches exactly.
+    return { createdAt: persistedCreatedAt, evaluationTime: now, expiresAt: persistedExpiresAt };
+  }
+
+  return { createdAt: now, evaluationTime: now, expiresAt: new Date(now.getTime() + MATERIAL_ACTION_WINDOW_MS) };
+}
+
 export async function proposeGovernedMaterialAction(client: Client, scope: Scope, input: ProposeMaterialActionInput) {
   if (!canCreateOperationalEvidence(scope.role ?? null)) throw new Error("material_action_write_denied");
-  const createdAt = new Date(requireValue(input.createdAt, "created_at"));
-  const evaluationTime = new Date(requireValue(input.evaluationTime, "evaluation_time"));
-  const expiresAt = new Date(requireValue(input.expiresAt, "expires_at"));
-  if ([createdAt, evaluationTime, expiresAt].some((value) => Number.isNaN(value.valueOf()))) throw new Error("material_action_timestamp_invalid");
+  const { createdAt, evaluationTime, expiresAt } = await resolveMaterialActionWindow(client, scope, input);
 
   const { data: decision, error: decisionError } = await client.from("operational_decision_records")
     .select("id,workspace_id,project_id,decided_by,decision_status,recommendation_id,governance_event_id,created_at")
@@ -1410,6 +1474,7 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     rawInputs,
     normalizedEvents,
     evidence,
+    observationEligibleEvidence,
     signals,
     risks,
     governance,
@@ -1428,6 +1493,19 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     client.from("operational_raw_inputs").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("captured_at", { ascending: false }).limit(20),
     client.from("operational_normalized_events").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("recorded_at", { ascending: false }).limit(20),
     client.from("evidence_items").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(20),
+    // P2-09 Observation eligibility, applied as SERVER predicates before the row limit.
+    // The presentation window above is ordered by recency and says nothing about
+    // eligibility, so filtering it client-side would report "no evidence available"
+    // whenever the newest rows happen to be fixtures, stale or degraded — while
+    // `record_canonical_outcome_observation` would still accept an older LIVE row.
+    // These predicates are the same ones that RPC enforces.
+    client.from("evidence_items").select("*")
+      .eq("workspace_id", workspaceId).eq("project_id", projectId)
+      .not("normalized_event_id", "is", null)
+      .eq("fixture_state", "LIVE").eq("freshness_state", "CURRENT").eq("lifecycle", "RECORDED")
+      .is("rejection_reason", null).is("degraded_reason", null)
+      .not("evaluated_at", "is", null)
+      .order("created_at", { ascending: false }).limit(50),
     client.from("operational_signals").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(30),
     client.from("risk_issue_records").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(30),
     client.from("governance_events").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(30),
@@ -1447,7 +1525,7 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     client.rpc("get_operational_assurance_summary", { p_workspace_id: workspaceId, p_project_id: projectId }),
     loadActorRole(client, workspaceId, userId),
   ]);
-  for (const result of [sources, rawInputs, normalizedEvents, evidence, signals, risks, governance, recommendations, decisions, materialActions, materialActionEvaluations, outcomes, observations, tasks, executions]) {
+  for (const result of [sources, rawInputs, normalizedEvents, evidence, observationEligibleEvidence, signals, risks, governance, recommendations, decisions, materialActions, materialActionEvaluations, outcomes, observations, tasks, executions]) {
     if (result.error) throw new Error(`load_operational_summary: ${result.error.message}`);
   }
   if (assuranceResult.error || !assuranceResult.data) throw new Error(`load_operational_assurance: ${assuranceResult.error?.message ?? "no_data"}`);
@@ -1560,6 +1638,7 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     rawInputs: rawInputs.data ?? [],
     normalizedEvents: normalizedEvents.data ?? [],
     evidence: evidence.data ?? [],
+    observationEligibleEvidence: observationEligibleEvidence.data ?? [],
     signals: signals.data ?? [],
     risksIssues: risks.data ?? [],
     governanceEvents: governance.data ?? [],

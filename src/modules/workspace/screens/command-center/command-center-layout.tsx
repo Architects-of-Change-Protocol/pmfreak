@@ -19,6 +19,7 @@ import {
   useRaidRecommendedActions,
 } from "../../presentation/command-center/operational-data";
 import type { DecisionStatus } from "../../presentation/command-center/operational-data";
+import { isBranchLive } from "../../presentation/command-center/execution-read-model";
 import type { ExecutionOperation, GovernedExecutionChain } from "../../presentation/command-center/execution-read-model";
 import { ExecutionQueue } from "../../presentation/command-center/execution-queue";
 import { chatMessagesToConversationTurns, conversationResultToAssistantMessage, postConversationMessage } from "../../presentation/command-center/conversation-data";
@@ -190,6 +191,9 @@ export function CommandCenterLayout({
   const [openAttentionId, setOpenAttentionId] = useState<string | null>(null);
   /** P2-12: the canonical Decision whose governed chain is open in the drawer. */
   const [openChainId, setOpenChainId] = useState<string | null>(null);
+  /** A governed write committed but the follow-up summary read did not. The work is saved;
+   *  only this surface's view of it is stale. Never rendered as a write failure. */
+  const [refreshFailedAfterWrite, setRefreshFailedAfterWrite] = useState(false);
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
@@ -287,54 +291,79 @@ export function CommandCenterLayout({
     handleSendMessage(action);
   };
 
+  /**
+   * One drawer at a time.
+   *
+   * `activeDrawer` resolves `openChainId` before `openAttentionId` before `drawerContent`,
+   * so any selection that leaves a higher-precedence id set would be masked by it and the
+   * click would look unresponsive. Every selection path therefore goes through this
+   * helper, which clears the two it is not, instead of each handler remembering to.
+   */
+  const selectDrawer = (next: { chainId?: string | null; attentionId?: string | null; content?: DrawerContent | null }) => {
+    setOpenChainId(next.chainId ?? null);
+    setOpenAttentionId(next.attentionId ?? null);
+    setDrawerContent(next.content ?? null);
+  };
+
   const handleSourceClick = (source: string) => {
-    setOpenAttentionId(null);
-    setDrawerContent({
+    selectDrawer({ content: {
       title: source,
       why: "This source was used to help answer your question.",
       evidence: [source],
       nextStep: "Open the source to see the full context.",
-    });
+    } });
   };
 
   const handleTopBarSourceClick = (source: RepositoryItem) => {
-    setOpenAttentionId(null);
-    setDrawerContent({
+    selectDrawer({ content: {
       title: source.label,
       why: "This is one of the sources of truth currently attached to this conversation.",
       evidence: [`${source.count ?? 0} ${source.label.toLowerCase()} recorded for this project`],
       nextStep: "Open the project repository to review these in full.",
-    });
+    } });
   };
 
   // Canonical/RAID items open by stable id; everything else falls back to a content snapshot.
   const handleNeedsYouSelect = (item: NeedsYouItem) => {
-    setDrawerContent(null);
-    setOpenAttentionId(item.id);
+    selectDrawer({ attentionId: item.id });
   };
   const handleAgentSelect = (agent: Agent) => {
-    setOpenAttentionId(null);
-    setOpenChainId(null);
-    setDrawerContent(agent.drawer);
+    selectDrawer({ content: agent.drawer });
   };
   const closeDrawer = () => {
-    setOpenAttentionId(null);
-    setOpenChainId(null);
-    setDrawerContent(null);
+    selectDrawer({});
   };
 
-  // P2-12 — every stage runs the authoritative request first and only then revalidates,
-  // so nothing is reported as persisted before the server has accepted it. Errors are
-  // rethrown for the panel to display.
+  /**
+   * P2-12 — the authoritative request runs first, and only then does the surface revalidate.
+   *
+   * These are two separate facts and must not be collapsed:
+   *
+   *   CANONICAL WRITE SUCCESS  !=  POST-WRITE READ REFRESH SUCCESS
+   *
+   * The refresh is its own request against a summary the write already committed to. If it
+   * fails — offline, a slow gateway, a transient 5xx — the canonical row still exists.
+   * Reporting that as an operation failure tells the PM their governed Action or Observation
+   * did not happen when it did, and invites them to submit it again.
+   *
+   * So only a rejection from the write itself propagates. A refresh failure surfaces as a
+   * read-side condition instead, and the durable submission attempt deliberately survives
+   * it (it is marked acknowledged, not retired), so if the PM does resubmit, the same
+   * idempotency identity reconciles to the row already written rather than appending a
+   * second one. The next successful revalidation retires the attempt from persisted state.
+   */
   const handleRunExecution = async (operation: ExecutionOperation) => {
     await runExecutionOperation(workspaceId, selectedProject?.id ?? "", operation);
-    await mutateFlow();
+    setRefreshFailedAfterWrite(false);
+    try {
+      await mutateFlow();
+    } catch {
+      setRefreshFailedAfterWrite(true);
+    }
   };
 
   const handleChainSelect = (chain: GovernedExecutionChain) => {
-    setDrawerContent(null);
-    setOpenAttentionId(null);
-    setOpenChainId(chain.decisionId);
+    selectDrawer({ chainId: chain.decisionId });
   };
 
   /** Builds the drawer for a governed chain, resolved fresh so it reconciles after each write.
@@ -343,7 +372,7 @@ export function CommandCenterLayout({
   const buildChainDrawer = (chain: GovernedExecutionChain): DrawerContent => {
     const leading =
       chain.branches.find((branch) => branch.boundary.outcomeAchieved) ??
-      chain.branches.find((branch) => branch.task !== null || branch.action.dispatchable) ??
+      chain.branches.find((branch) => isBranchLive(branch)) ??
       chain.branches[0] ??
       null;
     const actionValue = leading
@@ -370,7 +399,15 @@ export function CommandCenterLayout({
             : "None recorded",
         },
       ],
-      executionPanel: { chain, evidenceOptions, onRun: handleRunExecution },
+      executionPanel: {
+        chain,
+        evidenceOptions,
+        onRun: handleRunExecution,
+        refreshFailedAfterWrite,
+        onRetryRefresh: () => {
+          void mutateFlow().then(() => setRefreshFailedAfterWrite(false)).catch(() => setRefreshFailedAfterWrite(true));
+        },
+      },
     };
   };
 

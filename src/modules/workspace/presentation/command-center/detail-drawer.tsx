@@ -307,6 +307,8 @@ export function DetailDrawer({ content, onClose }: { content: DrawerContent | nu
                 chain={content.executionPanel.chain}
                 evidenceOptions={content.executionPanel.evidenceOptions}
                 onRun={content.executionPanel.onRun}
+                refreshFailedAfterWrite={content.executionPanel.refreshFailedAfterWrite}
+                onRetryRefresh={content.executionPanel.onRetryRefresh}
               />
             )}
 

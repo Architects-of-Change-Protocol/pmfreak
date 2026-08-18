@@ -28,6 +28,8 @@ import {
   chainStages,
   describeGovernanceState,
   dispatchBlockReason,
+  isBranchLive,
+  canReachCompletedExecution,
   allowedExecutionCommands,
   GOVERNANCE_REVALIDATED_COMMANDS,
   sha256Hex,
@@ -36,7 +38,7 @@ import {
   TASK_ELIGIBLE_GOVERNANCE_STATES,
   EXECUTION_COMMANDS,
   EXECUTION_TRANSITIONS,
-  MATERIAL_ACTION_WINDOW_MS,
+  MATERIAL_ACTION_ATTEMPT_WINDOW_MS,
   MATERIAL_ACTION_CLASSES,
   MATERIAL_ACTION_RISKS,
   MATERIAL_ACTION_REVERSIBILITY,
@@ -491,6 +493,30 @@ const foreignProposerQueue = summary({
   tasks: [task({ status: "not_started" })],
 });
 
+/** N7 — a Task that EXISTS but is stranded: authorization lapsed, so every command that
+ *  could advance it toward a completed execution is withdrawn by governance revalidation. */
+const strandedAt = (executionStatus: string | null, taskStatus: string) =>
+  summary({
+    decisions: [decision()],
+    materialActions: [expiredAction()],
+    materialActionEvaluations: [evaluation()],
+    tasks: [task({ status: taskStatus })],
+    executions: executionStatus === null
+      ? []
+      : [execution({ status: executionStatus, completed_at: executionStatus === "completed" ? "2026-08-17T10:20:00Z" : null })],
+  });
+
+/** N6 — a superseded Outcome. `record_canonical_outcome_observation` refuses it. */
+const supersededOutcome = summary({
+  decisions: [decision()],
+  materialActions: [action()],
+  materialActionEvaluations: [evaluation()],
+  tasks: [task({ status: "completed" })],
+  executions: [execution()],
+  outcomes: [outcome({ state: "superseded" })],
+  observations: [observation()],
+});
+
 /** F4 — a persisted Observation carrying the idempotency key a pending attempt submitted. */
 const observedWithKey = summary({
   decisions: [decision()],
@@ -511,11 +537,15 @@ async function buildIdempotency() {
       observationState: "inconclusive",
       summary: " The client replied. ",
       evidenceReferenceIds: ["ev-2", "ev-1"],
+      // P2-09 persists both as NOT NULL and its replay check ignores both.
+      confidenceScore: 0.4,
+      missingDataState: "PARTIAL",
       attemptNonce: "attempt-A",
     };
     const key = (over = {}) => observationIdempotencyKey({ ...base, ...over });
     const [
       first, second, reordered, trimmed, otherState, otherSummary, otherEvidence, otherOutcome, otherAttempt,
+      otherConfidence, otherMissingData, sameConfidenceDifferentFormat,
     ] = await Promise.all([
       key(), key(),
       key({ evidenceReferenceIds: ["ev-1", "ev-2"] }),
@@ -526,6 +556,11 @@ async function buildIdempotency() {
       key({ outcomeId: "out-2" }),
       // Identical content, different submission attempt: a later genuine re-observation.
       key({ attemptNonce: "attempt-B" }),
+      // N3 — quality-only changes under the SAME attempt.
+      key({ confidenceScore: 0.9 }),
+      key({ missingDataState: "COMPLETE" }),
+      // …but a numerically identical confidence is the same value, not a new identity.
+      key({ confidenceScore: 0.4000 }),
     ]);
 
     // Attempt lifecycle, exercised as real behaviour against the durable store with a
@@ -576,15 +611,15 @@ async function buildIdempotency() {
     const correctedKey = materialActionAttemptKey("ws-1", "proj-1", "dec-1", correctedDigest);
     clearSubmissionAttempt(correctedKey);
     clearSubmissionAttempt(actionKey);
-    const actionFirst = loadSubmissionAttempt(actionKey, { ttlMs: MATERIAL_ACTION_WINDOW_MS, now: t0, mint });
+    const actionFirst = loadSubmissionAttempt(actionKey, { ttlMs: MATERIAL_ACTION_ATTEMPT_WINDOW_MS, now: t0, mint });
     const actionRetry = loadSubmissionAttempt(actionKey, {
-      ttlMs: MATERIAL_ACTION_WINDOW_MS,
+      ttlMs: MATERIAL_ACTION_ATTEMPT_WINDOW_MS,
       now: new Date(t0.getTime() + 30_000),
       mint,
     });
     clearSubmissionAttempt(actionKey);
     const actionAfterAccept = loadSubmissionAttempt(actionKey, {
-      ttlMs: MATERIAL_ACTION_WINDOW_MS,
+      ttlMs: MATERIAL_ACTION_ATTEMPT_WINDOW_MS,
       now: new Date(t0.getTime() + 40_000),
       mint,
     });
@@ -601,6 +636,10 @@ async function buildIdempotency() {
       sample: first,
       digest: first.split(":").pop(),
       // Known-answer check against the platform primitive, so the digest is provably SHA-256.
+      // N3 — persisted epistemic fields participate in submission identity.
+      differsOnConfidence: first !== otherConfidence,
+      differsOnMissingData: first !== otherMissingData,
+      confidenceFormatStable: first === sameConfidenceDifferentFormat,
       knownAnswer: (await sha256Hex("abc")) === "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
       canonicalPayload: canonicalObservationPayload(base),
       lifecycle: {
@@ -618,12 +657,12 @@ async function buildIdempotency() {
         // Once accepted, the next proposal for this Decision is a NEW submission.
         replacementIsNewIdentity: actionAfterAccept.attemptId !== actionFirst.attemptId,
         scopedKey: actionKey,
-        windowMs: MATERIAL_ACTION_WINDOW_MS,
+        windowMs: MATERIAL_ACTION_ATTEMPT_WINDOW_MS,
         // A corrected classification resolves to a DIFFERENT attempt, so the PM is never
         // locked into a conflicting digest by their own first answer.
         correctedDraftIsNewSubmission: correctedKey !== actionKey,
         correctedDraftAttemptId: loadSubmissionAttempt(correctedKey, {
-          ttlMs: MATERIAL_ACTION_WINDOW_MS,
+          ttlMs: MATERIAL_ACTION_ATTEMPT_WINDOW_MS,
           now: new Date(t0.getTime() + 50_000),
           mint,
         }).attemptId,
@@ -969,6 +1008,97 @@ async function main() {
     offeredCommands: [...(branchOf(one(foreignProposerQueue))?.offeredCommands ?? [])],
     stage: stageOf(one(foreignProposerQueue), "execution"),
   },
+
+  // ── N7: liveness comes from real reachable transitions, not Task existence ───────
+  // The matrix walk itself, independent of any fixture: with new work withheld, only a
+  // running (or already completed) execution can still reach `completed`.
+  reachability: Object.fromEntries(
+    (["none", "queued", "running", "blocked", "failed", "completed"] as string[]).flatMap((state) => [
+      [`${state}_auth_valid`, canReachCompletedExecution(state === "none" ? null : state, "not_started", true)],
+      [`${state}_auth_invalid`, canReachCompletedExecution(state === "none" ? null : state, "not_started", false)],
+    ])
+  ),
+  strandedBranches: Object.fromEntries(
+    (
+      [
+        ["no_execution_not_started", null, "not_started"],
+        ["queued", "queued", "in_progress"],
+        ["blocked", "blocked", "blocked"],
+        ["failed", "failed", "in_progress"],
+        ["running", "running", "in_progress"],
+        ["completed", "completed", "completed"],
+      ] as Array<[string, string | null, string]>
+    ).map(([label, executionStatus, taskStatus]) => {
+      const chain = one(strandedAt(executionStatus, taskStatus));
+      const branch = branchOf(chain)!;
+      return [
+        label,
+        {
+          taskExists: branch.task !== null,
+          executionStatus: branch.latestExecution?.status ?? null,
+          actionExpired: branch.action.expired,
+          offeredCommands: [...branch.offeredCommands],
+          live: isBranchLive(branch),
+          proposalActionable: chain.proposalStage.actionable,
+          proposalLabel: chain.proposalStage.label,
+        },
+      ];
+    })
+  ),
+  // The same states while authorization is VALID: nothing is stranded, so no replacement.
+  liveBranches: Object.fromEntries(
+    (
+      [
+        ["queued", "queued", "in_progress"],
+        ["blocked", "blocked", "blocked"],
+        ["failed", "failed", "in_progress"],
+      ] as Array<[string, string | null, string]>
+    ).map(([label, executionStatus, taskStatus]) => {
+      const chain = one(
+        summary({
+          decisions: [decision()],
+          materialActions: [action()],
+          materialActionEvaluations: [evaluation()],
+          tasks: [task({ status: taskStatus })],
+          executions: [execution({ status: executionStatus!, completed_at: null })],
+        })
+      );
+      const branch = branchOf(chain)!;
+      return [label, { live: isBranchLive(branch), proposalActionable: chain.proposalStage.actionable }];
+    })
+  ),
+
+  // ── N6: a superseded Outcome is not observable ───────────────────────────────────
+  supersededOutcome: {
+    outcomeState: branchOf(one(supersededOutcome))?.outcome?.state,
+    observationStage: stageOf(one(supersededOutcome), "observation"),
+    existingObservations: branchOf(one(supersededOutcome))?.observations.length ?? 0,
+    rendered: markup(<ExecutionChainPanel chain={one(supersededOutcome)} onRun={noop} evidenceOptions={evidenceOptions} />),
+  },
+  observableOutcomeStates: Object.fromEntries(
+    ["expected", "observing", "achieved", "partially_achieved", "not_achieved", "disputed", "inconclusive", "superseded"].map((state) => {
+      const chain = one(
+        summary({
+          decisions: [decision()],
+          materialActions: [action()],
+          materialActionEvaluations: [evaluation()],
+          tasks: [task({ status: "completed" })],
+          executions: [execution()],
+          outcomes: [outcome({ state })],
+        })
+      );
+      const stage = branchOf(chain)!.stages.find((entry) => entry.key === "observation")!;
+      return [state, { actionable: stage.actionable, blockedReason: stage.blockedReason }];
+    })
+  ),
+
+  // ── N8: two simultaneous ExecutionQueue instances must not share a heading id ─────
+  duplicateQueueRender: markup(
+    <>
+      <ExecutionQueue chains={chainsOf(authorized)} onSelect={() => {}} />
+      <ExecutionQueue chains={chainsOf(authorized)} onSelect={() => {}} />
+    </>
+  ),
 
   // ── F4: a persisted Observation carries the key its attempt submitted ─────────────
   observationReconciliation: {

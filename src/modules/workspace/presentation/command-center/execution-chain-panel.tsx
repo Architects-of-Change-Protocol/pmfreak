@@ -476,12 +476,18 @@ export function ExecutionChainPanel({
   chain,
   onRun,
   evidenceOptions,
+  refreshFailedAfterWrite = false,
+  onRetryRefresh,
 }: {
   chain: GovernedExecutionChain;
-  /** Must reject on failure so this panel can surface the real error and keep input. */
+  /** Must reject on failure so this panel can surface the real error and keep input.
+   *  It must NOT reject merely because the post-write refresh failed — that is a read
+   *  condition, reported through `refreshFailedAfterWrite`. */
   onRun: (operation: ExecutionOperation) => Promise<void>;
   /** Canonical evidence ids available to back an Observation. */
   evidenceOptions: Array<{ id: string; title: string }>;
+  refreshFailedAfterWrite?: boolean;
+  onRetryRefresh?: () => void;
 }) {
   const headingId = useId();
   const actionFormId = useId();
@@ -529,6 +535,18 @@ export function ExecutionChainPanel({
       <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-500">
         Recording a decision does not act. Each step below is a separate governed operation you choose to take.
       </p>
+
+      {refreshFailedAfterWrite && (
+        <p role="status" className="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/[0.08] px-3 py-2 text-[11px] leading-relaxed text-amber-200">
+          Your last governed operation was saved. We could not refresh this view afterwards,
+          so what you see below may be out of date — it does not mean the operation failed.{" "}
+          {onRetryRefresh && (
+            <button type="button" onClick={onRetryRefresh} className="underline underline-offset-2 hover:text-amber-100">
+              Refresh now
+            </button>
+          )}
+        </p>
+      )}
 
       {/* The P2-12 invariant, stated from persisted state rather than implied by layout. */}
       <p className="mt-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] leading-relaxed text-zinc-300">
