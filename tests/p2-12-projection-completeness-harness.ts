@@ -213,6 +213,7 @@ type QueryBuilder = {
   is: (column: string, value: unknown) => QueryBuilder;
   order: (column: string, options?: { ascending?: boolean }) => QueryBuilder;
   limit: (value: number) => QueryBuilder;
+  range: (from: number, to: number) => QueryBuilder;
   maybeSingle: () => Promise<{ data: Row | null; error: null }>;
   single: () => Promise<{ data: Row | null; error: null }>;
   then: (
@@ -233,6 +234,8 @@ function makeClient() {
     const isNull: string[] = [];
     let orderColumn: string | null = null;
     let limit: number | null = null;
+    let rangeFrom: number | null = null;
+    let rangeTo: number | null = null;
     const filters: string[] = [];
 
     const read = (column: string, row: Row): unknown => {
@@ -253,6 +256,8 @@ function makeClient() {
         rows.sort((a, b) => String(b[orderColumn!] ?? "").localeCompare(String(a[orderColumn!] ?? "")));
       }
       if (limit !== null) rows = rows.slice(0, limit);
+      // PostgREST applies range AFTER filter+order, exactly as the service assumes.
+      if (rangeFrom !== null && rangeTo !== null) rows = rows.slice(rangeFrom, rangeTo + 1);
       queries.push({ table, filters: [...filters] });
       return { data: rows, error: null };
     };
@@ -278,6 +283,7 @@ function makeClient() {
       },
       order: (column: string) => { orderColumn = column; return chain; },
       limit: (value: number) => { limit = value; return chain; },
+      range: (from: number, to: number) => { rangeFrom = from; rangeTo = to; return chain; },
       maybeSingle: async () => { const result = resolve(); return { data: result.data[0] ?? null, error: null }; },
       single: async () => { const result = resolve(); return { data: result.data[0] ?? null, error: null }; },
       // Thenable, so `await client.from(...).select(...)` resolves to the query result the
@@ -386,6 +392,181 @@ async function materialActionWindowProof() {
   };
 }
 
+/**
+ * T7 — 120 Actions beneath a SINGLE Decision, each with its own Task/Execution/Outcome.
+ *
+ * The 30-Decision root window bounds Decisions, not what hangs beneath them, so this is
+ * the shape that made the linked `.in(...)` filters grow without limit.
+ */
+async function largeFanoutProof() {
+  const FANOUT = 120;
+  const scopedRow = (row: Row): Row => ({ workspace_id: WORKSPACE, project_id: PROJECT, ...row });
+  const tables: Record<string, Row[]> = {
+    operational_decision_records: [scopedRow({ id: "dec-fan", decision_status: "accepted", decided_by: ACTOR, governance_event_id: "gov-old", created_at: OLD })],
+    material_action_proposals: Array.from({ length: FANOUT }, (_, i) =>
+      scopedRow({ id: `act-f-${i}`, source_decision_id: "dec-fan", proposed_by: ACTOR, proposal: {}, expires_at: "2027-01-01T00:00:00Z", created_at: OLD, persisted_at: OLD, idempotency_key: `k-${i}` })),
+    material_action_governance_evaluations: Array.from({ length: FANOUT }, (_, i) =>
+      scopedRow({ id: `eval-f-${i}`, action_id: `act-f-${i}`, governance_state: "authorized", can_commit_action: true, policy_decision_reference: "p", grant_references: ["g"], evaluated_at: OLD, recorded_at: OLD })),
+    execution_tasks: Array.from({ length: FANOUT }, (_, i) =>
+      scopedRow({ id: `task-f-${i}`, status: "completed", created_at: OLD, source_payload: { source: "governed_action", sourceActionId: `act-f-${i}` } })),
+    internal_task_executions: Array.from({ length: FANOUT }, (_, i) =>
+      scopedRow({ id: `exec-f-${i}`, task_id: `task-f-${i}`, status: "completed", dispatched_by: ACTOR, created_at: OLD })),
+    canonical_task_outcomes: Array.from({ length: FANOUT }, (_, i) =>
+      scopedRow({ id: `out-f-${i}`, task_id: `task-f-${i}`, state: "expected", created_at: OLD })),
+    canonical_outcome_observations: [],
+    decision_evidence_links: [{ decision_record_id: "dec-fan", evidence_item_id: "ev-old" }],
+    evidence_items: [],
+    governance_events: [scopedRow({ id: "gov-old", created_at: OLD })],
+    recommended_actions: [],
+    workspace_memberships: [{ workspace_id: WORKSPACE, user_id: ACTOR, role: "owner" }],
+  };
+
+  const requests: Array<{ table: string; idCount: number }> = [];
+  const build = (table: string) => {
+    const eqs: Array<[string, unknown]> = [];
+    let ins: [string, unknown[]] | null = null;
+    let rangeFrom: number | null = null, rangeTo: number | null = null, limit: number | null = null;
+    const read = (column: string, row: Row): unknown => {
+      const arrow = column.split("->>");
+      if (arrow.length === 1) return row[column];
+      return (row[arrow[0]] as Row | undefined)?.[arrow[1]];
+    };
+    const resolve = () => {
+      let rows = [...(tables[table] ?? [])];
+      for (const [c, v] of eqs) rows = rows.filter((r) => String(read(c, r)) === String(v));
+      if (ins) {
+        requests.push({ table, idCount: ins[1].length });
+        const set = new Set(ins[1].map(String));
+        rows = rows.filter((r) => set.has(String(read(ins![0], r))));
+      }
+      if (limit !== null) rows = rows.slice(0, limit);
+      if (rangeFrom !== null && rangeTo !== null) rows = rows.slice(rangeFrom, rangeTo + 1);
+      return { data: rows, error: null };
+    };
+    const chain: Record<string, unknown> = {
+      select: () => chain,
+      eq: (c: string, v: unknown) => { eqs.push([c, v]); return chain; },
+      in: (c: string, v: unknown[]) => { ins = [c, v]; return chain; },
+      is: () => chain,
+      not: () => chain,
+      order: () => chain,
+      limit: (v: number) => { limit = v; return chain; },
+      range: (f: number, t: number) => { rangeFrom = f; rangeTo = t; return chain; },
+      maybeSingle: async () => { const r = resolve(); return { data: r.data[0] ?? null, error: null }; },
+      single: async () => { const r = resolve(); return { data: r.data[0] ?? null, error: null }; },
+      then: (ok: (v: unknown) => unknown, err?: (e: unknown) => unknown) => Promise.resolve(resolve()).then(ok, err),
+    };
+    return chain;
+  };
+  const fanClient = {
+    from: (table: string) => build(table),
+    rpc: async (name: string) => (name === "get_operational_assurance_summary" ? { data: {}, error: null } : { data: null, error: null }),
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- stub stands in for the Data API client
+  const summary = await getOperationalSummary(fanClient as any, WORKSPACE, PROJECT, ACTOR);
+  const idFiltered = requests.filter((r) => r.idCount > 0);
+  return {
+    fanout: FANOUT,
+    // Every linked read is chunked: no single .in(...) carries the whole fan-out.
+    maxIdsInOneFilter: Math.max(...idFiltered.map((r) => r.idCount)),
+    idFilteredRequestCount: idFiltered.length,
+    // …and nothing is lost: the complete chain is reconstructed.
+    actions: (summary.materialActions ?? []).filter((r) => String(r.id).startsWith("act-f-")).length,
+    evaluations: (summary.materialActionEvaluations ?? []).filter((r) => String(r.id).startsWith("eval-f-")).length,
+    tasks: (summary.tasks ?? []).filter((r) => String(r.id).startsWith("task-f-")).length,
+    executions: (summary.executions ?? []).filter((r) => String(r.id).startsWith("exec-f-")).length,
+    outcomes: (summary.outcomes ?? []).filter((r) => String(r.id).startsWith("out-f-")).length,
+    // No duplication despite multiple chunk requests.
+    uniqueActions: new Set((summary.materialActions ?? []).map((r) => String(r.id))).size,
+  };
+}
+
+/**
+ * T5 — two CONCURRENT requests carrying the same attempt key, neither having committed.
+ *
+ * Both miss the pre-flight window lookup and derive their own `now`, so their digests
+ * differ and the loser is told `material_action_idempotency_conflict`. Recovery must turn
+ * that into a replay for the same submission — and must still conflict when the business
+ * intent genuinely differs.
+ */
+async function concurrencyProof() {
+  const { proposeGovernedMaterialAction } = await import("@/lib/operational-flow/operational-flow-service");
+  const scope = { workspaceId: WORKSPACE, projectId: PROJECT, userId: ACTOR, role: "owner" };
+  const intent = {
+    decisionId: "dec-1", idempotencyKey: "p2-12:material-action:dec-1:attempt-A",
+    actionClass: "external_write" as const, actionType: "update_schedule",
+    targetResourceType: "project", targetResourceId: PROJECT, intendedOperation: "propose_only",
+    intendedEffect: "Move milestone", risk: "high" as const,
+    reversibility: "partially_reversible" as const, sideEffect: "external" as const,
+    justification: "Recorded human decision.",
+  };
+
+  // One shared store for the RPC, plus a SEPARATE pre-flight visibility flag. That is the
+  // race: B's window lookup misses because A has not committed yet, while B's RPC — which
+  // runs after A commits, serialized by the advisory lock — does see A's row.
+  const store: { row: Row | null } = { row: null };
+  // Counts how many proposal lookups must MISS. Only B's pre-flight does; its post-conflict
+  // recovery lookup runs after A committed and therefore sees the row.
+  let pendingPreflightMisses = 0;
+  const makeClient = () => {
+    const build = (table: string) => {
+      const chain: Record<string, unknown> = {};
+      for (const n of ["select", "eq"]) chain[n] = () => chain;
+      chain.maybeSingle = async () =>
+        table === "material_action_proposals"
+          ? (() => {
+              if (pendingPreflightMisses > 0) { pendingPreflightMisses -= 1; return { data: null, error: null }; }
+              return { data: store.row, error: null };
+            })()
+          : { data: { id: "dec-1", workspace_id: WORKSPACE, project_id: PROJECT, decided_by: ACTOR, decision_status: "accepted", recommendation_id: "rec-1", governance_event_id: "gov-1", created_at: OLD }, error: null };
+      chain.then = (ok: (v: unknown) => unknown) =>
+        ok({ data: [{ evidence_item_id: "ev-old", evidence_hash_at_decision: "a".repeat(64), evidence_version_at_decision: 1 }], error: null });
+      return chain;
+    };
+    return {
+      from: build,
+      // Mirrors persist_governed_material_action: serialize, compare digest, replay or conflict.
+      rpc: async (_name: string, args: Record<string, unknown>) => {
+        const proposal = args.p_proposal as Record<string, unknown>;
+        const digest = String(proposal.deterministicDigest);
+        if (store.row === null) {
+          store.row = { created_at: proposal.createdAt, expires_at: proposal.expiresAt, proposal_digest: digest };
+          return { data: { disposition: "created" }, error: null };
+        }
+        if (String(store.row.proposal_digest) !== digest) {
+          return { data: { disposition: "conflict", error: "material_action_idempotency_conflict" }, error: null };
+        }
+        return { data: { disposition: "replay" }, error: null };
+      },
+    };
+  };
+
+  // A commits first.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- stub stands in for the Data API client
+  const first = await proposeGovernedMaterialAction(makeClient() as any, scope, intent);
+  const committed = { ...store.row! };
+
+  // B: its pre-flight lookup misses (A had not committed when B started), so B derives its
+  // own `now` and a different digest. Its RPC then hits A's row -> conflict -> recovery.
+  pendingPreflightMisses = 1;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- stub stands in for the Data API client
+  const second = await proposeGovernedMaterialAction(makeClient() as any, scope, intent);
+  const rowUnchanged =
+    String(store.row?.proposal_digest) === String(committed.proposal_digest) &&
+    String(store.row?.created_at) === String(committed.created_at);
+
+  // Same key, genuinely different business intent: must STILL conflict, recovery or not.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- stub stands in for the Data API client
+  const divergent = await proposeGovernedMaterialAction(makeClient() as any, scope, { ...intent, intendedEffect: "Something materially different" });
+
+  return {
+    firstDisposition: String(first.disposition),
+    rowUnchangedByRecovery: rowUnchanged,
+    concurrentRetryDisposition: String(second.disposition),
+    differentIntentDisposition: String(divergent.disposition),
+  };
+}
+
 async function main() {
   const { client, queries } = makeClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the stub stands in for the Data API client
@@ -479,6 +660,8 @@ async function main() {
         optionIds: deriveEvidenceOptions(summary).map((option) => option.id),
       },
       materialActionWindow: await materialActionWindowProof(),
+      largeFanout: await largeFanoutProof(),
+      concurrency: await concurrencyProof(),
       // The completion reads are by exact persisted reference, never a widened window.
       linkedByIdQueries: queries
         .filter((query) => query.filters.some((filter) => filter.startsWith("in:")))

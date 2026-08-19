@@ -458,7 +458,7 @@ test("P2-12 L4b: only evidence P2-09 accepts is offered as the basis of an Obser
   assert.equal(e.notCurrent, false);
   assert.equal(e.notRecorded, false);
   assert.equal(e.unevaluated, false);
-  assert.match(operationalData, /filter\(\(row\) => isObservationEligibleEvidence\(row\)\)/);
+  assert.match(operationalData, /filter\(\(row\) => isObservationEligibleEvidence\(row, now\)\)/);
 });
 
 test("P2-12 L4c: when no eligible evidence exists the surface says so", () => {
@@ -511,7 +511,7 @@ test("P2-12 L7: the action stage says governance depends on the human's answers"
 test("P2-12 I1: every stage awaits the server write before revalidating", () => {
   // The write is still awaited before any revalidation. Since N1 the revalidation is a
   // separately guarded step, so its failure cannot be reported as a write failure.
-  assert.match(layout, /await runExecutionOperation\([\s\S]{0,140}\);\s*\n\s*setRefreshFailedAfterWrite\(false\);\s*\n\s*try \{\s*\n\s*await mutateFlow\(\);/);
+  assert.match(layout, /await runExecutionOperation\([\s\S]{0,140}\);\s*\n\s*setStaleSinceGeneration\(null\);\s*\n\s*try \{\s*\n\s*await mutateFlow\(\);/);
 });
 
 test("P2-12 I2: a denied execution disposition is treated as failure, not success", () => {
@@ -1020,7 +1020,7 @@ test("P2-12 M7d: the union preserves the window's ordering, so 'newest' still me
 test("P2-12 N1: a failed post-write refresh is not reported as a failed write", () => {
   // CANONICAL WRITE SUCCESS != POST-WRITE READ REFRESH SUCCESS.
   // The refresh is a separate request against a summary the write already committed to.
-  assert.match(layout, /await runExecutionOperation\([^)]*\);\s*\n\s*setRefreshFailedAfterWrite\(false\);\s*\n\s*try \{\s*\n\s*await mutateFlow\(\);\s*\n\s*\} catch \{\s*\n\s*setRefreshFailedAfterWrite\(true\);/);
+  assert.match(layout, /await runExecutionOperation\([^)]*\);\s*\n\s*setStaleSinceGeneration\(null\);\s*\n\s*try \{\s*\n\s*await mutateFlow\(\);\s*\n\s*\} catch \{\s*\n\s*setStaleSinceGeneration\(successGeneration\);/);
   // Only the write's own rejection propagates to the panel.
   assert.doesNotMatch(stripComments(layout), /await runExecutionOperation\([^)]*\);\s*\n\s*await mutateFlow\(\);/);
   // The condition is surfaced as a read-side status, never as an error role.
@@ -1201,4 +1201,140 @@ test("P2-12 N8: simultaneous ExecutionQueue instances have distinct heading ids"
   assert.deepEqual(labelled, ids, "each section points at its own heading, in order");
   assert.doesNotMatch(html, /execution-chain-heading/);
   assert.match(queueSource, /const headingId = useId\(\)/);
+});
+
+// ── T. Third review closure ──────────────────────────────────────────────────────────
+
+test("P2-12 T1: a superseded Outcome is terminal, not 'in progress', not reauthorizable", () => {
+  // The schema makes supersession a dead end, not a hand-off:
+  // `canonical_task_outcomes_one_per_task` is UNIQUE (workspace, project, task), so no
+  // replacement Outcome for the Task can exist. And NO code path in any migration or in
+  // src/ ever writes state='superseded' — it appears only in the CHECK enum and in the
+  // observation guard. There is therefore no canonical transition out of it.
+  const s = harness.supersededTerminal;
+  assert.equal(s.live, false, "no operation can advance the branch, so it is not live");
+  assert.equal(s.observationStage.actionable, false);
+  assert.equal(s.status.label, "Outcome superseded");
+  assert.match(s.status.detail, /no governed operation continues from it/i);
+  assert.notEqual(s.status.label, "In progress");
+  const queue = text(s.queue);
+  assert.match(queue, /Outcome superseded/);
+  assert.doesNotMatch(queue, /In progress/i);
+
+  // Crucially: NOT treated as a stranded authorization. Reauthorizing cannot revive a
+  // dead-ended Outcome, and the contract defines no superseded -> Material Action step.
+  assert.equal(s.proposalStage.actionable, false, "replacement authorization must NOT open");
+  assert.match(s.proposalStage.blockedReason, /terminal state for the Outcome/i);
+  // History is preserved.
+  assert.equal(s.observationsPreserved, 1);
+
+  // A current Outcome is unaffected.
+  assert.equal(harness.activeOutcomeLive.live, true);
+  assert.notEqual(harness.activeOutcomeLive.status.label, "Outcome superseded");
+});
+
+test("P2-12 T2: evaluation selection matches the server's two-column ordering", () => {
+  // `order by evaluated_at desc, recorded_at desc`. Collapsing that to one column made
+  // tied evaluation instants compare equal, so iteration order decided — and since the
+  // summary arrives newest-first, the OLDER row won.
+  const e = harness.evaluationTieBreak;
+  assert.equal(e.tied, "revoked", "same evaluated_at: the later recorded_at wins");
+  assert.equal(e.tiedReversed, "revoked", "and the answer does not depend on arrival order");
+  assert.equal(e.distinct, "authorized", "different evaluated_at: the primary key decides");
+  // The consequence that mattered: a newer revocation is not projected as authorization.
+  assert.equal(e.tiedDispatchable, false);
+  assert.match(readModel, /function compareEvaluations/);
+  assert.match(readModel, /if \(aEvaluated !== bEvaluated\) return aEvaluated - bEvaluated;/);
+  assert.match(readModel, /compareEvaluations\(evaluation, previous\) > 0/);
+});
+
+test("P2-12 T3: an edited expected-Outcome retry conflicts instead of reporting success", () => {
+  // `ensure_expected_task_outcome` returns the persisted Outcome for ANY request against
+  // that Task, comparing nothing, and the route maps that to HTTP 200. Discarding the body
+  // made an edited retry look successful while storage kept the original wording.
+  assert.match(operationalData, /assertExpectedOutcomeReconciles\(result, \{/);
+  assert.match(operationalData, /const result = await postOperationalFlow\(workspaceId, projectId, \{\s*\n\s*operation: "ensure_expected_outcome"/);
+  // Only persisted, contract-defined fields are compared.
+  for (const field of ["task_id", "expected_result", "success_criteria", "correlation_id"]) {
+    assert.match(operationalData, new RegExp(`outcome\\.${field}`), `${field} participates in reconciliation`);
+  }
+  // Nothing is overwritten — P2-09 defines no supersession operation for an Outcome.
+  assert.doesNotMatch(stripComments(operationalData), /update_expected_outcome|overwriteOutcome/);
+  assert.match(operationalData, /It was not changed — an Outcome cannot be rewritten once persisted/);
+});
+
+test("P2-12 T4: the stale-refresh warning clears on a confirmed later revalidation", () => {
+  // SWR's interval and focus revalidation recover on their own; a warning that outlives
+  // the problem is its own inaccuracy. It must not clear on a mere re-render, so the
+  // signal is SWR's onSuccess, not isValidating or a data identity check.
+  assert.match(operationalData, /onSuccess: \(\) => \{\s*\n\s*setSuccessGeneration\(\(generation\) => generation \+ 1\);/);
+  assert.match(operationalData, /return \{ \.\.\.result, successGeneration \};/);
+  assert.match(layout, /const refreshFailedAfterWrite = staleSinceGeneration !== null && successGeneration <= staleSinceGeneration;/);
+  // Recorded at the moment of failure, so only a LATER success retires it.
+  assert.match(layout, /catch \{\s*\n\s*setStaleSinceGeneration\(successGeneration\);/);
+  assert.doesNotMatch(stripComments(layout), /isValidating/);
+});
+
+test("P2-12 T5: a concurrent retry of the same submission replays instead of conflicting", () => {
+  // The advisory lock lives inside the RPC, so two requests can both miss the pre-flight
+  // window lookup, derive different `now` values, and produce different digests.
+  const c = projection.concurrency;
+  assert.equal(c.firstDisposition, "created");
+  assert.equal(c.concurrentRetryDisposition, "replay", "the loser of the race reconciles, not conflicts");
+  assert.equal(c.rowUnchangedByRecovery, true, "recovery never rewrites the committed row");
+  // Idempotency conflict semantics are NOT weakened.
+  assert.equal(c.differentIntentDisposition, "conflict",
+    "same key + genuinely different intent must still conflict");
+  // Recovery compares the contract's own digest with only the server timestamps normalized.
+  assert.match(service, /if \(reconciled\.deterministicDigest === row\.proposal_digest\)/);
+  assert.match(service, /\.eq\("workspace_id", scope\.workspaceId\)\s*\n\s*\.eq\("project_id", scope\.projectId\)\s*\n\s*\.eq\("idempotency_key", input\.idempotencyKey\)/);
+  // Bounded: exactly one recovery attempt, never a loop.
+  assert.doesNotMatch(stripComments(service), /while[\s\S]{0,120}persist_governed_material_action/);
+  assert.equal((stripComments(service).match(/^\s*data = await persist\(/gm) ?? []).length, 1,
+    "exactly one recovery attempt");
+  assert.match(service, /Exactly one recovery attempt, never a loop/);
+});
+
+test("P2-12 T6: deadline-driven gates recompute without any row changing", () => {
+  // Action expiry, evaluation staleness and Evidence stale_at are clock-driven; nothing in
+  // the database moves when one passes, and SWR keeps the previous object on a deep-equal
+  // refetch, so memos keyed only on flowData never rerun.
+  assert.match(operationalData, /export function nextProjectionDeadline/);
+  assert.match(operationalData, /consider\(branch\.action\.expiresAt\);/);
+  assert.match(operationalData, /consider\(branch\.action\.validUntil\);/);
+  assert.match(operationalData, /consider\(typeof row\.stale_at === "string" \? row\.stale_at : null\);/);
+  // One wake-up per deadline — not a polling loop.
+  assert.match(layout, /const timer = setTimeout\(\(\) => setProjectionFloor\(next \+ 1000\), delay\);/);
+  assert.match(layout, /if \(next === null\) return;/);
+  assert.doesNotMatch(stripComments(layout), /setInterval/);
+  // The projections take that clock.
+  assert.match(layout, /deriveExecutionChains\(flowData, projectionNow\)/);
+  assert.match(layout, /deriveEvidenceOptions\(flowData, projectionNow\)/);
+  // Anchored on SERVER time, and explicitly not authorization authority.
+  assert.match(service, /generatedAt: new Date\(\)\.toISOString\(\)/);
+  assert.match(layout, /Date\.parse\(flowData\.generatedAt\)/);
+  // The projection adopts the SERVER-side deadline instant; the local clock only decides
+  // when to recompute. Render itself reads no clock.
+  assert.match(layout, /never what it concludes/);
+  assert.match(layout, /No clock is read during render/);
+});
+
+test("P2-12 T7: linked reads are chunked and paged, and reconstruct the whole chain", () => {
+  // The 30-Decision root window bounds Decisions, not the rows beneath them:
+  // `source_decision_id` has no unique constraint, which is F9's own premise.
+  const f = projection.largeFanout;
+  assert.equal(f.fanout, 120);
+  assert.ok(f.maxIdsInOneFilter <= 50, `no single .in() may carry the fan-out (was ${f.maxIdsInOneFilter})`);
+  assert.ok(f.idFilteredRequestCount > 6, "the fan-out genuinely required multiple bounded requests");
+  // Nothing is lost and nothing is duplicated.
+  for (const level of ["actions", "evaluations", "tasks", "executions", "outcomes"]) {
+    assert.equal(f[level], 120, `${level}: every linked row survives chunking`);
+  }
+  assert.equal(f.uniqueActions, 120, "no duplication across chunks");
+  // Paged, so a PostgREST row cap cannot silently truncate — the false absence F7 fixed.
+  assert.match(service, /\.range\(offset, offset \+ ROW_PAGE_SIZE - 1\)/);
+  assert.match(service, /if \(page\.length < ROW_PAGE_SIZE\) break;/);
+  // Tenant, project and domain filters survive chunking.
+  assert.match(service, /\.eq\("workspace_id", workspaceId\)\.eq\("project_id", projectId\);/);
+  assert.match(service, /match \? scoped\.eq\(match\[0\], match\[1\]\) : scoped/);
 });

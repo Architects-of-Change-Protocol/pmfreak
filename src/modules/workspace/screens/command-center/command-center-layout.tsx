@@ -13,6 +13,7 @@ import {
   deriveRepository,
   postOperationalFlow,
   postRaidActionDecision,
+  nextProjectionDeadline,
   reconcileExecutionAttempts,
   runExecutionOperation,
   useOperationalFlow,
@@ -156,7 +157,7 @@ export function CommandCenterLayout({
     [projects, selectedProjectId]
   );
 
-  const { data: flowData, error: flowError, mutate: mutateFlow } = useOperationalFlow(workspaceId, selectedProject?.id ?? "");
+  const { data: flowData, error: flowError, mutate: mutateFlow, successGeneration } = useOperationalFlow(workspaceId, selectedProject?.id ?? "");
   const { data: raidActions, mutate: mutateRaidActions } = useRaidRecommendedActions(selectedProject?.id ?? "");
   const hasRealData = Boolean(flowData && flowData.evidence.length > 0);
   const flowLoading = flowData === undefined && !flowError;
@@ -192,8 +193,21 @@ export function CommandCenterLayout({
   /** P2-12: the canonical Decision whose governed chain is open in the drawer. */
   const [openChainId, setOpenChainId] = useState<string | null>(null);
   /** A governed write committed but the follow-up summary read did not. The work is saved;
-   *  only this surface's view of it is stale. Never rendered as a write failure. */
-  const [refreshFailedAfterWrite, setRefreshFailedAfterWrite] = useState(false);
+   *  only this surface's view of it is stale. Never rendered as a write failure.
+   *
+   *  Holds the success generation observed at the moment of failure, so the condition can
+   *  be retired by a CONFIRMED later revalidation — SWR's interval and focus revalidation
+   *  recover on their own, and a warning that outlives the problem is its own inaccuracy. */
+  const [staleSinceGeneration, setStaleSinceGeneration] = useState<number | null>(null);
+  const refreshFailedAfterWrite = staleSinceGeneration !== null && successGeneration <= staleSinceGeneration;
+
+  /** Server-anchored clock for deadline-sensitive projections.
+   *
+   *  `generatedAt` is the server's own reading at load; elapsed time since then is measured
+   *  locally, inside effects only — render stays pure and never reads a clock or a ref.
+   *  This decides only WHEN the surface recomputes and what it offers, never whether an
+   *  operation is allowed, which stays server-validated (see the P2-06 window). */
+  const [projectionFloor, setProjectionFloor] = useState<number>(() => Date.now());
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
@@ -232,8 +246,28 @@ export function CommandCenterLayout({
   const raidNeedsYou = useMemo(() => deriveRaidNeedsYou(raidActions, handleRaidDecide), [raidActions]); // eslint-disable-line react-hooks/exhaustive-deps
   // P2-12: governed chains that continue past a recorded Decision, plus the canonical
   // evidence a PM may cite when recording an Observation.
-  const executionChains = useMemo(() => deriveExecutionChains(flowData), [flowData]);
-  const evidenceOptions = useMemo(() => deriveEvidenceOptions(flowData), [flowData]);
+  /** Pure: the later of the server's own reading for this payload and the last deadline
+   *  this surface has already crossed. No clock is read during render. */
+  const projectionNow = useMemo(() => {
+    const generatedAt = flowData?.generatedAt ? Date.parse(flowData.generatedAt) : Number.NaN;
+    return new Date(Math.max(Number.isFinite(generatedAt) ? generatedAt : 0, projectionFloor));
+  }, [flowData, projectionFloor]);
+  const executionChains = useMemo(() => deriveExecutionChains(flowData, projectionNow), [flowData, projectionNow]);
+  const evidenceOptions = useMemo(() => deriveEvidenceOptions(flowData, projectionNow), [flowData, projectionNow]);
+  // One wake-up at the next deadline, then the next — never a polling loop. When nothing is
+  // pending, no timer exists at all. Waking advances the projection clock to just past the
+  // deadline that fired, so the recomputation is deterministic rather than clock-sampled.
+  useEffect(() => {
+    const next = nextProjectionDeadline(flowData, executionChains, projectionNow);
+    if (next === null) return;
+    // The wait is measured on the local clock; the VALUE the projection then adopts is the
+    // server-side deadline instant. So client skew can only shift when this surface
+    // recomputes, never what it concludes — and never whether a write is accepted, which
+    // the server decides regardless.
+    const delay = Math.min(Math.max(0, next - Date.now()) + 1000, 2 ** 31 - 1);
+    const timer = setTimeout(() => setProjectionFloor(next + 1000), delay);
+    return () => clearTimeout(timer);
+  }, [flowData, executionChains, projectionNow]);
   // A submission whose response was lost still landed. Retire its pending attempt from the
   // server's own persisted idempotency key, so a later honest re-submission is recorded as
   // its own event instead of colliding with the row that attempt already wrote.
@@ -354,11 +388,11 @@ export function CommandCenterLayout({
    */
   const handleRunExecution = async (operation: ExecutionOperation) => {
     await runExecutionOperation(workspaceId, selectedProject?.id ?? "", operation);
-    setRefreshFailedAfterWrite(false);
+    setStaleSinceGeneration(null);
     try {
       await mutateFlow();
     } catch {
-      setRefreshFailedAfterWrite(true);
+      setStaleSinceGeneration(successGeneration);
     }
   };
 
@@ -405,7 +439,9 @@ export function CommandCenterLayout({
         onRun: handleRunExecution,
         refreshFailedAfterWrite,
         onRetryRefresh: () => {
-          void mutateFlow().then(() => setRefreshFailedAfterWrite(false)).catch(() => setRefreshFailedAfterWrite(true));
+          void mutateFlow()
+            .then(() => setStaleSinceGeneration(null))
+            .catch(() => setStaleSinceGeneration(successGeneration));
         },
       },
     };

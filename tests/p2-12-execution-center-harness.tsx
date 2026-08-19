@@ -517,6 +517,36 @@ const supersededOutcome = summary({
   observations: [observation()],
 });
 
+/** T2 — two evaluations at the SAME `evaluated_at`, the revocation recorded later.
+ *  Server order is `evaluated_at desc, recorded_at desc`, so the revocation must win.
+ *  Listed newest-first, as the summary delivers them. */
+const tiedEvaluations = summary({
+  decisions: [decision()],
+  materialActions: [action()],
+  materialActionEvaluations: [
+    evaluation({ governance_state: "revoked", evaluated_at: "2026-08-17T10:05:00Z", recorded_at: "2026-08-17T10:06:00Z" }),
+    evaluation({ governance_state: "authorized", evaluated_at: "2026-08-17T10:05:00Z", recorded_at: "2026-08-17T10:05:00Z" }),
+  ],
+});
+/** Same tie, opposite arrival order — the answer must not depend on iteration. */
+const tiedEvaluationsReversed = summary({
+  decisions: [decision()],
+  materialActions: [action()],
+  materialActionEvaluations: [
+    evaluation({ governance_state: "authorized", evaluated_at: "2026-08-17T10:05:00Z", recorded_at: "2026-08-17T10:05:00Z" }),
+    evaluation({ governance_state: "revoked", evaluated_at: "2026-08-17T10:05:00Z", recorded_at: "2026-08-17T10:06:00Z" }),
+  ],
+});
+/** Different `evaluated_at` — the primary key still decides. */
+const distinctEvaluations = summary({
+  decisions: [decision()],
+  materialActions: [action()],
+  materialActionEvaluations: [
+    evaluation({ governance_state: "authorized", evaluated_at: "2026-08-17T11:00:00Z", recorded_at: "2026-08-17T10:00:00Z" }),
+    evaluation({ governance_state: "revoked", evaluated_at: "2026-08-17T10:00:00Z", recorded_at: "2026-08-17T11:30:00Z" }),
+  ],
+});
+
 /** F4 — a persisted Observation carrying the idempotency key a pending attempt submitted. */
 const observedWithKey = summary({
   decisions: [decision()],
@@ -1099,6 +1129,29 @@ async function main() {
       <ExecutionQueue chains={chainsOf(authorized)} onSelect={() => {}} />
     </>
   ),
+
+  // ── T1: a superseded Outcome is terminal, not "in progress", not reauthorizable ───
+  supersededTerminal: {
+    live: isBranchLive(branchOf(one(supersededOutcome))!),
+    status: one(supersededOutcome).status,
+    proposalStage: one(supersededOutcome).proposalStage,
+    observationStage: stageOf(one(supersededOutcome), "observation"),
+    observationsPreserved: branchOf(one(supersededOutcome))?.observations.length ?? 0,
+    queue: markup(<ExecutionQueue chains={chainsOf(supersededOutcome)} onSelect={() => {}} />),
+  },
+  // A normal current Outcome is unaffected.
+  activeOutcomeLive: {
+    live: isBranchLive(branchOf(one(workDoneOutcomeExpected))!),
+    status: one(workDoneOutcomeExpected).status,
+  },
+
+  // ── T2: evaluation selection matches `evaluated_at desc, recorded_at desc` ────────
+  evaluationTieBreak: {
+    tied: branchOf(one(tiedEvaluations))?.action.governanceState,
+    tiedReversed: branchOf(one(tiedEvaluationsReversed))?.action.governanceState,
+    distinct: branchOf(one(distinctEvaluations))?.action.governanceState,
+    tiedDispatchable: branchOf(one(tiedEvaluations))?.action.dispatchable,
+  },
 
   // ── F4: a persisted Observation carries the key its attempt submitted ─────────────
   observationReconciliation: {

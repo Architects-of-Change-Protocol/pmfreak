@@ -775,7 +775,16 @@ export function canReachCompletedExecution(
  *   - no Task exists yet and the authorization is still dispatchable.
  */
 export function isBranchLive(branch: GovernedActionBranch): boolean {
-  if (branch.outcome) return true;
+  // A superseded Outcome is terminal, and the schema makes it a dead end rather than a
+  // hand-off: `canonical_task_outcomes_one_per_task` is UNIQUE on (workspace, project,
+  // task), so no replacement Outcome for this Task can exist, and
+  // `record_canonical_outcome_observation` refuses to observe it. There is therefore no
+  // canonical operation left on this branch — but that is NOT grounds to reopen Material
+  // Action authorization. No contract in this repository produces `superseded` at all,
+  // and none defines a transition from it, so inventing "superseded Outcome -> new
+  // Action" would be fabricating domain the server does not have. The branch is reported
+  // as stopped; the proposal stage is gated separately on that.
+  if (branch.outcome) return !UNOBSERVABLE_OUTCOME_STATES.includes(branch.outcome.state);
   if (!branch.task) return branch.action.dispatchable;
   const executionCompleted = Boolean(
     branch.latestExecution && COMPLETED_EXECUTION_STATES.includes(branch.latestExecution.status)
@@ -946,6 +955,13 @@ function buildProposalStage(input: {
   // A branch still carrying the chain: it either produced a Task (work exists and
   // continues there) or its authorization is still dispatchable.
   const liveBranch = input.branches.find((branch) => isBranchLive(branch));
+  // A branch that stopped at a superseded Outcome is not live, but it is also not a
+  // stranded authorization: reauthorizing would not revive it, because the dead end is
+  // the Outcome, not the grant. Recovery via replacement is offered only for branches
+  // stranded by governance (N7), never for this.
+  const supersededBranch = input.branches.find(
+    (branch) => branch.outcome !== null && UNOBSERVABLE_OUTCOME_STATES.includes(branch.outcome.state)
+  );
 
   let blocked: string | null = null;
   if (!input.canWrite) blocked = "Your role cannot record governed operations in this project.";
@@ -956,6 +972,9 @@ function buildProposalStage(input: {
     blocked = liveBranch.task
       ? "A governed Material Action for this Decision has already become a canonical Task."
       : "A governed Material Action for this Decision is still authorized to proceed.";
+  } else if (supersededBranch) {
+    blocked =
+      "This Decision's Outcome was superseded. That is a terminal state for the Outcome, and no governed operation continues from it.";
   }
 
   const replacement = input.branches.length > 0;
@@ -1008,6 +1027,9 @@ export function describeBranch(branch: GovernedActionBranch): string {
       ? "Work completed — no expected outcome yet"
       : `Task ${String(branch.task.status).replaceAll("_", " ")} — work in progress`;
   }
+  if (UNOBSERVABLE_OUTCOME_STATES.includes(branch.outcome.state)) {
+    return "Outcome superseded — no longer observable";
+  }
   if (branch.observations.length === 0) return "Outcome expected — no observation yet";
   return `Observed: ${branch.observations[0].observationState.replaceAll("_", " ")}`;
 }
@@ -1040,6 +1062,19 @@ export function describeChainStatus(
 
   const live = branches.filter((branch) => isBranchLive(branch));
   if (live.length === 0) {
+    // A superseded Outcome is a stopped chain, not an authorization problem. Reporting it
+    // as "expired"/"not authorized" would name the wrong cause and imply reauthorization
+    // could help, which it cannot.
+    const superseded = branches.find(
+      (branch) => branch.outcome !== null && UNOBSERVABLE_OUTCOME_STATES.includes(branch.outcome.state)
+    );
+    if (superseded) {
+      return {
+        label: "Outcome superseded",
+        tone: "info",
+        detail: "Outcome superseded — no governed operation continues from it",
+      };
+    }
     const expired = branches.some((branch) => branch.action.expired);
     const stale = branches.some((branch) => branch.action.evaluationStale);
     return {
@@ -1090,7 +1125,9 @@ export function buildExecutionChains(
     const actionId = str(evaluation.action_id);
     if (!actionId) continue;
     const previous = evaluationsByAction.get(actionId);
-    if (!previous || evaluationOrder(evaluation) >= evaluationOrder(previous)) {
+    // Strictly greater, so an exact tie on BOTH timestamps keeps the first row rather
+    // than letting iteration order decide.
+    if (!previous || compareEvaluations(evaluation, previous) > 0) {
       evaluationsByAction.set(actionId, evaluation);
     }
   }
@@ -1268,15 +1305,31 @@ function actionOrder(action: AnyRecord): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-/** Sort key for governance evaluations, matching the server's own
- *  `order by evaluated_at desc, recorded_at desc`. */
-function evaluationOrder(evaluation: AnyRecord): number {
-  for (const column of ["evaluated_at", "recorded_at"]) {
+/**
+ * Sort key for governance evaluations, matching the server's own
+ * `order by evaluated_at desc, recorded_at desc` — as a TUPLE, not a single column.
+ *
+ * Collapsing the two into one number made tied `evaluated_at` values compare equal, and
+ * whichever row happened to be iterated last then won. The summary arrives newest-first,
+ * so the last-iterated row is the OLDEST: a revocation recorded after an authorization at
+ * the same evaluation instant was silently replaced by the authorization it superseded,
+ * and the surface would offer operations the RPC rejects.
+ */
+function evaluationOrder(evaluation: AnyRecord): [number, number] {
+  const at = (column: string): number => {
     const value = str(evaluation[column]);
     const parsed = value ? new Date(value).valueOf() : Number.NaN;
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return 0;
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  return [at("evaluated_at"), at("recorded_at")];
+}
+
+/** Descending tuple comparison. Positive when `a` is the newer evaluation. */
+function compareEvaluations(a: AnyRecord, b: AnyRecord): number {
+  const [aEvaluated, aRecorded] = evaluationOrder(a);
+  const [bEvaluated, bRecorded] = evaluationOrder(b);
+  if (aEvaluated !== bEvaluated) return aEvaluated - bEvaluated;
+  return aRecorded - bRecorded;
 }
 
 export function findExecutionChainByDecisionId(

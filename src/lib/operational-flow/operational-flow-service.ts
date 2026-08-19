@@ -20,6 +20,7 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   createPMFreakMaterialActionProposal,
   evaluatePMFreakMaterialActionGovernance,
+  type PMFreakMaterialActionProposalInput,
   type PMFreakMaterialActionClass,
 } from "@/features/pmfreak-integrations/aoc-governance-request-client";
 
@@ -249,7 +250,7 @@ export async function proposeGovernedMaterialAction(client: Client, scope: Scope
   const policyReference = decision.governance_event_id ? `pmfreak-governance-event:${decision.governance_event_id}` : null;
   const approvalReferences = isApprover ? [`workspace-role-approval:${role}:${scope.userId}`] : [];
   const requiredApprovalCount = input.actionClass === "ordinary_business_write" ? 0 : 1;
-  const proposal = createPMFreakMaterialActionProposal({
+  const proposalInput: PMFreakMaterialActionProposalInput = {
     actionId: deterministicUuid(`${scope.workspaceId}:${input.idempotencyKey}`), workspaceId: scope.workspaceId, projectId: scope.projectId,
     originatingSubjectType: "decision", originatingSubjectId: input.decisionId, decisionReferenceId: input.decisionId,
     sourceCorrelationId: `decision:${input.decisionId}`, causationId: input.decisionId,
@@ -259,7 +260,8 @@ export async function proposeGovernedMaterialAction(client: Client, scope: Scope
     sideEffect: input.sideEffect, proposedActorId: scope.userId, accountableActorId: scope.userId, requiredApprovalCount,
     justification: input.justification, policySnapshotReference: policyReference, grantReference: `workspace-role-grant:${role}:${scope.userId}`,
     createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString(), idempotencyKey: input.idempotencyKey, fixture: null,
-  });
+  };
+  const proposal = createPMFreakMaterialActionProposal(proposalInput);
 
   const initialState = input.actionClass === "knowledge_elevation" ? "denied" : proposal.materiality === "unknown" ? "degraded" : proposal.materiality === "ordinary" ? "not_required" : policyReference ? (isApprover ? "authorized" : "requires_approval") : "unavailable";
   const evidence = {
@@ -272,9 +274,56 @@ export async function proposeGovernedMaterialAction(client: Client, scope: Scope
   const persistenceEvaluation = { ...evaluation.evidence, state: evaluation.state, canCommitAction: evaluation.canCommitAction,
     grantReferenceIds: evaluation.evidence.grantReference ? [evaluation.evidence.grantReference] : [], contractVersion: "pmfreak.aoc-e.in-process-governance.v1",
     evaluatorKind: "aoc_e_in_process", canExecute: false };
-  const result = await client.rpc("persist_governed_material_action", { p_proposal: proposal, p_evaluation: persistenceEvaluation });
-  if (result.error || !result.data) throw new Error(`persist_governed_material_action:${result.error?.message ?? "no_data"}`);
-  return { ...(result.data as Record<string, unknown>), authorizationMessage: "Authorized does not mean Executed.", taskMessage: "No task has been created.", dispatchMessage: "No action has been dispatched.", remoteAocMessage: "Remote AOC writeback is not enabled." } as Record<string, unknown> & { disposition?: string };
+  const persist = async (candidate: ReturnType<typeof createPMFreakMaterialActionProposal>, evaluationPayload: Record<string, unknown>) => {
+    const attempt = await client.rpc("persist_governed_material_action", { p_proposal: candidate, p_evaluation: evaluationPayload });
+    if (attempt.error || !attempt.data) throw new Error(`persist_governed_material_action:${attempt.error?.message ?? "no_data"}`);
+    return attempt.data as Record<string, unknown> & { disposition?: string };
+  };
+
+  let data = await persist(proposal, persistenceEvaluation);
+
+  /**
+   * Recover a CONCURRENT retry of the same logical submission.
+   *
+   * The advisory lock lives inside the RPC, so two requests carrying the same attempt key
+   * can both miss the pre-flight window lookup, each derive its own `now`, and produce
+   * different digests. The loser is then told `material_action_idempotency_conflict` for
+   * what is the same submission.
+   *
+   * Recovery normalises ONLY the two server-generated timestamps: reload the persisted
+   * row, rebuild this proposal on its `created_at`/`expires_at`, and recompute the digest.
+   * Because `canonicalProposal` folds every business field plus those timestamps, equality
+   * after that substitution means the business intent is byte-identical — the digest is the
+   * contract's own comparator, so this cannot drift from it. Anything else is a genuine
+   * conflict and stays one.
+   *
+   * Exactly one recovery attempt, never a loop.
+   */
+  if (data.disposition === "conflict") {
+    const persisted = await client.from("material_action_proposals")
+      .select("created_at,expires_at,proposal_digest")
+      .eq("workspace_id", scope.workspaceId)
+      .eq("project_id", scope.projectId)
+      .eq("idempotency_key", input.idempotencyKey)
+      .maybeSingle();
+    const row = persisted?.data as { created_at?: string; expires_at?: string; proposal_digest?: string } | null | undefined;
+    if (row?.created_at && row?.expires_at && row?.proposal_digest) {
+      const reconciled = createPMFreakMaterialActionProposal({
+        ...proposalInput,
+        createdAt: new Date(row.created_at).toISOString(),
+        expiresAt: new Date(row.expires_at).toISOString(),
+      });
+      if (reconciled.deterministicDigest === row.proposal_digest) {
+        // Same submission, different wall-clock reading. Replay it under the persisted window.
+        data = await persist(reconciled, {
+          ...persistenceEvaluation,
+          validUntil: new Date(row.expires_at).toISOString(),
+        });
+      }
+    }
+  }
+
+  return { ...data, authorizationMessage: "Authorized does not mean Executed.", taskMessage: "No task has been created.", dispatchMessage: "No action has been dispatched.", remoteAocMessage: "Remote AOC writeback is not enabled." } as Record<string, unknown> & { disposition?: string };
 }
 
 export async function dispatchGovernedMaterialActionToTask(
@@ -1560,6 +1609,26 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
    * and no unbounded project-wide read is introduced: each query is bounded by the id set
    * it is given, which is itself bounded by the Decision window.
    */
+  /**
+   * How many ids go into one `.in(...)` filter.
+   *
+   * The root window bounds DECISIONS, not the rows beneath them: `source_decision_id`
+   * carries no unique constraint, so one Decision can hold arbitrarily many Actions, each
+   * with its own Task, Execution, Outcome and Observations. Passing that whole fan-out
+   * through a single PostgREST URL filter makes the request grow without limit until the
+   * server rejects it — and then `getOperationalSummary` fails outright rather than
+   * rendering the chain, which is a worse failure than the truncation F7 set out to fix.
+   *
+   * 50 UUIDs is roughly 1.9 KB of filter text, comfortably inside any common proxy or
+   * PostgREST limit while keeping the number of round trips small. No documented maximum
+   * is assumed; the value is deliberately conservative.
+   */
+  const ID_FILTER_CHUNK = 50;
+  /** Rows fetched per page. PostgREST applies its own max-rows cap, so a single unpaged
+   *  read could silently return a truncated set — the exact false-absence F7 exists to
+   *  prevent. Pages are drained explicitly until one comes back short. */
+  const ROW_PAGE_SIZE = 500;
+
   const linkedRows = async (
     table: string,
     column: string,
@@ -1569,10 +1638,24 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     match?: readonly [string, string]
   ): Promise<SummaryRow[]> => {
     if (values.length === 0) return [];
-    const scoped = client.from(table).select("*").eq("workspace_id", workspaceId).eq("project_id", projectId);
-    const result = await (match ? scoped.eq(match[0], match[1]) : scoped).in(column, values);
-    if (result.error) throw new Error(`load_operational_summary: ${result.error.message}`);
-    return (result.data ?? []) as unknown as SummaryRow[];
+    const collected: SummaryRow[] = [];
+    for (let start = 0; start < values.length; start += ID_FILTER_CHUNK) {
+      const chunk = values.slice(start, start + ID_FILTER_CHUNK);
+      for (let offset = 0; ; offset += ROW_PAGE_SIZE) {
+        const scoped = client.from(table).select("*").eq("workspace_id", workspaceId).eq("project_id", projectId);
+        const result = await (match ? scoped.eq(match[0], match[1]) : scoped)
+          .in(column, chunk)
+          .range(offset, offset + ROW_PAGE_SIZE - 1);
+        if (result.error) throw new Error(`load_operational_summary: ${result.error.message}`);
+        const page = (result.data ?? []) as unknown as SummaryRow[];
+        collected.push(...page);
+        // A short page is the last page. Every id filter is bounded, so this terminates.
+        if (page.length < ROW_PAGE_SIZE) break;
+      }
+    }
+    // Duplicates across chunks/pages are removed by canonical id in `unionById`, which also
+    // restores the window's ordering after the union.
+    return collected;
   };
 
   /**
@@ -1637,6 +1720,8 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     sources: sources.data ?? [],
     rawInputs: rawInputs.data ?? [],
     normalizedEvents: normalizedEvents.data ?? [],
+    // Server-side reading, so a client can measure a deadline from trusted time.
+    generatedAt: new Date().toISOString(),
     evidence: evidence.data ?? [],
     observationEligibleEvidence: observationEligibleEvidence.data ?? [],
     signals: signals.data ?? [],

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import useSWR from "swr";
 import type { OperationalSummary } from "@/lib/operational-flow/types";
 import type { Agent, DetailRow, NeedsYouItem, RepositoryItem, StatusTone, ToneBadge } from "./types";
@@ -35,9 +36,28 @@ const fetcher = async (url: string) => {
   return payload as OperationalSummary;
 };
 
+/**
+ * The operational summary, plus a monotonic count of CONFIRMED successful loads.
+ *
+ * `successGeneration` advances only from SWR's `onSuccess`, so it distinguishes "a
+ * revalidation actually completed" from a re-render, an `isValidating` flip, or unrelated
+ * state churn. A surface showing a stale-data condition needs exactly that signal: the
+ * background interval and focus revalidations recover on their own, and without a success
+ * marker the warning would outlive the problem it describes.
+ */
 export function useOperationalFlow(workspaceId: string, projectId: string) {
   const endpoint = `/api/operational-flow?workspaceId=${encodeURIComponent(workspaceId)}&projectId=${encodeURIComponent(projectId)}`;
-  return useSWR<OperationalSummary>(endpoint, fetcher, { refreshInterval: 30000, revalidateOnFocus: true });
+  // State, not a ref: the generation is read during render, and a ref read there would be
+  // both a lint violation and a value React is not obliged to re-render for.
+  const [successGeneration, setSuccessGeneration] = useState(0);
+  const result = useSWR<OperationalSummary>(endpoint, fetcher, {
+    refreshInterval: 30000,
+    revalidateOnFocus: true,
+    onSuccess: () => {
+      setSuccessGeneration((generation) => generation + 1);
+    },
+  });
+  return { ...result, successGeneration };
 }
 
 export async function postOperationalFlow(workspaceId: string, projectId: string, payload: AnyRecord) {
@@ -217,6 +237,41 @@ export function deriveAllGovernedAttention(
  * command collapsing canonical transitions. Each rejects on failure so the calling panel
  * surfaces the real server error instead of reporting optimistic success.
  */
+/**
+ * Fails closed when the persisted Outcome materially differs from what was just submitted.
+ *
+ * Only fields the canonical row actually persists are compared — `task_id`,
+ * `expected_result`, `success_criteria`, `correlation_id` — and only with the
+ * normalization the contract itself applies (`expected_result` is stored `btrim`-ed).
+ */
+export function assertExpectedOutcomeReconciles(
+  response: AnyRecord | undefined,
+  submitted: { taskId: string; expectedResult: string; successCriteria: string[]; correlationId: string }
+): void {
+  if (!response || response.disposition !== "existing") return;
+  const outcome = response.outcome as AnyRecord | undefined;
+  if (!outcome) return;
+
+  const persistedCriteria = Array.isArray(outcome.success_criteria)
+    ? (outcome.success_criteria as unknown[]).map((entry) => String(entry))
+    : [];
+  const differences: string[] = [];
+  if (String(outcome.task_id ?? "") !== submitted.taskId) differences.push("task");
+  if (String(outcome.expected_result ?? "").trim() !== submitted.expectedResult.trim()) differences.push("expected result");
+  if (JSON.stringify(persistedCriteria) !== JSON.stringify(submitted.successCriteria.map((entry) => entry.trim())))
+    differences.push("success criteria");
+  if (String(outcome.correlation_id ?? "") !== submitted.correlationId) differences.push("correlation");
+
+  if (differences.length > 0) {
+    throw new Error(
+      `An expected Outcome is already recorded for this Task and its ${differences.join(", ")} ` +
+        `differ${differences.length === 1 ? "s" : ""} from what you submitted. ` +
+        `The recorded Outcome is: "${String(outcome.expected_result ?? "")}". ` +
+        "It was not changed — an Outcome cannot be rewritten once persisted."
+    );
+  }
+}
+
 export async function runExecutionOperation(
   workspaceId: string,
   projectId: string,
@@ -299,14 +354,30 @@ export async function runExecutionOperation(
   }
 
   if (operation.kind === "outcome") {
-    await postOperationalFlow(workspaceId, projectId, {
+    const successCriteria = [operation.expectedResult];
+    const result = await postOperationalFlow(workspaceId, projectId, {
       operation: "ensure_expected_outcome",
       taskId: operation.taskId,
       expectedResult: operation.expectedResult,
-      successCriteria: [operation.expectedResult],
+      successCriteria,
       // The chain's persisted correlation, carried forward from the Action (P2-08 copies
       // the Action's correlation onto the Execution). A fresh id here would detach the
       // Outcome from the very chain that produced it.
+      correlationId: operation.correlationId,
+    });
+    // `ensure_expected_task_outcome` returns the already-persisted Outcome for ANY request
+    // against that Task, comparing nothing. So if the first request committed and its
+    // response was lost, a retry carrying an EDITED expectation is answered `existing` and
+    // would otherwise be reported as success while canonical storage still holds the old
+    // wording. Compare what the server returned against what was submitted, and say so.
+    //
+    // Nothing is overwritten: P2-09 defines no supersession operation for an Outcome, and
+    // `canonical_task_outcomes_one_per_task` makes a second one impossible. The honest
+    // answer to a materially different retry is a conflict, not a silent no-op.
+    assertExpectedOutcomeReconciles(result, {
+      taskId: operation.taskId,
+      expectedResult: operation.expectedResult,
+      successCriteria,
       correlationId: operation.correlationId,
     });
     return;
@@ -411,9 +482,12 @@ export function reconcileExecutionAttempts(
  * The client-side predicate is still applied on top: it is the same rule, and it also
  * re-evaluates `stale_at` against the current instant rather than query time.
  */
-export function deriveEvidenceOptions(data: OperationalSummary | undefined): Array<{ id: string; title: string }> {
+export function deriveEvidenceOptions(
+  data: OperationalSummary | undefined,
+  now: Date = new Date()
+): Array<{ id: string; title: string }> {
   return (data?.observationEligibleEvidence ?? [])
-    .filter((row) => isObservationEligibleEvidence(row))
+    .filter((row) => isObservationEligibleEvidence(row, now))
     .map((row) => ({
       id: String(row.id),
       title: String(row.title ?? row.id),
@@ -424,8 +498,48 @@ export function deriveEvidenceOptions(data: OperationalSummary | undefined): Arr
  * P2-12 — governed chains that continue past a recorded Decision. Rejected Decisions are
  * included so the surface shows honestly that they stop here, rather than hiding them.
  */
-export function deriveExecutionChains(data: OperationalSummary | undefined): GovernedExecutionChain[] {
-  return buildExecutionChains(data);
+export function deriveExecutionChains(
+  data: OperationalSummary | undefined,
+  now: Date = new Date()
+): GovernedExecutionChain[] {
+  return buildExecutionChains(data, now);
+}
+
+/**
+ * The next instant at which a projected gate changes with no persisted row changing.
+ *
+ * Action expiry, evaluation staleness and Evidence `stale_at` are all deadline-driven.
+ * Nothing in the database moves when one passes, so a summary refetch can be byte-identical
+ * and SWR will keep the previous object — leaving an expired Action still offered as
+ * dispatchable, or newly stale Evidence still selectable, until unrelated data happens to
+ * change. Returning the earliest future deadline lets a surface schedule exactly one
+ * recomputation for it, rather than polling.
+ *
+ * Returns null when nothing further is pending.
+ */
+export function nextProjectionDeadline(
+  data: OperationalSummary | undefined,
+  chains: GovernedExecutionChain[],
+  now: Date = new Date()
+): number | null {
+  const current = now.valueOf();
+  let earliest: number | null = null;
+  const consider = (value: string | null | undefined) => {
+    if (!value) return;
+    const at = Date.parse(String(value));
+    if (!Number.isFinite(at) || at <= current) return;
+    if (earliest === null || at < earliest) earliest = at;
+  };
+  for (const chain of chains) {
+    for (const branch of chain.branches) {
+      consider(branch.action.expiresAt);
+      consider(branch.action.validUntil);
+    }
+  }
+  for (const row of data?.observationEligibleEvidence ?? []) {
+    consider(typeof row.stale_at === "string" ? row.stale_at : null);
+  }
+  return earliest;
 }
 
 function toNeedsYouItem(

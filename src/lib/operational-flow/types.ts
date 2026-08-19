@@ -197,6 +197,16 @@ export type AuditReconstructionItem = {
 };
 
 export type OperationalSummary = {
+  /**
+   * The server's own clock reading when this summary was produced, ISO-8601.
+   *
+   * Deadline-sensitive facts — Action `expires_at`, evaluation `valid_until`, Evidence
+   * `stale_at` — are compared against a clock, and the browser's is not authoritative
+   * (see the P2-06 window). This anchor lets a surface measure elapsed time locally
+   * while still starting from server time. It governs only WHEN the surface recomputes
+   * and what it offers; every write remains validated server-side.
+   */
+  generatedAt?: string;
   sources: Array<Record<string, unknown>>;
   rawInputs: Array<Record<string, unknown>>;
   normalizedEvents: Array<Record<string, unknown>>;
