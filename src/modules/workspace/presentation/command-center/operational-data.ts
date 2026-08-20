@@ -1,9 +1,31 @@
 "use client";
 
+import { useState } from "react";
 import useSWR from "swr";
 import type { OperationalSummary } from "@/lib/operational-flow/types";
 import type { Agent, DetailRow, NeedsYouItem, RepositoryItem, StatusTone, ToneBadge } from "./types";
 import { buildCanonicalAttention, selectPendingAttention, type CanonicalAttentionItem } from "./attention-read-model";
+import {
+  buildExecutionChains,
+  canonicalMaterialActionDraft,
+  isObservationEligibleEvidence,
+  observationIdempotencyKey,
+  sha256Hex,
+  MATERIAL_ACTION_ATTEMPT_WINDOW_MS,
+  OBSERVATION_ATTEMPT_WINDOW_MS,
+  type ExecutionOperation,
+  type GovernedExecutionChain,
+} from "./execution-read-model";
+import {
+  markSubmissionAcknowledged,
+  loadSubmissionAttempt,
+  materialActionAttemptKey,
+  observationAttemptKey,
+  reconcileSubmissionAttempt,
+  reconcileSubmissionAttemptsByKey,
+  rememberSubmittedKey,
+  ATTEMPT_KEY_PREFIX,
+} from "./submission-attempt";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -14,9 +36,28 @@ const fetcher = async (url: string) => {
   return payload as OperationalSummary;
 };
 
+/**
+ * The operational summary, plus a monotonic count of CONFIRMED successful loads.
+ *
+ * `successGeneration` advances only from SWR's `onSuccess`, so it distinguishes "a
+ * revalidation actually completed" from a re-render, an `isValidating` flip, or unrelated
+ * state churn. A surface showing a stale-data condition needs exactly that signal: the
+ * background interval and focus revalidations recover on their own, and without a success
+ * marker the warning would outlive the problem it describes.
+ */
 export function useOperationalFlow(workspaceId: string, projectId: string) {
   const endpoint = `/api/operational-flow?workspaceId=${encodeURIComponent(workspaceId)}&projectId=${encodeURIComponent(projectId)}`;
-  return useSWR<OperationalSummary>(endpoint, fetcher, { refreshInterval: 30000, revalidateOnFocus: true });
+  // State, not a ref: the generation is read during render, and a ref read there would be
+  // both a lint violation and a value React is not obliged to re-render for.
+  const [successGeneration, setSuccessGeneration] = useState(0);
+  const result = useSWR<OperationalSummary>(endpoint, fetcher, {
+    refreshInterval: 30000,
+    revalidateOnFocus: true,
+    onSuccess: () => {
+      setSuccessGeneration((generation) => generation + 1);
+    },
+  });
+  return { ...result, successGeneration };
 }
 
 export async function postOperationalFlow(workspaceId: string, projectId: string, payload: AnyRecord) {
@@ -187,6 +228,318 @@ export function deriveAllGovernedAttention(
   onDecide: (recommendationId: string, status: string, rationale: string) => Promise<void>
 ): NeedsYouItem[] {
   return buildCanonicalAttention(data).map((item) => toNeedsYouItem(item, onDecide));
+}
+
+/**
+ * P2-12 — dispatch one governed continuation operation.
+ *
+ * Every branch calls an operation that existed before P2-12; none of them is a composite
+ * command collapsing canonical transitions. Each rejects on failure so the calling panel
+ * surfaces the real server error instead of reporting optimistic success.
+ */
+/**
+ * Fails closed when the persisted Outcome materially differs from what was just submitted.
+ *
+ * Only fields the canonical row actually persists are compared — `task_id`,
+ * `expected_result`, `success_criteria`, `correlation_id` — and only with the
+ * normalization the contract itself applies (`expected_result` is stored `btrim`-ed).
+ */
+export function assertExpectedOutcomeReconciles(
+  response: AnyRecord | undefined,
+  submitted: { taskId: string; expectedResult: string; successCriteria: string[]; correlationId: string }
+): void {
+  if (!response || response.disposition !== "existing") return;
+  const outcome = response.outcome as AnyRecord | undefined;
+  if (!outcome) return;
+
+  const persistedCriteria = Array.isArray(outcome.success_criteria)
+    ? (outcome.success_criteria as unknown[]).map((entry) => String(entry))
+    : [];
+  const differences: string[] = [];
+  if (String(outcome.task_id ?? "") !== submitted.taskId) differences.push("task");
+  if (String(outcome.expected_result ?? "").trim() !== submitted.expectedResult.trim()) differences.push("expected result");
+  if (JSON.stringify(persistedCriteria) !== JSON.stringify(submitted.successCriteria.map((entry) => entry.trim())))
+    differences.push("success criteria");
+  if (String(outcome.correlation_id ?? "") !== submitted.correlationId) differences.push("correlation");
+
+  if (differences.length > 0) {
+    throw new Error(
+      `An expected Outcome is already recorded for this Task and its ${differences.join(", ")} ` +
+        `differ${differences.length === 1 ? "s" : ""} from what you submitted. ` +
+        `The recorded Outcome is: "${String(outcome.expected_result ?? "")}". ` +
+        "It was not changed — an Outcome cannot be rewritten once persisted."
+    );
+  }
+}
+
+export async function runExecutionOperation(
+  workspaceId: string,
+  projectId: string,
+  operation: ExecutionOperation
+): Promise<void> {
+  if (operation.kind === "material_action") {
+    // One logical submission, one identity. P2-06 folds `createdAt` and `expiresAt` into
+    // the proposal digest and compares that digest against the row already stored under
+    // this idempotency key, so a retry that mints fresh timestamps is not a replay — it is
+    // a `material_action_idempotency_conflict`. The attempt therefore carries BOTH the key
+    // and the single wall-clock reading, and survives a remount (see `submission-attempt`).
+    //
+    // The attempt is scoped to this Decision and lives only as long as the proposal it
+    // describes could still be accepted. Once that window passes, the next submission is a
+    // genuinely new proposal and takes a new key — which is what lets an expired
+    // authorization be replaced instead of leaving the chain stuck. P2-06 is append-only,
+    // so the superseded Action and its audit trail are untouched.
+    // Scoped by the classification too: correcting a mis-stated answer after a failed
+    // request is a NEW submission, not a conflicting retry of the old one.
+    const draftDigest = await sha256Hex(canonicalMaterialActionDraft(operation.draft, operation.justification));
+    const attemptKey = materialActionAttemptKey(workspaceId, projectId, operation.decisionId, draftDigest);
+    const attempt = loadSubmissionAttempt(attemptKey, { ttlMs: MATERIAL_ACTION_ATTEMPT_WINDOW_MS });
+    const idempotencyKey = `p2-12:material-action:${operation.decisionId}:${attempt.attemptId}`;
+    rememberSubmittedKey(attemptKey, idempotencyKey);
+    await postOperationalFlow(workspaceId, projectId, {
+      operation: "propose_material_action",
+      decisionId: operation.decisionId,
+      idempotencyKey,
+      // P2-06 derives `materiality` — and therefore the governance state — from these
+      // four. They are the authorized human's classification of their own action; the
+      // experience never assumes them.
+      actionClass: operation.draft.actionClass,
+      risk: operation.draft.risk,
+      reversibility: operation.draft.reversibility,
+      sideEffect: operation.draft.sideEffect,
+      actionType: operation.draft.actionType,
+      intendedEffect: operation.draft.intendedEffect,
+      // Factual, not assumed: P2-06 persists an inert authorization (`canExecute` is
+      // always false), and the action concerns the project this chain belongs to.
+      intendedOperation: "propose_only",
+      targetResourceType: "project",
+      targetResourceId: projectId,
+      // The recorded human Decision is the justification for acting.
+      justification: operation.justification,
+      // No createdAt / evaluationTime / expiresAt. The governance window is server-owned:
+      // `expires_at` is enforced against database now(), so a skewed browser clock must
+      // never be able to persist an already-expired authorization or extend a granted one.
+      // The server reuses the persisted window on a retry, so the proposal digest — and
+      // therefore F1's retry stability — is preserved without any client wall time.
+    });
+    // The write was acknowledged. The attempt is NOT retired here: only persisted
+    // canonical state proves it landed (see `reconcileExecutionAttempts`). If the
+    // post-write refresh fails, a retry must still resolve this same identity.
+    markSubmissionAcknowledged(attemptKey);
+    return;
+  }
+
+  if (operation.kind === "task") {
+    await postOperationalFlow(workspaceId, projectId, {
+      operation: "dispatch_material_action_to_task",
+      actionId: operation.actionId,
+    });
+    return;
+  }
+
+  if (operation.kind === "execution") {
+    const response = await fetch("/api/execution-tasks/internal-execution", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taskId: operation.taskId, command: operation.command }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(String(result.error ?? "Execution command failed."));
+    // A denied transition returns 200 with a disposition, so it is checked explicitly
+    // rather than inferred from the HTTP status alone.
+    if (result.disposition === "denied" || result.disposition === "conflict") {
+      throw new Error(String(result.reason ?? result.failureClass ?? "Execution command was not accepted."));
+    }
+    return;
+  }
+
+  if (operation.kind === "outcome") {
+    const successCriteria = [operation.expectedResult];
+    const result = await postOperationalFlow(workspaceId, projectId, {
+      operation: "ensure_expected_outcome",
+      taskId: operation.taskId,
+      expectedResult: operation.expectedResult,
+      successCriteria,
+      // The chain's persisted correlation, carried forward from the Action (P2-08 copies
+      // the Action's correlation onto the Execution). A fresh id here would detach the
+      // Outcome from the very chain that produced it.
+      correlationId: operation.correlationId,
+    });
+    // `ensure_expected_task_outcome` returns the already-persisted Outcome for ANY request
+    // against that Task, comparing nothing. So if the first request committed and its
+    // response was lost, a retry carrying an EDITED expectation is answered `existing` and
+    // would otherwise be reported as success while canonical storage still holds the old
+    // wording. Compare what the server returned against what was submitted, and say so.
+    //
+    // Nothing is overwritten: P2-09 defines no supersession operation for an Outcome, and
+    // `canonical_task_outcomes_one_per_task` makes a second one impossible. The honest
+    // answer to a materially different retry is a conflict, not a silent no-op.
+    assertExpectedOutcomeReconciles(result, {
+      taskId: operation.taskId,
+      expectedResult: operation.expectedResult,
+      successCriteria,
+      correlationId: operation.correlationId,
+    });
+    return;
+  }
+
+  // The Observation's submission identity has to outlive this component. When the row is
+  // committed but the response is lost, the PM's recovery is to close the drawer, navigate
+  // or refresh and try again; a per-mount token would arrive with a fresh nonce and insert
+  // a SECOND canonical Observation rather than reconciling with the committed one.
+  const attemptKey = observationAttemptKey(workspaceId, projectId, operation.outcomeId);
+  const attempt = loadSubmissionAttempt(attemptKey, { ttlMs: OBSERVATION_ATTEMPT_WINDOW_MS });
+  // Derived from the submission's content AND its attempt token, so a retry reconciles
+  // to the same canonical Observation while a later genuine re-observation with
+  // identical content is recorded as its own event.
+  const idempotencyKey = await observationIdempotencyKey({
+    outcomeId: operation.outcomeId,
+    observationState: operation.observationState,
+    summary: operation.summary,
+    evidenceReferenceIds: operation.evidenceReferenceIds,
+    // P2-09 persists both, and its replay check ignores both — so a retry that changed
+    // only the confidence or missing-data answer would be acknowledged as a replay while
+    // the corrected values were dropped. Changing them is a new identity.
+    confidenceScore: operation.quality.confidenceScore,
+    missingDataState: operation.quality.missingDataState,
+    attemptNonce: attempt.attemptId,
+  });
+  // Recorded BEFORE the request so a lost response can still be reconciled from persisted
+  // state on a later load.
+  rememberSubmittedKey(attemptKey, idempotencyKey);
+  const now = new Date().toISOString();
+  await postOperationalFlow(workspaceId, projectId, {
+    operation: "record_outcome_observation",
+    outcomeId: operation.outcomeId,
+    observationState: operation.observationState,
+    summary: operation.summary,
+    evidenceReferenceIds: operation.evidenceReferenceIds,
+    // Epistemic state is the observer's, never assumed to be certain.
+    confidenceScore: operation.quality.confidenceScore,
+    missingDataState: operation.quality.missingDataState,
+    observedAt: now,
+    evaluatedAt: now,
+    correlationId: operation.correlationId,
+    idempotencyKey,
+  });
+  // The write was acknowledged, which is NOT the same as this client having seen it in
+  // persisted state. The attempt stays until `reconcileExecutionAttempts` finds the key on
+  // a canonical Observation, so a failed post-write refresh followed by a retry resolves
+  // the same identity rather than appending a second Observation.
+  markSubmissionAcknowledged(attemptKey);
+}
+
+/**
+ * Retires pending submission attempts that persisted state proves already landed.
+ *
+ * The lost-response case never reaches the success path above, so the attempt would
+ * otherwise outlive the row it wrote and make a later honest re-observation collide with
+ * it. Reading the persisted `idempotency_key` back off the canonical Observation closes
+ * that loop from the server's own record rather than from client memory.
+ */
+export function reconcileExecutionAttempts(
+  workspaceId: string,
+  projectId: string,
+  chains: GovernedExecutionChain[]
+): void {
+  // Material Actions. The persisted key is scoped per Decision, and the attempt key is
+  // additionally scoped by the draft digest — which this projection does not carry — so
+  // reconciliation matches on the persisted key itself via `reconcileSubmissionAttemptByKey`.
+  for (const chain of chains) {
+    const actionKeys = chain.branches
+      .map((branch) => branch.action.idempotencyKey)
+      .filter((key): key is string => typeof key === "string");
+    if (actionKeys.length > 0) reconcileSubmissionAttemptsByKey(ATTEMPT_KEY_PREFIX, actionKeys);
+
+    for (const branch of chain.branches) {
+      if (!branch.outcome) continue;
+      const persistedKeys = branch.observations
+        .map((observation) => observation.idempotencyKey)
+        .filter((key): key is string => typeof key === "string");
+      if (persistedKeys.length === 0) continue;
+      reconcileSubmissionAttempt(observationAttemptKey(workspaceId, projectId, branch.outcome.outcomeId), persistedKeys);
+    }
+  }
+}
+
+/**
+ * Canonical evidence a PM can cite when recording an Observation.
+ *
+ * Filtered to what P2-09 will actually accept: offering fixture or degraded evidence
+ * would present a control the server always rejects with
+ * `observation_evidence_scope_invalid`.
+ */
+/**
+ * Evidence a PM may cite when recording an Observation.
+ *
+ * Reads `observationEligibleEvidence`, which the server selects with P2-09's eligibility
+ * predicates BEFORE applying a row limit. The `evidence` collection must not be used here:
+ * it is the newest-N presentation window, so filtering it answers "which of the newest
+ * rows are eligible" rather than "is any eligible Evidence available" — and the panel
+ * would then say no Evidence exists whenever the newest rows happen to be fixtures, stale
+ * or degraded, even though the RPC would accept an older LIVE row.
+ *
+ * The client-side predicate is still applied on top: it is the same rule, and it also
+ * re-evaluates `stale_at` against the current instant rather than query time.
+ */
+export function deriveEvidenceOptions(
+  data: OperationalSummary | undefined,
+  now: Date = new Date()
+): Array<{ id: string; title: string }> {
+  return (data?.observationEligibleEvidence ?? [])
+    .filter((row) => isObservationEligibleEvidence(row, now))
+    .map((row) => ({
+      id: String(row.id),
+      title: String(row.title ?? row.id),
+    }));
+}
+
+/**
+ * P2-12 — governed chains that continue past a recorded Decision. Rejected Decisions are
+ * included so the surface shows honestly that they stop here, rather than hiding them.
+ */
+export function deriveExecutionChains(
+  data: OperationalSummary | undefined,
+  now: Date = new Date()
+): GovernedExecutionChain[] {
+  return buildExecutionChains(data, now);
+}
+
+/**
+ * The next instant at which a projected gate changes with no persisted row changing.
+ *
+ * Action expiry, evaluation staleness and Evidence `stale_at` are all deadline-driven.
+ * Nothing in the database moves when one passes, so a summary refetch can be byte-identical
+ * and SWR will keep the previous object — leaving an expired Action still offered as
+ * dispatchable, or newly stale Evidence still selectable, until unrelated data happens to
+ * change. Returning the earliest future deadline lets a surface schedule exactly one
+ * recomputation for it, rather than polling.
+ *
+ * Returns null when nothing further is pending.
+ */
+export function nextProjectionDeadline(
+  data: OperationalSummary | undefined,
+  chains: GovernedExecutionChain[],
+  now: Date = new Date()
+): number | null {
+  const current = now.valueOf();
+  let earliest: number | null = null;
+  const consider = (value: string | null | undefined) => {
+    if (!value) return;
+    const at = Date.parse(String(value));
+    if (!Number.isFinite(at) || at <= current) return;
+    if (earliest === null || at < earliest) earliest = at;
+  };
+  for (const chain of chains) {
+    for (const branch of chain.branches) {
+      consider(branch.action.expiresAt);
+      consider(branch.action.validUntil);
+    }
+  }
+  for (const row of data?.observationEligibleEvidence ?? []) {
+    consider(typeof row.stale_at === "string" ? row.stale_at : null);
+  }
+  return earliest;
 }
 
 function toNeedsYouItem(

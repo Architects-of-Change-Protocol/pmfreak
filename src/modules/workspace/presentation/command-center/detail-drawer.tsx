@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { DecisionPanel, DetailSection, DrawerContent, RecordedDecision } from "./types";
 import { StatusBadge } from "./status-badge";
 import { CloseIcon } from "./icons";
+import { ExecutionChainPanel } from "./execution-chain-panel";
 
 const labelize = (value: string) => value.replaceAll("_", " ");
 
@@ -296,6 +297,19 @@ export function DetailDrawer({ content, onClose }: { content: DrawerContent | nu
                 never leak from one recommendation onto another. */}
             {content.decisionPanel && (
               <DecisionSection key={content.decisionPanel.subjectId} panel={content.decisionPanel} headingId={decisionHeadingId} />
+            )}
+
+            {/* P2-12: keyed by the canonical Decision so switching chains remounts the
+                stage forms and no draft can leak between chains. */}
+            {content.executionPanel && (
+              <ExecutionChainPanel
+                key={content.executionPanel.chain.decisionId}
+                chain={content.executionPanel.chain}
+                evidenceOptions={content.executionPanel.evidenceOptions}
+                onRun={content.executionPanel.onRun}
+                refreshFailedAfterWrite={content.executionPanel.refreshFailedAfterWrite}
+                onRetryRefresh={content.executionPanel.onRetryRefresh}
+              />
             )}
 
             {(content.actions ?? []).length > 0 && (

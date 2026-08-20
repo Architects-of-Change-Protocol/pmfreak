@@ -248,7 +248,10 @@ test("P2-11 H: an open drawer reconciles from persisted state instead of a stale
   // The drawer is addressed by stable id and re-resolved from the freshest derived items on every
   // render, so a decision recorded elsewhere reconciles the open view.
   assert.match(layout, /openAttentionId/);
-  assert.match(layout, /const activeDrawer = openAttentionId/);
+  // Resolved on every render rather than stored as a snapshot. (P2-12 added a governed
+  // continuation branch ahead of this one; the attention branch itself is unchanged.)
+  assert.match(layout, /const activeDrawer =/);
+  assert.match(layout, /openAttentionId\s*\n?\s*\?\s*\(\[\.\.\.governedAttentionAll/);
   assert.match(layout, /governedAttentionAll, \.\.\.raidNeedsYou\]\.find/);
   // And the reconciled state genuinely removes the controls.
   assert.equal(/<textarea/.test(harness.decided.drawerMarkup), false);
@@ -300,11 +303,27 @@ test("P2-11 I: no model fusion — governed recommendations are the only canonic
 // ── J. No automatic Action ───────────────────────────────────────────────────
 
 test("P2-11 J: recording a Decision creates no Action, Task, Outcome or Observation", () => {
-  for (const source of [layout, operationalData, drawer, readModel]) {
-    assert.doesNotMatch(source, /propose_material_action/);
-    assert.doesNotMatch(source, /dispatch_material_action_to_task/);
-    assert.doesNotMatch(source, /ensure_expected_outcome/);
-    assert.doesNotMatch(source, /record_outcome_observation/);
+  const downstream = [
+    "propose_material_action",
+    "dispatch_material_action_to_task",
+    "ensure_expected_outcome",
+    "record_outcome_observation",
+  ];
+  // The attention surfaces themselves never reference a downstream operation.
+  for (const source of [drawer, readModel]) {
+    for (const operation of downstream) assert.doesNotMatch(source, new RegExp(operation));
+  }
+  // The layout never posts one directly.
+  for (const operation of downstream) {
+    assert.doesNotMatch(layout, new RegExp(`operation: "${operation}"`));
+  }
+  // P2-12 added an explicit continuation helper to operational-data. Everything the
+  // decision path uses sits before it, and must still reference no downstream operation —
+  // so a Decision cannot create an Action, Task, Outcome or Observation.
+  const beforeContinuation = operationalData.slice(0, operationalData.indexOf("export async function runExecutionOperation"));
+  assert.ok(beforeContinuation.length > 0, "the continuation helper must be identifiable");
+  for (const operation of downstream) {
+    assert.doesNotMatch(beforeContinuation, new RegExp(operation));
   }
   // record_decision is the only operation the decision path posts.
   const decideBlock = layout.slice(layout.indexOf("const handleDecide"), layout.indexOf("const handleRaidDecide"));

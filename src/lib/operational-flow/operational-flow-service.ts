@@ -20,6 +20,7 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   createPMFreakMaterialActionProposal,
   evaluatePMFreakMaterialActionGovernance,
+  type PMFreakMaterialActionProposalInput,
   type PMFreakMaterialActionClass,
 } from "@/features/pmfreak-integrations/aoc-governance-request-client";
 
@@ -152,10 +153,22 @@ export type ProposeMaterialActionInput = {
   reversibility: "reversible" | "partially_reversible" | "irreversible" | "unknown";
   sideEffect: "internal" | "external" | "authority" | "knowledge" | "unknown";
   justification: string;
-  createdAt: string;
-  evaluationTime: string;
-  expiresAt: string;
+  /**
+   * Governance-window timestamps. OPTIONAL, and deliberately not supplied by any browser
+   * caller: `expires_at` is enforced against database `now()`, so a client clock two hours
+   * behind would persist Actions that are already expired, and one two hours ahead would
+   * silently extend the authorization by the skew. When omitted, this function derives
+   * them from the server clock — see `resolveMaterialActionWindow`.
+   *
+   * Server-side callers (tests, fixtures) may still pin them explicitly.
+   */
+  createdAt?: string;
+  evaluationTime?: string;
+  expiresAt?: string;
 };
+
+/** The authorization window P2-06 grants. Server-owned; no client may widen or narrow it. */
+export const MATERIAL_ACTION_WINDOW_MS = 60 * 60 * 1000;
 
 function deterministicUuid(value: string): string {
   const hex = createHash("sha256").update(value, "utf8").digest("hex");
@@ -163,12 +176,64 @@ function deterministicUuid(value: string): string {
 }
 
 /** P2-06 ends at a persisted, inert authorization record. */
+/**
+ * The effective governance window for this proposal, on trusted server time.
+ *
+ * A retry must re-send byte-identical `createdAt`/`expiresAt`, because both are folded
+ * into the proposal digest that `persist_governed_material_action` compares for the
+ * idempotency key — a fresh reading would turn an idempotent replay into
+ * `material_action_idempotency_conflict`. So the already-persisted row is authoritative
+ * whenever one exists for this key, and the server clock is consulted only for a genuinely
+ * first submission. That is what lets the client stop sending wall time without losing
+ * retry stability.
+ */
+async function resolveMaterialActionWindow(
+  client: Client,
+  scope: Scope,
+  input: ProposeMaterialActionInput
+): Promise<{ createdAt: Date; evaluationTime: Date; expiresAt: Date }> {
+  const now = new Date();
+  // An explicit window is a server-side caller pinning time (tests, fixtures). Browser
+  // callers do not supply one; the API route does not forward client values.
+  if (input.createdAt && input.expiresAt) {
+    const createdAt = new Date(input.createdAt);
+    const expiresAt = new Date(input.expiresAt);
+    const evaluationTime = new Date(input.evaluationTime ?? input.createdAt);
+    if ([createdAt, evaluationTime, expiresAt].some((value) => Number.isNaN(value.valueOf()))) {
+      throw new Error("material_action_timestamp_invalid");
+    }
+    return { createdAt, evaluationTime, expiresAt };
+  }
+
+  // Scoped to this workspace AND this project. `persist_governed_material_action` treats
+  // (workspace_id, idempotency_key) as the uniqueness scope, so this lookup is deliberately
+  // NARROWER than the authoritative one: a key belonging to another project is simply not
+  // found here, a fresh window is minted, and the RPC then answers
+  // `material_action_idempotency_conflict` — fail-closed, and no other project's persisted
+  // timestamps can ever be read into this proposal. RLS independently restricts the read to
+  // projects the actor can access.
+  const existing = await client.from("material_action_proposals")
+    .select("created_at,expires_at")
+    .eq("workspace_id", scope.workspaceId)
+    .eq("project_id", scope.projectId)
+    .eq("idempotency_key", input.idempotencyKey)
+    .maybeSingle();
+  const persistedCreatedAt = existing?.data?.created_at ? new Date(String(existing.data.created_at)) : null;
+  const persistedExpiresAt = existing?.data?.expires_at ? new Date(String(existing.data.expires_at)) : null;
+  if (
+    persistedCreatedAt && persistedExpiresAt &&
+    !Number.isNaN(persistedCreatedAt.valueOf()) && !Number.isNaN(persistedExpiresAt.valueOf())
+  ) {
+    // Replay: reuse the persisted window so the digest matches exactly.
+    return { createdAt: persistedCreatedAt, evaluationTime: now, expiresAt: persistedExpiresAt };
+  }
+
+  return { createdAt: now, evaluationTime: now, expiresAt: new Date(now.getTime() + MATERIAL_ACTION_WINDOW_MS) };
+}
+
 export async function proposeGovernedMaterialAction(client: Client, scope: Scope, input: ProposeMaterialActionInput) {
   if (!canCreateOperationalEvidence(scope.role ?? null)) throw new Error("material_action_write_denied");
-  const createdAt = new Date(requireValue(input.createdAt, "created_at"));
-  const evaluationTime = new Date(requireValue(input.evaluationTime, "evaluation_time"));
-  const expiresAt = new Date(requireValue(input.expiresAt, "expires_at"));
-  if ([createdAt, evaluationTime, expiresAt].some((value) => Number.isNaN(value.valueOf()))) throw new Error("material_action_timestamp_invalid");
+  const { createdAt, evaluationTime, expiresAt } = await resolveMaterialActionWindow(client, scope, input);
 
   const { data: decision, error: decisionError } = await client.from("operational_decision_records")
     .select("id,workspace_id,project_id,decided_by,decision_status,recommendation_id,governance_event_id,created_at")
@@ -185,7 +250,7 @@ export async function proposeGovernedMaterialAction(client: Client, scope: Scope
   const policyReference = decision.governance_event_id ? `pmfreak-governance-event:${decision.governance_event_id}` : null;
   const approvalReferences = isApprover ? [`workspace-role-approval:${role}:${scope.userId}`] : [];
   const requiredApprovalCount = input.actionClass === "ordinary_business_write" ? 0 : 1;
-  const proposal = createPMFreakMaterialActionProposal({
+  const proposalInput: PMFreakMaterialActionProposalInput = {
     actionId: deterministicUuid(`${scope.workspaceId}:${input.idempotencyKey}`), workspaceId: scope.workspaceId, projectId: scope.projectId,
     originatingSubjectType: "decision", originatingSubjectId: input.decisionId, decisionReferenceId: input.decisionId,
     sourceCorrelationId: `decision:${input.decisionId}`, causationId: input.decisionId,
@@ -195,7 +260,8 @@ export async function proposeGovernedMaterialAction(client: Client, scope: Scope
     sideEffect: input.sideEffect, proposedActorId: scope.userId, accountableActorId: scope.userId, requiredApprovalCount,
     justification: input.justification, policySnapshotReference: policyReference, grantReference: `workspace-role-grant:${role}:${scope.userId}`,
     createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString(), idempotencyKey: input.idempotencyKey, fixture: null,
-  });
+  };
+  const proposal = createPMFreakMaterialActionProposal(proposalInput);
 
   const initialState = input.actionClass === "knowledge_elevation" ? "denied" : proposal.materiality === "unknown" ? "degraded" : proposal.materiality === "ordinary" ? "not_required" : policyReference ? (isApprover ? "authorized" : "requires_approval") : "unavailable";
   const evidence = {
@@ -208,9 +274,56 @@ export async function proposeGovernedMaterialAction(client: Client, scope: Scope
   const persistenceEvaluation = { ...evaluation.evidence, state: evaluation.state, canCommitAction: evaluation.canCommitAction,
     grantReferenceIds: evaluation.evidence.grantReference ? [evaluation.evidence.grantReference] : [], contractVersion: "pmfreak.aoc-e.in-process-governance.v1",
     evaluatorKind: "aoc_e_in_process", canExecute: false };
-  const result = await client.rpc("persist_governed_material_action", { p_proposal: proposal, p_evaluation: persistenceEvaluation });
-  if (result.error || !result.data) throw new Error(`persist_governed_material_action:${result.error?.message ?? "no_data"}`);
-  return { ...(result.data as Record<string, unknown>), authorizationMessage: "Authorized does not mean Executed.", taskMessage: "No task has been created.", dispatchMessage: "No action has been dispatched.", remoteAocMessage: "Remote AOC writeback is not enabled." } as Record<string, unknown> & { disposition?: string };
+  const persist = async (candidate: ReturnType<typeof createPMFreakMaterialActionProposal>, evaluationPayload: Record<string, unknown>) => {
+    const attempt = await client.rpc("persist_governed_material_action", { p_proposal: candidate, p_evaluation: evaluationPayload });
+    if (attempt.error || !attempt.data) throw new Error(`persist_governed_material_action:${attempt.error?.message ?? "no_data"}`);
+    return attempt.data as Record<string, unknown> & { disposition?: string };
+  };
+
+  let data = await persist(proposal, persistenceEvaluation);
+
+  /**
+   * Recover a CONCURRENT retry of the same logical submission.
+   *
+   * The advisory lock lives inside the RPC, so two requests carrying the same attempt key
+   * can both miss the pre-flight window lookup, each derive its own `now`, and produce
+   * different digests. The loser is then told `material_action_idempotency_conflict` for
+   * what is the same submission.
+   *
+   * Recovery normalises ONLY the two server-generated timestamps: reload the persisted
+   * row, rebuild this proposal on its `created_at`/`expires_at`, and recompute the digest.
+   * Because `canonicalProposal` folds every business field plus those timestamps, equality
+   * after that substitution means the business intent is byte-identical — the digest is the
+   * contract's own comparator, so this cannot drift from it. Anything else is a genuine
+   * conflict and stays one.
+   *
+   * Exactly one recovery attempt, never a loop.
+   */
+  if (data.disposition === "conflict") {
+    const persisted = await client.from("material_action_proposals")
+      .select("created_at,expires_at,proposal_digest")
+      .eq("workspace_id", scope.workspaceId)
+      .eq("project_id", scope.projectId)
+      .eq("idempotency_key", input.idempotencyKey)
+      .maybeSingle();
+    const row = persisted?.data as { created_at?: string; expires_at?: string; proposal_digest?: string } | null | undefined;
+    if (row?.created_at && row?.expires_at && row?.proposal_digest) {
+      const reconciled = createPMFreakMaterialActionProposal({
+        ...proposalInput,
+        createdAt: new Date(row.created_at).toISOString(),
+        expiresAt: new Date(row.expires_at).toISOString(),
+      });
+      if (reconciled.deterministicDigest === row.proposal_digest) {
+        // Same submission, different wall-clock reading. Replay it under the persisted window.
+        data = await persist(reconciled, {
+          ...persistenceEvaluation,
+          validUntil: new Date(row.expires_at).toISOString(),
+        });
+      }
+    }
+  }
+
+  return { ...data, authorizationMessage: "Authorized does not mean Executed.", taskMessage: "No task has been created.", dispatchMessage: "No action has been dispatched.", remoteAocMessage: "Remote AOC writeback is not enabled." } as Record<string, unknown> & { disposition?: string };
 }
 
 export async function dispatchGovernedMaterialActionToTask(
@@ -1401,12 +1514,16 @@ async function loadActorRole(client: Client, workspaceId: string, userId: string
   return (data?.role as OperationalWorkspaceRole | undefined) ?? null;
 }
 
+/** A canonical row as the Data API returns it: column names, untyped values. */
+type SummaryRow = Record<string, unknown>;
+
 export async function getOperationalSummary(client: Client, workspaceId: string, projectId: string, userId: string): Promise<OperationalSummary> {
   const [
     sources,
     rawInputs,
     normalizedEvents,
     evidence,
+    observationEligibleEvidence,
     signals,
     risks,
     governance,
@@ -1416,6 +1533,8 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     materialActionEvaluations,
     outcomes,
     observations,
+    tasks,
+    executions,
     assuranceResult,
     actorRole,
   ] = await Promise.all([
@@ -1423,6 +1542,19 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     client.from("operational_raw_inputs").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("captured_at", { ascending: false }).limit(20),
     client.from("operational_normalized_events").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("recorded_at", { ascending: false }).limit(20),
     client.from("evidence_items").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(20),
+    // P2-09 Observation eligibility, applied as SERVER predicates before the row limit.
+    // The presentation window above is ordered by recency and says nothing about
+    // eligibility, so filtering it client-side would report "no evidence available"
+    // whenever the newest rows happen to be fixtures, stale or degraded — while
+    // `record_canonical_outcome_observation` would still accept an older LIVE row.
+    // These predicates are the same ones that RPC enforces.
+    client.from("evidence_items").select("*")
+      .eq("workspace_id", workspaceId).eq("project_id", projectId)
+      .not("normalized_event_id", "is", null)
+      .eq("fixture_state", "LIVE").eq("freshness_state", "CURRENT").eq("lifecycle", "RECORDED")
+      .is("rejection_reason", null).is("degraded_reason", null)
+      .not("evaluated_at", "is", null)
+      .order("created_at", { ascending: false }).limit(50),
     client.from("operational_signals").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(30),
     client.from("risk_issue_records").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(30),
     client.from("governance_events").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(30),
@@ -1432,16 +1564,149 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     client.from("material_action_governance_evaluations").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("recorded_at", { ascending: false }).limit(30),
     client.from("canonical_task_outcomes").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(30),
     client.from("canonical_outcome_observations").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("recorded_at", { ascending: false }).limit(30),
+    // P2-12 reads the two canonical nodes the summary did not already carry, so the
+    // PM Execution Center can project Action -> Task -> Execution from persisted rows
+    // instead of holding them in browser memory. Governed tasks only: the Action->Task
+    // link is `source_payload->>'sourceActionId'` under `source = 'governed_action'`
+    // (P2-07), which is exactly the set this experience continues.
+    client.from("execution_tasks").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).eq("source_payload->>source", "governed_action").order("created_at", { ascending: false }).limit(30),
+    client.from("internal_task_executions").select("*").eq("workspace_id", workspaceId).eq("project_id", projectId).order("created_at", { ascending: false }).limit(30),
     client.rpc("get_operational_assurance_summary", { p_workspace_id: workspaceId, p_project_id: projectId }),
     loadActorRole(client, workspaceId, userId),
   ]);
-  for (const result of [sources, rawInputs, normalizedEvents, evidence, signals, risks, governance, recommendations, decisions, materialActions, materialActionEvaluations, outcomes, observations]) {
+  for (const result of [sources, rawInputs, normalizedEvents, evidence, observationEligibleEvidence, signals, risks, governance, recommendations, decisions, materialActions, materialActionEvaluations, outcomes, observations, tasks, executions]) {
     if (result.error) throw new Error(`load_operational_summary: ${result.error.message}`);
   }
   if (assuranceResult.error || !assuranceResult.data) throw new Error(`load_operational_assurance: ${assuranceResult.error?.message ?? "no_data"}`);
   const decisionIds = (decisions.data ?? []).map((row) => row.id);
   const links = decisionIds.length ? await client.from("decision_evidence_links").select("*").in("decision_record_id", decisionIds) : { data: [], error: null };
   if (links.error) throw new Error(`load_evidence_links: ${links.error.message}`);
+
+  /**
+   * Complete the governed chain BY PERSISTED CANONICAL ID.
+   *
+   * The collections above are independently windowed to the newest N rows project-wide.
+   * That is fine for listing recent activity, but a consumer that JOINS them cannot tell
+   * "this chain has no Observation" from "this chain's Observation fell outside a
+   * different collection's window". Reading absence out of a truncated projection is a
+   * false statement about the domain — after thirty newer observations elsewhere in the
+   * project, an older achieved Outcome would be reported as having no evidence at all.
+   *
+   * So each linked level is additionally fetched by the exact persisted reference that
+   * defines it, seeded from the bounded root set already loaded, and unioned with the
+   * windowed rows. Unioning rather than replacing keeps every row the windows already
+   * surfaced — no existing surface loses anything — while guaranteeing that for any row
+   * present here, its own linked children are present too:
+   *
+   *   Decision.id -> material_action_proposals.source_decision_id
+   *   Action.id   -> material_action_governance_evaluations.action_id
+   *   Action.id   -> execution_tasks.source_payload.sourceActionId   (P2-07)
+   *   Task.id     -> internal_task_executions.task_id
+   *   Task.id     -> canonical_task_outcomes.task_id
+   *   Outcome.id  -> canonical_outcome_observations.outcome_id
+   *
+   * Every link is an exact id match. Nothing is joined by timestamp, title or proximity,
+   * and no unbounded project-wide read is introduced: each query is bounded by the id set
+   * it is given, which is itself bounded by the Decision window.
+   */
+  /**
+   * How many ids go into one `.in(...)` filter.
+   *
+   * The root window bounds DECISIONS, not the rows beneath them: `source_decision_id`
+   * carries no unique constraint, so one Decision can hold arbitrarily many Actions, each
+   * with its own Task, Execution, Outcome and Observations. Passing that whole fan-out
+   * through a single PostgREST URL filter makes the request grow without limit until the
+   * server rejects it — and then `getOperationalSummary` fails outright rather than
+   * rendering the chain, which is a worse failure than the truncation F7 set out to fix.
+   *
+   * 50 UUIDs is roughly 1.9 KB of filter text, comfortably inside any common proxy or
+   * PostgREST limit while keeping the number of round trips small. No documented maximum
+   * is assumed; the value is deliberately conservative.
+   */
+  const ID_FILTER_CHUNK = 50;
+  /** Rows fetched per page. PostgREST applies its own max-rows cap, so a single unpaged
+   *  read could silently return a truncated set — the exact false-absence F7 exists to
+   *  prevent. Pages are drained explicitly until one comes back short. */
+  const ROW_PAGE_SIZE = 500;
+
+  const linkedRows = async (
+    table: string,
+    column: string,
+    values: string[],
+    /** Extra equality the WINDOWED query for this table also applies. A by-id completion
+     *  that widened the set would silently change what the collection means. */
+    match?: readonly [string, string]
+  ): Promise<SummaryRow[]> => {
+    if (values.length === 0) return [];
+    const collected: SummaryRow[] = [];
+    for (let start = 0; start < values.length; start += ID_FILTER_CHUNK) {
+      const chunk = values.slice(start, start + ID_FILTER_CHUNK);
+      for (let offset = 0; ; offset += ROW_PAGE_SIZE) {
+        const scoped = client.from(table).select("*").eq("workspace_id", workspaceId).eq("project_id", projectId);
+        const result = await (match ? scoped.eq(match[0], match[1]) : scoped)
+          .in(column, chunk)
+          .range(offset, offset + ROW_PAGE_SIZE - 1);
+        if (result.error) throw new Error(`load_operational_summary: ${result.error.message}`);
+        const page = (result.data ?? []) as unknown as SummaryRow[];
+        collected.push(...page);
+        // A short page is the last page. Every id filter is bounded, so this terminates.
+        if (page.length < ROW_PAGE_SIZE) break;
+      }
+    }
+    // Duplicates across chunks/pages are removed by canonical id in `unionById`, which also
+    // restores the window's ordering after the union.
+    return collected;
+  };
+
+  /**
+   * Union, then restore the window's own ordering.
+   *
+   * Each collection above is ordered by a specific column descending, and consumers read
+   * that order as meaning "newest first" — the Material Action panel, for instance, folds
+   * evaluations into a map expecting the newest to win. Appending by-id rows in arbitrary
+   * Data API order would leave the collection looking the same while quietly changing
+   * which evaluation a consumer resolves as current. Re-sorting on the same column makes
+   * the result indistinguishable from a wider window, which is the whole intent.
+   */
+  const unionById = (orderColumn: string, ...groups: Array<SummaryRow[] | null | undefined>): SummaryRow[] => {
+    const byId = new Map<string, SummaryRow>();
+    for (const group of groups) for (const row of group ?? []) byId.set(String(row.id), row);
+    const at = (row: SummaryRow): number => {
+      const value = row[orderColumn];
+      const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    return [...byId.values()].sort((a, b) => at(b) - at(a));
+  };
+  const idsOf = (rows: SummaryRow[]): string[] => [...new Set(rows.map((row) => String(row.id)))];
+
+  const allMaterialActions = unionById(
+    "persisted_at",
+    materialActions.data as unknown as SummaryRow[] | null,
+    await linkedRows("material_action_proposals", "source_decision_id", decisionIds.map(String))
+  );
+  const actionIds = idsOf(allMaterialActions);
+  const [linkedEvaluations, linkedTasks] = await Promise.all([
+    linkedRows("material_action_governance_evaluations", "action_id", actionIds),
+    // Governed tasks only, exactly as the window above. A RAID or draft task may also
+    // carry a `sourceActionId`, and letting one in here would put an ungoverned row into
+    // a collection every consumer is entitled to read as governed.
+    linkedRows("execution_tasks", "source_payload->>sourceActionId", actionIds, ["source_payload->>source", "governed_action"]),
+  ]);
+  const allMaterialActionEvaluations = unionById("recorded_at", materialActionEvaluations.data as unknown as SummaryRow[] | null, linkedEvaluations);
+  const allTasks = unionById("created_at", tasks.data as unknown as SummaryRow[] | null, linkedTasks);
+  const taskIds = idsOf(allTasks);
+  const [linkedExecutions, linkedOutcomes] = await Promise.all([
+    linkedRows("internal_task_executions", "task_id", taskIds),
+    linkedRows("canonical_task_outcomes", "task_id", taskIds),
+  ]);
+  const allExecutions = unionById("created_at", executions.data as unknown as SummaryRow[] | null, linkedExecutions);
+  const allOutcomes = unionById("created_at", outcomes.data as unknown as SummaryRow[] | null, linkedOutcomes);
+  const allObservations = unionById(
+    "recorded_at",
+    observations.data as unknown as SummaryRow[] | null,
+    await linkedRows("canonical_outcome_observations", "outcome_id", idsOf(allOutcomes))
+  );
   const governanceById = new Map((governance.data ?? []).map((row) => [row.id, row]));
   const safeRecommendations = (recommendations.data ?? []).map((row) => {
     const event = governanceById.get(row.governance_event_id) as Record<string, unknown> | undefined;
@@ -1455,19 +1720,27 @@ export async function getOperationalSummary(client: Client, workspaceId: string,
     sources: sources.data ?? [],
     rawInputs: rawInputs.data ?? [],
     normalizedEvents: normalizedEvents.data ?? [],
+    // Server-side reading, so a client can measure a deadline from trusted time.
+    generatedAt: new Date().toISOString(),
     evidence: evidence.data ?? [],
+    observationEligibleEvidence: observationEligibleEvidence.data ?? [],
     signals: signals.data ?? [],
     risksIssues: risks.data ?? [],
     governanceEvents: governance.data ?? [],
     recommendations: safeRecommendations,
     decisions: decisions.data ?? [],
     evidenceLinks: links.data ?? [],
-    materialActions: materialActions.data ?? [],
-    materialActionEvaluations: materialActionEvaluations.data ?? [],
-    outcomes: outcomes.data ?? [],
-    observations: observations.data ?? [],
+    materialActions: allMaterialActions,
+    materialActionEvaluations: allMaterialActionEvaluations,
+    outcomes: allOutcomes,
+    observations: allObservations,
+    tasks: allTasks,
+    executions: allExecutions,
     lineages,
     assurance: assuranceResult.data as OperationalSummary["assurance"],
-    actor: { role: actorRole, canCreateEvidence: canCreateOperationalEvidence(actorRole) },
+    // `userId` is the requesting actor's own id. P2-06 refuses a Material Action whose
+    // source Decision was recorded by a different actor, so the experience needs it to
+    // avoid offering a control the server would always deny. It is never authority.
+    actor: { role: actorRole, userId, canCreateEvidence: canCreateOperationalEvidence(actorRole) },
   };
 }
