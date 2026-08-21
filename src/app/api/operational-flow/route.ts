@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
 import {
+  captureLiveOperationalInput,
   captureOperationalInput,
   deriveEvidence,
   dispatchGovernedMaterialActionToTask,
@@ -101,6 +102,7 @@ export async function POST(request: Request) {
   if (!workspaceId || !projectId || !operation) return Response.json({ error: "workspaceId, projectId and operation are required." }, { status: 400 });
   if (![
     "capture_input",
+    "capture_live_input",
     "derive_evidence",
     "run_chain",
     "record_decision",
@@ -118,6 +120,21 @@ export async function POST(request: Request) {
     if (operation === "capture_input") {
       return Response.json(await captureOperationalInput(authorized.supabase, scope, {
         sourceKey: String(body.sourceKey ?? "manual-demo:v1"), idempotencyKey: String(body.idempotencyKey ?? ""),
+        title: String(body.title ?? ""), content: String(body.content ?? ""), occurredAt: String(body.occurredAt ?? ""),
+        correlationId: String(body.correlationId ?? ""), causationId: body.causationId ? String(body.causationId) : null,
+        externalId: body.externalId ? String(body.externalId) : null,
+      }), { status: 201 });
+    }
+    if (operation === "capture_live_input") {
+      // P2-14. Same authorize() gate, same request-scoped client, same canonical intake
+      // shape as `capture_input` — the ONLY difference is which verified contract is
+      // called, and therefore whether the resolved Source is a fixture. The browser
+      // supplies content and a source key; it supplies no identity and no authority.
+      // Actor, workspace membership, project relationship and write role are resolved
+      // server-side above, and `can_write_operational_project` is re-enforced inside the
+      // RPC under RLS. A fixture source key is refused by the contract itself.
+      return Response.json(await captureLiveOperationalInput(authorized.supabase, scope, {
+        sourceKey: String(body.sourceKey ?? "live-observation:v1"), idempotencyKey: String(body.idempotencyKey ?? ""),
         title: String(body.title ?? ""), content: String(body.content ?? ""), occurredAt: String(body.occurredAt ?? ""),
         correlationId: String(body.correlationId ?? ""), causationId: body.causationId ? String(body.causationId) : null,
         externalId: body.externalId ? String(body.externalId) : null,
@@ -218,7 +235,11 @@ export async function POST(request: Request) {
     }), { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Operational flow failed.";
-    const status = /idempotency_conflict/.test(message) ? 409 : /denied|authority|access/.test(message) ? 403 : /required|mismatch|invalid|not_found|incomplete|malformed|source_(degraded|stale|unavailable|revoked)/.test(message) ? 400 : 500;
+    // `*_unauthenticated` and `*_fixture_prohibited` are raised by the canonical intake
+    // RPCs. Both previously fell through to 500, which reported a client-correctable
+    // request as a server fault and hid the honest reason. Neither pattern widens an
+    // existing mapping: they are additive and matched before the generic groups.
+    const status = /idempotency_conflict/.test(message) ? 409 : /unauthenticated/.test(message) ? 401 : /denied|authority|access/.test(message) ? 403 : /required|mismatch|invalid|not_found|incomplete|malformed|fixture_prohibited|source_(degraded|stale|unavailable|revoked)/.test(message) ? 400 : 500;
     if (status === 500) return safeLegacyErrorResponse("/api/operational-flow", error, "Operational flow failed. Please retry.");
     return Response.json({ error: message }, { status });
   }

@@ -113,6 +113,42 @@ export async function captureOperationalInput(client: Client, scope: Scope, inpu
   return unwrap(result, "capture_operational_input") as Record<string, unknown>;
 }
 
+/**
+ * P2-14 — capture a genuinely LIVE operational input.
+ *
+ * Delegates wholesale to the verified P2-09 `capture_live_operational_input` contract.
+ * That RPC owns every canonical semantic and none of it is reimplemented here:
+ *
+ *   - it resolves or creates a NON-fixture Source (`is_fixture = false`), which is the
+ *     only reason the Evidence later derived from this event becomes `fixture_state =
+ *     'LIVE'` and therefore Observation-eligible under P2-09;
+ *   - it refuses an existing fixture Source with `intake_source_fixture_prohibited`, so
+ *     a DEMO / FIXTURE source key can never be laundered into live provenance;
+ *   - it enforces `auth.uid()` and `can_write_operational_project` inside the database,
+ *     under RLS, independently of this layer;
+ *   - it writes Raw Input -> Normalized Event with real sha256 digests under its own
+ *     idempotency contract.
+ *
+ * Evidence is deliberately NOT created here. `evidenceCreated` is false in the contract's
+ * own response, and LIVE Evidence is derived from the returned Normalized Event through
+ * the existing verified P2-04 `derive_operational_evidence` path — exactly as the
+ * DEMO / FIXTURE capture does. Capture and derivation remain separate transitions;
+ * collapsing them would erase the Raw Input != Normalized Event != Evidence boundary.
+ */
+export async function captureLiveOperationalInput(client: Client, scope: Scope, input: CaptureOperationalInput) {
+  if (!canCreateOperationalEvidence(scope.role ?? null)) throw new Error("intake_write_role_denied");
+  for (const [value, name] of [[input.sourceKey, "source_key"], [input.idempotencyKey, "idempotency_key"], [input.title, "title"], [input.content, "content"], [input.occurredAt, "occurred_at"], [input.correlationId, "correlation_id"]] as const) requireValue(value, name);
+  const occurredAt = new Date(input.occurredAt);
+  if (Number.isNaN(occurredAt.valueOf())) throw new Error("occurred_at_invalid");
+  const result = await client.rpc("capture_live_operational_input", {
+    p_workspace_id: scope.workspaceId, p_project_id: scope.projectId,
+    p_source_key: input.sourceKey.trim(), p_idempotency_key: input.idempotencyKey.trim(),
+    p_title: input.title.trim(), p_content: input.content.trim(), p_occurred_at: occurredAt.toISOString(),
+    p_correlation_id: input.correlationId, p_causation_id: input.causationId || null, p_external_id: input.externalId?.trim() || null,
+  });
+  return unwrap(result, "capture_live_operational_input") as Record<string, unknown>;
+}
+
 export async function runEvidenceDecisionChain(client: Client, scope: Scope, evidenceItemId: string) {
   if (!canCreateOperationalEvidence(scope.role ?? null)) throw new Error("operational_chain_role_denied");
   const result = await client.rpc("materialize_operational_chain", { p_evidence_item_id: requireValue(evidenceItemId, "evidence_item_id") });

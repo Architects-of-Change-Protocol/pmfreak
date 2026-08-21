@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import type { OperationalSummary } from "@/lib/operational-flow/types";
+import type { MissingDataState, OperationalSummary } from "@/lib/operational-flow/types";
 import type { Agent, DetailRow, NeedsYouItem, RepositoryItem, StatusTone, ToneBadge } from "./types";
 import { buildCanonicalAttention, selectPendingAttention, type CanonicalAttentionItem } from "./attention-read-model";
 import {
@@ -28,6 +28,16 @@ import {
 } from "./submission-attempt";
 
 type AnyRecord = Record<string, unknown>;
+
+/**
+ * Source key for LIVE operational intake.
+ *
+ * Deliberately NOT a P2-13 fixture key (`p2-13-founder-fixture-*:v1`) and not the
+ * DEMO / FIXTURE manual key (`manual-demo:v1`). The verified contract creates this
+ * Source with `is_fixture = false` on first use and refuses to write live input against
+ * any fixture Source, so the two intake lineages can never merge.
+ */
+export const LIVE_INTAKE_SOURCE_KEY = "live-observation:v1";
 
 const fetcher = async (url: string) => {
   const response = await fetch(url, { cache: "no-store" });
@@ -73,7 +83,7 @@ export async function postOperationalFlow(workspaceId: string, projectId: string
 
 export async function captureAndDeriveDemoEvidence(workspaceId: string, projectId: string, input: {
   title: string; content: string; assertionType?: "INFERENCE" | "ASSUMPTION"; classification?: string;
-  confidenceScore?: number; missingDataState?: "COMPLETE" | "PARTIAL" | "UNKNOWN";
+  confidenceScore?: number; missingDataState?: MissingDataState;
 }) {
   const requestId = crypto.randomUUID();
   const captured = await postOperationalFlow(workspaceId, projectId, {
@@ -84,6 +94,49 @@ export async function captureAndDeriveDemoEvidence(workspaceId: string, projectI
     operation: "derive_evidence", normalizedEventId: captured.normalizedEvent.id, idempotencyKey: `evidence:${requestId}`,
     assertionType: input.assertionType ?? "ASSUMPTION", classification: input.classification ?? "UNCLASSIFIED",
     confidenceScore: input.confidenceScore ?? 0.5, missingDataState: input.missingDataState ?? "UNKNOWN", evaluatedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * P2-14 — capture a LIVE operational record, then derive Observation-eligible Evidence.
+ *
+ * Two calls on purpose, mirroring `captureAndDeriveDemoEvidence`. Capture and Evidence
+ * derivation are separate canonical transitions and are not collapsed into one command.
+ *
+ * The only structural difference from the DEMO / FIXTURE path is `capture_live_input`,
+ * which resolves a NON-fixture Source. That single fact is what makes the derived
+ * Evidence `fixture_state = 'LIVE'` and therefore eligible to support an Observation.
+ * P2-13's fixture Evidence stays `DEMO_FIXTURE` and is never promoted.
+ *
+ * Evidence quality is supplied by the observer rather than defaulted: an Observation
+ * that cites this Evidence carries its assertion type, classification, confidence and
+ * missing-data state, and inventing them here would fabricate exactly the judgement
+ * P2-09 asks a human to make.
+ */
+export async function captureAndDeriveLiveEvidence(workspaceId: string, projectId: string, input: {
+  title: string; content: string;
+  assertionType: "FACT" | "INFERENCE" | "ASSUMPTION";
+  classification: string;
+  confidenceScore: number;
+  missingDataState: MissingDataState;
+  sourceKey?: string;
+  requestId?: string;
+}) {
+  // One request id ties Raw Input, Normalized Event and Evidence to the same correlation,
+  // and makes a browser retry of the same logical capture reconcile onto the persisted
+  // rows through the contract's own idempotency keys instead of duplicating them.
+  const requestId = input.requestId ?? crypto.randomUUID();
+  const captured = await postOperationalFlow(workspaceId, projectId, {
+    operation: "capture_live_input", sourceKey: input.sourceKey ?? LIVE_INTAKE_SOURCE_KEY,
+    idempotencyKey: `live-capture:${requestId}`,
+    title: input.title, content: input.content, occurredAt: new Date().toISOString(), correlationId: requestId,
+  });
+  return postOperationalFlow(workspaceId, projectId, {
+    operation: "derive_evidence", normalizedEventId: captured.normalizedEvent.id,
+    idempotencyKey: `live-evidence:${requestId}`,
+    assertionType: input.assertionType, classification: input.classification,
+    confidenceScore: input.confidenceScore, missingDataState: input.missingDataState,
+    evaluatedAt: new Date().toISOString(),
   });
 }
 
