@@ -2,6 +2,8 @@
 
 import { useId, useState } from "react";
 import { captureAndDeriveDemoEvidence, captureAndDeriveLiveEvidence } from "./operational-data";
+import { INTAKE_ATTEMPT_WINDOW_MS, sha256Hex } from "./execution-read-model";
+import { clearSubmissionAttempt, intakeAttemptKey, loadSubmissionAttempt } from "./submission-attempt";
 import { CloseIcon } from "./icons";
 
 /**
@@ -58,8 +60,14 @@ export function VaultIntakePanel({ workspaceId, projectId, onClose, onIntakeComp
   const modeGroupId = `${uid}-mode`;
 
   const isLive = mode === "live";
-  const confidence = Number(confidenceScore);
-  const confidenceValid = Number.isFinite(confidence) && confidence >= 0 && confidence <= 1;
+  const confidenceEntered = confidenceScore.trim();
+  const confidence = Number(confidenceEntered);
+  // EMPTY is not EXPLICIT ZERO. `Number("")` is 0, so an emptied or whitespace-only field
+  // used to pass every range check and persist `confidence_score = 0` — the strongest
+  // possible "no confidence at all" claim — as though the observer had made it. An
+  // Observation citing that Evidence would inherit a judgement nobody gave. A deliberate
+  // 0 stays valid; the absence of an answer does not become one.
+  const confidenceValid = confidenceEntered !== "" && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1;
 
   const submit = async () => {
     if (!content.trim()) { setError("Paste some notes before capture."); return; }
@@ -67,10 +75,21 @@ export function VaultIntakePanel({ workspaceId, projectId, onClose, onIntakeComp
     setBusy(true); setError("");
     try {
       if (isLive) {
+        // LIVE capture is two canonical writes. If the first commits and the second fails —
+        // or its response is simply lost — the observer's natural recovery is to press the
+        // button again, and under a freshly minted identity that retry appended a SECOND
+        // Raw Input and Normalized Event for one human submission. The attempt store gives
+        // the retry the same identity, so both idempotency keys match and the contract
+        // reconciles onto the rows it already holds. Retired on success, so the next
+        // deliberate capture is recorded as its own submission.
+        const attemptKey = intakeAttemptKey(workspaceId, projectId, mode, await sha256Hex(content.trim()));
+        const attempt = loadSubmissionAttempt(attemptKey, { ttlMs: INTAKE_ATTEMPT_WINDOW_MS });
         await captureAndDeriveLiveEvidence(workspaceId, projectId, {
           title: content.slice(0, 80), content,
           assertionType, classification, confidenceScore: confidence, missingDataState,
+          submissionId: attempt.attemptId,
         });
+        clearSubmissionAttempt(attemptKey);
         onIntakeComplete("LIVE Evidence derived with complete provenance. Intelligence has not run, and no Outcome was achieved.");
       } else {
         await captureAndDeriveDemoEvidence(workspaceId, projectId, { title: content.slice(0, 80), content });

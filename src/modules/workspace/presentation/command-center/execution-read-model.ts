@@ -322,6 +322,16 @@ export const MATERIAL_ACTION_ATTEMPT_WINDOW_MS = 60 * 60 * 1000;
 export const OBSERVATION_ATTEMPT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * How long one intake submission stays "the same submission".
+ *
+ * Deliberately short. Intake is a two-step transition — capture, then derive Evidence —
+ * and the window only has to cover an observer retrying a request whose response was lost,
+ * typically seconds later. Beyond it, pasting the same notes again is a genuinely new
+ * capture and must be recorded as one rather than reconciling onto an older Raw Input.
+ */
+export const INTAKE_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+
+/**
  * Deterministic SHA-256 over the canonical submission, via the platform Web Crypto
  * primitive — no dependency, no truncation (`idempotency_key` is unbounded `text`).
  *

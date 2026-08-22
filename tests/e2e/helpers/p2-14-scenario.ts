@@ -69,7 +69,7 @@ export const P2_14_OWNED_NODES = [
   "decisions",
   "materialActions",
   "tasks",
-  "internalExecutions",
+  "executions",
   "outcomes",
   "observations",
 ] as const;

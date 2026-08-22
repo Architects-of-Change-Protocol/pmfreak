@@ -22,6 +22,7 @@ const service = read("src/lib/operational-flow/operational-flow-service.ts");
 const clientData = read("src/modules/workspace/presentation/command-center/operational-data.ts");
 const intakePanel = read("src/modules/workspace/presentation/command-center/vault-intake-panel.tsx");
 const p2_09Migration = read("supabase/migrations/20260906000000_p2_09_outcome_observation_contract.sql");
+const sourceKeys = read("src/lib/operational-flow/intake-source-keys.ts");
 
 test("P2-14: the LIVE intake operation is exposed on the EXISTING operational-flow route", () => {
   // No new route: the existing boundary represents the operation.
@@ -71,10 +72,13 @@ test("P2-14: capture and Evidence derivation remain two separate transitions", (
 });
 
 test("P2-14: the LIVE source key is distinct from every fixture source key", () => {
-  assert.match(clientData, /export const LIVE_INTAKE_SOURCE_KEY = "live-observation:v1";/);
+  // Owned by the server since the P2-14 review repair: the browser names a MODE, and the
+  // route resolves the identity that mode may write against.
+  assert.match(sourceKeys, /export const LIVE_INTAKE_SOURCE_KEY = "live-observation:v1";/);
+  assert.match(sourceKeys, /export const DEMO_FIXTURE_INTAKE_SOURCE_KEY = "manual-demo:v1";/);
   // Not the DEMO / FIXTURE manual key, and not a P2-13 fixture key.
-  assert.ok(!/LIVE_INTAKE_SOURCE_KEY = "manual-demo:v1"/.test(clientData));
-  assert.ok(!/live-observation:v1[\s\S]{0,40}p2-13-founder-fixture/.test(clientData));
+  assert.ok(!/LIVE_INTAKE_SOURCE_KEY = "manual-demo:v1"/.test(sourceKeys));
+  assert.ok(!/live-observation:v1[\s\S]{0,40}p2-13-founder-fixture/.test(sourceKeys));
 });
 
 test("P2-14: the verified RPC still creates a NON-fixture source and refuses fixture sources", () => {
@@ -132,7 +136,10 @@ test("P2-14: intake classification is an explicit choice that defaults to DEMO /
 test("P2-14: canonical intake failures map to honest client statuses, not 500", () => {
   // `intake_source_fixture_prohibited` and `*_unauthenticated` previously fell through to
   // 500, reporting a client-correctable request as a server fault.
-  assert.match(route, /\/unauthenticated\/\.test\(message\) \? 401/);
+  // Anchored to the canonical code since the repair, and answered with the shared
+  // unauthorized vocabulary rather than the RPC's own text.
+  assert.match(route, /const unauthenticated = \/\(\?:\^\|\[\\s:\]\)\[a-z_\]\*unauthenticated\$\/\.test\(message\);/);
+  assert.match(route, /unauthenticated \? 401/);
   assert.match(route, /fixture_prohibited/);
   assert.match(route, /idempotency_conflict\/\.test\(message\) \? 409/);
 });
@@ -147,8 +154,12 @@ test("P2-14: the browser never supplies identity, authority or governance time",
   assert.match(body, /authorized\.supabase, scope/);
 });
 
-test("P2-14: added no migration", () => {
+test("P2-14: the only migration added is the review-repair contract hardening", () => {
+  // P2-14 shipped with no migration. The independent review then proved the DATABASE-level
+  // invariant was incomplete — the DEMO contract never checked the classification of the
+  // Source it resolved — so exactly one forward-only hardening migration is expected, and
+  // nothing else.
   const migrations = readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql"));
   const p2_14 = migrations.filter((name) => /p2[_-]?14/i.test(name));
-  assert.deepEqual(p2_14, [], "P2-14 must not add a migration");
+  assert.deepEqual(p2_14, ["20260907000000_p2_14_intake_source_classification_hardening.sql"]);
 });

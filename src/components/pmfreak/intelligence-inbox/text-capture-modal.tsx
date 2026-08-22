@@ -33,7 +33,7 @@ export function TextCaptureModal({ mode, workspaceId, projectId, onClose, onCapt
     try {
       const requestId = crypto.randomUUID();
       const captured = await postOperationalFlow(workspaceId, projectId, {
-        operation: "capture_input", sourceKey: "manual-demo:v1", idempotencyKey: `capture:${requestId}`,
+        operation: "capture_input", idempotencyKey: `capture:${requestId}`,
         title: content.slice(0, 80), content, occurredAt: new Date().toISOString(), correlationId: requestId,
       });
       const derived = await postOperationalFlow(workspaceId, projectId, {

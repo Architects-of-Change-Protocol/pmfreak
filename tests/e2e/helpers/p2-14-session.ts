@@ -15,6 +15,8 @@ import { expect, type BrowserContext, type Page } from "@playwright/test";
 import { fixturePassword } from "./p2-14-scenario";
 
 export type OperationalSummary = Record<string, unknown> & {
+  /** Declared because P2-14 asserts the Source identity the SERVER selected for an intake. */
+  sources?: Array<Record<string, unknown>>;
   decisions?: Array<Record<string, unknown>>;
   materialActions?: Array<Record<string, unknown>>;
   materialActionEvaluations?: Array<Record<string, unknown>>;

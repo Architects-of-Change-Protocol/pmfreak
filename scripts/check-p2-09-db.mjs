@@ -211,7 +211,8 @@ async function createGovernedTask(
     operation: "capture_input",
     workspaceId,
     projectId,
-    sourceKey: "p2-09-verifier:v1",
+    // No sourceKey: the P2-14 review repair pins the DEMO / FIXTURE identity server-side,
+    // and a caller-chosen key is now refused rather than silently accepted.
     idempotencyKey: `capture-${keySuffix}`,
     title: "DEMO / FIXTURE P2-09 outcome observation",
     content: "A decision is needed before proceeding with this governed project change.",

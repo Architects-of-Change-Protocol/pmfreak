@@ -30,14 +30,15 @@ import {
 type AnyRecord = Record<string, unknown>;
 
 /**
- * Source key for LIVE operational intake.
+ * Source identity is NOT chosen here.
  *
- * Deliberately NOT a P2-13 fixture key (`p2-13-founder-fixture-*:v1`) and not the
- * DEMO / FIXTURE manual key (`manual-demo:v1`). The verified contract creates this
- * Source with `is_fixture = false` on first use and refuses to write live input against
- * any fixture Source, so the two intake lineages can never merge.
+ * It was, until the P2-14 review: this module named the LIVE source key and passed it in
+ * the request, which meant a browser could point either intake lineage at the other's
+ * Source and decide whether its own input derived DEMO_FIXTURE or LIVE Evidence. The key
+ * now lives in `@/lib/operational-flow/intake-source-keys` and is resolved server-side from
+ * the operation. What the client sends is the MODE the human chose; what that mode is
+ * allowed to write against is not the client's to state.
  */
-export const LIVE_INTAKE_SOURCE_KEY = "live-observation:v1";
 
 const fetcher = async (url: string) => {
   const response = await fetch(url, { cache: "no-store" });
@@ -87,7 +88,7 @@ export async function captureAndDeriveDemoEvidence(workspaceId: string, projectI
 }) {
   const requestId = crypto.randomUUID();
   const captured = await postOperationalFlow(workspaceId, projectId, {
-    operation: "capture_input", sourceKey: "manual-demo:v1", idempotencyKey: `capture:${requestId}`,
+    operation: "capture_input", idempotencyKey: `capture:${requestId}`,
     title: input.title, content: input.content, occurredAt: new Date().toISOString(), correlationId: requestId,
   });
   return postOperationalFlow(workspaceId, projectId, {
@@ -119,21 +120,33 @@ export async function captureAndDeriveLiveEvidence(workspaceId: string, projectI
   classification: string;
   confidenceScore: number;
   missingDataState: MissingDataState;
-  sourceKey?: string;
-  requestId?: string;
+  /**
+   * Stable identity for ONE logical submission, from the caller's durable attempt store.
+   *
+   * Both idempotency keys are derived from it, so an ambiguous retry of the SAME human
+   * submission reconciles onto the persisted Raw Input and Normalized Event instead of
+   * appending a second orphan pair. Omitted, every call is a new logical submission —
+   * which is correct for a caller that has no attempt identity to offer, and was the
+   * source of the duplicate-on-retry seam the P2-14 review found in the intake panel.
+   */
+  submissionId?: string;
 }) {
-  // One request id ties Raw Input, Normalized Event and Evidence to the same correlation,
-  // and makes a browser retry of the same logical capture reconcile onto the persisted
-  // rows through the contract's own idempotency keys instead of duplicating them.
-  const requestId = input.requestId ?? crypto.randomUUID();
+  const submissionId = input.submissionId ?? crypto.randomUUID();
+  // The correlation id is minted per call and is deliberately NOT the submission id: a
+  // submission id comes from a client-owned attempt store whose contract is that it never
+  // becomes canonical domain identity. On a reconciled retry this value is discarded — the
+  // contract keeps the correlation persisted on the original Raw Input, and Evidence
+  // derivation inherits the correlation from the Normalized Event rather than from here —
+  // so the provenance thread is the server's, not the browser's.
+  const correlationId = crypto.randomUUID();
   const captured = await postOperationalFlow(workspaceId, projectId, {
-    operation: "capture_live_input", sourceKey: input.sourceKey ?? LIVE_INTAKE_SOURCE_KEY,
-    idempotencyKey: `live-capture:${requestId}`,
-    title: input.title, content: input.content, occurredAt: new Date().toISOString(), correlationId: requestId,
+    operation: "capture_live_input",
+    idempotencyKey: `live-capture:${submissionId}`,
+    title: input.title, content: input.content, occurredAt: new Date().toISOString(), correlationId,
   });
   return postOperationalFlow(workspaceId, projectId, {
     operation: "derive_evidence", normalizedEventId: captured.normalizedEvent.id,
-    idempotencyKey: `live-evidence:${requestId}`,
+    idempotencyKey: `live-evidence:${submissionId}`,
     assertionType: input.assertionType, classification: input.classification,
     confidenceScore: input.confidenceScore, missingDataState: input.missingDataState,
     evaluatedAt: new Date().toISOString(),

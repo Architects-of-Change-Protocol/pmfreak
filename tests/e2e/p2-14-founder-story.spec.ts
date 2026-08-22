@@ -462,18 +462,50 @@ test.describe.serial("P2-14 authenticated two-tenant Founder browser story", () 
 
   // ──────────────── STEP 16: LIVE EVIDENCE + EVIDENCE-LINKED OBSERVATION ────────────────
 
-  test("STEP 16a — the LIVE intake path refuses a DEMO / FIXTURE source", async () => {
-    // The fixture lineage can never be laundered into live provenance.
+  test("STEP 16a — the LIVE intake path cannot select the DEMO / FIXTURE Source identity", async () => {
+    // The review repair. Source identity is no longer the browser's to state: whoever chose
+    // the key chose whether the derived Evidence was DEMO_FIXTURE or LIVE, because each
+    // capture contract MINTS a Source on first use of a key. Naming the DEMO identity is how
+    // demo material was laundered into Observation-eligible LIVE Evidence.
+    //
+    // The refusal is now the pinned-source-key contract rather than the fixture check, and
+    // it lands BEFORE the RPC. The fixture refusal itself is still enforced inside the
+    // contract and is proven at that layer by `scripts/check-p2-14-db.mjs`, which calls the
+    // RPC directly — the only place it remains reachable.
+    for (const [label, sourceKey] of [
+      ["the reserved DEMO identity", "manual-demo:v1"],
+      ["a P2-13 fixture identity", fixtureSourceKey("A")],
+    ] as const) {
+      const refused = await probeWrite(page, {
+        workspaceId: TENANT_A.workspaceId, projectId: TENANT_A.projectId,
+        operation: "capture_live_input", sourceKey,
+        idempotencyKey: `p2-14-live-collision-${Date.now()}`,
+        title: "attempted fixture promotion", content: "should be refused",
+        occurredAt: new Date().toISOString(), correlationId: crypto.randomUUID(),
+      });
+      expect(refused.status, `live intake naming ${label} refused`).toBe(400);
+      expect(refused.bodyText).toContain("intake_source_key_not_permitted");
+    }
+    checkpoint("STEP_16a", "capture_live_input naming the DEMO / FIXTURE or a P2-13 fixture Source identity refused 400 intake_source_key_not_permitted");
+  });
+
+  test("STEP 16a-mirror — the DEMO intake path cannot select the LIVE Source identity", async () => {
+    // The other direction, and the one that is unrecoverable in-app: a fixture Source minted
+    // under the LIVE key would make every genuine live capture afterwards fail
+    // `intake_source_fixture_prohibited`, and `operational_sources` has no application
+    // update or supersession path.
     const refused = await probeWrite(page, {
       workspaceId: TENANT_A.workspaceId, projectId: TENANT_A.projectId,
-      operation: "capture_live_input", sourceKey: fixtureSourceKey("A"),
-      idempotencyKey: `p2-14-fixture-refusal-${Date.now()}`,
-      title: "attempted fixture promotion", content: "should be refused",
+      operation: "capture_input", sourceKey: "live-observation:v1",
+      idempotencyKey: `p2-14-demo-collision-${Date.now()}`,
+      title: "attempted live lockout", content: "should be refused",
       occurredAt: new Date().toISOString(), correlationId: crypto.randomUUID(),
     });
-    expect(refused.status, "fixture source refused").toBe(400);
-    expect(refused.bodyText).toContain("intake_source_fixture_prohibited");
-    checkpoint("STEP_16a", "capture_live_input against the P2-13 fixture source refused 400 intake_source_fixture_prohibited");
+    expect(refused.status, "demo intake naming the LIVE identity refused").toBe(400);
+    expect(refused.bodyText).toContain("intake_source_key_not_permitted");
+
+    // And the lockout it would have caused did not happen: live intake still works below.
+    checkpoint("STEP_16a_MIRROR", "capture_input naming the LIVE Source identity refused 400 intake_source_key_not_permitted; LIVE intake remains available");
   });
 
   test("STEP 16 — LIVE operational input becomes eligible Evidence, then an Observation is recorded", async () => {
@@ -505,9 +537,26 @@ test.describe.serial("P2-14 authenticated two-tenant Founder browser story", () 
     expect(String(live.fixture_state)).toBe("LIVE");
     expect(live.normalized_event_id, "LIVE Evidence carries canonical provenance").toBeTruthy();
 
-    // The P2-13 fixture Evidence is untouched and still DEMO_FIXTURE.
+    // The Source identity was selected by the SERVER, not offered by the browser. Since the
+    // review repair the panel sends only the mode the observer chose, so the sole reason
+    // this Evidence is LIVE is that the server resolved the live identity and the contract
+    // confirmed that identity is not a fixture.
+    const sourceById = (id: unknown) => (summary.sources ?? []).find((row) => String(row.id) === String(id));
+    const liveSource = sourceById(live.source_id);
+    expect(liveSource, "LIVE Evidence resolves to a persisted Source").toBeTruthy();
+    expect(String(liveSource?.source_key), "server-selected LIVE Source identity").toBe("live-observation:v1");
+    expect(Boolean(liveSource?.is_fixture), "the LIVE Source is NOT a fixture").toBe(false);
+
+    // The P2-13 fixture Evidence is untouched and still DEMO_FIXTURE, and every Source
+    // backing it is still a fixture — no lineage was relabelled in either direction.
     const fixtureStillFixture = (summary.evidence ?? []).filter((row) => String(row.fixture_state) === "DEMO_FIXTURE");
     expect(fixtureStillFixture.length, "fixture Evidence was not relabelled").toBeGreaterThan(0);
+    for (const row of fixtureStillFixture) {
+      const fixtureSource = sourceById(row.source_id);
+      if (fixtureSource) {
+        expect(Boolean(fixtureSource.is_fixture), `Source ${String(fixtureSource.source_key)} stayed a fixture`).toBe(true);
+      }
+    }
 
     // Now the Observation, through the real P2-12 surface.
     const aside = desktopAside();

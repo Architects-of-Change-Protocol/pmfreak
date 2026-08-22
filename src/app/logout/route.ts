@@ -26,7 +26,14 @@ import { hasSupabaseEnv } from "@/lib/supabase/env";
  */
 const isSpeculativePrefetch = (request: Request) => {
   const header = (name: string) => request.headers.get(name) ?? "";
-  return header("next-router-prefetch") === "1"
+  // PRESENCE, not one exact value. `Next-Router-Prefetch` is an enum of fetch strategies,
+  // not a boolean: Next 16.2.10 sends `1` for the classic and loading-boundary prefetches
+  // and `2` for the segment cache's PPR runtime strategy, and the set is free to grow. A
+  // guard pinned to `"1"` would silently stop recognising a prefetch the moment PPR is
+  // enabled and let the destructive branch run again — the exact defect this route
+  // repairs. The header appearing at all means the request is speculative, whatever
+  // strategy produced it.
+  return request.headers.has("next-router-prefetch")
     || /\bprefetch\b/i.test(header("purpose"))
     || /\bprefetch\b/i.test(header("sec-purpose"));
 };
