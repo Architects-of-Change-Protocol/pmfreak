@@ -199,8 +199,29 @@ No disposable UAT entities were created (the journey never reached workspace boo
 | GATE-23 | The deployed runtime commit matches the main commit being certified | **PASS** | §5 |
 | GATE-24 | No P0 or P1 defect remains open | **FAIL** | §32 — one P1 open pending runtime-verified corrective PR |
 
-## 37. Final Verdict
+## 37. Final Verdict (original, pre-#562-merge)
 
 **RELEASE GATE 01 FAILED — CORRECTIVE PR REQUIRED**
 
 GATE-24 fails: one P1 production authentication/session-persistence defect was found and is not yet closed (fix implemented and automated-validated on branch `fix/release-gate-01-auth-session-persistence`, but not yet runtime-verified against a deployment). No later checkpoint (workspace bootstrap onward) was reached. This gate must be re-run from Checkpoint A once the corrective PR's preview deployment passes the same reproduction sequence cleanly, before Prompt 5 may begin.
+
+---
+
+## 38. Corrective Pass #2 (post-#562-merge production UAT)
+
+PR #562 (the corrective PR from §33/§37 above) merged into `main` at `5777a3df799c874de956ded1f2e100673e60cdcb`. Post-merge production UAT against that exact deployed commit reproduced **two** new P1 defects, distinct from (though in one case closely related to) the one #562 fixed:
+
+- **Failure A — protected navigation still loses authentication.** Same observable symptom as the original Checkpoint A defect (authenticated shell renders, clicking a protected nav item bounces to `/login`, session effectively lost), reproduced via a **different mechanism**: concurrent `next/link` prefetch requests independently racing the same single-use refresh token across multiple Edge middleware invocations, plus a stale, hand-maintained post-login continuation-route allowlist silently dropping the user's actually-requested destination. Full root-cause analysis and fix: `docs/audits/remediation/release-gate-01-protected-navigation-continuity.md`.
+- **Failure B — Project Brain activation showed a fabricated "network_error" for a `viewer`.** The client-side error classifier collapsed every Server Action rejection into a hardcoded "network error" message with no inspection of the actual cause; `viewer` had no explicit permission gate on Project creation while its auto-created PMO was already gated at the database layer, producing an unexplained, generically-classified failure; and Retry was not idempotent. Full root-cause analysis and fix: `docs/audits/remediation/release-gate-01-brain-activation-honesty.md`.
+
+**Corrective branch:** `fix/release-gate-01-navigation-and-brain-activation`, based on `origin/main` at `5777a3df799c874de956ded1f2e100673e60cdcb` (does not reuse or modify the merged `fix/release-gate-01-auth-session-persistence` branch). Both failures are addressed in this one branch — their root causes are independent (see `release-gate-01-brain-activation-honesty.md` §6 for why they were not split into two PRs) but neither depends on the other and each is independently revertable.
+
+**Validation (this sandbox, real local Postgres):** `npm run typecheck` 0 errors; `npm run lint` 0 errors / 614 warnings (baseline, unchanged); `npm run build` success, all routes generated; `npm test` (full suite) **12,909 pass, 0 fail, 0 skipped** (main suite) + **8/8 pass** (module-mocks) — zero skips because this session's sandbox had a usable local Postgres (unlike the environment #562's own validation ran in), so even the PMF-004 concurrency suite ran for real rather than being skipped.
+
+**Not yet done from this sandbox:** live browser/network UAT against a deployed preview (this sandbox cannot reach `pmfreak.com` or a Vercel preview URL directly — same limitation documented in §8/§35 of the original gate run). See the corrective PR's own final report for the required post-deployment checkpoint sequence.
+
+## 39. Final Verdict (Corrective Pass #2)
+
+**RELEASE GATE 01 FAILED — CORRECTIVE PR REQUIRED (superseded by Corrective Pass #2 above; do not treat §37 as current)**
+
+Two new P1 defects were found in post-#562-merge production UAT and are code-complete, automated-validated, and documented on branch `fix/release-gate-01-navigation-and-brain-activation`, but **not yet runtime-verified against a deployed preview**. This gate must be re-run from Checkpoint A once that branch's preview deployment passes the same reproduction sequences (Failure A and Failure B) cleanly, before Prompt 5, 6, or 7 may begin.

@@ -53,7 +53,7 @@ export function SidebarPmoTree({
     <div>
       <div className="mb-1 flex items-center justify-between px-1">
         <p className="text-[9px] uppercase tracking-[0.28em] text-zinc-400">PMOs</p>
-        <Link href="/pmos" className="text-[10px] font-semibold text-cyan-300/80 hover:text-cyan-800" title="Create or manage PMOs">
+        <Link href="/pmos" prefetch={false} className="text-[10px] font-semibold text-cyan-300/80 hover:text-cyan-800" title="Create or manage PMOs">
           + New PMO
         </Link>
       </div>
@@ -61,7 +61,7 @@ export function SidebarPmoTree({
       {!loaded ? (
         <p className="px-1 text-[11px] text-zinc-400">Loading…</p>
       ) : pmos.length === 0 ? (
-        <Link href="/pmos" className="block rounded-lg border border-dashed border-slate-200 px-2.5 py-2 text-[11px] text-slate-600 hover:border-cyan-300/40 hover:text-cyan-800">
+        <Link href="/pmos" prefetch={false} className="block rounded-lg border border-dashed border-slate-200 px-2.5 py-2 text-[11px] text-slate-600 hover:border-cyan-300/40 hover:text-cyan-800">
           Create your first PMO
         </Link>
       ) : (
@@ -82,6 +82,7 @@ export function SidebarPmoTree({
                   </button>
                   <Link
                     href={`/pmos/${pmo.id}`}
+                    prefetch={false}
                     className={`min-w-0 flex-1 truncate rounded px-1 py-0.5 text-xs ${pmoActive ? "text-cyan-900" : "text-slate-700 hover:text-slate-900"}`}
                     style={pmo.color ? { textShadow: `0 0 14px ${pmo.color}55` } : undefined}
                   >
@@ -90,6 +91,7 @@ export function SidebarPmoTree({
                   </Link>
                   <Link
                     href={`/projects/new?pmoId=${pmo.id}`}
+                    prefetch={false}
                     aria-label={`New project in ${pmo.name}`}
                     title={`New project in ${pmo.name}`}
                     className="shrink-0 rounded px-1 text-[11px] text-zinc-500 hover:text-cyan-800"
@@ -108,6 +110,7 @@ export function SidebarPmoTree({
                           <Link
                             key={project.id}
                             href={`/projects/${project.id}`}
+                            prefetch={false}
                             onClick={() => onSelectProject?.(project.id)}
                             className={`block truncate rounded px-1.5 py-1 text-[11px] transition-colors ${
                               isActive ? "bg-cyan-300/[0.08] text-cyan-900" : "text-slate-600 hover:bg-white hover:text-slate-800"

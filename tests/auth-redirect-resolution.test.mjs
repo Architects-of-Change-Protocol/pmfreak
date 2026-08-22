@@ -88,7 +88,19 @@ test('no circular redirect chains between setup and legacy routes', () => {
 test('continuation validator maintains auth recursion protections', () => {
   assert.match(validator, /"\/login"/);
   assert.match(validator, /"\/auth"/);
-  assert.match(validator, /ALLOWED_PREFIXES/);
+});
+
+// Release Gate 01 corrective fix: a hand-maintained second allowlist
+// (formerly ALLOWED_PREFIXES) silently drifted out of sync with the real,
+// growing set of protected routes (e.g. /chat, /execution, /executive,
+// /pmos, /workspaces, /team were all missing), which dropped the user's
+// actually-requested destination on every post-login redirect to one of
+// those routes. The validator must derive "is this route safe to return an
+// authenticated user to" from the same canonical table isProtectedPageRoute
+// already uses, not a second, independently-maintained list.
+test('continuation validator delegates to the canonical route policy registry instead of a second, hand-maintained allowlist', () => {
+  assert.match(validator, /isProtectedPageRoute/);
+  assert.doesNotMatch(validator, /const ALLOWED_PREFIXES/);
 });
 
 test('proxy uses central route policy registry helpers', () => {

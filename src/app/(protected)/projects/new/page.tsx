@@ -1,9 +1,23 @@
 import { CreateProjectWizard } from "@/components/pmfreak/projects/create-project-wizard";
+import { assertRuntimeAuthContinuity } from "@/lib/auth/runtime-auth-continuity";
+import { resolveWriteWorkspace } from "@/lib/workspaces/resolve-write-workspace";
+import { canActivateProjectBrain } from "@/lib/projects/project-brain-authorization";
 
 type Props = { searchParams: Promise<{ pmoId?: string }> };
 
 export default async function CreateProjectPage({ searchParams }: Props) {
   const { pmoId } = await searchParams;
+
+  // Reads the SAME request-memoized continuity check (protected)/layout.tsx
+  // already performed — assertRuntimeAuthContinuity() with no injected deps
+  // is cache()-deduplicated per request, so this does not add a second
+  // getUser() call. (protected)/layout.tsx already redirects to /login
+  // before this page renders if continuity failed, so `continuity.user` is
+  // always present here.
+  const continuity = await assertRuntimeAuthContinuity();
+  const resolvedWorkspace = continuity.user ? await resolveWriteWorkspace(continuity.user.id) : null;
+  const canActivateBrain = canActivateProjectBrain(resolvedWorkspace?.role ?? null);
+
   return (
     <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-[#050507] p-6 shadow-[0_40px_120px_rgba(0,0,0,0.55)] md:p-10">
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:48px_48px]" />
@@ -22,7 +36,7 @@ export default async function CreateProjectPage({ searchParams }: Props) {
           </p>
         </header>
 
-        <CreateProjectWizard pmoId={pmoId} />
+        <CreateProjectWizard pmoId={pmoId} canActivateBrain={canActivateBrain} />
       </div>
     </section>
   );

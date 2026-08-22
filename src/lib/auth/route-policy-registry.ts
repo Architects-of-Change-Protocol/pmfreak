@@ -33,6 +33,9 @@ const WORKSPACE_CONTEXTUAL_ROUTES = [
   "/workspaces",
   "/pmos",
   "/chat",
+  "/execution",
+  "/workspace-setup",
+  "/programs",
   "/portfolio",
   "/executive",
   "/stakeholder-intel",
@@ -59,6 +62,8 @@ const WORKSPACE_CONTEXTUAL_ROUTES = [
   "/pm-registry",
   "/pmo-interventions",
   "/pmo-executive-reporting",
+  "/trials",
+  "/evidence",
 ] as const;
 const INTERNAL_DEBUG_ROUTES = ["/debug-session"] as const;
 const PUBLIC_ROUTES = [

@@ -33,6 +33,7 @@ export function AdvancedDrawer({ items, pathname, navHref }: AdvancedDrawerProps
               <Link
                 key={item.href}
                 href={navHref(item.href)}
+                prefetch={false}
                 className={`block rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
                   isActive
                     ? `${item.active} border-opacity-100`

@@ -881,6 +881,7 @@ export function OperationalShell({ children, user, capabilityProfile = "pilot" }
                     <Link
                       key={item.href}
                       href={navHref(item.href)}
+                      prefetch={false}
                       className={`group relative block overflow-hidden rounded-xl border px-3 py-2.5 text-sm transition-all duration-200 ${
                         isActive
                           ? `${item.active} border-opacity-100`
@@ -901,11 +902,11 @@ export function OperationalShell({ children, user, capabilityProfile = "pilot" }
                 <div>
                   <div className="mb-1 flex items-center justify-between px-1">
                     <p className="text-[9px] uppercase tracking-[0.28em] text-zinc-400">Workspace</p>
-                    <Link href="/workspaces/new" className="text-[10px] font-semibold text-cyan-300/80 hover:text-cyan-800" title="Create a new workspace">
+                    <Link href="/workspaces/new" prefetch={false} className="text-[10px] font-semibold text-cyan-300/80 hover:text-cyan-800" title="Create a new workspace">
                       + New
                     </Link>
                   </div>
-                  <Link href="/workspaces" className="block truncate rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 hover:border-slate-200">
+                  <Link href="/workspaces" prefetch={false} className="block truncate rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 hover:border-slate-200">
                     {user.companyName || "Workspace"}
                   </Link>
                 </div>
@@ -914,7 +915,7 @@ export function OperationalShell({ children, user, capabilityProfile = "pilot" }
                   <p className="mb-1 text-[9px] uppercase tracking-[0.28em] text-zinc-400">Lenses</p>
                   <div className="space-y-1">
                     {lensNav.map((item) => (
-                      <Link key={item.href} href={item.href} className={`block rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${pathname.startsWith(item.href) ? item.active : `border-slate-200 ${item.idle} hover:border-slate-200`}`}>{item.label}</Link>
+                      <Link key={item.href} href={item.href} prefetch={false} className={`block rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${pathname.startsWith(item.href) ? item.active : `border-slate-200 ${item.idle} hover:border-slate-200`}`}>{item.label}</Link>
                     ))}
                   </div>
                 </div>
@@ -922,7 +923,7 @@ export function OperationalShell({ children, user, capabilityProfile = "pilot" }
                   <p className="mb-1 text-[9px] uppercase tracking-[0.28em] text-zinc-400">Utilities</p>
                   <div className="space-y-1">
                     {utilityNav.map((item) => (
-                      <Link key={item.href} href={item.href} className={`block rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${pathname.startsWith(item.href) ? item.active : `border-slate-200 ${item.idle} hover:border-slate-200`}`}>{item.label}</Link>
+                      <Link key={item.href} href={item.href} prefetch={false} className={`block rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${pathname.startsWith(item.href) ? item.active : `border-slate-200 ${item.idle} hover:border-slate-200`}`}>{item.label}</Link>
                     ))}
                   </div>
                 </div>
@@ -2166,18 +2167,21 @@ export function OperationalShell({ children, user, capabilityProfile = "pilot" }
               <div className="mt-3 space-y-1.5">
                 <Link
                   href={navHref("/evidence")}
+                  prefetch={false}
                   className="block rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] text-cyan-900 transition hover:border-cyan-200/30 hover:bg-cyan-300/[0.08]"
                 >
                   Upload Documents
                 </Link>
                 <Link
                   href={navHref("/evidence")}
+                  prefetch={false}
                   className="block rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] text-slate-800 transition hover:border-slate-200 hover:bg-white"
                 >
                   View Evidence
                 </Link>
                 <Link
                   href={navHref("/evidence")}
+                  prefetch={false}
                   className="block rounded-lg border border-rose-300/15 bg-rose-300/[0.03] px-2.5 py-2 text-[11px] text-rose-900 transition hover:border-rose-200/30 hover:bg-rose-300/[0.08]"
                 >
                   Delete Evidence
@@ -2228,6 +2232,7 @@ export function OperationalShell({ children, user, capabilityProfile = "pilot" }
                 <Link
                   key={item.label}
                   href={navHref(item.href)}
+                  prefetch={false}
                   className={`shrink-0 snap-start rounded-lg border px-3 py-1.5 text-xs transition-colors ${
                     pathname.startsWith(item.href)
                       ? "border-cyan-200/30 bg-cyan-300/[0.08] text-cyan-900"

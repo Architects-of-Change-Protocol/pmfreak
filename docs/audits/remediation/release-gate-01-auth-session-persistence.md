@@ -296,3 +296,7 @@ The change is additive/subtractive within three files and is easy to revert (`gi
 ## 16. Release-Gate Impact
 
 Release Gate 01's browser/runtime UAT is paused pending this fix's deployment and re-verification (see `docs/audits/pmfreak-release-gate-01.md`). No other Release Gate 01 checkpoint (workspace bootstrap, Project-first creation, first task, Command Center activation, etc.) was reached before this defect blocked the journey at Checkpoint A.
+
+## 17. Addendum — this fix was necessary but not sufficient (post-merge finding)
+
+Post-merge production UAT of this PR (merged as #562) reproduced the **identical observable symptom** this record fixed — authenticated navigation bouncing to `/login` — via a **different** root cause this record's fix does not touch: concurrent `next/link` prefetch requests independently racing the same single-use refresh token across multiple Edge middleware invocations, rather than two calls within one Server Component request. This is exactly the class of gap §9c and §15 item 4 above predicted ("any other future code path that independently calls `getUser()`/`getSession()` a second time... would reintroduce an equivalent race") — confirmed, and closed, in `docs/audits/remediation/release-gate-01-protected-navigation-continuity.md`. The fix in *this* record remains correct and necessary (it eliminated a real, deterministic, in-request double-refresh race) — it was simply not the only source of the symptom.
