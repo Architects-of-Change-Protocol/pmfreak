@@ -227,6 +227,23 @@ test("P2-14 repair: an empty confidence field is refused, and an explicit 0 is n
   assert.match(intakePanel, /confidence >= 0 && confidence <= 1/);
   // And it is still enforced before anything is submitted.
   assert.match(intakePanel, /if \(isLive && !confidenceValid\) \{ setError\(/);
+
+  // The SAME guard on the other intake surface. This modal derives DEMO / FIXTURE Evidence,
+  // which P2-09 refuses to cite in an Observation, so a fabricated zero cannot reach an
+  // achieved Outcome — but it still lands on an immutable Evidence row and is read back to
+  // the user as a judgement they never gave.
+  assert.match(textCaptureModal, /const confidenceEntered = confidenceScore\.trim\(\);/);
+  assert.match(textCaptureModal, /if \(confidenceEntered === "" \|\| !Number\.isFinite\(confidence\)/);
+  assert.match(textCaptureModal, /confidence < 0 \|\| confidence > 1/);
+});
+
+test("P2-14 repair: the canonical source-key module exports nothing dead", () => {
+  // A type guard that no call site narrows through reads as the module's intended boundary
+  // check and invites future code to route around the real one. The route dispatches on
+  // string literals and resolves the key through `canonicalIntakeSourceKey`.
+  assert.ok(!/isBuiltInIntakeOperation/.test(sourceKeys), "unused type guard must not linger");
+  assert.match(sourceKeys, /export function canonicalIntakeSourceKey\(/);
+  assert.match(sourceKeys, /export const CANONICAL_INTAKE_SOURCE_KEYS/);
 });
 
 test("P2-14 repair: one logical LIVE submission keeps one identity across a retry", () => {

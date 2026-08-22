@@ -46,10 +46,6 @@ export const CANONICAL_INTAKE_SOURCE_KEYS: Readonly<Record<BuiltInIntakeOperatio
  */
 export const INTAKE_SOURCE_KEY_NOT_PERMITTED = "intake_source_key_not_permitted";
 
-export function isBuiltInIntakeOperation(operation: string): operation is BuiltInIntakeOperation {
-  return operation === "capture_input" || operation === "capture_live_input";
-}
-
 /** The server-pinned source key for a built-in intake operation. */
 export function canonicalIntakeSourceKey(operation: BuiltInIntakeOperation): string {
   return CANONICAL_INTAKE_SOURCE_KEYS[operation];
