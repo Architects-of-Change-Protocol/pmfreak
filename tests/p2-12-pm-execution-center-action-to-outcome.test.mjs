@@ -289,7 +289,7 @@ test("P2-12 H4: the canonical operations predate P2-12 rather than being added b
   }
 });
 
-test("P2-12 H5: no migration and no new API route is introduced", (t) => {
+test("P2-12 H5: P2-12 introduced no migration and no new API route, and no LATER migration or route is unreviewed", (t) => {
   const base = resolveBaseCommit();
   if (!base) return t.skip("no base ref in this checkout (shallow CI clone); scope is enforced at staging review");
   const list = (...args) =>
@@ -299,8 +299,28 @@ test("P2-12 H5: no migration and no new API route is introduced", (t) => {
   const changed = list();
   const added = list("--diff-filter=A");
 
-  // No migration at all — added or modified.
-  assert.deepEqual(changed.filter((file) => file.startsWith("supabase/migrations/")), []);
+  // P2-12 itself introduced NO migration. But the base here is
+  // `merge-base HEAD origin/main`, so this measures whatever branch it runs on — not P2-12
+  // in isolation — exactly like the added-operations guard below. A later verified
+  // increment that legitimately ships a migration must therefore be NAMED, or this
+  // assertion would forbid every future migration rather than every unreviewed one.
+  //
+  // P2-14 ships exactly one: a forward-only hardening of the two canonical intake
+  // contracts, closing the review finding that a caller-selected `sourceKey` could mint a
+  // Source under the other lineage's reserved identity. It is additive — `create or replace
+  // function`, `revoke`, `grant`, `comment on` only — with no schema, RLS, policy, data or
+  // signature change, and it carries its own acceptance in
+  // tests/p2-14-intake-source-boundary.test.mjs and scripts/check-p2-14-db.mjs.
+  //
+  // Exact full paths only: no wildcard, no timestamp prefix, no directory grant. Anything
+  // not named here still fails this assertion, which is the protection P2-12 actually needs.
+  const REVIEWED_LATER_MIGRATIONS = new Set([
+    "supabase/migrations/20260907000000_p2_14_intake_source_classification_hardening.sql",
+  ]);
+  const unreviewedMigrations = changed
+    .filter((file) => file.startsWith("supabase/migrations/"))
+    .filter((file) => !REVIEWED_LATER_MIGRATIONS.has(file));
+  assert.deepEqual(unreviewedMigrations, [], "no UNREVIEWED migration may be introduced");
 
   // No NEW API route. An EXISTING route may be modified: closing N5 required removing
   // `createdAt`/`evaluationTime`/`expiresAt` from the operational-flow handler so a
