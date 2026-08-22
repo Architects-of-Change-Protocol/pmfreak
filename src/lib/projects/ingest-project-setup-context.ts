@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseVaultIntakeStore, ingestVaultDocument } from "@/lib/vault/intake";
 import { materializeRecommendedActions } from "@/lib/recommended-actions";
 import { captureOperationalInput, deriveEvidence } from "@/lib/operational-flow/operational-flow-service";
+import { DEMO_FIXTURE_INTAKE_SOURCE_KEY } from "@/lib/operational-flow/intake-source-keys";
 import type { OperationalWorkspaceRole } from "@/lib/operational-flow/authority";
 
 export type ProjectSetupContextIngestionResult = {
@@ -79,7 +80,10 @@ export async function ingestProjectSetupContext(input: {
       const scope = { workspaceId: input.workspaceId, projectId: input.projectId, userId: input.userId, role: input.role };
       const requestId = randomUUID();
       const captured = await captureOperationalInput(input.supabase, scope, {
-        sourceKey: "manual-demo:v1",
+        // Single source of truth for the DEMO / FIXTURE identity. This is a server-side
+        // service call, so the route's pin does not apply — the constant is what keeps it
+        // from drifting away from the identity the product boundary resolves.
+        sourceKey: DEMO_FIXTURE_INTAKE_SOURCE_KEY,
         idempotencyKey: `capture:${requestId}`,
         title: `${input.projectName} — setup context`,
         content,

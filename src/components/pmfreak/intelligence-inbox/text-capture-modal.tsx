@@ -27,13 +27,19 @@ export function TextCaptureModal({ mode, workspaceId, projectId, onClose, onCapt
 
   const submit = async () => {
     if (!content.trim()) { setError("Add content before capture."); return; }
-    const confidence = Number(confidenceScore);
-    if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) { setError("Confidence must be between 0 and 1."); return; }
+    const confidenceEntered = confidenceScore.trim();
+    const confidence = Number(confidenceEntered);
+    // EMPTY is not EXPLICIT ZERO. `Number("")` is 0, so an emptied or whitespace-only field
+    // passed every range check and persisted `confidence_score = 0` — the strongest possible
+    // "no confidence at all" claim — onto immutable Evidence as though the observer had made
+    // it. Same defect, same fix as the Command Center intake panel: a deliberate 0 stays
+    // valid, the absence of an answer does not become one.
+    if (confidenceEntered === "" || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) { setError("Confidence must be between 0 and 1."); return; }
     setBusy(true); setError("");
     try {
       const requestId = crypto.randomUUID();
       const captured = await postOperationalFlow(workspaceId, projectId, {
-        operation: "capture_input", sourceKey: "manual-demo:v1", idempotencyKey: `capture:${requestId}`,
+        operation: "capture_input", idempotencyKey: `capture:${requestId}`,
         title: content.slice(0, 80), content, occurredAt: new Date().toISOString(), correlationId: requestId,
       });
       const derived = await postOperationalFlow(workspaceId, projectId, {

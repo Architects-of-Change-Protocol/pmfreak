@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
 import {
+  captureLiveOperationalInput,
   captureOperationalInput,
   deriveEvidence,
   dispatchGovernedMaterialActionToTask,
@@ -18,7 +19,13 @@ import {
 } from "@/lib/operational-flow/operational-flow-service";
 import { buildCanonicalAuditExportPackage } from "@/lib/audit-export";
 import type { EvidenceAssertionType, EvidenceClassification, MissingDataState } from "@/lib/operational-flow/types";
-import { safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
+import {
+  canonicalIntakeSourceKey,
+  INTAKE_SOURCE_KEY_NOT_PERMITTED,
+  type BuiltInIntakeOperation,
+} from "@/lib/operational-flow/intake-source-keys";
+import { GENERIC_UNAUTHORIZED_MESSAGE, safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
+import { logger, safeErrorMessage } from "@/lib/observability/logger";
 
 const ROUTE_ID = "/api/operational-flow";
 const DECISION_STATUSES = new Set(["accepted", "rejected", "modified", "escalated", "needs_more_evidence"]);
@@ -49,6 +56,28 @@ async function authorize(projectId: string, workspaceId: string, permission: "re
     }
     throw error;
   }
+}
+
+/**
+ * The Source identity a built-in intake operation is allowed to write against.
+ *
+ * P2-14 repair. The browser previously supplied `sourceKey` and the route forwarded it,
+ * so a caller could point the LIVE contract at the DEMO key (minting a NON-fixture Source
+ * that every later demo capture then reused, deriving `fixture_state = LIVE` from demo
+ * material) or point the DEMO contract at the LIVE key (minting a fixture Source that
+ * permanently refused genuine live intake). The key is now resolved from the operation.
+ *
+ * A supplied key that already matches the canonical one is accepted so existing clients
+ * keep working; anything else is REFUSED rather than coerced, because silently rewriting a
+ * caller's stated Source into a different provenance lineage is the failure mode itself.
+ */
+function pinnedIntakeSourceKey(operation: BuiltInIntakeOperation, body: Record<string, unknown>): string | Response {
+  const pinned = canonicalIntakeSourceKey(operation);
+  const supplied = body.sourceKey === undefined || body.sourceKey === null ? null : String(body.sourceKey).trim();
+  if (supplied !== null && supplied !== pinned) {
+    return Response.json({ error: INTAKE_SOURCE_KEY_NOT_PERMITTED }, { status: 400 });
+  }
+  return pinned;
 }
 
 function scopeFromUrl(request: Request) {
@@ -101,6 +130,7 @@ export async function POST(request: Request) {
   if (!workspaceId || !projectId || !operation) return Response.json({ error: "workspaceId, projectId and operation are required." }, { status: 400 });
   if (![
     "capture_input",
+    "capture_live_input",
     "derive_evidence",
     "run_chain",
     "record_decision",
@@ -116,8 +146,29 @@ export async function POST(request: Request) {
 
   try {
     if (operation === "capture_input") {
+      const sourceKey = pinnedIntakeSourceKey("capture_input", body);
+      if (sourceKey instanceof Response) return sourceKey;
       return Response.json(await captureOperationalInput(authorized.supabase, scope, {
-        sourceKey: String(body.sourceKey ?? "manual-demo:v1"), idempotencyKey: String(body.idempotencyKey ?? ""),
+        sourceKey, idempotencyKey: String(body.idempotencyKey ?? ""),
+        title: String(body.title ?? ""), content: String(body.content ?? ""), occurredAt: String(body.occurredAt ?? ""),
+        correlationId: String(body.correlationId ?? ""), causationId: body.causationId ? String(body.causationId) : null,
+        externalId: body.externalId ? String(body.externalId) : null,
+      }), { status: 201 });
+    }
+    if (operation === "capture_live_input") {
+      // P2-14. Same authorize() gate, same request-scoped client, same canonical intake
+      // shape as `capture_input` — the ONLY difference is which verified contract is
+      // called, and therefore whether the resolved Source is a fixture. The browser
+      // supplies content only: no identity, no authority, and (since the P2-14 review
+      // repair) no Source identity either. Actor, workspace membership, project
+      // relationship and write role are resolved server-side above, and
+      // `can_write_operational_project` is re-enforced inside the RPC under RLS. The
+      // Source key is pinned to this operation, and the contract independently refuses a
+      // Source whose persisted classification does not match this lineage.
+      const sourceKey = pinnedIntakeSourceKey("capture_live_input", body);
+      if (sourceKey instanceof Response) return sourceKey;
+      return Response.json(await captureLiveOperationalInput(authorized.supabase, scope, {
+        sourceKey, idempotencyKey: String(body.idempotencyKey ?? ""),
         title: String(body.title ?? ""), content: String(body.content ?? ""), occurredAt: String(body.occurredAt ?? ""),
         correlationId: String(body.correlationId ?? ""), causationId: body.causationId ? String(body.causationId) : null,
         externalId: body.externalId ? String(body.externalId) : null,
@@ -218,8 +269,31 @@ export async function POST(request: Request) {
     }), { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Operational flow failed.";
-    const status = /idempotency_conflict/.test(message) ? 409 : /denied|authority|access/.test(message) ? 403 : /required|mismatch|invalid|not_found|incomplete|malformed|source_(degraded|stale|unavailable|revoked)/.test(message) ? 400 : 500;
+    // `*_unauthenticated` and `*_fixture_prohibited` are raised by the canonical intake
+    // RPCs. Both previously fell through to 500, which reported a client-correctable
+    // request as a server fault and hid the honest reason. Neither pattern widens an
+    // existing mapping: they are additive and matched before the generic groups.
+    //
+    // `reserved` joins the 400 group for `intake_source_key_reserved`, raised by the
+    // hardened contracts when one intake lineage names the other's reserved Source key.
+    //
+    // The unauthenticated test is ANCHORED to the canonical code rather than matching the
+    // substring anywhere in the message: an unexpected driver error that merely CONTAINS
+    // the word would otherwise be reported to the browser as 401 with its raw text, which
+    // is both a wrong status and a leak. Unanchored, it also shadowed the 403 group for any
+    // message carrying both words.
+    const unauthenticated = /(?:^|[\s:])[a-z_]*unauthenticated$/.test(message);
+    const status = /idempotency_conflict/.test(message) ? 409 : unauthenticated ? 401 : /denied|authority|access/.test(message) ? 403 : /required|mismatch|reserved|invalid|not_found|incomplete|malformed|fixture_prohibited|source_(degraded|stale|unavailable|revoked)/.test(message) ? 400 : 500;
     if (status === 500) return safeLegacyErrorResponse("/api/operational-flow", error, "Operational flow failed. Please retry.");
+    if (status === 401) {
+      // `*_unauthenticated` means the request-scoped client resolved no `auth.uid()` even
+      // though `requireAuthenticatedUser()` already succeeded above — a server-side session
+      // or configuration fault rather than a caller mistake. It is reported honestly as 401,
+      // but through the same stable vocabulary every other unauthorized answer uses. The RPC
+      // text belongs in the server log, not in the response body.
+      logger.error("route_internal_error", { route: ROUTE_ID, error_detail: safeErrorMessage(error) });
+      return Response.json({ error: GENERIC_UNAUTHORIZED_MESSAGE }, { status: 401 });
+    }
     return Response.json({ error: message }, { status });
   }
 }

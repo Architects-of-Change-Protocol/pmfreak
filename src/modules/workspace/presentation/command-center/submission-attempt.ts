@@ -77,6 +77,26 @@ export function observationAttemptKey(workspaceId: string, projectId: string, ou
   return `${ATTEMPT_KEY_PREFIX}.observation.${workspaceId}.${projectId}.${outcomeId}`;
 }
 
+/**
+ * Scoped by the project, the intake MODE, and a digest of the content being captured.
+ *
+ * Intake has no prior canonical row to key on — the submission is what creates one — so
+ * the submission itself is the identity. Mode is part of it because the same words
+ * captured as DEMO / FIXTURE and as LIVE are two different provenance claims and must
+ * never reconcile onto each other. The digest is part of it because the contract compares
+ * the content digest on replay: an observer who edits their notes after a failed request
+ * is making a NEW submission, and reusing the identity would meet
+ * `intake_idempotency_conflict` instead of capturing the correction.
+ */
+export function intakeAttemptKey(
+  workspaceId: string,
+  projectId: string,
+  mode: string,
+  contentDigest: string
+): string {
+  return `${ATTEMPT_KEY_PREFIX}.intake.${workspaceId}.${projectId}.${mode}.${contentDigest}`;
+}
+
 /** Survives a remount even where `localStorage` is unavailable (SSR, private modes,
  *  storage denied). Same contract, smaller durability envelope — never an exception. */
 const fallback = new Map<string, SubmissionAttempt>();

@@ -398,7 +398,14 @@ test("P2-11 M: provenance and decision sections use semantic headings", () => {
 });
 
 test("P2-11 M: queue and status updates are announced, and controls are keyboard reachable", () => {
-  assert.match(harness.queue.populated, /<h2 id="needs-you-heading"/);
+  // The heading id is generated per mount (React `useId`) rather than hardcoded: the
+  // Command Center mounts this queue twice for responsive surfaces, and a document-global
+  // id would appear twice and point `aria-labelledby` at a hidden heading. What matters is
+  // that the section is labelled BY ITS OWN heading, so assert the association, not a
+  // literal string.
+  const queueHeadingId = harness.queue.populated.match(/<section aria-labelledby="([^"]+)"/)?.[1];
+  assert.ok(queueHeadingId, "populated queue section carries aria-labelledby");
+  assert.match(harness.queue.populated, new RegExp(`<h2 id="${queueHeadingId}"`));
   assert.match(harness.queue.error, /role="status" aria-live="polite"/);
   assert.match(harness.pendingDrawerMarkup, /aria-live="polite"/);
   // Every attention item is a real button, so it is tabbable and activates on Enter/Space.

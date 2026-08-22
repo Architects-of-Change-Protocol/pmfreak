@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { NeedsYouItem } from "./types";
 import { StatusBadge } from "./status-badge";
 import { SectionEmptyState, SectionLoadingState } from "./section-empty-state";
@@ -22,10 +23,15 @@ export function NeedsYouQueue({
   onAddNotes?: () => void;
 }) {
   const showEmpty = !loading && !errorMessage && items.length === 0;
+  // `CommandCenterLayout` mounts this component twice — desktop sidebar and the mobile
+  // overlay, which is never unmounted — so a document-global id appeared twice and
+  // `aria-labelledby` resolved to whichever came first, naming the visible section after a
+  // hidden heading. Each instance names its own heading, matching `ExecutionQueue`.
+  const headingId = useId();
   return (
-    <section aria-labelledby="needs-you-heading">
+    <section aria-labelledby={headingId}>
       <div className="flex items-center justify-between gap-2 px-1">
-        <h2 id="needs-you-heading" className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+        <h2 id={headingId} className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
           Needs You
         </h2>
       </div>

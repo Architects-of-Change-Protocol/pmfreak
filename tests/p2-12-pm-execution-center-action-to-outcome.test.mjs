@@ -289,7 +289,7 @@ test("P2-12 H4: the canonical operations predate P2-12 rather than being added b
   }
 });
 
-test("P2-12 H5: no migration and no new API route is introduced", (t) => {
+test("P2-12 H5: P2-12 introduced no migration and no new API route, and no LATER migration or route is unreviewed", (t) => {
   const base = resolveBaseCommit();
   if (!base) return t.skip("no base ref in this checkout (shallow CI clone); scope is enforced at staging review");
   const list = (...args) =>
@@ -299,8 +299,28 @@ test("P2-12 H5: no migration and no new API route is introduced", (t) => {
   const changed = list();
   const added = list("--diff-filter=A");
 
-  // No migration at all — added or modified.
-  assert.deepEqual(changed.filter((file) => file.startsWith("supabase/migrations/")), []);
+  // P2-12 itself introduced NO migration. But the base here is
+  // `merge-base HEAD origin/main`, so this measures whatever branch it runs on — not P2-12
+  // in isolation — exactly like the added-operations guard below. A later verified
+  // increment that legitimately ships a migration must therefore be NAMED, or this
+  // assertion would forbid every future migration rather than every unreviewed one.
+  //
+  // P2-14 ships exactly one: a forward-only hardening of the two canonical intake
+  // contracts, closing the review finding that a caller-selected `sourceKey` could mint a
+  // Source under the other lineage's reserved identity. It is additive — `create or replace
+  // function`, `revoke`, `grant`, `comment on` only — with no schema, RLS, policy, data or
+  // signature change, and it carries its own acceptance in
+  // tests/p2-14-intake-source-boundary.test.mjs and scripts/check-p2-14-db.mjs.
+  //
+  // Exact full paths only: no wildcard, no timestamp prefix, no directory grant. Anything
+  // not named here still fails this assertion, which is the protection P2-12 actually needs.
+  const REVIEWED_LATER_MIGRATIONS = new Set([
+    "supabase/migrations/20260907000000_p2_14_intake_source_classification_hardening.sql",
+  ]);
+  const unreviewedMigrations = changed
+    .filter((file) => file.startsWith("supabase/migrations/"))
+    .filter((file) => !REVIEWED_LATER_MIGRATIONS.has(file));
+  assert.deepEqual(unreviewedMigrations, [], "no UNREVIEWED migration may be introduced");
 
   // No NEW API route. An EXISTING route may be modified: closing N5 required removing
   // `createdAt`/`evaluationTime`/`expiresAt` from the operational-flow handler so a
@@ -308,15 +328,31 @@ test("P2-12 H5: no migration and no new API route is introduced", (t) => {
   // authority at an existing boundary, not new API surface.
   assert.deepEqual(added.filter((file) => /^src\/app\/api\/.*route\.ts$/.test(file)), []);
 
-  // …and the surface area of the existing routes must not grow: no operation branch may
-  // be added. This is stricter than a file-level check, which could not tell a removal
-  // from a new endpoint hidden inside an existing file.
+  // …and the surface area of the existing routes must not grow WITHOUT REVIEW: no
+  // operation branch may appear that a verified increment did not deliberately introduce.
+  // This is stricter than a file-level check, which could not tell a removal from a new
+  // endpoint hidden inside an existing file.
+  //
+  // The base here is `merge-base HEAD origin/main`, so this measures whatever branch it
+  // runs on — not P2-12 in isolation. A later increment that legitimately extends this
+  // boundary must therefore be named, or this guard would forbid every future operation
+  // rather than every unreviewed one.
+  //
+  // P2-14 adds exactly one: `capture_live_input`, the narrow LIVE intake exposure that
+  // delegates wholesale to the already-verified P2-09 `capture_live_operational_input`
+  // contract on this EXISTING route. It carries its own acceptance in
+  // tests/p2-14-live-intake-exposure.test.mjs, which independently asserts that no new
+  // route file exists, that the service reimplements none of the RPC, and that the browser
+  // supplies no identity or authority. Naming it keeps this assertion failing for any
+  // OTHER added operation, which is the protection P2-12 actually needs.
+  const REVIEWED_ADDED_OPERATIONS = new Set(["capture_live_input"]);
   const routeDiff = execFileSync("git", ["diff", `${base}...HEAD`, "--", "src/app/api"], { encoding: "utf8" });
   const addedOperations = routeDiff
     .split("\n")
     .filter((line) => line.startsWith("+") && /operation === "/.test(line))
-    .map((line) => line.trim());
-  assert.deepEqual(addedOperations, [], "no new operation may be added to an existing route");
+    .map((line) => line.match(/operation === "([^"]+)"/)?.[1] ?? line.trim())
+    .filter((operation) => !REVIEWED_ADDED_OPERATIONS.has(operation));
+  assert.deepEqual(addedOperations, [], "no UNREVIEWED operation may be added to an existing route");
 });
 
 test("P2-12 H2: the read model owns no records and stays framework-free", () => {

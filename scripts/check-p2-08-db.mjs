@@ -158,7 +158,8 @@ async function makeDecision(cookie, workspaceId, projectId, keySuffix) {
     operation: "capture_input",
     workspaceId,
     projectId,
-    sourceKey: "p2-08-verifier:v1",
+    // No sourceKey: the P2-14 review repair pins the DEMO / FIXTURE identity server-side,
+    // and a caller-chosen key is now refused rather than silently accepted.
     idempotencyKey: `capture-${keySuffix}`,
     title: "DEMO / FIXTURE P2-08 internal execution",
     content: "A decision is needed before proceeding with this governed project change.",

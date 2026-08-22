@@ -80,6 +80,9 @@
     "check:p2-09-db": "node scripts/check-p2-09-db.mjs",
     "seed:p2-13-founder": "node scripts/p2-13-founder-scenario.mjs",
     "check:p2-13-db": "node scripts/check-p2-13-db.mjs",
+    "check:p2-14-db": "node scripts/check-p2-14-db.mjs",
+    "test:e2e:p2-14": "playwright test",
+    "test:e2e:p2-14:headed": "playwright test --headed",
     "check:dependency-security": "node scripts/check-dependency-security.mjs",
     "check:beta-release": "node scripts/check-beta-release.mjs",
     "check:fresh-db-migrations": "node scripts/check-fresh-db-migrations.mjs",
@@ -113,6 +116,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.6",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

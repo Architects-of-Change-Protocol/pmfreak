@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import type { OperationalSummary } from "@/lib/operational-flow/types";
+import type { MissingDataState, OperationalSummary } from "@/lib/operational-flow/types";
 import type { Agent, DetailRow, NeedsYouItem, RepositoryItem, StatusTone, ToneBadge } from "./types";
 import { buildCanonicalAttention, selectPendingAttention, type CanonicalAttentionItem } from "./attention-read-model";
 import {
@@ -28,6 +28,17 @@ import {
 } from "./submission-attempt";
 
 type AnyRecord = Record<string, unknown>;
+
+/**
+ * Source identity is NOT chosen here.
+ *
+ * It was, until the P2-14 review: this module named the LIVE source key and passed it in
+ * the request, which meant a browser could point either intake lineage at the other's
+ * Source and decide whether its own input derived DEMO_FIXTURE or LIVE Evidence. The key
+ * now lives in `@/lib/operational-flow/intake-source-keys` and is resolved server-side from
+ * the operation. What the client sends is the MODE the human chose; what that mode is
+ * allowed to write against is not the client's to state.
+ */
 
 const fetcher = async (url: string) => {
   const response = await fetch(url, { cache: "no-store" });
@@ -73,17 +84,72 @@ export async function postOperationalFlow(workspaceId: string, projectId: string
 
 export async function captureAndDeriveDemoEvidence(workspaceId: string, projectId: string, input: {
   title: string; content: string; assertionType?: "INFERENCE" | "ASSUMPTION"; classification?: string;
-  confidenceScore?: number; missingDataState?: "COMPLETE" | "PARTIAL" | "UNKNOWN";
+  confidenceScore?: number; missingDataState?: MissingDataState;
 }) {
   const requestId = crypto.randomUUID();
   const captured = await postOperationalFlow(workspaceId, projectId, {
-    operation: "capture_input", sourceKey: "manual-demo:v1", idempotencyKey: `capture:${requestId}`,
+    operation: "capture_input", idempotencyKey: `capture:${requestId}`,
     title: input.title, content: input.content, occurredAt: new Date().toISOString(), correlationId: requestId,
   });
   return postOperationalFlow(workspaceId, projectId, {
     operation: "derive_evidence", normalizedEventId: captured.normalizedEvent.id, idempotencyKey: `evidence:${requestId}`,
     assertionType: input.assertionType ?? "ASSUMPTION", classification: input.classification ?? "UNCLASSIFIED",
     confidenceScore: input.confidenceScore ?? 0.5, missingDataState: input.missingDataState ?? "UNKNOWN", evaluatedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * P2-14 — capture a LIVE operational record, then derive Observation-eligible Evidence.
+ *
+ * Two calls on purpose, mirroring `captureAndDeriveDemoEvidence`. Capture and Evidence
+ * derivation are separate canonical transitions and are not collapsed into one command.
+ *
+ * The only structural difference from the DEMO / FIXTURE path is `capture_live_input`,
+ * which resolves a NON-fixture Source. That single fact is what makes the derived
+ * Evidence `fixture_state = 'LIVE'` and therefore eligible to support an Observation.
+ * P2-13's fixture Evidence stays `DEMO_FIXTURE` and is never promoted.
+ *
+ * Evidence quality is supplied by the observer rather than defaulted: an Observation
+ * that cites this Evidence carries its assertion type, classification, confidence and
+ * missing-data state, and inventing them here would fabricate exactly the judgement
+ * P2-09 asks a human to make.
+ */
+export async function captureAndDeriveLiveEvidence(workspaceId: string, projectId: string, input: {
+  title: string; content: string;
+  assertionType: "FACT" | "INFERENCE" | "ASSUMPTION";
+  classification: string;
+  confidenceScore: number;
+  missingDataState: MissingDataState;
+  /**
+   * Stable identity for ONE logical submission, from the caller's durable attempt store.
+   *
+   * Both idempotency keys are derived from it, so an ambiguous retry of the SAME human
+   * submission reconciles onto the persisted Raw Input and Normalized Event instead of
+   * appending a second orphan pair. Omitted, every call is a new logical submission —
+   * which is correct for a caller that has no attempt identity to offer, and was the
+   * source of the duplicate-on-retry seam the P2-14 review found in the intake panel.
+   */
+  submissionId?: string;
+}) {
+  const submissionId = input.submissionId ?? crypto.randomUUID();
+  // The correlation id is minted per call and is deliberately NOT the submission id: a
+  // submission id comes from a client-owned attempt store whose contract is that it never
+  // becomes canonical domain identity. On a reconciled retry this value is discarded — the
+  // contract keeps the correlation persisted on the original Raw Input, and Evidence
+  // derivation inherits the correlation from the Normalized Event rather than from here —
+  // so the provenance thread is the server's, not the browser's.
+  const correlationId = crypto.randomUUID();
+  const captured = await postOperationalFlow(workspaceId, projectId, {
+    operation: "capture_live_input",
+    idempotencyKey: `live-capture:${submissionId}`,
+    title: input.title, content: input.content, occurredAt: new Date().toISOString(), correlationId,
+  });
+  return postOperationalFlow(workspaceId, projectId, {
+    operation: "derive_evidence", normalizedEventId: captured.normalizedEvent.id,
+    idempotencyKey: `live-evidence:${submissionId}`,
+    assertionType: input.assertionType, classification: input.classification,
+    confidenceScore: input.confidenceScore, missingDataState: input.missingDataState,
+    evaluatedAt: new Date().toISOString(),
   });
 }
 

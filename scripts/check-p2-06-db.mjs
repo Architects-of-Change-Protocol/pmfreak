@@ -70,7 +70,7 @@ async function api(cookie, body) {
 async function makeDecision(cookie, workspaceId, projectId) {
   const now = new Date().toISOString();
   const correlationId = randomUUID();
-  const captured = await api(cookie, { operation: "capture_input", workspaceId, projectId, sourceKey: "p2-06-verifier:v1", idempotencyKey: `capture-${suffix}`, title: "DEMO / FIXTURE governed action", content: "Additional work outside scope without formal approval creates a controlled scope risk.", occurredAt: now, correlationId });
+  const captured = await api(cookie, { operation: "capture_input", workspaceId, projectId, idempotencyKey: `capture-${suffix}`, title: "DEMO / FIXTURE governed action", content: "Additional work outside scope without formal approval creates a controlled scope risk.", occurredAt: now, correlationId });
   equal(captured.status, 201, "fixture input capture");
   const derived = await api(cookie, { operation: "derive_evidence", workspaceId, projectId, normalizedEventId: captured.body.normalizedEvent.id, idempotencyKey: `evidence-${suffix}`, assertionType: "FACT", classification: "DECISION_CONTEXT", confidenceScore: 0.95, missingDataState: "COMPLETE", evaluatedAt: now });
   equal(derived.status, 201, "fixture evidence derivation");

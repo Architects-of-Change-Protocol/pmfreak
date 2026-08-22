@@ -2193,8 +2193,13 @@ export function OperationalShell({ children, user, capabilityProfile = "pilot" }
                 <p className="truncate text-xs font-semibold text-slate-800">{user.fullName}</p>
                 <p className="truncate text-[10px] text-zinc-400">{user.role}</p>
               </div>
+              {/* Never prefetch a destructive target: a viewport prefetch of /logout is a
+                  real request, and it used to sign the visitor out just for rendering this
+                  shell. The route refuses speculative requests on its own — this is the
+                  matching client-side half, so the request is not made in the first place. */}
               <Link
                 href="/logout"
+                prefetch={false}
                 className="shrink-0 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.12em] text-zinc-400 transition-colors hover:border-slate-200 hover:text-slate-700"
               >
                 Sign out
