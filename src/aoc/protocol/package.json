@@ -1,6 +1,8 @@
 {
   "name": "@pmfreak/aoc-protocol-internal",
   "version": "0.1.0",
+  "aocCanonicalStatus": "NON_CANONICAL_LEGACY_COPY",
+  "aocCanonicalStatusNote": "NOT @aoc/protocol. The canonical protocol package is the frozen artifact vendor/aoc-protocol-0.2.0-rc.0.tgz (see vendor/aoc-consumer.lock.json). This directory holds PMFreak's application-shaped contract layer pending migration onto the upstream canonical contracts; it must never declare, alias or resolve the name @aoc/protocol. Enforced by npm run check:packaged-aoc-artifacts.",
   "description": "AOC protocol contracts \u2014 capability claim types, issuance, and cryptographic verification",
   "license": "UNLICENSED",
   "type": "module",

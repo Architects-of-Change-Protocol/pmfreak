@@ -1,6 +1,8 @@
 {
   "name": "@pmfreak/aoc-enterprise-internal",
   "version": "0.1.0",
+  "aocCanonicalStatus": "NON_CANONICAL_LEGACY_COPY",
+  "aocCanonicalStatusNote": "NOT @aoc-enterprise/runtime. The canonical Frontera runtime is the frozen artifact vendor/aoc-enterprise-runtime-1.0.0.tgz (see vendor/aoc-consumer.lock.json). This directory holds PMFreak's application-shaped governance runtime pending migration; it must never declare, alias or resolve the name @aoc-enterprise/runtime. Enforced by npm run check:packaged-aoc-artifacts.",
   "description": "AOC enterprise runtime \u2014 delegation, policy evaluation, and execution grants for governance-aware workspaces",
   "license": "UNLICENSED",
   "type": "module",
@@ -42,7 +44,8 @@
     "clean": "rm -rf dist",
     "build": "npm run clean && tsc -p tsconfig.build.json"
   },
-  "dependencies": {
-    "@pmfreak/aoc-protocol-internal": "file:../protocol"
+  "devDependencies": {},
+  "peerDependencies": {
+    "@aoc/protocol": ">=0.2.0-rc.0"
   }
 }

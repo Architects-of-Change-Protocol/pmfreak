@@ -102,8 +102,6 @@
   "dependencies": {
     "@aoc-enterprise/runtime": "file:vendor/aoc-enterprise-runtime-1.0.0.tgz",
     "@aoc/protocol": "file:vendor/aoc-protocol-0.2.0-rc.0.tgz",
-    "@pmfreak/aoc-enterprise-internal": "file:src/aoc/enterprise",
-    "@pmfreak/aoc-protocol-internal": "file:src/aoc/protocol",
     "@supabase/auth-helpers-nextjs": "^0.15.0",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.104.1",

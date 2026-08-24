@@ -2,13 +2,57 @@
   "_comment": "PMFreak consumer lock for the frozen AOC packaged artifacts (P0-PKG-04). Records repository, commit, version and SHA-256 of every installed artifact, as required by the pmfreak.obligations block of the frozen aoc.cross-repository-integration@1.0.0 contract shipped inside the @aoc/protocol tarball. Verified by scripts/check-packaged-aoc-artifacts.mjs. This file records identity; it authorizes no publication or release.",
   "contract": "aoc.cross-repository-integration",
   "contractVersion": "1.0.0",
+  "localSourceFallback": {
+    "allowed": false,
+    "rationale": "The canonical @aoc/protocol and @aoc-enterprise/runtime are the frozen packaged artifacts recorded below. Falling back to a repository-local source copy \u2014 under any specifier, alias or resolution path \u2014 would silently restore the pre-P0-PKG-04 state in which no import crossed a real package boundary, while the evidence in this file continued to assert that it did. There is no permitted fallback, not even a temporary or diagnostic one.",
+    "forbiddenSpecifiers": [
+      "file:src/aoc/protocol",
+      "file:src/aoc/enterprise",
+      "file:./src/aoc/protocol",
+      "file:./src/aoc/enterprise",
+      "link:src/aoc/protocol",
+      "link:src/aoc/enterprise",
+      "workspace:*"
+    ],
+    "forbiddenResolutionRoots": [
+      "src/aoc/protocol",
+      "src/aoc/enterprise"
+    ],
+    "forbiddenTypeScriptAliases": [
+      "@aoc/protocol",
+      "@aoc/protocol/*",
+      "@aoc-enterprise/runtime",
+      "@aoc-enterprise/runtime/*"
+    ],
+    "enforcedBy": "npm run check:packaged-aoc-artifacts (scripts/check-packaged-aoc-artifacts.mjs), with negative controls in tests/packaged-aoc-artifact-gate.test.mjs"
+  },
+  "localCopies": {
+    "disposition": "RETAINED_NON_CANONICAL",
+    "marker": "NON_CANONICAL_LEGACY_COPY",
+    "packages": {
+      "src/aoc/protocol": "@pmfreak/aoc-protocol-internal",
+      "src/aoc/enterprise": "@pmfreak/aoc-enterprise-internal"
+    },
+    "rationale": "These directories hold PMFreak's application-shaped governance surface (GovernanceEvaluationInput, GOVERNANCE_POLICY_REGISTRY, protocol ports, actor model). The frozen artifacts deliberately do not carry those shapes \u2014 the upstream canonical contracts are the migration target, not a drop-in replacement \u2014 so removing the directories in this increment would mean rewriting PMFreak's entire governance layer, far outside a focused artifact-integration change. They are retained under NON-canonical names, and mechanically may never satisfy a resolution of the upstream identities.",
+    "constraint": "Neither directory may declare, alias or otherwise resolve the names @aoc/protocol or @aoc-enterprise/runtime."
+  },
+  "privateFronteraWorkspaces": {
+    "directDependencyAllowed": false,
+    "packages": [
+      "@aoc-enterprise/governed-authority",
+      "@aoc-enterprise/governed-authorization",
+      "@aoc-enterprise/identity",
+      "@aoc-enterprise/scoped-access"
+    ],
+    "rationale": "These are internal to the self-contained Frontera artifact and reach PMFreak only as its bundleDependencies. A direct PMFreak dependency or import would bypass the packaged boundary."
+  },
   "artifacts": {
     "@aoc/protocol": {
       "package": "@aoc/protocol",
       "version": "0.2.0-rc.0",
       "sourceRepository": "Soberania-Protocol/Soberania_Protocol",
       "sourceCommit": "dde34517d956156a0c735c18a805763a5e712879",
-      "sourceCommitNote": "PR #387 was squash-merged; the RC source commit is not an ancestor of main but is retained on origin/claude/soberania-protocol-rc-package-fg02tq, and main (merge commit below) differs from it only in docs/release evidence files — no packaging input differs.",
+      "sourceCommitNote": "PR #387 was squash-merged; the RC source commit is not an ancestor of main but is retained on origin/claude/soberania-protocol-rc-package-fg02tq, and main (merge commit below) differs from it only in docs/release evidence files \u2014 no packaging input differs.",
       "mergedVia": "PR #387",
       "mergeCommit": "7ce27f1be0980bf75a23eb4b15ed0a45d8bfd2f3",
       "tarball": "vendor/aoc-protocol-0.2.0-rc.0.tgz",
@@ -19,7 +63,24 @@
       "fileCount": 407,
       "exportsFingerprint": "a67d65b17dcb34c7da84d9a07cb893e073e21e9edbbc621bcae649afa5cdeb45",
       "reproducedLocally": true,
-      "reproductionProcedure": "git worktree detached at sourceCommit; npm ci; npm run build; npm pack ./packages/protocol (node v22.22.2, npm 10.9.7)"
+      "reproductionProcedure": "git worktree detached at sourceCommit; npm ci; npm run build; npm pack ./packages/protocol (node v22.22.2, npm 10.9.7)",
+      "declaredExports": [
+        ".",
+        "./contracts",
+        "./errors",
+        "./claims",
+        "./adapters",
+        "./runtime-registry",
+        "./canonical",
+        "./identity",
+        "./manifest",
+        "./portability",
+        "./interoperability",
+        "./licensing",
+        "./governance-compatibility",
+        "./sovereignty-capabilities",
+        "./package.json"
+      ]
     },
     "@aoc-enterprise/runtime": {
       "package": "@aoc-enterprise/runtime",
@@ -37,8 +98,20 @@
       "fileCount": 6298,
       "exportsFingerprint": "2b0ee1e3afee7c02d600615771eac3fa8aeec680c27bf4189041715729a22438",
       "reproducedLocally": true,
-      "reproductionProcedure": "git worktree detached at sourceCommit; npm ci; npm run build; npm pack . (node v22.22.2, npm 10.9.7)"
+      "reproductionProcedure": "git worktree detached at sourceCommit; npm ci; npm run build; npm pack . (node v22.22.2, npm 10.9.7)",
+      "declaredExports": [
+        ".",
+        "./authorization",
+        "./audit",
+        "./crypto",
+        "./adapters",
+        "./runtime",
+        "./runtime-host",
+        "./kernel",
+        "./enterprise",
+        "./kernel-host"
+      ]
     }
   },
-  "exportsFingerprintAlgorithm": "sha256 of JSON.stringify(Object.keys(pkg.exports).sort().map((k) => [k, pkg.exports[k]])) — identical to scripts/fingerprint-public-surface.mjs (exportMap digest) in Soberania-Protocol/Soberania_Protocol"
+  "exportsFingerprintAlgorithm": "sha256 of JSON.stringify(Object.keys(pkg.exports).sort().map((k) => [k, pkg.exports[k]])) \u2014 identical to scripts/fingerprint-public-surface.mjs (exportMap digest) in Soberania-Protocol/Soberania_Protocol"
 }

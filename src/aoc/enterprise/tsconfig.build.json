@@ -11,7 +11,19 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "target": "ES2022",
-    "paths": {}
+    // The legacy protocol copy is reached by path, not by an installed package: P0-PKG-04
+    // removed the file:src/aoc/* dependencies so no npm install can resolve through
+    // either NON_CANONICAL_LEGACY_COPY. Only this sibling copy is mapped here — the
+    // canonical @aoc/protocol stays a real node_modules package.
+    //
+    // Mapped at its BUILT declarations (build:aoc runs protocol first), not its sources:
+    // pulling ../protocol/*.ts into this program would widen rootDir to src/aoc/ and
+    // move every emitted file down a directory. Emission is unaffected either way —
+    // tsc preserves the bare specifier, which resolves through the root tsconfig paths.
+    "paths": {
+      "@pmfreak/aoc-protocol-internal": ["../protocol/dist/index.d.ts"],
+      "@pmfreak/aoc-protocol-internal/*": ["../protocol/dist/*"]
+    }
   },
   "include": [
     "**/*.ts"
