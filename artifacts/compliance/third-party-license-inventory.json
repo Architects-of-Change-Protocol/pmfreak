@@ -1,18 +1,18 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-07-15T19:54:46.464Z",
-  "repositoryCommit": "7c5e94cff489d4c4ba17305efd18b2c4b3c30d92",
+  "generatedAt": "2026-08-24T05:48:54.572Z",
+  "repositoryCommit": "36e9aeea488b146260f8e44bd77a6a421d370ba1",
   "lockfile": {
     "path": "package-lock.json",
-    "sha256": "437770de7036c1fd1c0d7a2ae46de8d7807372dd683edb6311549e3e406c19b5",
+    "sha256": "148a89eb66d26b6fbb7a67f6a73419e9eaf9f3b402eb2c00002b1f5c23badaa8",
     "lockfileVersion": 3
   },
   "packageManager": "npm",
   "counts": {
-    "total": 682,
-    "direct": 26,
-    "transitive": 656,
-    "allowed": 641,
+    "total": 687,
+    "direct": 27,
+    "transitive": 660,
+    "allowed": 646,
     "reviewRequired": 41,
     "blocked": 0,
     "unknown": 3
@@ -680,7 +680,7 @@
     },
     {
       "name": "@emnapi/runtime",
-      "version": "1.10.0",
+      "version": "1.11.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -1400,7 +1400,7 @@
     },
     {
       "name": "@img/sharp-darwin-arm64",
-      "version": "0.34.5",
+      "version": "0.35.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0",
@@ -1415,7 +1415,7 @@
     },
     {
       "name": "@img/sharp-darwin-x64",
-      "version": "0.34.5",
+      "version": "0.35.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0",
@@ -1429,8 +1429,23 @@
       "missingOrUnknownLicense": false
     },
     {
+      "name": "@img/sharp-freebsd-wasm32",
+      "version": "0.35.3",
+      "relationship": "transitive",
+      "scope": "transitive",
+      "declaredLicense": "Apache-2.0",
+      "repositoryUrl": null,
+      "homepage": null,
+      "dependencyPath": "node_modules/@img/sharp-freebsd-wasm32",
+      "classification": "ALLOWED",
+      "reviewStatus": "LOW_FRICTION",
+      "notes": "Apache-2.0",
+      "licenseMetadataSource": "package-lock.json packages entry",
+      "missingOrUnknownLicense": false
+    },
+    {
       "name": "@img/sharp-libvips-darwin-arm64",
-      "version": "1.2.4",
+      "version": "1.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "LGPL-3.0-or-later",
@@ -1445,7 +1460,7 @@
     },
     {
       "name": "@img/sharp-libvips-darwin-x64",
-      "version": "1.2.4",
+      "version": "1.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "LGPL-3.0-or-later",
@@ -1460,7 +1475,7 @@
     },
     {
       "name": "@img/sharp-libvips-linux-arm",
-      "version": "1.2.4",
+      "version": "1.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "LGPL-3.0-or-later",
@@ -1475,7 +1490,7 @@
     },
     {
       "name": "@img/sharp-libvips-linux-arm64",
-      "version": "1.2.4",
+      "version": "1.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "LGPL-3.0-or-later",
@@ -1490,7 +1505,7 @@
     },
     {
       "name": "@img/sharp-libvips-linux-ppc64",
-      "version": "1.2.4",
+      "version": "1.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "LGPL-3.0-or-later",
@@ -1505,7 +1520,7 @@
     },
     {
       "name": "@img/sharp-libvips-linux-riscv64",
-      "version": "1.2.4",
+      "version": "1.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "LGPL-3.0-or-later",
@@ -1520,7 +1535,7 @@
     },
     {
       "name": "@img/sharp-libvips-linux-s390x",
-      "version": "1.2.4",
+      "version": "1.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "LGPL-3.0-or-later",
@@ -1535,7 +1550,7 @@
     },
     {
       "name": "@img/sharp-libvips-linux-x64",
-      "version": "1.2.4",
+      "version": "1.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "LGPL-3.0-or-later",
@@ -1550,7 +1565,7 @@
     },
     {
       "name": "@img/sharp-libvips-linuxmusl-arm64",
-      "version": "1.2.4",
+      "version": "1.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "LGPL-3.0-or-later",
@@ -1565,7 +1580,7 @@
     },
     {
       "name": "@img/sharp-libvips-linuxmusl-x64",
-      "version": "1.2.4",
+      "version": "1.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "LGPL-3.0-or-later",
@@ -1580,7 +1595,7 @@
     },
     {
       "name": "@img/sharp-linux-arm",
-      "version": "0.34.5",
+      "version": "0.35.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0",
@@ -1595,7 +1610,7 @@
     },
     {
       "name": "@img/sharp-linux-arm64",
-      "version": "0.34.5",
+      "version": "0.35.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0",
@@ -1610,7 +1625,7 @@
     },
     {
       "name": "@img/sharp-linux-ppc64",
-      "version": "0.34.5",
+      "version": "0.35.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0",
@@ -1625,7 +1640,7 @@
     },
     {
       "name": "@img/sharp-linux-riscv64",
-      "version": "0.34.5",
+      "version": "0.35.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0",
@@ -1640,7 +1655,7 @@
     },
     {
       "name": "@img/sharp-linux-s390x",
-      "version": "0.34.5",
+      "version": "0.35.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0",
@@ -1655,7 +1670,7 @@
     },
     {
       "name": "@img/sharp-linux-x64",
-      "version": "0.34.5",
+      "version": "0.35.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0",
@@ -1670,7 +1685,7 @@
     },
     {
       "name": "@img/sharp-linuxmusl-arm64",
-      "version": "0.34.5",
+      "version": "0.35.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0",
@@ -1685,7 +1700,7 @@
     },
     {
       "name": "@img/sharp-linuxmusl-x64",
-      "version": "0.34.5",
+      "version": "0.35.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0",
@@ -1700,7 +1715,7 @@
     },
     {
       "name": "@img/sharp-wasm32",
-      "version": "0.34.5",
+      "version": "0.35.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0 AND LGPL-3.0-or-later AND MIT",
@@ -1714,8 +1729,23 @@
       "missingOrUnknownLicense": false
     },
     {
+      "name": "@img/sharp-webcontainers-wasm32",
+      "version": "0.35.3",
+      "relationship": "transitive",
+      "scope": "transitive",
+      "declaredLicense": "Apache-2.0",
+      "repositoryUrl": null,
+      "homepage": null,
+      "dependencyPath": "node_modules/@img/sharp-webcontainers-wasm32",
+      "classification": "ALLOWED",
+      "reviewStatus": "LOW_FRICTION",
+      "notes": "Apache-2.0",
+      "licenseMetadataSource": "package-lock.json packages entry",
+      "missingOrUnknownLicense": false
+    },
+    {
       "name": "@img/sharp-win32-arm64",
-      "version": "0.34.5",
+      "version": "0.35.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0 AND LGPL-3.0-or-later",
@@ -1730,7 +1760,7 @@
     },
     {
       "name": "@img/sharp-win32-ia32",
-      "version": "0.34.5",
+      "version": "0.35.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0 AND LGPL-3.0-or-later",
@@ -1745,7 +1775,7 @@
     },
     {
       "name": "@img/sharp-win32-x64",
-      "version": "0.34.5",
+      "version": "0.35.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0 AND LGPL-3.0-or-later",
@@ -2180,7 +2210,7 @@
     },
     {
       "name": "@next/env",
-      "version": "16.2.10",
+      "version": "16.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -2195,7 +2225,7 @@
     },
     {
       "name": "@next/eslint-plugin-next",
-      "version": "16.2.10",
+      "version": "16.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -2210,7 +2240,7 @@
     },
     {
       "name": "@next/swc-darwin-arm64",
-      "version": "16.2.10",
+      "version": "16.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -2225,7 +2255,7 @@
     },
     {
       "name": "@next/swc-darwin-x64",
-      "version": "16.2.10",
+      "version": "16.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -2240,7 +2270,7 @@
     },
     {
       "name": "@next/swc-linux-arm64-gnu",
-      "version": "16.2.10",
+      "version": "16.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -2255,7 +2285,7 @@
     },
     {
       "name": "@next/swc-linux-arm64-musl",
-      "version": "16.2.10",
+      "version": "16.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -2270,7 +2300,7 @@
     },
     {
       "name": "@next/swc-linux-x64-gnu",
-      "version": "16.2.10",
+      "version": "16.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -2285,7 +2315,7 @@
     },
     {
       "name": "@next/swc-linux-x64-musl",
-      "version": "16.2.10",
+      "version": "16.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -2300,7 +2330,7 @@
     },
     {
       "name": "@next/swc-win32-arm64-msvc",
-      "version": "16.2.10",
+      "version": "16.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -2315,7 +2345,7 @@
     },
     {
       "name": "@next/swc-win32-x64-msvc",
-      "version": "16.2.10",
+      "version": "16.3.2",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -2385,6 +2415,21 @@
       "classification": "ALLOWED",
       "reviewStatus": "LOW_FRICTION",
       "notes": "MIT",
+      "licenseMetadataSource": "package-lock.json packages entry",
+      "missingOrUnknownLicense": false
+    },
+    {
+      "name": "@playwright/test",
+      "version": "1.62.1",
+      "relationship": "direct",
+      "scope": "dev-or-other",
+      "declaredLicense": "Apache-2.0",
+      "repositoryUrl": null,
+      "homepage": null,
+      "dependencyPath": "node_modules/@playwright/test",
+      "classification": "ALLOWED",
+      "reviewStatus": "LOW_FRICTION",
+      "notes": "Apache-2.0",
       "licenseMetadataSource": "package-lock.json packages entry",
       "missingOrUnknownLicense": false
     },
@@ -2540,7 +2585,7 @@
     },
     {
       "name": "@swc/helpers",
-      "version": "0.5.15",
+      "version": "0.5.23",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0",
@@ -3095,7 +3140,7 @@
     },
     {
       "name": "@typescript-eslint/typescript-estree/node_modules/brace-expansion",
-      "version": "5.0.7",
+      "version": "5.0.9",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -4025,7 +4070,7 @@
     },
     {
       "name": "brace-expansion",
-      "version": "1.1.14",
+      "version": "1.1.18",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -4730,7 +4775,7 @@
     },
     {
       "name": "dompurify",
-      "version": "3.4.11",
+      "version": "3.4.14",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "(MPL-2.0 OR Apache-2.0)",
@@ -5045,7 +5090,7 @@
     },
     {
       "name": "eslint-config-next",
-      "version": "16.2.10",
+      "version": "16.3.2",
       "relationship": "direct",
       "scope": "dev-or-other",
       "declaredLicense": "MIT",
@@ -6800,7 +6845,7 @@
     },
     {
       "name": "js-yaml",
-      "version": "4.3.0",
+      "version": "4.3.1",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -7715,7 +7760,7 @@
     },
     {
       "name": "nanoid",
-      "version": "3.3.11",
+      "version": "3.3.18",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -7760,28 +7805,13 @@
     },
     {
       "name": "next",
-      "version": "16.2.10",
+      "version": "16.3.2",
       "relationship": "direct",
       "scope": "runtime",
       "declaredLicense": "MIT",
       "repositoryUrl": null,
       "homepage": null,
       "dependencyPath": "node_modules/next",
-      "classification": "ALLOWED",
-      "reviewStatus": "LOW_FRICTION",
-      "notes": "MIT",
-      "licenseMetadataSource": "package-lock.json packages entry",
-      "missingOrUnknownLicense": false
-    },
-    {
-      "name": "next/node_modules/postcss",
-      "version": "8.4.31",
-      "relationship": "transitive",
-      "scope": "transitive",
-      "declaredLicense": "MIT",
-      "repositoryUrl": null,
-      "homepage": null,
-      "dependencyPath": "node_modules/next/node_modules/postcss",
       "classification": "ALLOWED",
       "reviewStatus": "LOW_FRICTION",
       "notes": "MIT",
@@ -8314,6 +8344,51 @@
       "missingOrUnknownLicense": false
     },
     {
+      "name": "playwright",
+      "version": "1.62.1",
+      "relationship": "transitive",
+      "scope": "transitive",
+      "declaredLicense": "Apache-2.0",
+      "repositoryUrl": null,
+      "homepage": null,
+      "dependencyPath": "node_modules/playwright",
+      "classification": "ALLOWED",
+      "reviewStatus": "LOW_FRICTION",
+      "notes": "Apache-2.0",
+      "licenseMetadataSource": "package-lock.json packages entry",
+      "missingOrUnknownLicense": false
+    },
+    {
+      "name": "playwright-core",
+      "version": "1.62.1",
+      "relationship": "transitive",
+      "scope": "transitive",
+      "declaredLicense": "Apache-2.0",
+      "repositoryUrl": null,
+      "homepage": null,
+      "dependencyPath": "node_modules/playwright-core",
+      "classification": "ALLOWED",
+      "reviewStatus": "LOW_FRICTION",
+      "notes": "Apache-2.0",
+      "licenseMetadataSource": "package-lock.json packages entry",
+      "missingOrUnknownLicense": false
+    },
+    {
+      "name": "playwright/node_modules/fsevents",
+      "version": "2.3.2",
+      "relationship": "transitive",
+      "scope": "transitive",
+      "declaredLicense": "MIT",
+      "repositoryUrl": null,
+      "homepage": null,
+      "dependencyPath": "node_modules/playwright/node_modules/fsevents",
+      "classification": "ALLOWED",
+      "reviewStatus": "LOW_FRICTION",
+      "notes": "MIT",
+      "licenseMetadataSource": "package-lock.json packages entry",
+      "missingOrUnknownLicense": false
+    },
+    {
       "name": "possible-typed-array-names",
       "version": "1.1.0",
       "relationship": "transitive",
@@ -8330,7 +8405,7 @@
     },
     {
       "name": "postcss",
-      "version": "8.5.10",
+      "version": "8.5.23",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -8555,7 +8630,7 @@
     },
     {
       "name": "read-yaml-file/node_modules/js-yaml",
-      "version": "3.15.0",
+      "version": "3.15.1",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -8615,7 +8690,7 @@
     },
     {
       "name": "readdir-glob/node_modules/brace-expansion",
-      "version": "2.1.2",
+      "version": "2.1.4",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "MIT",
@@ -8975,7 +9050,7 @@
     },
     {
       "name": "sharp",
-      "version": "0.34.5",
+      "version": "0.35.3",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "Apache-2.0",
@@ -8990,7 +9065,7 @@
     },
     {
       "name": "sharp/node_modules/semver",
-      "version": "7.7.4",
+      "version": "7.8.5",
       "relationship": "transitive",
       "scope": "transitive",
       "declaredLicense": "ISC",

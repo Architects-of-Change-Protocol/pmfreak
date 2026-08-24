@@ -62,26 +62,39 @@ test.describe("authenticated session continuity", () => {
     });
   }
 
-  test("a speculative prefetch of /logout does not end the session", async ({ page }) => {
+  // P2-15 moved sign-out from GET to POST. P2-14 had made the state-changing GET *safe* by
+  // recognising speculative requests; this makes it *inert*, so a speculative request the
+  // route fails to classify can no longer end a session at all.
+  test("no GET of /logout ends the session — prefetch-flavoured or not", async ({ page }) => {
     await signIn(page, OWNER_A.email);
     const before = await serverPrincipal(page);
 
-    // Exactly what the Next.js router sends when it prefetches the link.
+    // Exactly what the Next.js router sends when it prefetches the link...
     const prefetch = await page.request.get("/logout", {
       headers: { RSC: "1", "Next-Router-Prefetch": "1" },
       maxRedirects: 0,
     });
-    // Answered, but with no content and no session change.
-    expect(prefetch.status(), "prefetch answered without performing sign-out").toBe(204);
+    expect(prefetch.status(), "prefetch refused, sign-out not performed").toBe(405);
     expect(await serverPrincipal(page), "principal unchanged by the prefetch").toBe(before);
+
+    // ...and a plain GET carrying NO speculative signal at all, which under the previous
+    // contract WOULD have signed the user out. This is the assertion proving the repair no
+    // longer depends on recognising the caller.
+    const plain = await page.request.get("/logout", { maxRedirects: 0 });
+    expect(plain.status(), "an ordinary GET must not mutate authentication").toBe(405);
+    expect(plain.headers()["allow"], "the answer names the method that does").toContain("POST");
+    expect(await serverPrincipal(page), "principal unchanged by an ordinary GET").toBe(before);
   });
 
-  test("a real navigation to /logout still signs the user out", async ({ page, context }) => {
-    // The guard must not weaken sign-out: a click carries no prefetch header.
+  test("the shell's Sign out control signs the user out", async ({ page, context }) => {
+    // The real user path: a form POST submitted by the button in the shell. Driven through
+    // the UI rather than a synthesised request, so the control itself is proven — it was a
+    // prefetchable <Link> until P2-15.
     await signIn(page, OWNER_A.email);
     await serverPrincipal(page);
 
-    await page.goto("/logout");
+    await page.goto("/dashboard");
+    await page.getByRole("button", { name: /sign out/i }).first().click();
     await page.waitForURL((url) => url.pathname.startsWith("/login"), { timeout: 45_000 });
 
     const names = (await context.cookies()).map((cookie) => cookie.name);

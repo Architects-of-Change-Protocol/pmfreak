@@ -25,6 +25,8 @@ import {
   type BuiltInIntakeOperation,
 } from "@/lib/operational-flow/intake-source-keys";
 import { GENERIC_UNAUTHORIZED_MESSAGE, safeLegacyErrorResponse } from "@/lib/security/safe-route-error";
+import { resolveOperationalFlowConflict } from "@/lib/operational-flow/conflict-contract";
+import { randomUUID } from "node:crypto";
 import { logger, safeErrorMessage } from "@/lib/observability/logger";
 
 const ROUTE_ID = "/api/operational-flow";
@@ -282,8 +284,33 @@ export async function POST(request: Request) {
     // the word would otherwise be reported to the browser as 401 with its raw text, which
     // is both a wrong status and a leak. Unanchored, it also shadowed the 403 group for any
     // message carrying both words.
+
+    // P2-15. A canonical idempotency conflict is a MEANINGFUL domain answer, not a fault:
+    // the recorded state is immutable, and the caller's differing content was refused
+    // rather than coerced onto it. It was already answered 409, but the body was the raw
+    // `<rpc-name>: <postgres message>` string, which leaked the internal function name and
+    // driver text and told the observer nothing they could act on.
+    //
+    // It is now answered in the stable vocabulary — domain code, human-safe message,
+    // recovery instruction, and a reference id tying the response to the redacted server
+    // log line that holds the real error. Matched BEFORE the status ladder below, because
+    // that ladder's terminal branch returns `message` verbatim. Nothing is auto-retried and
+    // no second canonical row is minted: recovery is the caller's explicit next action.
+    const conflict = resolveOperationalFlowConflict(message);
+    if (conflict) {
+      const referenceId = randomUUID();
+      logger.warn("operational_flow_conflict", {
+        route: ROUTE_ID, operation, workspace_id: workspaceId, user_id: authorized.user.id,
+        reference_id: referenceId, error_code: conflict.code, error_detail: safeErrorMessage(error),
+      });
+      return Response.json(
+        { disposition: "conflict", code: conflict.code, error: conflict.message, recovery: conflict.recovery, referenceId },
+        { status: 409 }
+      );
+    }
+
     const unauthenticated = /(?:^|[\s:])[a-z_]*unauthenticated$/.test(message);
-    const status = /idempotency_conflict/.test(message) ? 409 : unauthenticated ? 401 : /denied|authority|access/.test(message) ? 403 : /required|mismatch|reserved|invalid|not_found|incomplete|malformed|fixture_prohibited|source_(degraded|stale|unavailable|revoked)/.test(message) ? 400 : 500;
+    const status = unauthenticated ? 401 : /denied|authority|access/.test(message) ? 403 : /required|mismatch|reserved|invalid|not_found|incomplete|malformed|fixture_prohibited|source_(degraded|stale|unavailable|revoked)/.test(message) ? 400 : 500;
     if (status === 500) return safeLegacyErrorResponse("/api/operational-flow", error, "Operational flow failed. Please retry.");
     if (status === 401) {
       // `*_unauthenticated` means the request-scoped client resolved no `auth.uid()` even

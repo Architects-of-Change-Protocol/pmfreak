@@ -1,10 +1,10 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:3eff651b-21ea-4da1-8cd0-5d34188b88f2",
+  "serialNumber": "urn:uuid:22dc140b-b5b3-43c6-a767-b06f56916cbe",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-07-15T19:54:47.514Z",
+    "timestamp": "2026-08-24T05:48:55.089Z",
     "tools": [
       {
         "vendor": "PMFreak",
@@ -26,11 +26,11 @@
       "properties": [
         {
           "name": "repositoryCommit",
-          "value": "7c5e94cff489d4c4ba17305efd18b2c4b3c30d92"
+          "value": "36e9aeea488b146260f8e44bd77a6a421d370ba1"
         },
         {
           "name": "lockfileSha256",
-          "value": "437770de7036c1fd1c0d7a2ae46de8d7807372dd683edb6311549e3e406c19b5"
+          "value": "148a89eb66d26b6fbb7a67f6a73419e9eaf9f3b402eb2c00002b1f5c23badaa8"
         }
       ]
     }
@@ -1095,8 +1095,8 @@
     {
       "type": "library",
       "name": "@emnapi/runtime",
-      "version": "1.10.0",
-      "purl": "pkg:npm/%40emnapi%2Fruntime@1.10.0",
+      "version": "1.11.3",
+      "purl": "pkg:npm/%40emnapi%2Fruntime@1.11.3",
       "scope": "optional",
       "licenses": [
         {
@@ -2247,8 +2247,8 @@
     {
       "type": "library",
       "name": "@img/sharp-darwin-arm64",
-      "version": "0.34.5",
-      "purl": "pkg:npm/%40img%2Fsharp-darwin-arm64@0.34.5",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-darwin-arm64@0.35.3",
       "scope": "optional",
       "licenses": [
         {
@@ -2271,8 +2271,32 @@
     {
       "type": "library",
       "name": "@img/sharp-darwin-x64",
-      "version": "0.34.5",
-      "purl": "pkg:npm/%40img%2Fsharp-darwin-x64@0.34.5",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-darwin-x64@0.35.3",
+      "scope": "optional",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "relationship",
+          "value": "transitive"
+        },
+        {
+          "name": "classification",
+          "value": "ALLOWED"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@img/sharp-freebsd-wasm32",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-freebsd-wasm32@0.35.3",
       "scope": "optional",
       "licenses": [
         {
@@ -2295,8 +2319,8 @@
     {
       "type": "library",
       "name": "@img/sharp-libvips-darwin-arm64",
-      "version": "1.2.4",
-      "purl": "pkg:npm/%40img%2Fsharp-libvips-darwin-arm64@1.2.4",
+      "version": "1.3.2",
+      "purl": "pkg:npm/%40img%2Fsharp-libvips-darwin-arm64@1.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -2319,8 +2343,8 @@
     {
       "type": "library",
       "name": "@img/sharp-libvips-darwin-x64",
-      "version": "1.2.4",
-      "purl": "pkg:npm/%40img%2Fsharp-libvips-darwin-x64@1.2.4",
+      "version": "1.3.2",
+      "purl": "pkg:npm/%40img%2Fsharp-libvips-darwin-x64@1.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -2343,8 +2367,8 @@
     {
       "type": "library",
       "name": "@img/sharp-libvips-linux-arm",
-      "version": "1.2.4",
-      "purl": "pkg:npm/%40img%2Fsharp-libvips-linux-arm@1.2.4",
+      "version": "1.3.2",
+      "purl": "pkg:npm/%40img%2Fsharp-libvips-linux-arm@1.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -2367,8 +2391,8 @@
     {
       "type": "library",
       "name": "@img/sharp-libvips-linux-arm64",
-      "version": "1.2.4",
-      "purl": "pkg:npm/%40img%2Fsharp-libvips-linux-arm64@1.2.4",
+      "version": "1.3.2",
+      "purl": "pkg:npm/%40img%2Fsharp-libvips-linux-arm64@1.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -2391,8 +2415,8 @@
     {
       "type": "library",
       "name": "@img/sharp-libvips-linux-ppc64",
-      "version": "1.2.4",
-      "purl": "pkg:npm/%40img%2Fsharp-libvips-linux-ppc64@1.2.4",
+      "version": "1.3.2",
+      "purl": "pkg:npm/%40img%2Fsharp-libvips-linux-ppc64@1.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -2415,8 +2439,8 @@
     {
       "type": "library",
       "name": "@img/sharp-libvips-linux-riscv64",
-      "version": "1.2.4",
-      "purl": "pkg:npm/%40img%2Fsharp-libvips-linux-riscv64@1.2.4",
+      "version": "1.3.2",
+      "purl": "pkg:npm/%40img%2Fsharp-libvips-linux-riscv64@1.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -2439,8 +2463,8 @@
     {
       "type": "library",
       "name": "@img/sharp-libvips-linux-s390x",
-      "version": "1.2.4",
-      "purl": "pkg:npm/%40img%2Fsharp-libvips-linux-s390x@1.2.4",
+      "version": "1.3.2",
+      "purl": "pkg:npm/%40img%2Fsharp-libvips-linux-s390x@1.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -2463,8 +2487,8 @@
     {
       "type": "library",
       "name": "@img/sharp-libvips-linux-x64",
-      "version": "1.2.4",
-      "purl": "pkg:npm/%40img%2Fsharp-libvips-linux-x64@1.2.4",
+      "version": "1.3.2",
+      "purl": "pkg:npm/%40img%2Fsharp-libvips-linux-x64@1.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -2487,8 +2511,8 @@
     {
       "type": "library",
       "name": "@img/sharp-libvips-linuxmusl-arm64",
-      "version": "1.2.4",
-      "purl": "pkg:npm/%40img%2Fsharp-libvips-linuxmusl-arm64@1.2.4",
+      "version": "1.3.2",
+      "purl": "pkg:npm/%40img%2Fsharp-libvips-linuxmusl-arm64@1.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -2511,8 +2535,8 @@
     {
       "type": "library",
       "name": "@img/sharp-libvips-linuxmusl-x64",
-      "version": "1.2.4",
-      "purl": "pkg:npm/%40img%2Fsharp-libvips-linuxmusl-x64@1.2.4",
+      "version": "1.3.2",
+      "purl": "pkg:npm/%40img%2Fsharp-libvips-linuxmusl-x64@1.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -2535,8 +2559,8 @@
     {
       "type": "library",
       "name": "@img/sharp-linux-arm",
-      "version": "0.34.5",
-      "purl": "pkg:npm/%40img%2Fsharp-linux-arm@0.34.5",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-linux-arm@0.35.3",
       "scope": "optional",
       "licenses": [
         {
@@ -2559,8 +2583,8 @@
     {
       "type": "library",
       "name": "@img/sharp-linux-arm64",
-      "version": "0.34.5",
-      "purl": "pkg:npm/%40img%2Fsharp-linux-arm64@0.34.5",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-linux-arm64@0.35.3",
       "scope": "optional",
       "licenses": [
         {
@@ -2583,8 +2607,8 @@
     {
       "type": "library",
       "name": "@img/sharp-linux-ppc64",
-      "version": "0.34.5",
-      "purl": "pkg:npm/%40img%2Fsharp-linux-ppc64@0.34.5",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-linux-ppc64@0.35.3",
       "scope": "optional",
       "licenses": [
         {
@@ -2607,8 +2631,8 @@
     {
       "type": "library",
       "name": "@img/sharp-linux-riscv64",
-      "version": "0.34.5",
-      "purl": "pkg:npm/%40img%2Fsharp-linux-riscv64@0.34.5",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-linux-riscv64@0.35.3",
       "scope": "optional",
       "licenses": [
         {
@@ -2631,8 +2655,8 @@
     {
       "type": "library",
       "name": "@img/sharp-linux-s390x",
-      "version": "0.34.5",
-      "purl": "pkg:npm/%40img%2Fsharp-linux-s390x@0.34.5",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-linux-s390x@0.35.3",
       "scope": "optional",
       "licenses": [
         {
@@ -2655,8 +2679,8 @@
     {
       "type": "library",
       "name": "@img/sharp-linux-x64",
-      "version": "0.34.5",
-      "purl": "pkg:npm/%40img%2Fsharp-linux-x64@0.34.5",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-linux-x64@0.35.3",
       "scope": "optional",
       "licenses": [
         {
@@ -2679,8 +2703,8 @@
     {
       "type": "library",
       "name": "@img/sharp-linuxmusl-arm64",
-      "version": "0.34.5",
-      "purl": "pkg:npm/%40img%2Fsharp-linuxmusl-arm64@0.34.5",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-linuxmusl-arm64@0.35.3",
       "scope": "optional",
       "licenses": [
         {
@@ -2703,8 +2727,8 @@
     {
       "type": "library",
       "name": "@img/sharp-linuxmusl-x64",
-      "version": "0.34.5",
-      "purl": "pkg:npm/%40img%2Fsharp-linuxmusl-x64@0.34.5",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-linuxmusl-x64@0.35.3",
       "scope": "optional",
       "licenses": [
         {
@@ -2727,8 +2751,8 @@
     {
       "type": "library",
       "name": "@img/sharp-wasm32",
-      "version": "0.34.5",
-      "purl": "pkg:npm/%40img%2Fsharp-wasm32@0.34.5",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-wasm32@0.35.3",
       "scope": "optional",
       "licenses": [
         {
@@ -2750,9 +2774,33 @@
     },
     {
       "type": "library",
+      "name": "@img/sharp-webcontainers-wasm32",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-webcontainers-wasm32@0.35.3",
+      "scope": "optional",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "relationship",
+          "value": "transitive"
+        },
+        {
+          "name": "classification",
+          "value": "ALLOWED"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "name": "@img/sharp-win32-arm64",
-      "version": "0.34.5",
-      "purl": "pkg:npm/%40img%2Fsharp-win32-arm64@0.34.5",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-win32-arm64@0.35.3",
       "scope": "optional",
       "licenses": [
         {
@@ -2775,8 +2823,8 @@
     {
       "type": "library",
       "name": "@img/sharp-win32-ia32",
-      "version": "0.34.5",
-      "purl": "pkg:npm/%40img%2Fsharp-win32-ia32@0.34.5",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-win32-ia32@0.35.3",
       "scope": "optional",
       "licenses": [
         {
@@ -2799,8 +2847,8 @@
     {
       "type": "library",
       "name": "@img/sharp-win32-x64",
-      "version": "0.34.5",
-      "purl": "pkg:npm/%40img%2Fsharp-win32-x64@0.34.5",
+      "version": "0.35.3",
+      "purl": "pkg:npm/%40img%2Fsharp-win32-x64@0.35.3",
       "scope": "optional",
       "licenses": [
         {
@@ -3495,8 +3543,8 @@
     {
       "type": "library",
       "name": "@next/env",
-      "version": "16.2.10",
-      "purl": "pkg:npm/%40next%2Fenv@16.2.10",
+      "version": "16.3.2",
+      "purl": "pkg:npm/%40next%2Fenv@16.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -3519,8 +3567,8 @@
     {
       "type": "library",
       "name": "@next/eslint-plugin-next",
-      "version": "16.2.10",
-      "purl": "pkg:npm/%40next%2Feslint-plugin-next@16.2.10",
+      "version": "16.3.2",
+      "purl": "pkg:npm/%40next%2Feslint-plugin-next@16.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -3543,8 +3591,8 @@
     {
       "type": "library",
       "name": "@next/swc-darwin-arm64",
-      "version": "16.2.10",
-      "purl": "pkg:npm/%40next%2Fswc-darwin-arm64@16.2.10",
+      "version": "16.3.2",
+      "purl": "pkg:npm/%40next%2Fswc-darwin-arm64@16.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -3567,8 +3615,8 @@
     {
       "type": "library",
       "name": "@next/swc-darwin-x64",
-      "version": "16.2.10",
-      "purl": "pkg:npm/%40next%2Fswc-darwin-x64@16.2.10",
+      "version": "16.3.2",
+      "purl": "pkg:npm/%40next%2Fswc-darwin-x64@16.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -3591,8 +3639,8 @@
     {
       "type": "library",
       "name": "@next/swc-linux-arm64-gnu",
-      "version": "16.2.10",
-      "purl": "pkg:npm/%40next%2Fswc-linux-arm64-gnu@16.2.10",
+      "version": "16.3.2",
+      "purl": "pkg:npm/%40next%2Fswc-linux-arm64-gnu@16.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -3615,8 +3663,8 @@
     {
       "type": "library",
       "name": "@next/swc-linux-arm64-musl",
-      "version": "16.2.10",
-      "purl": "pkg:npm/%40next%2Fswc-linux-arm64-musl@16.2.10",
+      "version": "16.3.2",
+      "purl": "pkg:npm/%40next%2Fswc-linux-arm64-musl@16.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -3639,8 +3687,8 @@
     {
       "type": "library",
       "name": "@next/swc-linux-x64-gnu",
-      "version": "16.2.10",
-      "purl": "pkg:npm/%40next%2Fswc-linux-x64-gnu@16.2.10",
+      "version": "16.3.2",
+      "purl": "pkg:npm/%40next%2Fswc-linux-x64-gnu@16.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -3663,8 +3711,8 @@
     {
       "type": "library",
       "name": "@next/swc-linux-x64-musl",
-      "version": "16.2.10",
-      "purl": "pkg:npm/%40next%2Fswc-linux-x64-musl@16.2.10",
+      "version": "16.3.2",
+      "purl": "pkg:npm/%40next%2Fswc-linux-x64-musl@16.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -3687,8 +3735,8 @@
     {
       "type": "library",
       "name": "@next/swc-win32-arm64-msvc",
-      "version": "16.2.10",
-      "purl": "pkg:npm/%40next%2Fswc-win32-arm64-msvc@16.2.10",
+      "version": "16.3.2",
+      "purl": "pkg:npm/%40next%2Fswc-win32-arm64-msvc@16.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -3711,8 +3759,8 @@
     {
       "type": "library",
       "name": "@next/swc-win32-x64-msvc",
-      "version": "16.2.10",
-      "purl": "pkg:npm/%40next%2Fswc-win32-x64-msvc@16.2.10",
+      "version": "16.3.2",
+      "purl": "pkg:npm/%40next%2Fswc-win32-x64-msvc@16.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -3821,6 +3869,30 @@
         {
           "name": "relationship",
           "value": "transitive"
+        },
+        {
+          "name": "classification",
+          "value": "ALLOWED"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@playwright/test",
+      "version": "1.62.1",
+      "purl": "pkg:npm/%40playwright%2Ftest@1.62.1",
+      "scope": "optional",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "relationship",
+          "value": "direct"
         },
         {
           "name": "classification",
@@ -4071,8 +4143,8 @@
     {
       "type": "library",
       "name": "@swc/helpers",
-      "version": "0.5.15",
-      "purl": "pkg:npm/%40swc%2Fhelpers@0.5.15",
+      "version": "0.5.23",
+      "purl": "pkg:npm/%40swc%2Fhelpers@0.5.23",
       "scope": "optional",
       "licenses": [
         {
@@ -4959,8 +5031,8 @@
     {
       "type": "library",
       "name": "@typescript-eslint/typescript-estree/node_modules/brace-expansion",
-      "version": "5.0.7",
-      "purl": "pkg:npm/%40typescript-eslint%2Ftypescript-estree%2Fnode_modules%2Fbrace-expansion@5.0.7",
+      "version": "5.0.9",
+      "purl": "pkg:npm/%40typescript-eslint%2Ftypescript-estree%2Fnode_modules%2Fbrace-expansion@5.0.9",
       "scope": "optional",
       "licenses": [
         {
@@ -6447,8 +6519,8 @@
     {
       "type": "library",
       "name": "brace-expansion",
-      "version": "1.1.14",
-      "purl": "pkg:npm/brace-expansion@1.1.14",
+      "version": "1.1.18",
+      "purl": "pkg:npm/brace-expansion@1.1.18",
       "scope": "optional",
       "licenses": [
         {
@@ -7575,8 +7647,8 @@
     {
       "type": "library",
       "name": "dompurify",
-      "version": "3.4.11",
-      "purl": "pkg:npm/dompurify@3.4.11",
+      "version": "3.4.14",
+      "purl": "pkg:npm/dompurify@3.4.14",
       "scope": "optional",
       "licenses": [
         {
@@ -8079,8 +8151,8 @@
     {
       "type": "library",
       "name": "eslint-config-next",
-      "version": "16.2.10",
-      "purl": "pkg:npm/eslint-config-next@16.2.10",
+      "version": "16.3.2",
+      "purl": "pkg:npm/eslint-config-next@16.3.2",
       "scope": "optional",
       "licenses": [
         {
@@ -10887,8 +10959,8 @@
     {
       "type": "library",
       "name": "js-yaml",
-      "version": "4.3.0",
-      "purl": "pkg:npm/js-yaml@4.3.0",
+      "version": "4.3.1",
+      "purl": "pkg:npm/js-yaml@4.3.1",
       "scope": "optional",
       "licenses": [
         {
@@ -12351,8 +12423,8 @@
     {
       "type": "library",
       "name": "nanoid",
-      "version": "3.3.11",
-      "purl": "pkg:npm/nanoid@3.3.11",
+      "version": "3.3.18",
+      "purl": "pkg:npm/nanoid@3.3.18",
       "scope": "optional",
       "licenses": [
         {
@@ -12423,8 +12495,8 @@
     {
       "type": "library",
       "name": "next",
-      "version": "16.2.10",
-      "purl": "pkg:npm/next@16.2.10",
+      "version": "16.3.2",
+      "purl": "pkg:npm/next@16.3.2",
       "scope": "required",
       "licenses": [
         {
@@ -12437,30 +12509,6 @@
         {
           "name": "relationship",
           "value": "direct"
-        },
-        {
-          "name": "classification",
-          "value": "ALLOWED"
-        }
-      ]
-    },
-    {
-      "type": "library",
-      "name": "next/node_modules/postcss",
-      "version": "8.4.31",
-      "purl": "pkg:npm/next%2Fnode_modules%2Fpostcss@8.4.31",
-      "scope": "optional",
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT"
-          }
-        }
-      ],
-      "properties": [
-        {
-          "name": "relationship",
-          "value": "transitive"
         },
         {
           "name": "classification",
@@ -13310,6 +13358,78 @@
     },
     {
       "type": "library",
+      "name": "playwright",
+      "version": "1.62.1",
+      "purl": "pkg:npm/playwright@1.62.1",
+      "scope": "optional",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "relationship",
+          "value": "transitive"
+        },
+        {
+          "name": "classification",
+          "value": "ALLOWED"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "playwright-core",
+      "version": "1.62.1",
+      "purl": "pkg:npm/playwright-core@1.62.1",
+      "scope": "optional",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "relationship",
+          "value": "transitive"
+        },
+        {
+          "name": "classification",
+          "value": "ALLOWED"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "playwright/node_modules/fsevents",
+      "version": "2.3.2",
+      "purl": "pkg:npm/playwright%2Fnode_modules%2Ffsevents@2.3.2",
+      "scope": "optional",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "relationship",
+          "value": "transitive"
+        },
+        {
+          "name": "classification",
+          "value": "ALLOWED"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "name": "possible-typed-array-names",
       "version": "1.1.0",
       "purl": "pkg:npm/possible-typed-array-names@1.1.0",
@@ -13335,8 +13455,8 @@
     {
       "type": "library",
       "name": "postcss",
-      "version": "8.5.10",
-      "purl": "pkg:npm/postcss@8.5.10",
+      "version": "8.5.23",
+      "purl": "pkg:npm/postcss@8.5.23",
       "scope": "optional",
       "licenses": [
         {
@@ -13695,8 +13815,8 @@
     {
       "type": "library",
       "name": "read-yaml-file/node_modules/js-yaml",
-      "version": "3.15.0",
-      "purl": "pkg:npm/read-yaml-file%2Fnode_modules%2Fjs-yaml@3.15.0",
+      "version": "3.15.1",
+      "purl": "pkg:npm/read-yaml-file%2Fnode_modules%2Fjs-yaml@3.15.1",
       "scope": "optional",
       "licenses": [
         {
@@ -13791,8 +13911,8 @@
     {
       "type": "library",
       "name": "readdir-glob/node_modules/brace-expansion",
-      "version": "2.1.2",
-      "purl": "pkg:npm/readdir-glob%2Fnode_modules%2Fbrace-expansion@2.1.2",
+      "version": "2.1.4",
+      "purl": "pkg:npm/readdir-glob%2Fnode_modules%2Fbrace-expansion@2.1.4",
       "scope": "optional",
       "licenses": [
         {
@@ -14367,8 +14487,8 @@
     {
       "type": "library",
       "name": "sharp",
-      "version": "0.34.5",
-      "purl": "pkg:npm/sharp@0.34.5",
+      "version": "0.35.3",
+      "purl": "pkg:npm/sharp@0.35.3",
       "scope": "optional",
       "licenses": [
         {
@@ -14391,8 +14511,8 @@
     {
       "type": "library",
       "name": "sharp/node_modules/semver",
-      "version": "7.7.4",
-      "purl": "pkg:npm/sharp%2Fnode_modules%2Fsemver@7.7.4",
+      "version": "7.8.5",
+      "purl": "pkg:npm/sharp%2Fnode_modules%2Fsemver@7.8.5",
       "scope": "optional",
       "licenses": [
         {

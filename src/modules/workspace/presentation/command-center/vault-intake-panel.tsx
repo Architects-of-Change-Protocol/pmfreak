@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { captureAndDeriveDemoEvidence, captureAndDeriveLiveEvidence } from "./operational-data";
+import { captureAndDeriveDemoEvidence, captureAndDeriveLiveEvidence, OperationalFlowRequestError } from "./operational-data";
 import { INTAKE_ATTEMPT_WINDOW_MS, sha256Hex } from "./execution-read-model";
 import { clearSubmissionAttempt, intakeAttemptKey, loadSubmissionAttempt } from "./submission-attempt";
 import { CloseIcon } from "./icons";
@@ -97,7 +97,28 @@ export function VaultIntakePanel({ workspaceId, projectId, onClose, onIntakeComp
       }
       setContent(""); onClose();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not capture those notes. Nothing was reported as successful.");
+      // P2-15. A refused canonical write is reported exactly as the contract answered it.
+      //
+      // The attempt is deliberately NOT retired and nothing is resubmitted: an
+      // `evidence_quality_conflict` means this submission is ALREADY recorded as an
+      // immutable Evidence assertion carrying different quality fields. Silently retrying
+      // under a fresh identity would mint a second Raw Input and Normalized Event for one
+      // human submission; silently folding the changed quality into the identity would
+      // mint a second Evidence assertion that stays Observation-eligible alongside the
+      // first. Both are duplicate-manufacturing recoveries. The observer is told what
+      // happened and reloads the recorded assertion themselves.
+      //
+      // The reference id is shown because it is the only thing that ties what the observer
+      // saw to the redacted server log line; without it a support request starts from
+      // "something went wrong".
+      const reference = caught instanceof OperationalFlowRequestError && caught.referenceId
+        ? ` Reference: ${caught.referenceId}.`
+        : "";
+      setError(
+        caught instanceof Error
+          ? `${caught.message}${reference}`
+          : "Could not capture those notes. Nothing was reported as successful."
+      );
     } finally { setBusy(false); }
   };
 

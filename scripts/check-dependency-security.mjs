@@ -31,20 +31,6 @@ const ACCEPTED_FINDINGS = [
       "no advisory and the uuid flaw is unreachable from exceljs's uuid.v4() usage.",
     maxSeverity: "moderate",
   },
-  {
-    package: "postcss",
-    reason:
-      "Bundled by next; no stable next release carries the patched postcss yet. Build-time surface only " +
-      "(stringifies our own trusted CSS, never user input). Tracked: residual-risk-register RR-POSTCSS.",
-    maxSeverity: "moderate",
-  },
-  {
-    package: "next",
-    reason:
-      "Flagged only through its bundled postcss (same advisory as above) — next itself is at the latest " +
-      "stable security release (16.2.10).",
-    maxSeverity: "moderate",
-  },
 ];
 
 // Packages that must NEVER be present in the dependency tree again, at any

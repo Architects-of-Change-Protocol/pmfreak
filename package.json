@@ -24,8 +24,9 @@
     "check:compatibility": "node scripts/check-compatibility-governance.mjs",
     "check:lifecycle": "node scripts/check-lifecycle-integrity.mjs",
     "check:release-readiness": "node scripts/check-release-readiness.mjs",
+    "check:ci-workflow-integrity": "node scripts/check-ci-workflow-integrity.mjs",
     "publish:dry-run": "node scripts/publish-dry-run.mjs",
-    "check:governance": "npm run check:aoc-boundaries && npm run check:no-local-auth-bypass && npm run check:runtime-contract-drift && npm run check:db-contract && npm run check:package-exports && npm run check:compatibility && npm run check:lifecycle && npm run check:release-readiness && npm run check:package-purity",
+    "check:governance": "npm run check:aoc-boundaries && npm run check:no-local-auth-bypass && npm run check:runtime-contract-drift && npm run check:db-contract && npm run check:package-exports && npm run check:compatibility && npm run check:lifecycle && npm run check:ci-workflow-integrity && npm run check:release-readiness && npm run check:package-purity",
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish",
@@ -93,8 +94,9 @@
     "compliance:publication:check": "node scripts/compliance/check-package-publication-safety.mjs",
     "compliance:ip:check": "node scripts/compliance/check-ip-governance-artifacts.mjs",
     "compliance:sbom": "node scripts/compliance/generate-sbom.mjs",
+    "compliance:artifacts:drift": "node scripts/compliance/check-compliance-artifact-drift.mjs",
     "compliance:test": "node --test tests/compliance/*.test.mjs",
-    "compliance:check": "npm run compliance:repository:check && npm run compliance:publication:check && npm run compliance:licenses:generate && npm run compliance:licenses:check && npm run compliance:sbom && npm run compliance:ip:check && npm run compliance:test"
+    "compliance:check": "npm run compliance:repository:check && npm run compliance:publication:check && npm run compliance:artifacts:drift && npm run compliance:licenses:generate && npm run compliance:licenses:check && npm run compliance:sbom && npm run compliance:ip:check && npm run compliance:test"
   },
   "dependencies": {
     "@aoc-enterprise/runtime": "file:src/aoc/enterprise",
@@ -107,7 +109,7 @@
     "jspdf": "^4.2.1",
     "jszip": "^3.10.1",
     "mammoth": "^1.12.0",
-    "next": "16.2.10",
+    "next": "16.3.2",
     "pdf-parse": "^2.4.5",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -122,7 +124,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "16.3.2",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5"
