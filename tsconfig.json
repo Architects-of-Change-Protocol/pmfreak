@@ -20,10 +20,10 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@aoc/protocol": ["./src/aoc/protocol/index.ts"],
-      "@aoc/protocol/*": ["./src/aoc/protocol/*"],
-      "@aoc-enterprise/runtime": ["./src/aoc/enterprise/runtime/index.ts"],
-      "@aoc-enterprise/runtime/*": ["./src/aoc/enterprise/runtime/*"]
+      "@pmfreak/aoc-protocol-internal": ["./src/aoc/protocol/index.ts"],
+      "@pmfreak/aoc-protocol-internal/*": ["./src/aoc/protocol/*"],
+      "@pmfreak/aoc-enterprise-internal": ["./src/aoc/enterprise/runtime/index.ts"],
+      "@pmfreak/aoc-enterprise-internal/*": ["./src/aoc/enterprise/runtime/*"]
     }
   },
   "include": [

@@ -9,4 +9,4 @@ export type {
   PolicyDecision,
   PolicyEvaluationInput,
   PolicyEvaluationResult,
-} from "@aoc/protocol/ports/policy-evaluation";
+} from "@pmfreak/aoc-protocol-internal/ports/policy-evaluation";

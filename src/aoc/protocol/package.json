@@ -1,5 +1,5 @@
 {
-  "name": "@aoc/protocol",
+  "name": "@pmfreak/aoc-protocol-internal",
   "version": "0.1.0",
   "description": "AOC protocol contracts \u2014 capability claim types, issuance, and cryptographic verification",
   "license": "UNLICENSED",
@@ -49,7 +49,9 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "sideEffects": false,
-  "peerDependencies": {},
+  "peerDependencies": {
+    "@aoc/protocol": ">=0.2.0-rc.0"
+  },
   "scripts": {
     "clean": "rm -rf dist",
     "build": "npm run clean && tsc -p tsconfig.build.json"

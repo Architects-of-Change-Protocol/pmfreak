@@ -3,6 +3,7 @@
 // Trust domain resolution, revocation lookup, signing material, and audit emission
 // are provided through explicit protocol-owned injection ports.
 import { createHmac, createHash, createPrivateKey, sign, timingSafeEqual, verify } from "node:crypto";
+import { canonicalizeJSON } from "@aoc/protocol/canonical";
 import type { CapabilityClaimPorts } from "../ports/capability-verification";
 import type { TrustKeyRecord } from "../ports/trust-domain";
 
@@ -34,8 +35,11 @@ export type ClaimSubjectType = "user" | "agent";
 // PMFreak passes "pmfreak" as the app value via the adapter layer for backward compatibility.
 export type CapabilityClaim = { version: CapabilityClaimVersion; issuer: { app: string; workspaceId: string; issuerType: ClaimIssuerType; issuerUserId?: string; issuerAgentId?: string; trustDomain?: string; issuerId?: string }; subject: { subjectType: ClaimSubjectType; userId?: string; agentId?: string }; authority: { action: string; requestedPermission: string; resourceType?: string; resourceId?: string; workspaceId: string; projectId?: string }; constraints: { maxUses?: number; allowedUntil: string; canDelegate?: boolean; delegationDepth?: number; allowedActions?: string[]; allowedProjectIds?: string[]; allowedResourceTypes?: string[] }; lineage: { parentDecisionId?: string; parentGrantId?: string; parentDelegationId?: string; rootApprovalRequestId?: string; issuedAt: string }; proof: { algorithm: "HMAC-SHA256" | "Ed25519"; keyId: string; signature: string; trustDomain?: string; issuedAt?: string } };
 
-export const canonicalize = (value: unknown): string => JSON.stringify(sortValue(value));
-const sortValue = (value: unknown): unknown => Array.isArray(value) ? value.map(sortValue) : value && typeof value === "object" ? Object.keys(value as Record<string, unknown>).sort().reduce((acc, key) => ({ ...acc, [key]: sortValue((value as Record<string, unknown>)[key]) }), {}) : value;
+// Canonical serialization is delegated to the packaged @aoc/protocol artifact
+// (profile aoc-canonical-json/1). The JSON round-trip drops undefined-valued
+// properties exactly as the previous local implementation did, so signatures
+// over existing stored claims remain byte-identical.
+export const canonicalize = (value: unknown): string => canonicalizeJSON(JSON.parse(JSON.stringify(value)));
 
 const signHmac = (payload: Omit<CapabilityClaim, "proof">, keyId: string, hmacSecret: string) =>
   createHmac("sha256", hmacSecret).update(`${keyId}.${canonicalize(payload)}`).digest("base64url");

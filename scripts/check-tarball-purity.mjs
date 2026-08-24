@@ -1,8 +1,8 @@
 import { spawnSync } from 'node:child_process';
 
 const packages = [
-  { name: '@aoc/protocol', dir: 'src/aoc/protocol' },
-  { name: '@aoc-enterprise/runtime', dir: 'src/aoc/enterprise' }
+  { name: '@pmfreak/aoc-protocol-internal', dir: 'src/aoc/protocol' },
+  { name: '@pmfreak/aoc-enterprise-internal', dir: 'src/aoc/enterprise' }
 ];
 
 function dryRun(dir) {

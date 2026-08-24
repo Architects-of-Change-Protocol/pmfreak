@@ -2,7 +2,7 @@
 // This is the only enterprise-runtime module allowed to read from the runtime
 // adapter registry. All orchestration modules receive RuntimeContext explicitly.
 
-import type { CapabilityClaimPorts } from "@aoc/protocol/ports/capability-verification";
+import type { CapabilityClaimPorts } from "@pmfreak/aoc-protocol-internal/ports/capability-verification";
 import type { RuntimeContext } from "./context";
 import {
   runtimeContextToCapabilityClaimPorts,

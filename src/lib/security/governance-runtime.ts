@@ -11,7 +11,7 @@ export type {
   GovernanceDecisionStatus,
   GovernanceAction,
   GovernanceEvaluationInput,
-} from "@aoc-enterprise/runtime";
+} from "@pmfreak/aoc-enterprise-internal";
 
 export {
   GOVERNANCE_POLICY_REGISTRY,
@@ -19,4 +19,4 @@ export {
   enforceGovernanceAction,
   createApprovalRequestFromDecision,
   explainGovernanceDecision,
-} from "@aoc-enterprise/runtime";
+} from "@pmfreak/aoc-enterprise-internal";

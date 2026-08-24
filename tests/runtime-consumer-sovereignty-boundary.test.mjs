@@ -39,6 +39,7 @@ const RUNTIME_CONSUMER_ALLOWED_IMPORT_PREFIXES = [
   "./",
   "../",
   "@aoc-enterprise/runtime",
+  "@pmfreak/aoc-enterprise-internal",
   "@/lib/aoc/bootstrap",
   "node:",
 ];

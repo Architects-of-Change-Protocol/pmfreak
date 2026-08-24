@@ -17,7 +17,7 @@ export type {
   PolicyDecision,
   ProjectId,
   WorkspaceId,
-} from "@aoc/protocol/contracts";
+} from "@pmfreak/aoc-protocol-internal/contracts";
 
 // TODO(aoc-migration): replace compatibility consumers that still expect policy entity shape.
 export type Policy = {

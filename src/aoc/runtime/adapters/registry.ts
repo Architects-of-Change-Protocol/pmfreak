@@ -7,13 +7,13 @@
 // Forbidden: AOC internal modules must NEVER call registerAocAdapters() themselves.
 // Only the host application (e.g. PMFreak) provides adapter implementations.
 
-import type { SecurityAuditPort } from "@aoc/protocol/ports/security-audit";
-import type { PrivilegedDbPort } from "@aoc/protocol/ports/privileged-db";
-import type { AccessVerificationPort } from "@aoc/protocol/ports/access-verification";
-import type { AgentAttestationPort } from "@aoc/protocol/ports/agent-attestation";
-import type { PolicyEvaluatorPort } from "@aoc/protocol/ports/policy-evaluation";
-import type { TrustDomainPort } from "@aoc/protocol/ports/trust-domain";
-import type { TrustCoordinationPort } from "@aoc/protocol/ports/trust-coordination";
+import type { SecurityAuditPort } from "@pmfreak/aoc-protocol-internal/ports/security-audit";
+import type { PrivilegedDbPort } from "@pmfreak/aoc-protocol-internal/ports/privileged-db";
+import type { AccessVerificationPort } from "@pmfreak/aoc-protocol-internal/ports/access-verification";
+import type { AgentAttestationPort } from "@pmfreak/aoc-protocol-internal/ports/agent-attestation";
+import type { PolicyEvaluatorPort } from "@pmfreak/aoc-protocol-internal/ports/policy-evaluation";
+import type { TrustDomainPort } from "@pmfreak/aoc-protocol-internal/ports/trust-domain";
+import type { TrustCoordinationPort } from "@pmfreak/aoc-protocol-internal/ports/trust-coordination";
 
 export interface AocAdapters {
   securityAudit: SecurityAuditPort;

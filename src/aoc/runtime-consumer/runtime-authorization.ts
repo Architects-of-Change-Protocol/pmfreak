@@ -1,4 +1,4 @@
-import type { GovernanceEvaluationInput } from "@aoc-enterprise/runtime";
+import type { GovernanceEvaluationInput } from "@pmfreak/aoc-enterprise-internal";
 import { authorizeRuntimeAction as authorizeEnterpriseRuntimeAction } from "@/aoc/enterprise/runtime/authorization-bridge";
 import { enforceRuntimeAuthorization as enforceEnterpriseRuntimeAuthorization } from "@/aoc/enterprise/runtime/authorization-bridge";
 import { RuntimeDependencyUnavailableError } from "./runtime-errors";

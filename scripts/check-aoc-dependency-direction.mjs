@@ -24,7 +24,7 @@ for (const full of files) {
   if (rel.startsWith('src/aoc/protocol/') && /\.\.\/\.\.\/runtime\//.test(content)) {
     violations.push(`${rel}: protocol imports runtime internals`);
   }
-  if (rel.startsWith('src/aoc/protocol/') && /@aoc-enterprise\//.test(content)) {
+  if (rel.startsWith('src/aoc/protocol/') && /@aoc-enterprise\/|@pmfreak\/aoc-enterprise-internal/.test(content)) {
     violations.push(`${rel}: protocol imports enterprise package`);
   }
   if (rel.startsWith('src/aoc/enterprise/') && /['\"]@\//.test(content)) {

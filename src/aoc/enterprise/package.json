@@ -1,5 +1,5 @@
 {
-  "name": "@aoc-enterprise/runtime",
+  "name": "@pmfreak/aoc-enterprise-internal",
   "version": "0.1.0",
   "description": "AOC enterprise runtime \u2014 delegation, policy evaluation, and execution grants for governance-aware workspaces",
   "license": "UNLICENSED",
@@ -43,6 +43,6 @@
     "build": "npm run clean && tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@aoc/protocol": "file:../protocol"
+    "@pmfreak/aoc-protocol-internal": "file:../protocol"
   }
 }

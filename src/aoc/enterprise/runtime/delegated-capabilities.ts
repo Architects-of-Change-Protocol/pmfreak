@@ -2,8 +2,8 @@
 // Future extraction boundary: this module must NOT import from host application modules.
 // All host services are provided through explicit RuntimeContext injection.
 import { createHash, randomBytes } from "node:crypto";
-import type { PolicyDecision } from "@aoc/protocol/ports/policy-evaluation";
-import type { AocActorContext } from "@aoc/protocol/actor-model";
+import type { PolicyDecision } from "@pmfreak/aoc-protocol-internal/ports/policy-evaluation";
+import type { AocActorContext } from "@pmfreak/aoc-protocol-internal/actor-model";
 import type { RuntimeContext } from "./context";
 import type { DelegationConstraints, DelegationDecision, DelegationInput } from "./runtime-input-contracts";
 export type { DelegationConstraints, DelegationDecision, DelegationInput } from "./runtime-input-contracts";

@@ -2,7 +2,7 @@
 // Future extraction boundary: this module must NOT import from host application modules.
 // All host services are provided through explicit RuntimeContext injection.
 import { createHash, randomBytes } from "node:crypto";
-import { createCapabilityClaim, claimToAuditMetadata, hashCapabilityClaim } from "@aoc/protocol/contracts/capability-claims";
+import { createCapabilityClaim, claimToAuditMetadata, hashCapabilityClaim } from "@pmfreak/aoc-protocol-internal/contracts/capability-claims";
 import { runtimeContextToCapabilityClaimPorts, type RuntimeContext } from "./context";
 import type { ExecutionGrantInput } from "./runtime-input-contracts";
 export type { ExecutionGrantInput } from "./runtime-input-contracts";

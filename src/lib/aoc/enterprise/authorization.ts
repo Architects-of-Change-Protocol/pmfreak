@@ -2,7 +2,7 @@ import {
   enforceEnforcementPipeline,
   type GovernanceEvaluationInput,
   type GovernanceDecisionState,
-} from "@aoc-enterprise/runtime";
+} from "@pmfreak/aoc-enterprise-internal";
 import { ensurePmfreakAocAdaptersRegistered, getEnterpriseRuntimeComposeOptions } from "@/lib/aoc/bootstrap";
 
 export type EnterpriseRuntimeDecision = import("@/lib/aoc/contracts").CanonicalRuntimeDecision & {
