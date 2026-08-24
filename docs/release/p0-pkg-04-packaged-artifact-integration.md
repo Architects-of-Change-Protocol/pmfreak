@@ -1,11 +1,16 @@
 # P0-PKG-04 — PMFreak Consumes the Frozen Packaged AOC Artifacts
 
-**Status:** implemented; the complete P2-14 Founder journey re-ran and passed against the
-packaged dependencies.
-**Claim:** THREE_REPOSITORY_INTEGRATION — the first integration across the three merged
-codebases (Soberanía Protocol, Frontera / Soberania-Enterprise, PMFreak) through real,
-checksummed package boundaries. Claimed only below, after the packaged Founder journey
-evidence.
+**Status: BLOCKED.** The packaged-artifact integration below is complete and verified — the
+frozen artifacts are installed, pinned and executing, and the complete P2-14 Founder journey
+re-ran and passed across them. The increment is nevertheless **not closed**: PMFreak still
+contains active governance symbols whose ownership and public contract cannot yet be mapped
+cleanly to the frozen Protocol / Frontera package surfaces.
+
+**`THREE_REPOSITORY_INTEGRATION` is NOT claimed.** See
+[`p0-pkg-04-blocker-symbol-ownership.md`](./p0-pkg-04-blocker-symbol-ownership.md) for the
+exact blocker: the complete 44-symbol inventory, its classification, the `@pmfreak/*` alias
+deviation, and the recommended follow-up increment. Everything recorded in this document
+stands and is unaffected by that blocker.
 
 ---
 
@@ -256,18 +261,23 @@ and the session is never mutated — the route performs no sign-out on GET at al
 security property the test protects holds. This is P2-15-owned debt (state-changing GET
 `/logout`), explicitly out of scope for this increment and left untouched.
 
-## Three-repository integration
-
-Claimed on the evidence above:
+## Claims
 
 ```
 PROTOCOL_PACKAGE_INTEGRATION=PASS
 FRONTERA_PACKAGE_INTEGRATION=PASS
 PMFREAK_FOUNDER_JOURNEY=PASS
-THREE_REPOSITORY_INTEGRATION=PASS
+THREE_REPOSITORY_INTEGRATION=NOT CLAIMED — BLOCKED
 ```
 
-**Not claimed:** semantic migration of PMFreak's governance surface onto the upstream
-canonical contracts (tracked as migration candidates); removal of the legacy copies; any
-publication, registry configuration, tag, release or merge authority — both artifacts
-remain `private: true` internal tarballs, exactly as their upstream evidence records.
+The first three are established by the evidence above. The fourth is **withheld**: the
+artifacts are real, pinned and executing, and the Founder journey passes across them, but
+PMFreak's governance layer has not been shown to sit cleanly on either side of the package
+boundary — and that is part of what the claim would assert. The blocker, its complete
+symbol inventory and the recommended follow-up increment are in
+[`p0-pkg-04-blocker-symbol-ownership.md`](./p0-pkg-04-blocker-symbol-ownership.md).
+
+**Also not claimed:** semantic migration of PMFreak's governance surface onto the upstream
+canonical contracts; removal of the legacy copies; any publication, registry configuration,
+tag, release or merge authority — both artifacts remain `private: true` internal tarballs,
+exactly as their upstream evidence records.
