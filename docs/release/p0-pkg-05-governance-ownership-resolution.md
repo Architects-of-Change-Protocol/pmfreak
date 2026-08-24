@@ -16,7 +16,8 @@ PMFREAK_FOUNDER_JOURNEY               = NOT_RE-RUN  (environment; see below)
 THREE_REPOSITORY_INTEGRATION          = NOT_CLAIMED
 ```
 
-**Source commit:** `6fb9d0739ad701769015debd23653b5e91665777`
+**Ownership source commit:** `6fb9d0739ad701769015debd23653b5e91665777`
+**Verified commit:** `4d2aa24981e73bc4790ad1b2456de10fd41300d1` — see *Correction* below
 **Ownership map digest (SHA-256):** `2f0594b9ad642f5ecd8343489c1fae542c6fbdb757a9448aa2421ec407f41431`
 
 ## Why acceptance could not be executed
@@ -112,6 +113,65 @@ AUDIT_HISTORY_REWRITTEN   = NO
 EVENT_VOCABULARY_CHANGED  = NO
 ```
 
+## Correction — the verification commit is 4d2aa249, not 6fb9d073
+
+This document originally reported the battery below as verified from `6fb9d073`. That
+was wrong, and the error is worth stating precisely because this increment is about
+evidence that means what it says.
+
+`6fb9d073` edited `scripts/check-beta-release.mjs` to drop the `build:aoc` gate.
+`tests/beta-release-gate.test.mjs` pins that script's contents and still required
+`npm run build:aoc`, so **the suite was already failing at `6fb9d073`**. The passing run
+recorded here was measured *before* that edit; the targeted gate commands run afterwards
+do not execute the suite, so nothing caught it locally. CI did:
+
+```
+gate is missing required command: npm run build:aoc
+    at tests/beta-release-gate.test.mjs:42
+```
+
+Fixed in `4d2aa249`. The two ownership gates now share one name,
+`check:governance-boundary`, used identically by the beta-release gate, the CI workflow
+and the contract test. The ordering assertion was re-expressed rather than dropped:
+`build:aoc` had to precede `check:governance` because package-exports could not pass on a
+clean checkout until the local packages were built; nothing local is built now, but the
+gate proving the canonical names still resolve to the frozen artifacts belongs first for
+the same reason. A `doesNotMatch` assertion keeps `build:aoc` from silently returning.
+
+Two other commits followed the ownership commit:
+
+| Commit | Change |
+|---|---|
+| `6c0ef053` | this document (evidence only) |
+| `8a0d0f9d` | regenerated the compliance inventory and SBOM, stale since P0-PKG-04 |
+| `4d2aa249` | the beta-release gate contract-test fix above |
+
+`8a0d0f9d` fixed a failure that **predates this increment**: the committed compliance
+artifacts were last generated at `1490dd65` (pre-P0-PKG-04) and still described
+`@aoc/protocol@0.1.0` and `@aoc-enterprise/runtime@0.1.0` — the old pseudo-packages.
+P0-PKG-04 repointed both dependencies without regenerating them, so the drift gate had
+failed on every commit since. P0-PKG-05 never touched `package-lock.json` (verified:
+empty diff against `200ce9d4`). Regenerated with the repository's own generators:
+`blocked: 0 → 0`, total `687 → 734`, review `41 → 44`.
+
+Of the 10 new `REVIEW_REQUIRED` entries, 5 are routine version churn. The other 5 deserve
+a reviewer's eye: `@aoc-enterprise/runtime@1.0.0` and the four Frontera private workspaces
+bundled inside it declare **no license**, while `@aoc/protocol@0.2.0-rc.0` declares
+Apache-2.0 and classifies `ALLOWED`. That is an upstream packaging gap in the frozen
+Frontera artifact, recorded rather than worked around, and not fixable from PMFreak.
+
+### CI on the corrected head
+
+All three workflows pass on `4d2aa249`:
+
+| Workflow | `6fb9d073`/`6c0ef053` | `8a0d0f9d` | `4d2aa249` |
+|---|---|---|---|
+| CI Governance | FAIL | FAIL | **PASS** |
+| IP Compliance | FAIL | **PASS** | **PASS** |
+| Release Governance | FAIL | FAIL | **PASS** |
+
+IP Compliance had been red on this PR since P0-PKG-04; it is green for the first time.
+
 ## Verification executed from the committed state
 
 | Check | Result |
@@ -119,7 +179,7 @@ EVENT_VOCABULARY_CHANGED  = NO
 | `npm ci` | PASS — no `--force`, no `--legacy-peer-deps`, no `npm link` |
 | `npm run typecheck` | PASS |
 | `npm run lint` | PASS (0 errors; 620 pre-existing warnings, unchanged) |
-| `npm test` | **PASS — 13,308 tests, 13,291 pass, 0 fail, 17 skipped** (baseline 13,281/13,264/0/17) |
+| `npm test` | **PASS — 13,308 tests, 13,291 pass, 0 fail, 17 skipped** (baseline 13,281/13,264/0/17). Re-run on **Node 20**, the CI version, with identical numbers. |
 | `npm run build` | PASS |
 | `npm run check:governance` | PASS (full chain) |
 | `npm run check:packaged-aoc-artifacts` | PASS — reports both trees `absent (removed)` |
