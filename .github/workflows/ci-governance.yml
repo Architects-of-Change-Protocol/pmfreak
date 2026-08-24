@@ -24,7 +24,7 @@ jobs:
       - name: Runtime governance
         run: npm run check:governance
       - name: Governance ownership boundary
-        run: npm run check:governance-ownership && npm run check:governance-collisions
+        run: npm run check:governance-boundary
 
       - name: Package purity
         run: npm run check:package-purity

@@ -27,7 +27,7 @@ jobs:
   beta-release-validation:
     name: Beta Release Validation
     runs-on: ubuntu-latest
-    # The orchestrator runs build:aoc, typecheck, lint, tests, the Next.js build,
+    # The orchestrator runs the governance ownership boundary, typecheck, lint, tests, the Next.js build,
     # governance, runtime/production/database/security gates and launch smoke in sequence.
     timeout-minutes: 60
     permissions:

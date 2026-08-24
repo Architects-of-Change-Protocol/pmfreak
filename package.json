@@ -92,7 +92,8 @@
     "compliance:test": "node --test tests/compliance/*.test.mjs",
     "compliance:check": "npm run compliance:repository:check && npm run compliance:publication:check && npm run compliance:artifacts:drift && npm run compliance:licenses:generate && npm run compliance:licenses:check && npm run compliance:sbom && npm run compliance:ip:check && npm run compliance:test",
     "check:governance-collisions": "node scripts/check-governance-collisions.mjs",
-    "check:governance-ownership": "node scripts/check-governance-ownership.mjs"
+    "check:governance-ownership": "node scripts/check-governance-ownership.mjs",
+    "check:governance-boundary": "npm run check:governance-ownership && npm run check:governance-collisions"
   },
   "dependencies": {
     "@aoc-enterprise/runtime": "file:vendor/aoc-enterprise-runtime-1.0.0.tgz",

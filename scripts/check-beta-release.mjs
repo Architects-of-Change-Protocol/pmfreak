@@ -32,7 +32,7 @@ const MAX_OUTPUT_BUFFER = 64 * 1024 * 1024;
 
 /** @type {Array<{name: string, command: string, severity: "blocking" | "advisory"}>} */
 const GATES = [
-  { name: "Governance Ownership Boundary", command: "npm run check:governance-ownership && npm run check:governance-collisions", severity: "blocking" },
+  { name: "Governance Ownership Boundary", command: "npm run check:governance-boundary", severity: "blocking" },
   { name: "Typecheck", command: "npm run typecheck", severity: "blocking" },
   { name: "Lint", command: "npm run lint", severity: "blocking" },
   { name: "Tests", command: "npm test", severity: "blocking" },
