@@ -10,7 +10,7 @@
  * Adding a mapping here does NOT register a new runtime action — GovernanceAction is
  * defined by @aoc-enterprise/runtime and must already exist in GOVERNANCE_POLICY_REGISTRY.
  */
-import type { GovernanceAction } from "@pmfreak/aoc-enterprise-internal";
+import type { GovernanceAction } from "@/lib/governance/authority/runtime";
 import type { Permission } from "@/lib/security/rbac";
 
 // Permission → GovernanceAction.

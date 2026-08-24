@@ -1,8 +1,8 @@
 import {
-  enforceEnforcementPipeline,
+  enforceGovernancePipeline,
   type GovernanceEvaluationInput,
   type GovernanceDecisionState,
-} from "@pmfreak/aoc-enterprise-internal";
+} from "@/lib/governance/authority/runtime";
 import { ensurePmfreakAocAdaptersRegistered, getEnterpriseRuntimeComposeOptions } from "@/lib/aoc/bootstrap";
 
 export type EnterpriseRuntimeDecision = import("@/lib/aoc/contracts").CanonicalRuntimeDecision & {
@@ -34,7 +34,7 @@ export type _LegacyEnterpriseRuntimeDecision = {
   runtimeMetadata: Record<string, unknown>;
 };
 
-export function normalizeRuntimeDecision(decision: Awaited<ReturnType<typeof enforceEnforcementPipeline>>["decision"]): EnterpriseRuntimeDecision {
+export function normalizeRuntimeDecision(decision: Awaited<ReturnType<typeof enforceGovernancePipeline>>["decision"]): EnterpriseRuntimeDecision {
   const lineage = {
     decisionId: decision.decisionId,
     runtimeDecisionId: decision.decisionId,
@@ -85,6 +85,6 @@ export function normalizeRuntimeDecision(decision: Awaited<ReturnType<typeof enf
 
 export async function authorizeRuntimeAction(input: GovernanceEvaluationInput) {
   ensurePmfreakAocAdaptersRegistered();
-  const result = await enforceEnforcementPipeline(input, getEnterpriseRuntimeComposeOptions());
+  const result = await enforceGovernancePipeline(input, getEnterpriseRuntimeComposeOptions());
   return normalizeRuntimeDecision(result.decision);
 }

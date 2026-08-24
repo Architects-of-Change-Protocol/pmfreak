@@ -6,8 +6,8 @@ import { execSync } from 'node:child_process';
 const bootstrapSrc = fs.readFileSync('src/lib/aoc/bootstrap.ts', 'utf8');
 const actorContextSrc = fs.readFileSync('src/lib/aoc/actor-context.ts', 'utf8');
 const policyEvalSrc = fs.readFileSync('src/lib/aoc/adapters/policy-evaluation.ts', 'utf8');
-const policyPortSrc = fs.readFileSync('src/aoc/protocol/ports/policy-evaluation.ts', 'utf8');
-const actorModelSrc = fs.readFileSync('src/aoc/protocol/actor-model.ts', 'utf8');
+const policyPortSrc = fs.readFileSync('src/lib/governance/authority/ports/policy-evaluation.ts', 'utf8');
+const actorModelSrc = fs.readFileSync('src/lib/governance/authority/actor-model.ts', 'utf8');
 const runtimeWrapperSrc = fs.readFileSync('src/lib/aoc/enterprise/runtime.ts', 'utf8');
 const executionGrantsShimSrc = fs.readFileSync('src/lib/security/execution-grants.ts', 'utf8');
 const delegatedCapShimSrc = fs.readFileSync('src/lib/security/delegated-capabilities.ts', 'utf8');
@@ -22,21 +22,21 @@ test('bootstrap module provides idempotent ensurePmfreakAocAdaptersRegistered', 
 });
 
 test('actor-context module provides all three actor resolution helpers', () => {
-  assert.match(actorContextSrc, /export function resolveUserAocActorContext/);
-  assert.match(actorContextSrc, /export function resolveAgentAocActorContext/);
-  assert.match(actorContextSrc, /export function createSystemAocActorContext/);
+  assert.match(actorContextSrc, /export function resolveUserGovernanceActorContext/);
+  assert.match(actorContextSrc, /export function resolveAgentGovernanceActorContext/);
+  assert.match(actorContextSrc, /export function createSystemGovernanceActorContext/);
   assert.match(actorContextSrc, /actorType: "user"/);
   assert.match(actorContextSrc, /actorType: "ai_agent"/);
   assert.match(actorContextSrc, /actorType: "system"/);
 });
 
-test('AocActorContext is defined in protocol actor-model', () => {
-  assert.match(actorModelSrc, /export type AocActorContext/);
+test('GovernanceActorContext is defined in protocol actor-model', () => {
+  assert.match(actorModelSrc, /export type GovernanceActorContext/);
   assert.match(actorModelSrc, /actorId: string/);
-  assert.match(actorModelSrc, /actorType: AocActorType/);
+  assert.match(actorModelSrc, /actorType: GovernanceActorKind/);
 });
 
-test('AocActorType covers all required actor types', () => {
+test('GovernanceActorKind covers all required actor types', () => {
   assert.match(actorModelSrc, /"user"/);
   assert.match(actorModelSrc, /"ai_agent"/);
   assert.match(actorModelSrc, /"system"/);
@@ -44,7 +44,7 @@ test('AocActorType covers all required actor types', () => {
 });
 
 test('PolicyEvaluationInput requires explicit actor context', () => {
-  assert.match(policyPortSrc, /actor: AocActorContext/);
+  assert.match(policyPortSrc, /actor: GovernanceActorContext/);
   assert.doesNotMatch(policyPortSrc, /actor\?:/); // must be required, not optional
 });
 
@@ -104,10 +104,10 @@ test('src/aoc imports from @/lib/security only via runtime-consumer adapters', (
   }
   const lines = output.trim().split('\n').filter(Boolean);
   const allowlist = [
-    'src/aoc/enterprise/runtime/in-process-authority-adapter.ts',
-    'src/aoc/enterprise/runtime/authority-port.ts',
-    'src/aoc/enterprise/runtime/agent-access-bridge.ts',
-    'src/aoc/enterprise/runtime/access-guards-bridge.ts',
+    'src/lib/governance/authority/runtime/in-process-authority-adapter.ts',
+    'src/lib/governance/authority/runtime/authority-port.ts',
+    'src/lib/governance/authority/runtime/agent-access-bridge.ts',
+    'src/lib/governance/authority/runtime/access-guards-bridge.ts',
   ];
   const disallowed = lines.filter((line) => !allowlist.some((allowed) => line.startsWith(`${allowed}:`)));
   assert.strictEqual(disallowed.length, 0, `src/aoc must only import @/lib/security via enterprise runtime bridge modules but found: ${disallowed.join('\n')}`);

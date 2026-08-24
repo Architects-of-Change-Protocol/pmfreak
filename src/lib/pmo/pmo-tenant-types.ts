@@ -7,7 +7,10 @@ export type VaultConfig = {
   label: string;
 };
 
-export type AgentId =
+// PMO wizard agent keys — a fixed set of PMFreak agent roles, not an agent
+// identifier. Deliberately not named AgentId, which in @aoc/protocol is an
+// opaque `= string` identifier and means something entirely different.
+export type PmoAgentId =
   | "scope"
   | "timeline"
   | "cost"
@@ -19,7 +22,7 @@ export type AgentId =
   | "portfolio-arbitration";
 
 export type AgentActivationState = {
-  agentId: AgentId;
+  agentId: PmoAgentId;
   enabled: boolean;
 };
 
@@ -88,7 +91,7 @@ export const DEFAULT_AGENT_STATES: AgentActivationState[] = [
   { agentId: "portfolio-arbitration", enabled: false },
 ];
 
-export const AGENT_META: Record<AgentId, { label: string; description: string; tier: "core" | "advanced" }> = {
+export const AGENT_META: Record<PmoAgentId, { label: string; description: string; tier: "core" | "advanced" }> = {
   scope: { label: "Scope Governance", description: "Monitors scope boundaries and change signals.", tier: "core" },
   timeline: { label: "Timeline Governance", description: "Tracks schedule drift and milestone risk.", tier: "core" },
   stakeholder: { label: "Stakeholder Intelligence", description: "Maps stakeholder alignment and communication gaps.", tier: "core" },

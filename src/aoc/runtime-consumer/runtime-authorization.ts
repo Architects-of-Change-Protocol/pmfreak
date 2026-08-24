@@ -1,6 +1,6 @@
-import type { GovernanceEvaluationInput } from "@pmfreak/aoc-enterprise-internal";
-import { authorizeRuntimeAction as authorizeEnterpriseRuntimeAction } from "@/aoc/enterprise/runtime/authorization-bridge";
-import { enforceRuntimeAuthorization as enforceEnterpriseRuntimeAuthorization } from "@/aoc/enterprise/runtime/authorization-bridge";
+import type { GovernanceEvaluationInput } from "@/lib/governance/authority/runtime";
+import { authorizeRuntimeAction as authorizeEnterpriseRuntimeAction } from "@/lib/governance/authority/runtime/authorization-bridge";
+import { enforceRuntimeAuthorization as enforceEnterpriseRuntimeAuthorization } from "@/lib/governance/authority/runtime/authorization-bridge";
 import { RuntimeDependencyUnavailableError } from "./runtime-errors";
 import { bootstrapRuntimeConsumer } from "./runtime-bootstrap";
 

@@ -39,7 +39,7 @@ const RUNTIME_CONSUMER_ALLOWED_IMPORT_PREFIXES = [
   "./",
   "../",
   "@aoc-enterprise/runtime",
-  "@pmfreak/aoc-enterprise-internal",
+  "@/lib/governance/authority/runtime",
   "@/lib/aoc/bootstrap",
   "node:",
 ];
@@ -111,14 +111,14 @@ test("product-facing security wrappers consume runtime authority via runtime-con
 });
 
 test("enterprise runtime implementation does not import runtime-consumer", () => {
-  for (const file of collectFiles("src/aoc/enterprise/runtime")) {
+  for (const file of collectFiles("src/lib/governance/authority/runtime")) {
     const src = readFileSync(file, "utf8");
     assert.equal(src.includes("@/aoc/runtime-consumer"), false, `${file} must not import runtime-consumer`);
   }
 });
 
 test("protocol layer does not import runtime-consumer or enterprise runtime/security internals", () => {
-  for (const file of collectFiles("src/aoc/protocol")) {
+  for (const file of collectFiles("src/lib/governance/authority")) {
     const src = readFileSync(file, "utf8");
     assert.equal(src.includes("@/aoc/runtime-consumer"), false, `${file} must not import runtime-consumer`);
     assert.equal(src.includes("@/aoc/enterprise/runtime"), false, `${file} must not import enterprise runtime`);

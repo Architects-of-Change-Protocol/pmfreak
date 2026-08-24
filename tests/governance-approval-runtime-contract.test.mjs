@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const runtime = fs.readFileSync('src/aoc/enterprise/runtime/governance-core.ts', 'utf8');
+const runtime = fs.readFileSync('src/lib/governance/authority/runtime/governance-core.ts', 'utf8');
 const apiList = fs.readFileSync('src/app/api/governance/approvals/route.ts', 'utf8');
 const apiApprove = fs.readFileSync('src/app/api/governance/approvals/[id]/approve/route.ts', 'utf8');
 

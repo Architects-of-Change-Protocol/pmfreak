@@ -19,11 +19,7 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"],
-      "@pmfreak/aoc-protocol-internal": ["./src/aoc/protocol/index.ts"],
-      "@pmfreak/aoc-protocol-internal/*": ["./src/aoc/protocol/*"],
-      "@pmfreak/aoc-enterprise-internal": ["./src/aoc/enterprise/runtime/index.ts"],
-      "@pmfreak/aoc-enterprise-internal/*": ["./src/aoc/enterprise/runtime/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": [

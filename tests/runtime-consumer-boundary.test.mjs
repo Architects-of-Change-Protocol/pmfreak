@@ -40,11 +40,11 @@ test("runtime decision envelope includes authority metadata", () => {
 });
 
 test("enterprise/protocol boundaries stay clean", () => {
-  const enterpriseExports = readFileSync("src/aoc/enterprise/index.ts", "utf8");
-  assert.equal(/@\/lib|@\/app/.test(enterpriseExports), false, "src/aoc/enterprise must not import from app/lib aliases");
+  const enterpriseExports = readFileSync("src/lib/governance/authority/runtime/index.ts", "utf8");
+  assert.equal(/@\/lib|@\/app/.test(enterpriseExports), false, "src/lib/governance/authority/runtime must not import from app/lib aliases");
 
-  const protocolExports = readFileSync("src/aoc/protocol/index.ts", "utf8");
-  assert.equal(/@\/lib|@\/app|@\/sdk|@\/aoc\/enterprise/.test(protocolExports), false, "src/aoc/protocol must not import app/lib/sdk/enterprise aliases");
+  const protocolExports = readFileSync("src/lib/governance/authority/index.ts", "utf8");
+  assert.equal(/@\/lib|@\/app|@\/sdk|@\/aoc\/enterprise/.test(protocolExports), false, "src/lib/governance/authority must not import app/lib/sdk/enterprise aliases");
 });
 
 

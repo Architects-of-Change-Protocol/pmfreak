@@ -1,7 +1,7 @@
 import { evaluatePolicyDecision } from "@/lib/security/policy-engine";
 import { getAuthUser } from "@/lib/auth";
 import { ensurePmfreakAocAdaptersRegistered } from "@/lib/aoc/bootstrap";
-import type { AocActorContext } from "@/aoc/protocol/actor-model";
+import type { GovernanceActorContext } from "@/lib/governance/authority/actor-model";
 
 // This is a non-authoritative policy simulator (decisionSource:
 // "policy-simulation", authoritative: false — see productionAuthority
@@ -18,9 +18,9 @@ export async function POST(request: Request) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const body = await request.json();
 
-  const actor: AocActorContext =
+  const actor: GovernanceActorContext =
     body.actor && body.actor.actorId && body.actor.actorType
-      ? (body.actor as AocActorContext)
+      ? (body.actor as GovernanceActorContext)
       : { actorId: user.id, actorType: "user", workspaceId: body.workspaceId };
 
   const result = await evaluatePolicyDecision({ ...body, actor });

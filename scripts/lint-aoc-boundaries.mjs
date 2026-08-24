@@ -12,8 +12,7 @@ const forbiddenMatchers = [
 ];
 
 const allowlist = new Map([
-  ["src/lib/security/governance-runtime.ts", "legacy internal runtime implementation"],
-  ["src/aoc/enterprise/runtime/index.ts", "enterprise package boundary adapter"],
+  ["src/lib/governance/authority/runtime/index.ts", "PMFreak governance runtime barrel"],
 ]);
 
 const files = [];

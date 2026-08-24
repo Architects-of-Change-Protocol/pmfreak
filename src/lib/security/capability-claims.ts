@@ -9,8 +9,8 @@ import {
   hashCapabilityClaim,
   verifyCapabilityClaim as verifyProtocolCapabilityClaim,
   type CapabilityClaim,
-} from "@/aoc/protocol/contracts/capability-claims";
-import { composeCapabilityClaimPorts, composeCapabilityVerificationPorts, composeRuntimeContext } from "@/aoc/enterprise/runtime";
+} from "@/lib/governance/authority/capability-claims";
+import { composeCapabilityClaimPorts, composeCapabilityVerificationPorts, composeRuntimeContext } from "@/lib/governance/authority/runtime";
 import { ensurePmfreakAocAdaptersRegistered, getEnterpriseRuntimeComposeOptions } from "@/lib/aoc/bootstrap";
 
 const PMFREAK_DEFAULT_TRUST_DOMAIN = "pmfreak-local";

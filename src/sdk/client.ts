@@ -1,5 +1,5 @@
 import { AocAuthError, AocError, AocForbiddenError, AocNotFoundError, AocRateLimitError, AocServerError, AocValidationError } from "./errors";
-import type { Agent, AgentId, AgentScope, AocClientConfig, AuditTimelineItem, CapabilityGrant, CapabilityRequest, Delegation, Policy, WorkspaceId } from "./types";
+import type { Agent, AgentId, AgentScopeRecord, AocClientConfig, AuditTimelineItem, CapabilityGrantRecord, CapabilityRequestRecord, DelegationRecord, Policy, WorkspaceId } from "./types";
 
 type RequestOptions = { method?: string; body?: unknown; query?: Record<string, string | number | boolean | undefined>; headers?: HeadersInit; retry?: boolean; maxAttempts?: number; signal?: AbortSignal };
 
@@ -81,12 +81,12 @@ export class AocClient {
     return ((payload && payload.ok && "data" in payload) ? payload.data : payload) as T;
   }
 
-  createCapabilityRequest(input: Record<string, unknown>) { return this.request<{ ok: boolean; request?: CapabilityRequest }>("/api/v1/capability-requests", { method: "POST", body: input }); }
+  createCapabilityRequest(input: Record<string, unknown>) { return this.request<{ ok: boolean; request?: CapabilityRequestRecord }>("/api/v1/capability-requests", { method: "POST", body: input }); }
   approveCapabilityRequest(requestId: string) { return this.request<{ ok: boolean }>(`/api/v1/capability-requests/${requestId}/approve`, { method: "POST" }); }
   denyCapabilityRequest(requestId: string) { return this.request<{ ok: boolean }>(`/api/v1/capability-requests/${requestId}/deny`, { method: "POST" }); }
   revokeCapabilityGrant(grantId: string) { return this.request<{ ok: boolean }>(`/api/v1/capability-grants/${grantId}/revoke`, { method: "POST" }); }
-  listCapabilityRequests(workspaceId = this.workspaceId) { return this.request<{ requests: CapabilityRequest[] }>("/api/v1/capability-requests", { query: { workspaceId: workspaceId ?? "" } }); }
-  listCapabilityGrants(workspaceId = this.workspaceId) { return this.request<{ grants: CapabilityGrant[] }>("/api/v1/capability-grants", { query: { workspaceId: workspaceId ?? "" } }); }
+  listCapabilityRequests(workspaceId = this.workspaceId) { return this.request<{ requests: CapabilityRequestRecord[] }>("/api/v1/capability-requests", { query: { workspaceId: workspaceId ?? "" } }); }
+  listCapabilityGrants(workspaceId = this.workspaceId) { return this.request<{ grants: CapabilityGrantRecord[] }>("/api/v1/capability-grants", { query: { workspaceId: workspaceId ?? "" } }); }
 
   evaluatePolicy(input: Record<string, unknown>) { return this.request<{ decision: string; reason: string }>("/api/v1/policies/evaluate", { method: "POST", body: input }); }
   listPolicies(workspaceId = this.workspaceId) { return this.request<{ policies: Policy[] }>("/api/v1/policies", { query: { workspaceId: workspaceId ?? "" } }); }
@@ -95,7 +95,7 @@ export class AocClient {
 
   listAgents(workspaceId = this.workspaceId) { return this.request<{ agents: Agent[] }>("/api/v1/agents", { query: { workspaceId: workspaceId ?? "" } }); }
   registerAgent(input: Record<string, unknown>) { return this.request<{ ok: boolean; agent?: Agent }>("/api/v1/agents", { method: "POST", body: input }); }
-  grantAgentScope(input: Record<string, unknown>) { return this.request<{ ok: boolean; scope?: AgentScope }>("/api/v1/agent-scopes", { method: "POST", body: input }); }
+  grantAgentScope(input: Record<string, unknown>) { return this.request<{ ok: boolean; scope?: AgentScopeRecord }>("/api/v1/agent-scopes", { method: "POST", body: input }); }
   evaluateAgentAccess(input: Record<string, unknown>) { return this.request<{ decision: string; reason: string }>("/api/sdk/agents/evaluate", { method: "POST", body: input }); }
   disableAgent(agentId: string) { return this.request<{ ok: boolean }>(`/api/v1/agents/${agentId}`, { method: "PATCH", body: { status: "disabled" } }); }
   revokeAgent(agentId: string) { return this.request<{ ok: boolean }>(`/api/v1/agents/${agentId}`, { method: "PATCH", body: { status: "revoked" } }); }
@@ -104,10 +104,10 @@ export class AocClient {
   getCapabilityAudit(workspaceId = this.workspaceId) { return this.request<{ timeline: AuditTimelineItem[] }>("/api/sdk/audit/capabilities", { query: { workspaceId: workspaceId ?? "" } }); }
   getResourceAudit(resourceId: string, workspaceId = this.workspaceId) { return this.request<{ timeline: AuditTimelineItem[] }>("/api/sdk/audit/resources", { query: { workspaceId: workspaceId ?? "", resourceId } }); }
   getAgentAudit(agentId: string, workspaceId = this.workspaceId) { return this.request<{ timeline: AuditTimelineItem[] }>("/api/sdk/audit/agents", { query: { workspaceId: workspaceId ?? "", agentId } }); }
-  delegateAuthority(input: Record<string, unknown>) { return this.request<{ ok: boolean; delegation: Delegation; delegationToken?: string }>("/api/v1/delegations", { method: "POST", body: input }); }
+  delegateAuthority(input: Record<string, unknown>) { return this.request<{ ok: boolean; delegation: DelegationRecord; delegationToken?: string }>("/api/v1/delegations", { method: "POST", body: input }); }
   revokeDelegation(delegationId: string, input: Record<string, unknown> = {}) { return this.request<{ ok: boolean; delegationId: string; status: string; propagatedRevocations?: number }>(`/api/v1/delegations/${delegationId}/revoke`, { method: "POST", body: input }); }
-  listDelegations(workspaceId = this.workspaceId) { return this.request<{ ok: boolean; delegations: Delegation[] }>("/api/v1/delegations", { query: { workspaceId: workspaceId ?? "" } }); }
-  evaluateDelegatedAccess(input: Record<string, unknown>) { return this.request<{ ok: boolean; decision: string; delegation?: Delegation; chain?: Delegation[] }>("/api/v1/delegations/evaluate", { method: "POST", body: input }); }
+  listDelegations(workspaceId = this.workspaceId) { return this.request<{ ok: boolean; delegations: DelegationRecord[] }>("/api/v1/delegations", { query: { workspaceId: workspaceId ?? "" } }); }
+  evaluateDelegatedAccess(input: Record<string, unknown>) { return this.request<{ ok: boolean; decision: string; delegation?: DelegationRecord; chain?: DelegationRecord[] }>("/api/v1/delegations/evaluate", { method: "POST", body: input }); }
 
 }
 

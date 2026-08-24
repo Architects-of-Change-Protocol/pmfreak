@@ -31,8 +31,8 @@ const policiesRoute      = readFileSync("src/app/api/sdk/policies/route.ts", "ut
 const policyIdRoute      = readFileSync("src/app/api/sdk/policies/[id]/route.ts", "utf8");
 const capActions         = readFileSync("src/app/(protected)/capabilities/actions.ts", "utf8");
 const governanceActions  = readFileSync("src/lib/aoc/runtime/governance-actions.ts", "utf8");
-const governanceCore     = readFileSync("src/aoc/enterprise/runtime/governance-core.ts", "utf8");
-const securityAuditPort  = readFileSync("src/aoc/protocol/ports/security-audit.ts", "utf8");
+const governanceCore     = readFileSync("src/lib/governance/authority/runtime/governance-core.ts", "utf8");
+const securityAuditPort  = readFileSync("src/lib/governance/authority/ports/security-audit.ts", "utf8");
 const telemetry          = readFileSync("src/lib/security/telemetry.ts", "utf8");
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -187,8 +187,8 @@ test("SDK routes propagate decisionId in responses for lineage", () => {
 
 // ── audit taxonomy fix ────────────────────────────────────────────────────────
 
-test("audit taxonomy: governance_action_allowed event type exists in AocGovernanceEventType", () => {
-  assert.match(securityAuditPort, /"governance_action_allowed"/, "AocGovernanceEventType must include governance_action_allowed");
+test("audit taxonomy: governance_action_allowed event type exists in GovernanceAuditEventType", () => {
+  assert.match(securityAuditPort, /"governance_action_allowed"/, "GovernanceAuditEventType must include governance_action_allowed");
 });
 
 test("audit taxonomy: governance_action_allowed event type exists in SecurityEventType", () => {

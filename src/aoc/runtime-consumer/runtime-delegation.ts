@@ -10,7 +10,7 @@ import {
   type DelegationConstraints,
   type DelegationDecision,
   type DelegationInput,
-} from "@/aoc/enterprise/runtime/delegated-capabilities-bridge";
+} from "@/lib/governance/authority/runtime/delegated-capabilities-bridge";
 
 export {
   buildAuthorityLineage,

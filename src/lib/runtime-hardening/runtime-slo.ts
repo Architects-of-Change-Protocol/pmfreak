@@ -48,10 +48,10 @@ const SLOS: Array<RuntimeSLO & { check: () => boolean; evidence: () => string[] 
     description: "governance boundary contracts exist",
     subsystem: "governance",
     check: () =>
-      existsSync(p("src/aoc/enterprise/runtime/governance-core.ts")) &&
-      existsSync(p("src/aoc/enterprise/runtime/authority-port.ts")),
+      existsSync(p("src/lib/governance/authority/runtime/governance-core.ts")) &&
+      existsSync(p("src/lib/governance/authority/runtime/authority-port.ts")),
     evidence: () => ["governance-core.ts", "authority-port.ts"].map(
-      (f) => `src/aoc/enterprise/runtime/${f}: ${existsSync(p("src/aoc/enterprise/runtime", f)) ? "present" : "absent"}`
+      (f) => `src/lib/governance/authority/runtime/${f}: ${existsSync(p("src/lib/governance/authority/runtime", f)) ? "present" : "absent"}`
     ),
   },
   {

@@ -31,8 +31,8 @@ const POLICY_EVAL_ALLOWLIST = new Set([
 // Directory prefixes excluded from local-bypass checks because they ARE the runtime,
 // not the application consuming it.
 const RUNTIME_EXCLUSION_PREFIXES = [
-  "src/aoc/enterprise/",   // AOC Enterprise Runtime package internals
-  "src/aoc/protocol/",     // AOC Protocol definitions and port contracts
+  "src/lib/governance/authority/runtime/",   // PMFreak governance runtime internals
+  "src/lib/governance/authority/",     // PMFreak governance domain and port contracts
 ];
 
 // Files that may have a try/catch that could hide a fallback allow.

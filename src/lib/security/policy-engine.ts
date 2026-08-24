@@ -3,5 +3,5 @@
 // The evaluatePolicyDecision implementation now lives in src/lib/aoc/adapters/policy-evaluation.ts
 // (moved from AOC enterprise runtime as part of the dependency inversion refactor).
 // TODO(aoc-migration): remove this shim once all direct importers are migrated.
-export type { PolicyDecision, PolicyEvaluationInput, PolicyEvaluationResult } from "@/aoc/enterprise/runtime/policy-engine";
+export type { PolicyEvaluationOutcome, PolicyEvaluationInput, PolicyEvaluationResult } from "@/lib/governance/authority/runtime/policy-engine";
 export { evaluatePolicyDecision } from "@/lib/aoc/adapters/policy-evaluation";

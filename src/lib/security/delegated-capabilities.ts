@@ -1,6 +1,6 @@
 import { ensurePmfreakAocAdaptersRegistered } from "@/lib/aoc/bootstrap";
 import { getAocAdapter } from "@/aoc/runtime/adapters";
-import { composeRuntimeContext } from "@/aoc/enterprise/runtime";
+import { composeRuntimeContext } from "@/lib/governance/authority/runtime";
 import {
   buildAuthorityLineage,
   explainDelegationChain,
@@ -11,10 +11,10 @@ import {
   revokeDelegatedCapability as _revokeDelegatedCapability,
   consumeDelegatedCapability as _consumeDelegatedCapability,
   type DelegationInput,
-} from "@/aoc/enterprise/runtime/delegated-capabilities";
+} from "@/lib/governance/authority/runtime/delegated-capabilities";
 
 export { buildAuthorityLineage, explainDelegationChain };
-export type { DelegationConstraints, DelegationDecision, DelegationInput } from "@/aoc/enterprise/runtime/delegated-capabilities";
+export type { DelegationConstraints, DelegationDecision, DelegationInput } from "@/lib/governance/authority/runtime/delegated-capabilities";
 
 function getComposeOptions() {
   return {

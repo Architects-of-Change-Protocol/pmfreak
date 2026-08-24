@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const runtime = fs.readFileSync('src/aoc/enterprise/runtime/delegated-capabilities.ts', 'utf8');
+const runtime = fs.readFileSync('src/lib/governance/authority/runtime/delegated-capabilities.ts', 'utf8');
 const copilot = fs.readFileSync('src/app/api/copilot/route.ts', 'utf8');
 const telemetry = fs.readFileSync('src/lib/security/telemetry.ts', 'utf8');
 

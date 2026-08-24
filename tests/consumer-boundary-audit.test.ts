@@ -31,7 +31,7 @@ const sourceExtensions = new Set([".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", 
 const ignoredDirectories = new Set([".git", ".next", "artifacts", "coverage", "dist", "node_modules"]);
 const protocolSourceRoots = [
   path.join(root, "packages/protocol/src"),
-  path.join(root, "src/aoc/protocol"),
+  path.join(root, "src/lib/governance/authority"),
 ].map((entry) => path.normalize(entry));
 
 /** @param {string} directory @returns {string[]} */
@@ -91,12 +91,12 @@ function classifyImport(file, specifier) {
 
   const normalizedSpecifier = specifier.replaceAll("\\", "/");
   if (
-    normalizedSpecifier === "@/aoc/protocol" ||
-    normalizedSpecifier.startsWith("@/aoc/protocol/") ||
+    normalizedSpecifier === "@/lib/governance/authority" ||
+    normalizedSpecifier.startsWith("@/lib/governance/authority/") ||
     normalizedSpecifier === "@aoc/protocol/src" ||
     normalizedSpecifier.startsWith("@aoc/protocol/src/") ||
     normalizedSpecifier.includes("packages/protocol/src") ||
-    normalizedSpecifier.includes("src/aoc/protocol")
+    normalizedSpecifier.includes("src/lib/governance/authority")
   ) {
     return "deep";
   }

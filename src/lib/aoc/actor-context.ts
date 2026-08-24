@@ -1,12 +1,12 @@
-import type { AocActorContext } from "@/aoc/protocol/actor-model";
+import type { GovernanceActorContext } from "@/lib/governance/authority/actor-model";
 import type { AuthUserContext } from "@/lib/auth";
 
-export type { AocActorContext };
+export type { GovernanceActorContext };
 
-export function resolveUserAocActorContext(
+export function resolveUserGovernanceActorContext(
   user: AuthUserContext,
   opts?: { workspaceId?: string; projectId?: string; roles?: string[]; permissions?: string[] }
-): AocActorContext {
+): GovernanceActorContext {
   return {
     actorId: user.id,
     actorType: "user",
@@ -17,10 +17,10 @@ export function resolveUserAocActorContext(
   };
 }
 
-export function resolveAgentAocActorContext(
+export function resolveAgentGovernanceActorContext(
   agentId: string,
   opts?: { workspaceId?: string; projectId?: string; scopes?: string[] }
-): AocActorContext {
+): GovernanceActorContext {
   return {
     actorId: agentId,
     actorType: "ai_agent",
@@ -30,10 +30,10 @@ export function resolveAgentAocActorContext(
   };
 }
 
-export function createSystemAocActorContext(
+export function createSystemGovernanceActorContext(
   purpose: string,
   opts?: { workspaceId?: string; projectId?: string }
-): AocActorContext {
+): GovernanceActorContext {
   return {
     actorId: `system:${purpose}`,
     actorType: "system",

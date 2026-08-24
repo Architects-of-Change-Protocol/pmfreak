@@ -10,7 +10,7 @@ import type {
   AgentActivationState,
   ContextSeed,
   DeliveryChallenge,
-  AgentId,
+  PmoAgentId,
 } from "@/lib/pmo/pmo-tenant-types";
 import {
   DEFAULT_AGENT_STATES,
@@ -436,7 +436,7 @@ function StepAgents({
   onToggle,
 }: {
   agents: AgentActivationState[];
-  onToggle: (agentId: AgentId) => void;
+  onToggle: (agentId: PmoAgentId) => void;
 }) {
   const coreAgents = agents.filter((a) => AGENT_META[a.agentId].tier === "core");
   const advancedAgents = agents.filter((a) => AGENT_META[a.agentId].tier === "advanced");
@@ -765,7 +765,7 @@ export function CreatePmoWizard() {
     persist({ governance: next });
   };
 
-  const toggleAgent = (agentId: AgentId) => {
+  const toggleAgent = (agentId: PmoAgentId) => {
     const next = agents.map((a) => (a.agentId === agentId ? { ...a, enabled: !a.enabled } : a));
     setAgents(next);
     persist({ agents: next });

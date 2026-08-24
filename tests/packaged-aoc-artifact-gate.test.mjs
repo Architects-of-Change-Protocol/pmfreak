@@ -1,5 +1,5 @@
 /**
- * P0-PKG-04 — negative controls for the packaged AOC artifact gate.
+ * P0-PKG-04 / P0-PKG-05 — negative controls for the packaged AOC artifact gate.
  *
  * A gate that has only ever seen a healthy repository proves nothing: it might pass
  * because everything is correct, or because it never actually looks. These tests
@@ -44,9 +44,21 @@ function fixture(mutate) {
       },
     },
     tsconfig: { compilerOptions: { paths: { "@/*": ["./src/*"] } } },
+    // P0-PKG-05 removed the real local copies. These synthetic manifests keep the
+    // legacy-copy controls alive: they prove that if a local copy is ever
+    // reintroduced, the gate still rejects it for impersonating the canonical name
+    // or for dropping its marker. They are fixtures, not a description of the repo.
     localCopies: {
-      "src/aoc/protocol": readJson(path.join(repositoryRoot, "src/aoc/protocol/package.json")),
-      "src/aoc/enterprise": readJson(path.join(repositoryRoot, "src/aoc/enterprise/package.json")),
+      "src/aoc/protocol": {
+        name: "@pmfreak/aoc-protocol-internal",
+        version: "0.1.0",
+        aocCanonicalStatus: "NON_CANONICAL_LEGACY_COPY",
+      },
+      "src/aoc/enterprise": {
+        name: "@pmfreak/aoc-enterprise-internal",
+        version: "0.1.0",
+        aocCanonicalStatus: "NON_CANONICAL_LEGACY_COPY",
+      },
     },
     sources: {},
   };

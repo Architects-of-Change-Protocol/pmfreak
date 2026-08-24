@@ -1,4 +1,4 @@
-import type { GovernanceAction, GovernanceEvaluationInput } from "@pmfreak/aoc-enterprise-internal";
+import type { GovernanceAction, GovernanceEvaluationInput } from "@/lib/governance/authority/runtime";
 import type { RuntimeScope } from "@/lib/aoc/contracts/metadata";
 
 export type RuntimeAuthorizationRequest = {

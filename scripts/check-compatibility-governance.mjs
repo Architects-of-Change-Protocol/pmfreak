@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 
 const requiredDocs = ['docs/release/compatibility-governance.md'];
+// The local pseudo-packages these paths pointed at are gone (P0-PKG-05). The
+// compatibility surface that matters is the installed frozen artifacts'.
 const requiredExports = [
-  ['src/aoc/protocol/package.json', ['.', './contracts']],
-  ['src/aoc/enterprise/package.json', ['.', './runtime']]
+  ['node_modules/@aoc/protocol/package.json', ['.', './contracts']],
+  ['node_modules/@aoc-enterprise/runtime/package.json', ['.', './runtime']]
 ];
 
 for (const doc of requiredDocs) {

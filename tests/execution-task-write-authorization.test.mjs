@@ -24,7 +24,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AccessDeniedError } from "../src/aoc/enterprise/runtime/access-guards-bridge.ts";
+import { AccessDeniedError } from "../src/lib/governance/authority/runtime/access-guards-bridge.ts";
 import { handleUpdateExecutionTask } from "../src/app/api/execution-tasks/update/route.ts";
 import { handleUpdateExecutionTaskDependency } from "../src/app/api/execution-task-dependencies/update/route.ts";
 import { handleMaterializeExecutionTaskDependencies } from "../src/app/api/execution-task-dependencies/materialize/route.ts";

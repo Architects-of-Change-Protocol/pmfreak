@@ -16,7 +16,7 @@ check("health endpoint exists", () => {
   assert.match(source, /status: "ok"/);
 });
 check("runtime composition defines adapters", () => {
-  const source = readFileSync("src/aoc/enterprise/runtime/composition.ts", "utf8");
+  const source = readFileSync("src/lib/governance/authority/runtime/composition.ts", "utf8");
   assert.match(source, /const trustDomain = adapters\.trustDomain/);
   assert.match(source, /const policyEvaluator = adapters\.policyEvaluator/);
 });

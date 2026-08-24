@@ -232,3 +232,64 @@ The unresolved boundary is handed to a new increment:
 Its scope is the four-step plan in the previous section, and its entry condition is this
 document's 44-symbol inventory and classification. `THREE_REPOSITORY_INTEGRATION` becomes
 claimable at the end of P0-PKG-05, not before.
+
+---
+
+## Addendum — resolved by P0-PKG-05
+
+**Everything above is the P0-PKG-04 record and is left exactly as it was written.** Its
+measurements were true when taken and remain the entry condition for the increment that
+resolved them. This addendum records what happened next; it does not revise the history.
+
+The progression:
+
+```
+P0-PKG-04:
+  packaged artifacts integrated
+  Founder journey passed
+  ownership blocker discovered
+  status at that point = BLOCKED
+
+P0-PKG-05:
+  ownership blocker resolved
+  old pseudo-upstream layer eliminated
+  Founder journey revalidated
+  three-repository integration = claimable
+```
+
+All 44 symbols now carry a final disposition in
+[`governance-ownership.lock.json`](../../governance-ownership.lock.json), validated
+mechanically by `npm run check:governance-ownership`:
+
+| Disposition | Count |
+|---|---|
+| `CANONICAL_UPSTREAM` | 3 |
+| `PMFREAK_DOMAIN` | 18 |
+| `PMFREAK_PORT` | 10 |
+| `PMFREAK_PERSISTENCE_PROJECTION` | 8 |
+| `PMFREAK_IMPLEMENTATION` | 5 |
+| `PMFREAK_ADAPTER` | 0 |
+| `REMOVED_DEAD` | 0 |
+| **TOTAL** | **44** (0 unresolved) |
+
+The four conclusions this report reached all held up under the resolution:
+
+- **27 symbols have no upstream counterpart** — confirmed. They are PMFreak's, and are now
+  named and located as PMFreak's.
+- **Only 3 of 17 name-reachable symbols are shape-compatible** — confirmed against the
+  installed artifact. Those three (`WorkspaceId`, `ProjectId`, `AgentId`) were adopted from
+  `@aoc/protocol`; the other 14 were renamed rather than bound.
+- **The four ports reach upstream only through `@deprecated`, differently-shaped aliases** —
+  confirmed. None was adopted. Each remains a PMFreak-owned port.
+- **No symbol is class-E-only** — confirmed. Neither upstream repository was modified and no
+  public export was widened.
+
+The `@pmfreak/*` alias deviation recorded above is closed: all six entries are gone, and
+`src/aoc/protocol` and `src/aoc/enterprise` are absent. The reasoning behind each decision
+is in [ADR-PMF-075](../adr/ADR-PMF-075-pmfreak-governance-ownership.md).
+
+One thing this report did not surface, because it was scoped to the two directories: three
+further canonical-name collisions existed elsewhere in the graph
+(`CapabilityPermission` and `CapabilityResourceType` in `src/lib/security/capability-flow.ts`,
+and an `AgentId` in `src/lib/pmo/pmo-tenant-types.ts` that was a fixed union of agent role
+keys). The P0-PKG-05 collision gate found them on its first run. They are now renamed.

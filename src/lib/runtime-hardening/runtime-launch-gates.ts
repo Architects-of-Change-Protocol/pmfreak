@@ -29,8 +29,8 @@ const GATE_CHECKS: Record<string, () => { passed: boolean; evidence: string }> =
     return { passed: ok, evidence: ok ? "core test contracts present" : "core test contract missing" };
   },
   governance_readiness: () => {
-    const ok = existsSync(p("src/aoc/enterprise/runtime/governance-core.ts")) &&
-      existsSync(p("src/aoc/enterprise/runtime/authority-port.ts"));
+    const ok = existsSync(p("src/lib/governance/authority/runtime/governance-core.ts")) &&
+      existsSync(p("src/lib/governance/authority/runtime/authority-port.ts"));
     return { passed: ok, evidence: ok ? "governance core and authority port present" : "governance artifacts missing" };
   },
   replay_readiness: () => {

@@ -1,5 +1,5 @@
 import type { AuthUserContext } from "@/lib/auth";
-import type { GovernanceAction } from "@pmfreak/aoc-enterprise-internal";
+import type { GovernanceAction } from "@/lib/governance/authority/runtime";
 import { toGovernanceEvaluationInput, type RuntimeAuthorizationRequest } from "@/lib/aoc/contracts";
 
 export type PMFreakRuntimeContextInput = {

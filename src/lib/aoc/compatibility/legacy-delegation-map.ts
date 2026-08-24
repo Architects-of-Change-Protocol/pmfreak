@@ -1,6 +1,6 @@
-import type { Delegation } from "@/lib/aoc/protocol/types";
+import type { DelegationRecord } from "@/lib/aoc/protocol/types";
 
-export function mapLegacyDelegationToProtocol(delegation: Delegation): Delegation {
+export function mapLegacyDelegationRecord(delegation: DelegationRecord): DelegationRecord {
   return {
     ...delegation,
     metadata: delegation.metadata ?? {},

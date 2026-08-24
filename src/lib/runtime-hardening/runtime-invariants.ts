@@ -51,7 +51,7 @@ const INVARIANTS: Array<RuntimeInvariant & { check: () => boolean; failureEviden
     description: "Governance boundary must be represented in enterprise runtime",
     subsystem: "governance",
     severity: "critical",
-    check: () => existsSync(p("src/aoc/enterprise/runtime/governance-core.ts")),
+    check: () => existsSync(p("src/lib/governance/authority/runtime/governance-core.ts")),
     failureEvidence: "governance-core.ts is missing from enterprise runtime",
   },
   {
@@ -87,7 +87,7 @@ const INVARIANTS: Array<RuntimeInvariant & { check: () => boolean; failureEviden
     subsystem: "runtime_authorization",
     severity: "critical",
     check: () =>
-      existsSync(p("src/aoc/enterprise/runtime/authority-port.ts")) &&
+      existsSync(p("src/lib/governance/authority/runtime/authority-port.ts")) &&
       existsSync(p("src/aoc/runtime-consumer/runtime-authorization.ts")),
     failureEvidence: "authority-port.ts or runtime-authorization.ts is missing",
   },

@@ -48,7 +48,7 @@ const RECOVERY_MAP: Record<FailureClass, RecoveryRecommendation> = {
   },
   governance_boundary_missing: {
     failureClass: "governance_boundary_missing",
-    recommendation: "Restore governance boundary contracts: governance-core.ts and authority-port.ts must exist in src/aoc/enterprise/runtime/. These are critical invariants.",
+    recommendation: "Restore governance boundary contracts: governance-core.ts and authority-port.ts must exist in src/lib/governance/authority/runtime/. These are critical invariants.",
     severity: "critical",
     isAutomated: false,
   },

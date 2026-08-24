@@ -1,5 +1,5 @@
 {
-  "_comment": "PMFreak consumer lock for the frozen AOC packaged artifacts (P0-PKG-04). Records repository, commit, version and SHA-256 of every installed artifact, as required by the pmfreak.obligations block of the frozen aoc.cross-repository-integration@1.0.0 contract shipped inside the @aoc/protocol tarball. Verified by scripts/check-packaged-aoc-artifacts.mjs. This file records identity; it authorizes no publication or release.",
+  "_comment": "PMFreak consumer lock for the frozen AOC packaged artifacts (P0-PKG-04). Records repository, commit, version and SHA-256 of every installed artifact, as required by the pmfreak.obligations block of the frozen aoc.cross-repository-integration@1.0.0 contract shipped inside the @aoc/protocol tarball. Verified by scripts/check-packaged-aoc-artifacts.mjs. P0-PKG-05 additionally removed the retained local copies; ownership of what they contained is recorded in governance-ownership.lock.json. This file records identity; it authorizes no publication or release.",
   "contract": "aoc.cross-repository-integration",
   "contractVersion": "1.0.0",
   "localSourceFallback": {
@@ -27,14 +27,15 @@
     "enforcedBy": "npm run check:packaged-aoc-artifacts (scripts/check-packaged-aoc-artifacts.mjs), with negative controls in tests/packaged-aoc-artifact-gate.test.mjs"
   },
   "localCopies": {
-    "disposition": "RETAINED_NON_CANONICAL",
+    "disposition": "REMOVED",
     "marker": "NON_CANONICAL_LEGACY_COPY",
     "packages": {
       "src/aoc/protocol": "@pmfreak/aoc-protocol-internal",
       "src/aoc/enterprise": "@pmfreak/aoc-enterprise-internal"
     },
-    "rationale": "These directories hold PMFreak's application-shaped governance surface (GovernanceEvaluationInput, GOVERNANCE_POLICY_REGISTRY, protocol ports, actor model). The frozen artifacts deliberately do not carry those shapes \u2014 the upstream canonical contracts are the migration target, not a drop-in replacement \u2014 so removing the directories in this increment would mean rewriting PMFreak's entire governance layer, far outside a focused artifact-integration change. They are retained under NON-canonical names, and mechanically may never satisfy a resolution of the upstream identities.",
-    "constraint": "Neither directory may declare, alias or otherwise resolve the names @aoc/protocol or @aoc-enterprise/runtime."
+    "rationale": "P0-PKG-04 retained these directories as RETAINED_NON_CANONICAL because removing them would have meant deciding, inside a packaging increment, which layer owned the 44 governance symbols they held. P0-PKG-05 made those 44 ownership decisions (governance-ownership.lock.json) and relocated the code to PMFreak-owned space under src/lib/governance/authority, so both directories are now absent. The packages map below is retained as a deny-list: if either directory ever reappears, the gate still requires it to be non-canonical and correctly marked.",
+    "constraint": "Neither directory may exist. Should one be reintroduced, it may never declare, alias or otherwise resolve the names @aoc/protocol or @aoc-enterprise/runtime, and must carry the NON_CANONICAL_LEGACY_COPY marker.",
+    "removedBy": "P0-PKG-05"
   },
   "privateFronteraWorkspaces": {
     "directDependencyAllowed": false,
