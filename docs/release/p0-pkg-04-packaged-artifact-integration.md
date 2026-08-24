@@ -267,7 +267,7 @@ security property the test protects holds. This is P2-15-owned debt (state-chang
 PROTOCOL_PACKAGE_INTEGRATION=PASS
 FRONTERA_PACKAGE_INTEGRATION=PASS
 PMFREAK_FOUNDER_JOURNEY=PASS
-THREE_REPOSITORY_INTEGRATION=NOT CLAIMED — BLOCKED
+THREE_REPOSITORY_INTEGRATION=NOT_CLAIMED
 ```
 
 The first three are established by the evidence above. The fourth is **withheld**: the

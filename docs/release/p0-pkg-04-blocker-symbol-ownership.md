@@ -1,6 +1,6 @@
 # P0-PKG-04 — BLOCKED: symbol ownership cannot yet be mapped to the frozen package surfaces
 
-**Status: BLOCKED.**
+**Status: BLOCKED — execution phase closed.**
 
 **Blocker:** PMFreak still contains active governance symbols whose ownership and public
 contract cannot yet be mapped cleanly to the frozen Protocol / Frontera package surfaces.
@@ -183,7 +183,7 @@ ownership blocker:
 PROTOCOL_PACKAGE_INTEGRATION=PASS
 FRONTERA_PACKAGE_INTEGRATION=PASS
 PMFREAK_FOUNDER_JOURNEY=PASS
-THREE_REPOSITORY_INTEGRATION=NOT CLAIMED — BLOCKED
+THREE_REPOSITORY_INTEGRATION=NOT_CLAIMED
 ```
 
 `THREE_REPOSITORY_INTEGRATION` is **not** claimed. The artifacts are real, pinned and
@@ -216,3 +216,19 @@ scope, in order:
 
 Explicitly **not** in that increment: publication, tagging, registry configuration, and the
 P2-15-owned debt (state-changing `GET /logout`, LIVE retry quality-field semantics).
+
+---
+
+## Handoff
+
+The P0-PKG-04 **execution phase closes here, BLOCKED**. The packaged-artifact integration
+is preserved in full and is not reverted; the local-copy relocation is explicitly *not*
+part of this increment; neither upstream repository was modified; PR #585 is not merged.
+
+The unresolved boundary is handed to a new increment:
+
+> **P0-PKG-05 — PMFreak governance-layer ownership resolution**
+
+Its scope is the four-step plan in the previous section, and its entry condition is this
+document's 44-symbol inventory and classification. `THREE_REPOSITORY_INTEGRATION` becomes
+claimable at the end of P0-PKG-05, not before.
