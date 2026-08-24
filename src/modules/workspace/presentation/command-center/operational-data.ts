@@ -71,6 +71,35 @@ export function useOperationalFlow(workspaceId: string, projectId: string) {
   return { ...result, successGeneration };
 }
 
+/**
+ * P2-15 — a route failure that preserves the canonical stable vocabulary.
+ *
+ * The route answers a refused canonical write with a domain `code`, a human-safe
+ * message, a `recovery` instruction and a `referenceId` correlating it to the redacted
+ * server log line. Collapsing all of that into `new Error(message)` threw the code and
+ * the reference away at the boundary, leaving the surface unable to distinguish "reload
+ * the recorded assertion before asserting again" from "the request failed, retry" — and
+ * leaving the observer with nothing to quote to support.
+ */
+export class OperationalFlowRequestError extends Error {
+  readonly status: number;
+  /** Stable domain code (e.g. `evidence_quality_conflict`), when the route supplied one. */
+  readonly code?: string;
+  /** Machine-readable next step, so a surface can offer recovery without guessing. */
+  readonly recovery?: string;
+  /** Correlates this answer to the server log line holding the real (redacted) error. */
+  readonly referenceId?: string;
+
+  constructor(message: string, init: { status: number; code?: string; recovery?: string; referenceId?: string }) {
+    super(message);
+    this.name = "OperationalFlowRequestError";
+    this.status = init.status;
+    this.code = init.code;
+    this.recovery = init.recovery;
+    this.referenceId = init.referenceId;
+  }
+}
+
 export async function postOperationalFlow(workspaceId: string, projectId: string, payload: AnyRecord) {
   const response = await fetch("/api/operational-flow", {
     method: "POST",
@@ -78,7 +107,14 @@ export async function postOperationalFlow(workspaceId: string, projectId: string
     body: JSON.stringify({ workspaceId, projectId, ...payload }),
   });
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error ?? "Operational flow action failed.");
+  if (!response.ok) {
+    throw new OperationalFlowRequestError(result.error ?? "Operational flow action failed.", {
+      status: response.status,
+      code: typeof result.code === "string" ? result.code : undefined,
+      recovery: typeof result.recovery === "string" ? result.recovery : undefined,
+      referenceId: typeof result.referenceId === "string" ? result.referenceId : undefined,
+    });
+  }
   return result;
 }
 

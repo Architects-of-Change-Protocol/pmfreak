@@ -28,6 +28,7 @@ const sourceKeys = read("src/lib/operational-flow/intake-source-keys.ts");
 const clientData = read("src/modules/workspace/presentation/command-center/operational-data.ts");
 const intakePanel = read("src/modules/workspace/presentation/command-center/vault-intake-panel.tsx");
 const logoutRoute = read("src/app/logout/route.ts");
+const shell = read("src/components/pmfreak/operational-shell.tsx");
 const textCaptureModal = read("src/components/pmfreak/intelligence-inbox/text-capture-modal.tsx");
 // The migration corpus is CRLF; normalise so positional assertions below compare text,
 // not line endings.
@@ -270,21 +271,46 @@ test("P2-14 repair: one logical LIVE submission keeps one identity across a retr
 
 // ───────────────────────────── destructive GET ─────────────────────────────
 
-test("P2-14 repair: the sign-out prefetch guard tests for PRESENCE, not one value", () => {
-  // `Next-Router-Prefetch` is an enum of fetch strategies, not a boolean: Next 16.2.10 sends
-  // `2` for the segment cache's PPR runtime strategy. A guard pinned to `"1"` would let the
-  // destructive branch run again the moment PPR is enabled.
+test("P2-15 repair: sign-out is a POST, and GET cannot mutate authentication at all", () => {
+  // P2-14 made a state-changing GET SAFE by recognising speculative requests. P2-15 makes
+  // it INERT: the GET handler performs no session mutation, so a speculative request this
+  // route fails to classify can no longer end a session. Recognition is defence in depth,
+  // not the mechanism.
+  const getHandler = logoutRoute.slice(
+    logoutRoute.indexOf("export async function GET"),
+    logoutRoute.indexOf("export async function POST")
+  );
+  assert.ok(getHandler.length > 0, "GET handler must exist");
+  assert.ok(!/signOut/.test(getHandler), "GET must never call signOut");
+  assert.ok(!/createSupabaseServerClient/.test(getHandler), "GET must not open an auth-capable client");
+  assert.match(getHandler, /status:\s*405/);
+  assert.match(getHandler, /Allow:\s*"POST"/);
+
+  // The destructive transition exists, on POST only.
+  assert.match(logoutRoute, /export async function POST\(request: Request\)/);
+  const postHandler = logoutRoute.slice(logoutRoute.indexOf("export async function POST"));
+  assert.match(postHandler, /await supabase\.auth\.signOut\(\);/);
+  assert.match(postHandler, /NextResponse\.redirect\(new URL\("\/login", request\.url\), 303\)/);
+
+  // Retained defence in depth: PRESENCE, not one exact value. `Next-Router-Prefetch` is an
+  // enum of fetch strategies, not a boolean — Next 16.2.10 sends `2` for the segment
+  // cache's PPR runtime strategy, so a guard pinned to `"1"` would stop recognising it.
   assert.match(logoutRoute, /request\.headers\.has\("next-router-prefetch"\)/);
   assert.ok(
     !/headers\.get\("next-router-prefetch"\) === "1"/.test(logoutRoute) &&
       !/header\("next-router-prefetch"\) === "1"/.test(logoutRoute),
     "the guard must not depend on one exact header value"
   );
-  // The other speculative signals are unchanged, and a real navigation still signs out.
   assert.match(logoutRoute, /\/\\bprefetch\\b\/i\.test\(header\("purpose"\)\)/);
   assert.match(logoutRoute, /\/\\bprefetch\\b\/i\.test\(header\("sec-purpose"\)\)/);
-  assert.match(logoutRoute, /await supabase\.auth\.signOut\(\);/);
-  assert.match(logoutRoute, /NextResponse\.redirect\(new URL\("\/login", request\.url\)\)/);
+});
+
+test("P2-15 repair: the shell submits sign-out rather than linking to it", () => {
+  // A <Link> made sign-out a GET, and Next prefetches links entering the viewport — which
+  // is how rendering the shell ended the session. A form POST is not prefetchable.
+  assert.match(shell, /<form action="\/logout" method="post"/);
+  assert.match(shell, /<button\s*\n?\s*type="submit"/);
+  assert.ok(!/href="\/logout"/.test(shell), "sign-out must not be a navigable GET target");
 });
 
 // ───────────────────────────── error leakage ─────────────────────────────

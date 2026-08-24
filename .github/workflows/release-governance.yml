@@ -1,11 +1,69 @@
 name: Release Governance
+
+# P2-15. Two responsibilities, deliberately separated so that validation never carries
+# release-write authority:
+#
+#   beta-release-validation — runs the existing `check:beta-release` orchestrator.
+#     Read-only. Runs on pull_request as well as push, because a release gate that only
+#     runs after merge cannot block anything. Until P2-15 this orchestrator existed, was
+#     tested, and was named a launch gate in docs/productization/saas/10-launch-gates.md,
+#     but no workflow invoked it.
+#
+#   release — versioning/publication via Changesets. Push-to-main only, and the ONLY job
+#     holding `contents: write` / `pull-requests: write`. A pull_request run must never be
+#     able to reach it, so it is gated on both the event and the ref, and sequenced behind
+#     validation via `needs`.
 on:
+  pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+
+# Read-only by default; the release job re-grants exactly what it needs and nothing else.
+permissions:
+  contents: read
 
 jobs:
-  release:
+  beta-release-validation:
+    name: Beta Release Validation
     runs-on: ubuntu-latest
+    # The orchestrator runs build:aoc, typecheck, lint, tests, the Next.js build,
+    # governance, runtime/production/database/security gates and launch smoke in sequence.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      # Blocking/advisory severity is owned by scripts/check-beta-release.mjs, which exits
+      # 1 only on a BLOCKING gate failure — advisory gates report CONDITIONAL/WARN and are
+      # tracked in docs/release/residual-risk-register.md. That classification is NOT
+      # reinterpreted here: no `continue-on-error`, no `|| true`, no exit-code rewriting.
+      # The job's success is exactly the orchestrator's own GO / CONDITIONAL GO decision.
+      - name: Beta release gate
+        run: npm run check:beta-release
+      - name: Upload beta release gate logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta-release-logs-${{ github.run_id }}
+          path: .beta-release-logs/
+          if-no-files-found: warn
+
+  release:
+    name: Release / Changesets
+    runs-on: ubuntu-latest
+    needs: beta-release-validation
+    # Belt and braces: `needs` orders the jobs; this condition is what makes a
+    # pull_request run structurally incapable of reaching a write-authorised job.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write

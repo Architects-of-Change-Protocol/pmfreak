@@ -137,9 +137,33 @@ const identicalDigests = new Set(identical.map((x) => x.body.proposal?.proposal_
 const identicalEvaluations = new Set(identical.map((x) => x.body.evaluation?.id));
 equal(identicalIds.size, 1, "identical action identity"); equal(identicalDigests.size, 1, "identical digest"); equal(identicalEvaluations.size, 1, "identical evaluation identity");
 const identicalId = [...identicalIds][0];
+// ALLOW. The gate asserted DENY, DEGRADED, UNAVAILABLE and REVOKE explicitly but never the
+// authorized state itself, so the one governance outcome that actually permits a material
+// action was the only one taken on trust. An owner proposing against a decision that
+// carries a governance event must evaluate to `authorized`, and that is the sole state
+// which may set `can_commit_action`.
+const identicalCreate = identical.find((x) => x.status === 201);
+equal(identicalCreate.body.evaluation.governance_state, "authorized", "authorized state");
+equal(identicalCreate.body.evaluation.can_commit_action, true, "authorized permits commit");
+// Never execution: AOC-E authorizes, it does not act.
+equal(identicalCreate.body.evaluation.can_execute, false, "authorization is not execution");
 equal((await admin.from("material_action_proposals").select("id", { count: "exact", head: true }).eq("id", identicalId)).count, 1, "one proposal row");
 equal((await admin.from("material_action_governance_evaluations").select("id", { count: "exact", head: true }).eq("action_id", identicalId)).count, 1, "one evaluation row");
-equal((await admin.from("material_action_audit_events").select("id", { count: "exact", head: true }).eq("action_id", identicalId)).count, 1, "one success audit row");
+// Exactly ONE success audit row — which is what this assertion always meant, and what its
+// label says. It previously counted EVERY audit row for the action, which contradicts the
+// contract's own documented concurrent-recovery design: the advisory lock lives inside the
+// RPC, so racing callers can each derive their own `now`, produce a different digest, and be
+// told `material_action_idempotency_conflict`. Each loser writes a `conflict` audit event
+// before the service performs its single documented recovery attempt and replays cleanly.
+// Those conflict rows are correct and wanted — a refused write is an auditable fact — and
+// their number is a property of machine timing, not of the contract: three consecutive local
+// runs produced 6, 6 and 7 rows for one action. Counting them made a passing contract fail,
+// and hid every governance assertion below this line.
+const identicalAudit = await admin.from("material_action_audit_events").select("event_type").eq("action_id", identicalId);
+assert.ifError(identicalAudit.error);
+equal(identicalAudit.data.filter((row) => row.event_type !== "conflict").length, 1, "one success audit row");
+// Nothing other than the success row and concurrency conflicts may be recorded for it.
+equal(new Set(identicalAudit.data.map((row) => row.event_type)).size <= 2, true, "only success and conflict events");
 
 const conflictKey = `conflict-${suffix}`;
 const conflicting = await Promise.all([

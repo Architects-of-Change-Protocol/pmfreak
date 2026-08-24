@@ -141,7 +141,15 @@ test("P2-14: canonical intake failures map to honest client statuses, not 500", 
   assert.match(route, /const unauthenticated = \/\(\?:\^\|\[\\s:\]\)\[a-z_\]\*unauthenticated\$\/\.test\(message\);/);
   assert.match(route, /unauthenticated \? 401/);
   assert.match(route, /fixture_prohibited/);
-  assert.match(route, /idempotency_conflict\/\.test\(message\) \? 409/);
+  // A canonical idempotency conflict is still answered 409 — P2-15 moved it OFF the inline
+  // status ladder into the stable conflict vocabulary, because the ladder returned the raw
+  // `<rpc>: <postgres message>` string as the body. Same status, no driver text.
+  assert.match(route, /const conflict = resolveOperationalFlowConflict\(message\);/);
+  assert.match(route, /\{ status: 409 \}/);
+  assert.ok(
+    !/\{ error: message \}, \{ status: 409 \}/.test(route),
+    "a conflict must never be answered with the raw RPC message"
+  );
 });
 
 test("P2-14: the browser never supplies identity, authority or governance time", () => {

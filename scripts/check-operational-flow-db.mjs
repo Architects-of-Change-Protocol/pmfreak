@@ -135,6 +135,22 @@ try {
   assert.equal(replayApi.response.status, 200); assert.equal(replayApi.payload.disposition, "duplicate");
   const conflictApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ operation: "derive_evidence", workspaceId: workspaceA, projectId: projectA, normalizedEventId: captureApi.payload.normalizedEvent.id, idempotencyKey: `evidence-${suffix}`, assertionType: "INFERENCE", classification: "UNCLASSIFIED", confidenceScore: 0.5, missingDataState: "UNKNOWN", evaluatedAt: new Date().toISOString() }) });
   assert.equal(conflictApi.response.status, 409);
+  // P2-15. Same logical attempt, CHANGED evidence quality -> explicit immutable conflict.
+  // The recorded assertion is not coerced, not replayed and not duplicated; the caller gets
+  // the stable vocabulary instead of the raw `<rpc>: <postgres message>` string the route
+  // used to echo. Asserted live, because the leak was a response-body fact.
+  assert.equal(conflictApi.payload.disposition, "conflict");
+  assert.equal(conflictApi.payload.code, "evidence_quality_conflict");
+  assert.equal(conflictApi.payload.recovery, "reload_recorded_assertion");
+  assert.match(conflictApi.payload.referenceId, /^[0-9a-f-]{36}$/);
+  for (const leak of [/derive_operational_evidence/, /evidence_items/, /idempotency_conflict/]) {
+    assert.ok(!leak.test(JSON.stringify(conflictApi.payload)), `conflict body must not leak ${leak}`);
+  }
+  // The refusal must not have written a second Evidence row for this event.
+  const evidenceForEvent = await admin.from("evidence_items").select("id", { count: "exact", head: true })
+    .eq("normalized_event_id", captureApi.payload.normalizedEvent.id);
+  assert.ifError(evidenceForEvent.error);
+  assert.equal(evidenceForEvent.count, 1, "a refused quality change must not mint a second Evidence assertion");
   const apiEvidenceId = createApi.payload.evidence.id;
   const chainApi = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ operation: "run_chain", workspaceId: workspaceA, projectId: projectA, evidenceItemId: apiEvidenceId }) });
   assert.equal(chainApi.response.status, 200);
@@ -157,6 +173,11 @@ try {
   assert.equal(duplicateIntake.payload.rawInput.id, intakeApi.payload.rawInput.id);
   const conflictingIntake = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: ownerCookie }, body: JSON.stringify({ ...intakeBody, content: "Conflicting retry" }) });
   assert.equal(conflictingIntake.response.status, 409);
+  // P2-15. Same stable vocabulary for the Raw Input content conflict, distinguished from
+  // the Evidence quality conflict so a caller can tell the two apart.
+  assert.equal(conflictingIntake.payload.code, "intake_content_conflict");
+  assert.match(conflictingIntake.payload.referenceId, /^[0-9a-f-]{36}$/);
+  assert.ok(!/intake_idempotency_conflict/.test(JSON.stringify(conflictingIntake.payload)), "intake conflict body must not leak the raw signal");
   const viewerIntake = await apiJson("/api/operational-flow", { method: "POST", headers: { "content-type": "application/json", cookie: viewerCookie }, body: JSON.stringify({ ...intakeBody, idempotencyKey: `viewer-${suffix}` }) });
   assert.equal(viewerIntake.response.status, 403);
   const outsiderRawRead = await (await createUser("second-outsider-reader")).from("operational_raw_inputs").select("id").eq("id", intakeApi.payload.rawInput.id);
