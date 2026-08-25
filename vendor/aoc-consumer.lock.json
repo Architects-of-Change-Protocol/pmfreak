@@ -4,7 +4,7 @@
   "contractVersion": "1.0.0",
   "localSourceFallback": {
     "allowed": false,
-    "rationale": "The canonical @aoc/protocol and @aoc-enterprise/runtime are the frozen packaged artifacts recorded below. Falling back to a repository-local source copy \u2014 under any specifier, alias or resolution path \u2014 would silently restore the pre-P0-PKG-04 state in which no import crossed a real package boundary, while the evidence in this file continued to assert that it did. There is no permitted fallback, not even a temporary or diagnostic one.",
+    "rationale": "The canonical @aoc/protocol and @aoc-enterprise/runtime are the frozen packaged artifacts recorded below. Falling back to a repository-local source copy — under any specifier, alias or resolution path — would silently restore the pre-P0-PKG-04 state in which no import crossed a real package boundary, while the evidence in this file continued to assert that it did. There is no permitted fallback, not even a temporary or diagnostic one.",
     "forbiddenSpecifiers": [
       "file:src/aoc/protocol",
       "file:src/aoc/enterprise",
@@ -53,7 +53,7 @@
       "version": "0.2.0-rc.0",
       "sourceRepository": "Soberania-Protocol/Soberania_Protocol",
       "sourceCommit": "dde34517d956156a0c735c18a805763a5e712879",
-      "sourceCommitNote": "PR #387 was squash-merged; the RC source commit is not an ancestor of main but is retained on origin/claude/soberania-protocol-rc-package-fg02tq, and main (merge commit below) differs from it only in docs/release evidence files \u2014 no packaging input differs.",
+      "sourceCommitNote": "PR #387 was squash-merged; the RC source commit is not an ancestor of main but is retained on origin/claude/soberania-protocol-rc-package-fg02tq, and main (merge commit below) differs from it only in docs/release evidence files — no packaging input differs.",
       "mergedVia": "PR #387",
       "mergeCommit": "7ce27f1be0980bf75a23eb4b15ed0a45d8bfd2f3",
       "tarball": "vendor/aoc-protocol-0.2.0-rc.0.tgz",
@@ -85,21 +85,21 @@
     },
     "@aoc-enterprise/runtime": {
       "package": "@aoc-enterprise/runtime",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourceRepository": "Soberania-Protocol/Soberania-Enterprise",
-      "sourceCommit": "11edd06e7d6ea38ae0bc037e91854444b84a50a7",
-      "sourceCommitNote": "Ancestor of main via PR #111 merge commit below.",
-      "mergedVia": "PR #111",
-      "mergeCommit": "7d8b6baad6c675d730e89e58ca4e426b3a3b747a",
-      "tarball": "vendor/aoc-enterprise-runtime-1.0.0.tgz",
-      "sha256": "53d9e6ce4f3ba8fd82bbd90ebe5bc53f8bffb597b0d11bfd22d9a1ba5245a2de",
-      "sha512": "bbf9f4780d373797a384e10c41c9546dcedcd2249b937c8485045c6e7b1ac6bade6b690234630f63ae32d0bd8f3a726347be851c7b28010e77629a3e3cc18eb9",
-      "npmIntegrity": "sha512-u/n0eA03N5ejhOEMQclUbc7c0iSbk3yEhQRcbnsaxrrea2kCNGMPY64y0L2POnJjR76FHHsoAQ53Ypo+PMGOuQ==",
-      "sizeBytes": 3303573,
-      "fileCount": 6298,
+      "sourceCommit": "74308ad1ee21108b9c1964ddf8f7530ba8c5308f",
+      "sourceCommitNote": "P0-PKG-07. Ancestor of Soberania-Enterprise main via the PR #112 merge commit below; verified locally with `git merge-base --is-ancestor`.",
+      "mergedVia": "PR #112",
+      "mergeCommit": "8e7ded3b70855a47eb01bf2a9bc466f098b02438",
+      "tarball": "vendor/aoc-enterprise-runtime-1.1.0.tgz",
+      "sha256": "ab4072b7c34971265ba637e63c7fd21bd8a95a5ef342056d59632f8ff6200e60",
+      "sha512": "65f4f6da2cab2abe72ced1abfa29c9ee904c9020f0d58b92c81d86eeccc2ccbec4c81b58bf0eedef044c66817b1ea663b525ea9a32dc2a8a5f8a54d87e25f320",
+      "npmIntegrity": "sha512-ZfT22iyrKr5yztGr+inJ7pBMkCDw1YuSyB2G7szCzL7EyBtYvw7t7wRMZoF7HqZjtSXqmjLcKopfilTYfiXzIA==",
+      "sizeBytes": 3375780,
+      "fileCount": 6362,
       "exportsFingerprint": "2b0ee1e3afee7c02d600615771eac3fa8aeec680c27bf4189041715729a22438",
       "reproducedLocally": true,
-      "reproductionProcedure": "git worktree detached at sourceCommit; npm ci; npm run build; npm pack . (node v22.22.2, npm 10.9.7)",
+      "reproductionProcedure": "git worktree detached at sourceCommit; npm ci; npm run build; npm pack . (node v22.22.2, npm 10.9.7). Reproduced bit-for-bit in this environment: the resulting tarball SHA-256 equalled the frozen value above before it was vendored, and npm pack itself reported \"total files: 6362\".",
       "declaredExports": [
         ".",
         "./authorization",
@@ -111,8 +111,10 @@
         "./kernel",
         "./enterprise",
         "./kernel-host"
-      ]
+      ],
+      "mergeCommitNote": "Verified live: this SHA is the current head of Soberania-Enterprise main and its message names \"Merge pull request #112 ... P0-PKG-07: productionize durable Frontera authority/recognition for external enforcement\".",
+      "exportsFingerprintNote": "Byte-identical to 1.0.0 and verified, not copied: the fingerprint covers the export MAP only, and P0-PKG-07 added its durable-authority surface to the existing ./enterprise and ./kernel subpaths without introducing a new one. Recomputed from the INSTALLED 1.1.0 manifest by scripts/check-packaged-aoc-artifacts.mjs on every run."
     }
   },
-  "exportsFingerprintAlgorithm": "sha256 of JSON.stringify(Object.keys(pkg.exports).sort().map((k) => [k, pkg.exports[k]])) \u2014 identical to scripts/fingerprint-public-surface.mjs (exportMap digest) in Soberania-Protocol/Soberania_Protocol"
+  "exportsFingerprintAlgorithm": "sha256 of JSON.stringify(Object.keys(pkg.exports).sort().map((k) => [k, pkg.exports[k]])) — identical to scripts/fingerprint-public-surface.mjs (exportMap digest) in Soberania-Protocol/Soberania_Protocol"
 }

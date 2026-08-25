@@ -22,7 +22,7 @@
     "check:lifecycle": "node scripts/check-lifecycle-integrity.mjs",
     "check:release-readiness": "node scripts/check-release-readiness.mjs",
     "check:ci-workflow-integrity": "node scripts/check-ci-workflow-integrity.mjs",
-    "check:governance": "npm run check:aoc-boundaries && npm run check:no-local-auth-bypass && npm run check:runtime-contract-drift && npm run check:db-contract && npm run check:package-exports && npm run check:compatibility && npm run check:lifecycle && npm run check:ci-workflow-integrity && npm run check:release-readiness && npm run check:package-purity && npm run check:packaged-aoc-artifacts",
+    "check:governance": "npm run check:aoc-boundaries && npm run check:no-local-auth-bypass && npm run check:runtime-contract-drift && npm run check:db-contract && npm run check:package-exports && npm run check:compatibility && npm run check:lifecycle && npm run check:ci-workflow-integrity && npm run check:release-readiness && npm run check:package-purity && npm run check:packaged-aoc-artifacts && npm run check:frontera-consumer",
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish",
@@ -93,10 +93,12 @@
     "compliance:check": "npm run compliance:repository:check && npm run compliance:publication:check && npm run compliance:artifacts:drift && npm run compliance:licenses:generate && npm run compliance:licenses:check && npm run compliance:sbom && npm run compliance:ip:check && npm run compliance:test",
     "check:governance-collisions": "node scripts/check-governance-collisions.mjs",
     "check:governance-ownership": "node scripts/check-governance-ownership.mjs",
-    "check:governance-boundary": "npm run check:governance-ownership && npm run check:governance-collisions"
+    "check:governance-boundary": "npm run check:governance-ownership && npm run check:governance-collisions",
+    "check:frontera-consumer": "node scripts/check-frontera-product-consumer.mjs",
+    "provision:founder-frontera": "node scripts/provision-founder-frontera-authority.mjs"
   },
   "dependencies": {
-    "@aoc-enterprise/runtime": "file:vendor/aoc-enterprise-runtime-1.0.0.tgz",
+    "@aoc-enterprise/runtime": "file:vendor/aoc-enterprise-runtime-1.1.0.tgz",
     "@aoc/protocol": "file:vendor/aoc-protocol-0.2.0-rc.0.tgz",
     "@supabase/auth-helpers-nextjs": "^0.15.0",
     "@supabase/ssr": "^0.10.2",

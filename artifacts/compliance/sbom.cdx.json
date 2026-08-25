@@ -1,10 +1,10 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:ff582f79-0818-4b99-959a-248dc8f9d7f9",
+  "serialNumber": "urn:uuid:b531d0b7-5fe5-4d1b-8527-69715ec43b21",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-08-24T18:06:02.624Z",
+    "timestamp": "2026-08-25T02:41:39.569Z",
     "tools": [
       {
         "vendor": "PMFreak",
@@ -26,11 +26,11 @@
       "properties": [
         {
           "name": "repositoryCommit",
-          "value": "4d2aa24981e73bc4790ad1b2456de10fd41300d1"
+          "value": "4caf14cd2d720c389c6258f039702f6edf50dfc6"
         },
         {
           "name": "lockfileSha256",
-          "value": "810748f604c198d6d0bd98e0c14a880e34721796c88fb6378af029603e849a7b"
+          "value": "76670f53fe40cb655040832fbcb095baa37cf0e39f16b0cea88fea88d9f73ea2"
         }
       ]
     }
@@ -63,8 +63,8 @@
     {
       "type": "library",
       "name": "@aoc-enterprise/runtime",
-      "version": "1.0.0",
-      "purl": "pkg:npm/%40aoc-enterprise%2Fruntime@1.0.0",
+      "version": "1.1.0",
+      "purl": "pkg:npm/%40aoc-enterprise%2Fruntime@1.1.0",
       "scope": "required",
       "licenses": [
         {

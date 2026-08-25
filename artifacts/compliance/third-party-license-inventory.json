@@ -1,10 +1,10 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-08-24T18:06:01.973Z",
-  "repositoryCommit": "4d2aa24981e73bc4790ad1b2456de10fd41300d1",
+  "generatedAt": "2026-08-25T02:41:39.183Z",
+  "repositoryCommit": "4caf14cd2d720c389c6258f039702f6edf50dfc6",
   "lockfile": {
     "path": "package-lock.json",
-    "sha256": "810748f604c198d6d0bd98e0c14a880e34721796c88fb6378af029603e849a7b",
+    "sha256": "76670f53fe40cb655040832fbcb095baa37cf0e39f16b0cea88fea88d9f73ea2",
     "lockfileVersion": 3
   },
   "packageManager": "npm",
@@ -35,7 +35,7 @@
     },
     {
       "name": "@aoc-enterprise/runtime",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "relationship": "direct",
       "scope": "runtime",
       "declaredLicense": "UNKNOWN",

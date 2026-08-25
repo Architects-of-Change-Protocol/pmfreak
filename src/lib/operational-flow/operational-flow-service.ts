@@ -17,6 +17,9 @@ import type {
   RecordOutcomeObservationInput,
 } from "./types";
 import { createHash, randomUUID } from "node:crypto";
+import { logger } from "@/lib/observability/logger";
+import { authorizeFronteraDispatch } from "@/lib/integrations/frontera";
+import type { FronteraEnforcementDeps } from "@/lib/integrations/frontera";
 import {
   createPMFreakMaterialActionProposal,
   evaluatePMFreakMaterialActionGovernance,
@@ -362,10 +365,44 @@ export async function proposeGovernedMaterialAction(client: Client, scope: Scope
   return { ...data, authorizationMessage: "Authorized does not mean Executed.", taskMessage: "No task has been created.", dispatchMessage: "No action has been dispatched.", remoteAocMessage: "Remote AOC writeback is not enabled." } as Record<string, unknown> & { disposition?: string };
 }
 
+/**
+ * P0-PKG-06. The Frontera enforcement boundary sits here, and only here.
+ *
+ * Frontera is asked BEFORE the dispatch RPC because the RPC is the side
+ * effect: it is where the Task is created, under the advisory lock and the
+ * unique expression index that make one governed Action yield at most one
+ * Task. A denial arriving after it would have nothing left to prevent.
+ *
+ * Frontera is asked on EVERY dispatch attempt, including one PMFreak would
+ * itself refuse. A pre-check that skipped the Frontera call for an
+ * apparently-ineligible action was considered and rejected twice over: it
+ * would restate PMFreak governance semantics outside the RPC that owns them,
+ * and — worse — it would open a hole, because an action that looked
+ * ineligible at read time but passed the RPC's own re-check a moment later
+ * would then dispatch having never been authorized at all. Asking every time
+ * costs one read-only evaluation and has neither problem.
+ *
+ * Composition is conjunction, and Frontera can only narrow:
+ *
+ *     PMFREAK_DENY  + FRONTERA_ALLOW  = DENY   (the RPC still refuses)
+ *     PMFREAK_ALLOW + FRONTERA_DENY   = DENY   (the RPC is never reached)
+ *     PMFREAK_ALLOW + FRONTERA_ALLOW  = dispatch
+ *
+ * A Frontera ALLOW is never sufficient on its own: it does not skip, relax or
+ * pre-satisfy a single PMFreak precondition, all of which the RPC re-checks
+ * inside its own transaction afterwards.
+ */
+export type DispatchGovernedActionDeps = {
+  /** Test seam. Production uses the packaged Frontera runtime. */
+  readonly authorizeDispatch?: typeof authorizeFronteraDispatch;
+  readonly fronteraDeps?: FronteraEnforcementDeps;
+};
+
 export async function dispatchGovernedMaterialActionToTask(
   client: Client,
   scope: Scope,
   input: { actionId: string; expectedProposalDigest?: string | null },
+  deps: DispatchGovernedActionDeps = {},
 ) {
   if (!canCreateOperationalEvidence(scope.role ?? null)) throw new Error("action_task_write_denied");
 
@@ -373,6 +410,42 @@ export async function dispatchGovernedMaterialActionToTask(
   const expectedProposalDigest = input.expectedProposalDigest?.trim() || null;
   if (expectedProposalDigest && !/^[a-f0-9]{64}$/.test(expectedProposalDigest)) {
     throw new Error("action_task_expected_digest_invalid");
+  }
+
+  const authorize = deps.authorizeDispatch ?? authorizeFronteraDispatch;
+  const frontera = await authorize(
+    {
+      workspaceId: scope.workspaceId,
+      projectId: scope.projectId,
+      principalUserId: scope.userId,
+      actionId,
+    },
+    deps.fronteraDeps,
+  );
+
+  // Fail closed. Denial, revocation, an unbound principal, an unreachable or
+  // corrupt store, a kernel error and a malformed result all land here, and
+  // none of them reaches the RPC.
+  if (!frontera.allowed) {
+    // Frontera's reason codes and any infrastructure diagnostic stay server-side.
+    // They are what an operator needs and precisely what an arbitrary client
+    // should not be told about another system's authority structure; the
+    // caller gets a narrow failure class and nothing further.
+    logger.warn("governed material action dispatch refused at the Frontera boundary", {
+      routeId: "operational-flow.dispatch_material_action_to_task",
+      actionId,
+      workspaceId: scope.workspaceId,
+      projectId: scope.projectId,
+      failureClass: frontera.failureClass,
+      fronteraReasonCodes: frontera.reasonCodes,
+      fronteraDecisionId: frontera.decisionId,
+      diagnostic: frontera.diagnostic,
+    });
+    return {
+      disposition: "denied" as const,
+      failureClass: frontera.failureClass,
+      reason: "frontera_enforcement_denied",
+    };
   }
 
   const result = await client.rpc("dispatch_governed_action_to_internal_task", {
@@ -386,7 +459,16 @@ export async function dispatchGovernedMaterialActionToTask(
     throw new Error(`dispatch_governed_action_to_internal_task:${result.error?.message ?? "no_data"}`);
   }
 
-  return result.data as Record<string, unknown> & {
+  // The RPC stays the transaction and idempotency boundary: the Task is created
+  // there, once, or not at all. Frontera authorized the attempt; it did not
+  // create anything and cannot.
+  // Correlation only. The Frontera decision id is an opaque handle that ties
+  // this dispatch to Frontera's own audit trail; it is not PMFreak evidence and
+  // is not written to any PMFreak table.
+  return {
+    ...(result.data as Record<string, unknown>),
+    fronteraDecisionId: frontera.decisionId,
+  } as Record<string, unknown> & {
     disposition?: "created" | "existing" | "conflict" | "denied";
     failureClass?: string;
   };

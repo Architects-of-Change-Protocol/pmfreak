@@ -53,6 +53,8 @@ const chainIds = {
   outcomeId: "",
   observationId: "",
   liveEvidenceId: "",
+  // P0-PKG-06: the Frontera decision this journey's dispatch was authorized by.
+  fronteraDecisionId: "",
 };
 
 /** Named acceptance checkpoints, reported at the end of the run. */
@@ -367,6 +369,18 @@ test.describe.serial("P2-14 authenticated two-tenant Founder browser story", () 
     });
     expect([200, 201], `retry disposition (${retry.bodyText.slice(0, 200)})`).toContain(retry.status);
 
+    // P0-PKG-06. Proof that this browser-driven dispatch crossed the real Frontera
+    // boundary rather than running beside it: the response carries the opaque
+    // decision id minted by AocKernel.evaluate() against the durable, operator-
+    // provisioned authority world. It cannot be produced without that evaluation
+    // returning `allowed`, and PMFreak never mints one itself. If Frontera had
+    // denied, or been unreachable, the dispatch would have failed closed above and
+    // there would be no Task to retry at all.
+    expect(retry.bodyText, "FRONTERA_BOUNDARY_NOT_TRAVERSED").toContain('"fronteraDecisionId"');
+    const fronteraDecisionId = String(JSON.parse(retry.bodyText).fronteraDecisionId ?? "");
+    expect(fronteraDecisionId.length, "Frontera decision id is present and non-empty").toBeGreaterThan(0);
+    chainIds.fronteraDecisionId = fronteraDecisionId;
+
     summary = await readSummary(page, TENANT_A.workspaceId, TENANT_A.projectId);
     expect(countOf(summary, "tasks"), "TASK_RETRY_DUPLICATE").toBe(1);
     expect(String((summary.tasks ?? [])[0].id)).toBe(chainIds.taskId);
@@ -377,7 +391,7 @@ test.describe.serial("P2-14 authenticated two-tenant Founder browser story", () 
     await enterOperationalSurface();
     summary = await readSummary(page, TENANT_A.workspaceId, TENANT_A.projectId);
     expect(countOf(summary, "tasks"), "no duplicate Task after refresh").toBe(1);
-    checkpoint("STEP_12", `Task ${chainIds.taskId} created from Action ${chainIds.actionId}; retry and hard refresh both yielded exactly 1`);
+    checkpoint("STEP_12", `Task ${chainIds.taskId} created from Action ${chainIds.actionId} through Frontera decision ${chainIds.fronteraDecisionId}; retry and hard refresh both yielded exactly 1`);
   });
 
   // ──────────────────────── STEP 13: INTERNAL EXECUTION ────────────────────────
