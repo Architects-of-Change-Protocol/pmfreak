@@ -254,3 +254,83 @@ in Frontera" is now **discharged**: that work was done, merged, and consumed.
 Neither upstream repository was modified in either phase. No public export was
 widened, no deep or private import was introduced, nothing was published, and no
 PMFreak schema, migration or RLS policy changed.
+
+---
+
+# Second addendum — Frontera 1.1.0 superseded; PMFreak adopts 1.2.0
+
+The first addendum recorded the gap as closed by Frontera 1.1.0. That was
+premature in one specific respect, and the correction is recorded here rather
+than folded silently into the text above.
+
+## What the review found
+
+Frontera's post-merge review of P0-PKG-07 found ten defects in the durable
+Kernel Authority world, closed by `Republika-Network/Frontera` PR #113 and
+released as `@aoc-enterprise/runtime@1.2.0`. The one bearing on this ADR:
+
+> 1.1.0's `createDurableKernelProviders()` returned the **mutable**
+> Recognition/Authority/Approval/Handshake engine handles alongside the
+> read-only `recognitionProvider`. Those engines expose `registerActor`,
+> `issuePassport`, `issueCapabilityToken`, `registerRootIssuer` and
+> `issueAuthorityGrant`.
+
+The first addendum's decision 2 said self-provisioning was made *structurally*
+impossible. **It was not.** It was impossible in PMFreak's code, and prevented
+elsewhere only by the adapter's own restraint: an application holding those
+handles could have minted itself an actor and a covering token in the live
+world, named them, and been allowed — with no operator context and nothing
+written to the durable store. The distinction between "our code does not do
+this" and "this cannot be done" is the entire subject of this ADR, so getting
+it wrong mattered.
+
+1.2.0 makes it structural. `createDurableKernelProviders()` returns a
+`DurableKernelDecisionService` carrying only `recognitionProvider`, `clock`,
+`idGenerator`, `authorityStore`, `organizationId`, `records()` and `reload()`.
+The mutable handles moved to `createDurableKernelWorld()`, which the package
+does not export.
+
+## What this changes in PMFreak
+
+**Nothing in the adapter.** It already consumed only the decision-side surface
+and already passed the typed `organization` field, so it compiled and passed
+every test against 1.2.0 unchanged. The design survived a corrected upstream API
+without modification, which is the best available evidence that the boundary was
+drawn in the right place even while the surface handed across it was too wide.
+
+What changed is the strength of the claim. The guarantee is now asserted three
+independent ways instead of resting on restraint:
+
+1. a runtime contract test that no mutation handle is reachable on the decision
+   service at any depth;
+2. a static gate rule failing any Frontera-importing product file that names
+   one, with its own negative control;
+3. upstream's `requireKernelAuthorityOperator`, which no `{ system: false }`
+   context can satisfy.
+
+## Decision added
+
+**6. Organization is stated with the typed field, never inferred.** 1.2.0 will
+not treat an omitted organization as an implicit match, because two
+organizations may legitimately use the same actor ids. Verified empirically:
+omitted denies, wrong denies, and a free-form `context.organizationId` cannot
+substitute for the typed field or rescue a wrong one. The gate now fails if
+PMFreak ever regresses to a context key.
+
+## Consequences
+
+```
+Frontera 1.1.0                        SUPERSEDED
+PMFreak 1.1.0 downstream acceptance   ABORTED before any Founder claim
+THREE_REPOSITORY_INTEGRATION on 1.1.0 NEVER CLAIMED
+FRONTERA_PRODUCT_RUNTIME_CONSUMPTION  PASS, now on 1.2.0
+```
+
+1.1.0 was genuinely integrated and genuinely passed its non-DB gates; it is
+recorded as integrated-then-withdrawn, not as never-integrated. The first
+addendum stays as written, with this one correcting it, because an ADR that
+edits away its own wrong turn teaches nothing.
+
+The canonical Frontera repository is now `Republika-Network/Frontera`, renamed
+from `Soberania-Protocol/Soberania-Enterprise`; continuity was proven by commit
+ancestry rather than assumed from the name.

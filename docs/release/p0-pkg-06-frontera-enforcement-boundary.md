@@ -1,37 +1,47 @@
 # P0-PKG-06 — PMFreak → Frontera enforcement boundary
 
-**Status: READY_FOR_ACCEPTANCE — the product-runtime boundary is built, real and
-fail-closed. Local DB + Founder browser acceptance remain to be executed in an
-environment that can run the stack.**
+**Status: READY_FOR_ACCEPTANCE — the product-runtime boundary is built on the
+reviewed Frontera 1.2.0 successor and is fail-closed. Local DB + Founder browser
+acceptance remain to be executed in an environment that can run the stack.**
 
 ```
 PROTOCOL_PACKAGE_INTEGRATION          = PASS
-FRONTERA_PACKAGE_INTEGRATION          = PASS
-FRONTERA_PRODUCT_RUNTIME_CONSUMPTION  = PASS      <- closed by Phase C
+FRONTERA_PACKAGE_INTEGRATION          = PASS      (@aoc-enterprise/runtime 1.2.0)
+FRONTERA_PRODUCT_RUNTIME_CONSUMPTION  = PASS
 PMFREAK_GOVERNANCE_OWNERSHIP_BOUNDARY = PASS
 PMFREAK_FOUNDER_JOURNEY               = NOT_RUN   (environment)
 THREE_REPOSITORY_INTEGRATION          = NOT_CLAIMED
 ```
 
-`THREE_REPOSITORY_INTEGRATION` stays **NOT_CLAIMED** for one reason and one only:
-the Founder browser journey has not been re-run. The definition is not being
-downgraded to fit what this container can do.
+`THREE_REPOSITORY_INTEGRATION` stays **NOT_CLAIMED** for one reason: the Founder
+browser journey has not been run. The definition is not being downgraded.
 
 ## How to read this document
 
-This increment happened in three phases and the record keeps all three. The
-first phase's conclusion was **BLOCKED**, and that is not edited out — it is why
-the upstream work that unblocked it exists.
+This increment ran in four phases and the record keeps all of them, including
+the one that had to be withdrawn. Phase A concluded **BLOCKED**; Phase C
+**superseded** an artifact PMFreak had already integrated. Neither is edited
+out — a record rewritten to look like a straight line would be worth less than
+the detours were.
 
 ```
-Phase A   boundary located; Frontera 1.0.0 could not supply independent
-          durable authority                                    -> BLOCKED
-Phase B   Frontera P0-PKG-07 (PR #112) shipped the durable
-          Kernel Authority Runtime as @aoc-enterprise/runtime@1.1.0
-Phase C   PMFreak consumes 1.1.0 at the real dispatch boundary  -> PASS
+Phase A   Frontera 1.0.0 had no durable independent authority          -> BLOCKED
+Phase B   Frontera 1.1.0 (PR #112) added durable authority; PMFreak
+          integrated it and its non-DB gates went green                -> CONSUMED
+Phase C   post-merge review of 1.1.0 found ten defects in the durable
+          authority world, invalidating its guarantees                 -> 1.1.0 SUPERSEDED
+Phase D   Frontera 1.2.0 (PR #113) corrects them; PMFreak adopts the
+          reviewed successor                                           -> PASS
 ```
 
-Sections 1–7 below are **Phase A, unchanged**. Phase B and Phase C follow them.
+**PMFreak's 1.1.0 downstream acceptance was ABORTED before any Founder claim was
+made.** 1.1.0 was genuinely vendored, genuinely consumed by the product path and
+genuinely passed every non-DB gate; what it never reached was the Founder
+browser journey, and `THREE_REPOSITORY_INTEGRATION` was never claimed on it. It
+is recorded as integrated-then-withdrawn, not as never-integrated.
+
+Sections 1–7 are **Phase A, unchanged**. The Phase B sections that follow
+describe the 1.1.0 work as it stood. Phase C and Phase D come last.
 
 ---
 
@@ -465,7 +475,11 @@ P2-15 started              = NO
 
 ---
 
-# Phase B — the upstream gap was closed in Frontera
+# Phase B (i) — the upstream gap was closed in Frontera 1.1.0
+
+> **Superseded by Phase C.** The artifact identities in this section describe
+> 1.1.0, which is no longer the PMFreak dependency. The reasoning about *why*
+> the gap needed closing still stands and is why 1.2.0 exists.
 
 Phase A's gap specification became **P0-PKG-07** in
 `Soberania-Protocol/Soberania-Enterprise`, merged as **PR #112**. Verified live
@@ -530,7 +544,12 @@ repository was written to.
 
 ---
 
-# Phase C — PMFreak consumes the durable authority world
+# Phase B (ii) — PMFreak consumed Frontera 1.1.0
+
+> **Withdrawn by Phase C.** Everything below was really built and really passed
+> its gates against 1.1.0. Phase D re-established it against 1.2.0; the parts
+> that changed are called out there, and the parts that did not are the design
+> holding up unchanged across a corrected upstream API.
 
 ## The boundary, as built
 
@@ -853,7 +872,7 @@ infrastructure diagnostic are logged server-side and deliberately not returned t
 the client: they are what an operator needs and precisely what an arbitrary
 caller should not learn about another system's authority structure.
 
-## Verification (Phase C)
+## Verification (Phase B (ii), against 1.1.0)
 
 ```
 PMFREAK_FRONTERA_INTEGRATION_SOURCE_COMMIT = b27e7464da65c8af08bf7b5a7b0052dfb61b9a65
@@ -908,7 +927,7 @@ This is an environment limitation and is **not** being used to describe an
 architectural gap. The architectural question Phase A raised is closed, by
 execution against the real artifact.
 
-## Upstream impact (Phase C)
+## Upstream impact (Phase B (ii))
 
 ```
 Protocol modified          = NO      Frontera modified        = NO
@@ -927,3 +946,269 @@ pack. Nothing was committed or pushed to either upstream repository.
 four bundled private workspaces — re-confirmed after the swap
 (`REVIEW_REQUIRED`, `blocked: 0`), exactly as recorded for 1.0.0. Upstream
 packaging debt, not fixable from PMFreak, and not this increment's subject.
+
+---
+
+# Phase C — Frontera 1.1.0 was superseded by post-merge review
+
+Frontera's own post-merge review of P0-PKG-07 found **ten defects in the durable
+Kernel Authority world**, closed by `Republika-Network/Frontera` **PR #113**.
+The one that matters most to PMFreak is worth stating plainly, because it
+invalidated a guarantee this document had already claimed:
+
+> **1.1.0's `createDurableKernelProviders()` handed the application mutable
+> Recognition/Authority engine handles** — `recognitionRuntime`,
+> `authorityRuntime`, `approvalRuntime`, `handshakeRuntime` — alongside the
+> read-only `recognitionProvider`. Those engines expose `registerActor`,
+> `issuePassport`, `issueCapabilityToken`, `registerRootIssuer` and
+> `issueAuthorityGrant`. An application holding them could mint itself an actor
+> and a covering token in the live world and be allowed, **without ever holding
+> an operator context and without the durable store recording anything**.
+
+Phase B (ii) asserted that self-provisioning was "structurally impossible". That
+claim was **true of PMFreak's code and false of the surface it was handed**: the
+adapter never touched those handles, but nothing except its own restraint stopped
+it. The separation held by convention, which is precisely what this whole
+increment exists to replace. The claim is corrected here rather than quietly
+restated.
+
+```
+FRONTERA 1.1.0                     STATUS = SUPERSEDED
+version                            1.1.0
+source commit                      74308ad1ee21108b9c1964ddf8f7530ba8c5308f
+sha256                             ab4072b7c34971265ba637e63c7fd21bd8a95a5ef342056d59632f8ff6200e60
+PMFreak downstream acceptance      ABORTED before the Founder claim
+THREE_REPOSITORY_INTEGRATION on 1.1.0   NEVER CLAIMED
+```
+
+---
+
+# Phase D — PMFreak adopts the reviewed Frontera 1.2.0
+
+## Live verification, before anything was modified
+
+Verified from a clone of the canonical repository, not from the brief:
+
+```
+Republika-Network/frontera main HEAD = a937cfb4180ec02de7b736b92039f5f8210152bc
+merge commit message                 = "Merge pull request #113 … P0-PKG-07 follow-up:
+                                        close ten defects in the durable Kernel Authority world"
+merge parents                        = 8e7ded3b (the PR #112 merge)  +  d6031894 (PR #113 head)
+frozen source commit 7d9d1f09…       = ancestor of both the PR head and the merge commit
+package.json at 7d9d1f09             = @aoc-enterprise/runtime 1.2.0
+```
+
+**Repository identity.** The canonical repository is now
+`Republika-Network/Frontera`, renamed from `Soberania-Protocol/Soberania-Enterprise`.
+Continuity was proven rather than assumed: the 1.1.0 source commit `74308ad1`
+and the PR #112 merge commit `8e7ded3b` are both present in this repository, and
+`8e7ded3b` is the **first parent** of the PR #113 merge. The same holds for
+PMFreak: `Republika-Network/pmfreak` and the old `Soberania-Protocol/pmfreak`
+resolve the PR branch to the identical head, so this is one repository under a
+new name, not a fork.
+
+**Why 7d9d1f09 and not the PR head.** Two commits sit between them —
+"record the corrected successor artifact identity" and "record the confirmed
+repository identity" — both evidence-only. The frozen artifact is built from
+`7d9d1f09` because that is what the recorded SHA-256 describes; building from a
+newer commit merely because it is newer would produce different bytes and a
+false provenance record.
+
+## Artifact reproduction — bit-for-bit
+
+```
+git worktree add <tmp> 7d9d1f0952e67fb95a653e4815bc9183a10f1c90
+npm ci && npm run build && npm pack .        # node v22.22.2, npm 10.9.7
+
+reproduced SHA-256 = 1b59c63d911bd16ec7c1974a9ea7579cfa65a269badc81f0aa2bbdad1bace082
+expected   SHA-256 = 1b59c63d911bd16ec7c1974a9ea7579cfa65a269badc81f0aa2bbdad1bace082   IDENTICAL
+sizeBytes  3390079     fileCount 6366 (npm pack's own "total files")
+```
+
+The exports fingerprint is `2b0ee1e3afee…` — unchanged across 1.0.0, 1.1.0 and
+1.2.0, and verified rather than copied. It digests the export *map*, and both
+follow-ups changed symbols inside the existing `./enterprise` and `./kernel`
+subpaths without adding one.
+
+```
+@aoc/protocol             0.2.0-rc.0  UNCHANGED   dbe8a08f432a…  a67d65b17dcb…
+@aoc-enterprise/runtime   1.2.0       SUCCESSOR   1b59c63d911b…  2b0ee1e3afee…
+```
+
+The superseded 1.1.0 tarball was deleted from `vendor/`, and both version-pinned
+gates (`check-tarball-purity.mjs`, `check-package-exports.mjs`) were repinned to
+1.2.0 so nothing continues validating an artifact that is no longer installed.
+
+## The corrected API, verified against the installed package
+
+`createDurableKernelProviders()` now returns a `DurableKernelDecisionService`
+carrying only what is needed to *ask* a question:
+
+```
+keys: authorityStore, clock, idGenerator, organizationId,
+      recognitionProvider, records, reload
+
+recognitionRuntime  absent      authorityRuntime  absent
+approvalRuntime     absent      handshakeRuntime  absent
+```
+
+The mutable world handles moved to `createDurableKernelWorld()`, which is **not
+exported** from the package. `DurableKernelProviderSet` survives as a deprecated
+alias of the narrowed type.
+
+**PMFreak's adapter required no change to adopt this.** It already consumed only
+`recognitionProvider`, `clock` and `idGenerator`, and already passed the typed
+`organization` field. The Phase B (ii) design survived a corrected upstream API
+untouched — which is the strongest evidence available that it was reading the
+boundary correctly, even while the surface it was handed was wider than it
+should have been.
+
+What did change is the *proof*. Phase B (ii) could only assert restraint; the
+guarantee is now structural, and is asserted three ways:
+
+* a **runtime** contract test that the decision service exposes no mutation
+  handle at any depth;
+* a **static gate** rule failing any Frontera-importing product file that names
+  one, with its own negative control;
+* the upstream store's own `requireKernelAuthorityOperator`, which no
+  `{ system: false }` context can satisfy.
+
+## Organization is now stated, not inferred — proven empirically
+
+1.2.0 requires a request to name its organization, and will not treat absence as
+an implicit match. Probed against the real package:
+
+| request | status |
+|---|---|
+| typed `organization: { id: workspaceId }` | **allowed** |
+| organization omitted | denied |
+| wrong organization | denied |
+| free-form `context.organizationId` only | denied |
+| free-form context + wrong typed organization | denied |
+
+Free-form context cannot substitute for the typed field, because the Kernel
+derives the organization solely from `organization`. PMFreak already used the
+typed field; the gate now fails if that ever regresses to a context key.
+
+## Downstream contract test for the review fixes
+
+`tests/frontera-1-2-0-contract.test.ts` — 8 tests against the real packaged
+1.2.0. Deliberately **not** a copy of Frontera's suite: it asserts only the
+behaviours PMFreak's boundary depends on, so a future artifact swap that
+regressed one fails here rather than in production.
+
+| Aspect | Result |
+|---|---|
+| A — persisted payload tampering (a widened resource scope) | raises; PMFreak returns `frontera_unavailable`, **0 dispatch RPC calls** |
+| B — lost tail revocation (revocation event deleted) | raises; authority is **not** resurrected, **0 dispatch RPC calls** |
+| C — product cannot self-mint authority | no mutation handle on the decision surface, at any depth |
+| D — organization omitted | never allowed |
+| E — wrong organization / context substitution | denied |
+| F — correct organization + valid grant | allowed |
+| G — revoked authority | denied, `AUTHORITY_CAPABILITY_REVOKED` |
+| H — expired credential alongside a valid covering one | allowed — the expired one does not shadow the live grant |
+
+A and B are the two defects that most directly threatened PMFreak — a tampered
+payload could widen a scope, a lost revocation could resurrect withdrawn
+authority — and both are asserted **through the real adapter**, so what is proven
+is that PMFreak fails closed, not merely that Frontera raises.
+
+## Authority freshness — unchanged and still correct
+
+Per-evaluation hydration is retained and still works through the narrowed
+decision service.
+
+```
+ALLOW -> operator revokes out of band -> next evaluation DENY -> dispatch RPC calls = 0
+STALE_ALLOW_AFTER_REVOCATION = NO
+```
+
+## Verification (Phase D)
+
+```
+PMFREAK_FRONTERA_1_2_0_SOURCE_COMMIT = 532f7d28a010cf1a9ea318a8006ef00d5a11b8db
+product source files changed by the 1.2.0 adoption = 0
+```
+
+Every gate below ran from that commit's tree, Node v22.22.2 / npm 10.9.7. This
+document is committed separately and changes no application, runtime, schema or
+dependency file.
+
+| Gate | Result |
+|---|---|
+| `npm ci` from a deleted `node_modules` | PASS — no `--force`, no `--legacy-peer-deps`; resolves 1.2.0 |
+| `npm run typecheck` | PASS — 0 errors |
+| `npm run lint` | PASS — 0 errors |
+| `npm test` | PASS — **13,340 tests, 0 fail, 17 skipped** (1.1.0 baseline 13,328; +12) |
+| `npm run build` | PASS |
+| `npm run check:governance` (full chain) | PASS |
+| `npm run check:aoc-boundaries` | PASS |
+| `npm run check:packaged-aoc-artifacts` | PASS — 1.2.0 SHA-256 and exports fingerprint verified |
+| `npm run check:governance-ownership` | PASS — 44/44 |
+| `npm run check:governance-collisions` | PASS |
+| `npm run check:package-purity` | PASS |
+| `npm run check:frontera-consumer` | PASS — FRONTERA_PRODUCT_CONSUMERS=3 |
+| `npm run check:release-readiness` | PASS |
+| `npm run compliance:check` | PASS — regenerated for 1.2.0; `blocked: 0`; no 1.1.0 component remains |
+
+### Two things the gates caught
+
+**My own test file broke the build.** The new contract test used `never` casts
+and an untyped `better-sqlite3` import, which `Failed to type check` turned into
+a build failure. It was repaired properly — the real `KernelAuthorityStore` type,
+and a named local shape for the two `better-sqlite3` calls loaded through
+`createRequire` — rather than suppressed with `@ts-nocheck` or a new dependency.
+
+**The new mutable-handle rule was initially too broad.** Matching bare
+identifiers flagged `src/features/recognition-runtime/`, a **PMFreak-owned**
+module tracked since #531 whose methods share names with Frontera's engine by
+coincidence of domain vocabulary — the same class of collision P0-PKG-05
+catalogued. It imports nothing upstream. The rule is now scoped to files that
+actually import Frontera, which is its real intent: the hazard is reaching a
+mutable handle *off a Frontera object*. A negative control asserts the PMFreak
+module is not flagged, because a gate that cries wolf is one reviewers learn to
+ignore.
+
+## Database impact (Phase D)
+
+```
+DATABASE_SCHEMA_CHANGED=NO   MIGRATION_ADDED=NO   RLS_CHANGED=NO
+EXISTING_SERIALIZED_VALUES_CHANGED=NO   AUDIT_HISTORY_REWRITTEN=NO
+EXISTING_EVENT_VOCABULARY_CHANGED=NO
+```
+
+## Upstream impact (Phase D)
+
+```
+Protocol modified = NO      Frontera modified = NO      exports widened = NO
+deep/private upstream imports = NO
+packages published = NO     tags created = NO     GitHub Releases = NO     P2-15 started = NO
+```
+
+The Frontera clone was read-only: a detached worktree, a build, a pack.
+
+## What remains
+
+```
+DB_ACCEPTANCE=NOT_RUN_ENVIRONMENT
+FOUNDER_BROWSER_ACCEPTANCE=NOT_RUN_ENVIRONMENT
+```
+
+The Phase D adoption was completed in a cloud container, which can build,
+install and test but cannot host Supabase or drive Chromium. The Founder journey
+must run on the local checkout:
+
+```
+npm run seed:p2-13-founder          # PMFreak DB state
+npm run provision:founder-frontera  # OPERATOR-side Frontera authority (minimum, no wildcard)
+npm run test:e2e:p2-14              # the 17 canonical checkpoints
+```
+
+All 17 checkpoints remain intact, and STEP 12 still asserts `fronteraDecisionId`
+— now necessarily minted by a **1.2.0** `AocKernel.evaluate()`.
+
+## Known upstream debt (unchanged)
+
+`@aoc-enterprise/runtime@1.2.0` still declares no `license`, re-confirmed after
+the swap (`REVIEW_REQUIRED`, `blocked: 0`). Upstream packaging debt, unchanged
+across all three artifacts, not fixable from PMFreak.
