@@ -1,20 +1,22 @@
 # P0-PKG-06 — PMFreak → Frontera enforcement boundary
 
-**Status: READY_FOR_ACCEPTANCE — the product-runtime boundary is built on the
-reviewed Frontera 1.2.0 successor and is fail-closed. Local DB + Founder browser
-acceptance remain to be executed in an environment that can run the stack.**
+**Status: READY_FOR_REVIEW — the boundary is built on the reviewed Frontera
+1.2.0 successor, is fail-closed, and the Founder journey has been run and passed
+on a real local stack. Not merged; that decision is a human's.**
 
 ```
 PROTOCOL_PACKAGE_INTEGRATION          = PASS
 FRONTERA_PACKAGE_INTEGRATION          = PASS      (@aoc-enterprise/runtime 1.2.0)
 FRONTERA_PRODUCT_RUNTIME_CONSUMPTION  = PASS
 PMFREAK_GOVERNANCE_OWNERSHIP_BOUNDARY = PASS
-PMFREAK_FOUNDER_JOURNEY               = NOT_RUN   (environment)
-THREE_REPOSITORY_INTEGRATION          = NOT_CLAIMED
+PMFREAK_FOUNDER_JOURNEY               = PASS      (17/17, Phase E)
+THREE_REPOSITORY_INTEGRATION          = PASS
 ```
 
-`THREE_REPOSITORY_INTEGRATION` stays **NOT_CLAIMED** for one reason: the Founder
-browser journey has not been run. The definition is not being downgraded.
+`THREE_REPOSITORY_INTEGRATION` is claimed on the strength of Phase E: a real
+Chromium journey, on a real local Supabase stack, against Frontera 1.2.0, whose
+dispatch carried a Frontera decision id that only the packaged runtime can mint.
+The definition was never downgraded to reach it — it was met.
 
 ## How to read this document
 
@@ -32,6 +34,8 @@ Phase C   post-merge review of 1.1.0 found ten defects in the durable
           authority world, invalidating its guarantees                 -> 1.1.0 SUPERSEDED
 Phase D   Frontera 1.2.0 (PR #113) corrects them; PMFreak adopts the
           reviewed successor                                           -> PASS
+Phase E   local DB + real Chromium Founder acceptance, 17/17, against
+          1.2.0 on the user's own machine                              -> PASS
 ```
 
 **PMFreak's 1.1.0 downstream acceptance was ABORTED before any Founder claim was
@@ -41,7 +45,13 @@ browser journey, and `THREE_REPOSITORY_INTEGRATION` was never claimed on it. It
 is recorded as integrated-then-withdrawn, not as never-integrated.
 
 Sections 1–7 are **Phase A, unchanged**. The Phase B sections that follow
-describe the 1.1.0 work as it stood. Phase C and Phase D come last.
+describe the 1.1.0 work as it stood. Phase C, Phase D and Phase E come last.
+
+Phases A–D all ran in a cloud container that could build, install and test but
+could not host Supabase or drive a browser, so each of them honestly recorded
+`NOT_RUN_ENVIRONMENT` for acceptance. **Phase E is that run**, executed on the
+real local Windows/WSL checkout. Those earlier `NOT_RUN` blocks are left as
+written and marked superseded where Phase E answers them.
 
 ---
 
