@@ -1,33 +1,45 @@
 # P0-PKG-06 — PMFreak → Frontera enforcement boundary
 
-**Status: BLOCKED — no legitimate product-runtime boundary can be built from the frozen
-artifacts without either fabricating a canonical authorization artifact or adding
-persistence this increment is not authorized to add.**
-
-P0-PKG-05 left one honest gap: `FRONTERA_PACKAGE_INTEGRATION=PASS` meant *installed and
-loadable*, not *depended upon*. No PMFreak product file imports `@aoc-enterprise/runtime`.
-P0-PKG-06 set out to close that by finding the real place in PMFreak's Material Action
-path where Frontera enforcement belongs, and proving the frozen public surface can be
-driven from it.
-
-The audit is complete. The boundary **location** is not the problem — it exists, it is
-narrow, and it is exactly where the architecture says it should be. The problem is that
-neither frozen artifact can be driven from it honestly:
+**Status: READY_FOR_ACCEPTANCE — the product-runtime boundary is built, real and
+fail-closed. Local DB + Founder browser acceptance remain to be executed in an
+environment that can run the stack.**
 
 ```
-FRONTERA_PACKAGE_PROVENANCE          = PASS  (preserved, re-verified from this commit)
-FRONTERA_PRODUCT_RUNTIME_CONSUMPTION = BLOCKED
-THREE_REPOSITORY_INTEGRATION         = NOT_CLAIMED
+PROTOCOL_PACKAGE_INTEGRATION          = PASS
+FRONTERA_PACKAGE_INTEGRATION          = PASS
+FRONTERA_PRODUCT_RUNTIME_CONSUMPTION  = PASS      <- closed by Phase C
+PMFREAK_GOVERNANCE_OWNERSHIP_BOUNDARY = PASS
+PMFREAK_FOUNDER_JOURNEY               = NOT_RUN   (environment)
+THREE_REPOSITORY_INTEGRATION          = NOT_CLAIMED
 ```
 
-Nothing was fabricated to move that line. No adapter was written, no capability token was
-invented, no `as unknown as` cast was used, no PMFreak module was made to import Frontera
-for the sake of a gate. This increment is **documentation and analysis only** — the diff
-contains no runtime, application, schema or dependency change.
+`THREE_REPOSITORY_INTEGRATION` stays **NOT_CLAIMED** for one reason and one only:
+the Founder browser journey has not been re-run. The definition is not being
+downgraded to fit what this container can do.
+
+## How to read this document
+
+This increment happened in three phases and the record keeps all three. The
+first phase's conclusion was **BLOCKED**, and that is not edited out — it is why
+the upstream work that unblocked it exists.
+
+```
+Phase A   boundary located; Frontera 1.0.0 could not supply independent
+          durable authority                                    -> BLOCKED
+Phase B   Frontera P0-PKG-07 (PR #112) shipped the durable
+          Kernel Authority Runtime as @aoc-enterprise/runtime@1.1.0
+Phase C   PMFreak consumes 1.1.0 at the real dispatch boundary  -> PASS
+```
+
+Sections 1–7 below are **Phase A, unchanged**. Phase B and Phase C follow them.
 
 ---
 
-## 1. Provenance — frozen artifacts, re-verified from this commit
+
+## 1. Provenance — frozen artifacts as at Phase A
+
+> **Superseded in Phase C.** The Frontera row below describes 1.0.0, the artifact
+> Phase A analysed. The artifact in the tree today is 1.1.0 — see Phase B.
 
 Both artifacts verify byte-for-byte against the values frozen in P0-PKG-04.
 
@@ -249,7 +261,7 @@ correctly, denies by default, and never throws for a governance outcome.
 
 ---
 
-## 4. Why this is BLOCKED anyway
+## 4. Why Phase A was BLOCKED
 
 Read the last row of that table again.
 
@@ -364,7 +376,7 @@ problem and not fixable from PMFreak.
 
 ---
 
-## 6. Verification from this commit
+## 6. Verification (Phase A)
 
 Everything below ran from the committed state, on Node v22.22.2 / npm 10.9.7.
 
@@ -450,3 +462,468 @@ tags created               = NO
 GitHub Releases created    = NO
 P2-15 started              = NO
 ```
+
+---
+
+# Phase B — the upstream gap was closed in Frontera
+
+Phase A's gap specification became **P0-PKG-07** in
+`Soberania-Protocol/Soberania-Enterprise`, merged as **PR #112**. Verified live
+before anything in PMFreak was touched, from a full clone rather than from the
+brief:
+
+```
+Soberania-Enterprise main HEAD = 8e7ded3b70855a47eb01bf2a9bc466f098b02438
+merge commit message           = "Merge pull request #112 … P0-PKG-07: productionize
+                                  durable Frontera authority/recognition for external enforcement"
+source commit 74308ad1…        = ancestor of the merge commit (git merge-base --is-ancestor)
+package.json at 74308ad1       = @aoc-enterprise/runtime 1.1.0
+```
+
+P0-PKG-07 added a whole `src/enterprise/kernel-authority/` module — an
+append-only store with digest-chained events, a SQLite implementation, world
+hydration, a durable provider set, an operator provisioning service and a
+recognition bridge. Exactly the two things Phase A specified as missing:
+
+| Phase A gap | P0-PKG-07 answer |
+|---|---|
+| (b) continuity — an operator-seeded recognition world that survives a process boundary | `createSqliteKernelAuthorityStore` + `createDurableKernelProviders` + `DurableKernelProviderSet.reload()` |
+| (a) provenance — who may issue a credential, such that issuance is not self-asserted | Credentials are provisioned by an **operator** context (`system: true`) and resolved by Frontera; `findActorByExternalSubject` binds an external principal read-only |
+
+Gap (a) was answered in a better way than Phase A proposed. Phase A asked for a
+conversion into Protocol's `CapabilityToken`. Frontera instead removed the need
+for one: `AocKernel`'s request carries no token at all, and the credentials are
+Frontera's own durable records. PMFreak therefore never holds, mints or maps a
+canonical capability token — the fabrication risk is not mitigated, it is absent.
+
+## Artifact reproduction — bit-for-bit
+
+The tarball was **not** taken on trust and **not** taken from a registry. It was
+rebuilt from the frozen source commit in a detached worktree and hashed before
+being vendored:
+
+```
+git worktree add <tmp> 74308ad1ee21108b9c1964ddf8f7530ba8c5308f
+npm ci && npm run build && npm pack .        # node v22.22.2, npm 10.9.7
+
+reproduced SHA-256 = ab4072b7c34971265ba637e63c7fd21bd8a95a5ef342056d59632f8ff6200e60
+expected   SHA-256 = ab4072b7c34971265ba637e63c7fd21bd8a95a5ef342056d59632f8ff6200e60   IDENTICAL
+sizeBytes  3375780     fileCount 6362 (npm pack's own "total files")
+```
+
+`fileCount` uses the same method that reproduces the recorded 6298 for 1.0.0
+exactly, so the two rows are comparable rather than coincidentally similar.
+
+**The exports fingerprint is unchanged at `2b0ee1e3afee…`, and that is correct
+rather than suspicious.** The fingerprint digests the export *map*; P0-PKG-07
+added its surface to the existing `./enterprise` and `./kernel` subpaths without
+introducing a new one. It was recomputed from the installed 1.1.0 manifest, not
+copied from the 1.0.0 record.
+
+```
+@aoc/protocol             0.2.0-rc.0  UNCHANGED  dbe8a08f432a…  a67d65b17dcb…
+@aoc-enterprise/runtime   1.1.0       NEW        ab4072b7c349…  2b0ee1e3afee…
+```
+
+Protocol was not modified, not re-versioned and not re-packed. Neither upstream
+repository was written to.
+
+---
+
+# Phase C — PMFreak consumes the durable authority world
+
+## The boundary, as built
+
+```
+POST /api/operational-flow  { operation: "dispatch_material_action_to_task" }
+  route.ts
+    -> authorize(projectId, workspaceId, "write")          PMFreak tenancy + role
+    -> operational-flow-service.ts : dispatchGovernedMaterialActionToTask
+         -> canCreateOperationalEvidence(scope.role)       PMFreak role gate
+         ═══════════ FRONTERA ENFORCEMENT BOUNDARY ═══════════
+         -> src/lib/integrations/frontera : authorizeFronteraDispatch
+              -> createSqliteKernelAuthorityStore(path)              [public export]
+              -> store.findActorByExternalSubject({system:false,…})  [read-only]
+              -> createDurableKernelProviders({store, organizationId})
+              -> createAocKernel(...).evaluate(...)                  [public export]
+         -> if (!frontera.allowed) return denied            NO RPC, NO Task
+         ═════════════════════════════════════════════════════
+         -> rpc dispatch_governed_action_to_internal_task    transaction + idempotency
+              advisory xact lock + execution_tasks_governed_action_uidx
+  -> exactly one Task
+```
+
+`src/lib/integrations/frontera/` is visibly PMFreak-owned. Nothing was placed
+under `src/aoc/*`, no canonical namespace was reused, and the barrel deliberately
+re-exports only the read/evaluate surface so no product module can obtain
+Frontera's provisioning service by importing it.
+
+## Why Frontera is asked on every attempt
+
+The brief prefers skipping the Frontera call for an action PMFreak would itself
+refuse. That was implemented and then **deliberately reverted**, because a
+pre-check has two defects and asking every time has neither:
+
+* It restates PMFreak governance semantics outside the RPC that owns them — the
+  precise duplication ADR-PMF-075 exists to prevent.
+* It opens a hole. An action that looked ineligible at read time but passed the
+  RPC's own re-check a moment later would dispatch **having never been
+  authorized by Frontera at all**. A read cannot be made race-free against a
+  transaction it does not participate in.
+
+The cost of the alternative is one read-only evaluation on a rare, high-value
+operation. The brief's requirement is stated as "at minimum, the final outcome
+must remain DENY and the dispatch RPC must not create a Task", which this
+satisfies exactly.
+
+## Mapping matrix — the real `KernelEvaluationRequest`
+
+The obsolete `AuthorizationGrantInput` matrix from Phase A does not apply; that
+operation was rejected. This is the contract actually used.
+
+| Frontera field | PMFreak source | Semantics | Classification | Lossless | Authority-sensitive | Persisted source |
+|---|---|---|---|---|---|---|
+| `requestId` | `input.actionId` | the governed Material Action's identity | DIRECT | YES | no | YES (`material_action_proposals.id`) |
+| `actor.id` | `findActorByExternalSubject(...)` → `record.entityId` | **Frontera's** actor id, resolved not assumed | DERIVABLE_WITH_EXPLICIT_ADAPTER | YES | YES | YES (Frontera store) |
+| `actor.trustDomainId` | resolved actor record's `trustDomainId` | Frontera's own enforcement boundary | DIRECT (from Frontera) | YES | YES | YES (Frontera store) |
+| `action.type` | constant `execute.material-action` | Frontera's documented action for external material-action execution | DIRECT | YES | YES | n/a |
+| `action.resourceScope` | `project:${scope.projectId}` | the governed action's project | DERIVABLE_LOSSLESS | YES | YES | YES (`projects.id`) |
+| `organization.id` | `scope.workspaceId` | PMFreak's tenancy root | DERIVABLE_LOSSLESS (identity) | YES | YES | YES (`workspaces.id`) |
+| `requestedAt` | server clock | evaluation time | DIRECT | YES | no | no |
+
+Nothing is fabricated, and no field is optional-in-Frontera-but-invented-here.
+Note what is **absent** compared with Phase A: no `capability`, no
+`consentGrants`, no `orgId`-with-no-referent. Those three unsatisfiable fields
+were the Phase A blocker and this contract does not ask for them.
+
+### Why each mapping is legitimate
+
+**Organization = workspace.** The workspace is PMFreak's tenancy root:
+`workspace_memberships` carries every authority grant, every project belongs to
+exactly one workspace, and RLS isolates on it. There is no PMFreak entity above
+a workspace, so nothing else is a candidate. It is used as an **identity**, not
+a formatted string — a prefix would need parsing back out somewhere, and two
+spellings of one tenant boundary is how cross-tenant leaks begin.
+
+**Actor = the authenticated principal, resolved through Frontera.**
+`scope.userId` is *not* assumed to be a Frontera actor id. It is presented as
+`KernelAuthorityExternalSubject { system: "pmfreak", subjectId: <auth uid> }`
+and Frontera returns the actor bound to it, or `null`. `(organizationId, system,
+subjectId)` is unique upstream, so the same subject id in two workspaces
+resolves to two different actors and never leaks authority between them — proven
+by test, not assumed. That the dispatching principal is the right subject is not
+guesswork either: the RPC itself refuses when `v_action.proposed_by <> auth.uid()`,
+so the dispatcher is necessarily the proposer.
+
+**Action = `execute.material-action`.** Frontera's own documented action for an
+external application executing a governed material action
+(`AOC_DURABLE_KERNEL_AUTHORITY.md`, "How applications evaluate"). Used because
+upstream defines it for this case — not because a PMFreak route or task type was
+reshaped to resemble it.
+
+**Resource scope = `project:<projectId>`.** Frontera's grammar is hierarchical
+and colon-delimited (`resource === scope || resource.startsWith(scope + ':')`,
+`capability-token-service.ts`), and its own tests use the `project:1` form. A
+grant on one project therefore cannot reach another — verified by a negative
+test, not by reading the code.
+
+**Trust domain comes from Frontera.** Read off the resolved actor record. PMFreak
+never invents one and never creates one during dispatch.
+
+## Capability provenance — the Phase A blocker, closed
+
+```
+authority store            Frontera-owned SQLite (append-only, digest-chained events)
+authority owner            Frontera
+actor / passport /
+capability / grant         provisioned by an OPERATOR context (system: true)
+PMFreak product can
+provision                  NO — structurally, see below
+fabricated token           NO — PMFreak never holds or constructs a credential
+unsafe cast                NO
+```
+
+"Structurally" is meant literally. Frontera's `requireKernelAuthorityOperator`
+rejects any context without `system: true`, and the product adapter builds
+`{ system: false, organizationId }` and nothing else. No organization-scoped
+context can reach a write path, so this is a property of the upstream store
+rather than a PMFreak convention that could drift. The adapter additionally
+never imports `createKernelAuthorityProvisioningService`, and
+`check:frontera-consumer` fails if it ever does.
+
+## Authority freshness — no stale ALLOW
+
+Frontera v1's propagation model is single-writer: a world hydrated in one process
+does not observe another process's writes until `reload()` or restart. A
+long-lived cached provider set would therefore keep answering ALLOW for an actor
+an operator had already revoked.
+
+PMFreak opens the store and hydrates the world **per evaluation**, so an
+out-of-band revocation is observed on the very next dispatch. This is the point
+of the SQLite test below, which crosses a real close/reopen boundary rather than
+reusing a handle.
+
+```
+single-writer propagation handled by   fresh store + fresh hydration per evaluation
+external revocation observed           YES
+stale ALLOW after revocation possible  NO
+```
+
+Per-workspace isolation follows from the same choice: the provider set is built
+for one `organizationId` at evaluation time, so there is no cross-tenant provider
+cache to key incorrectly.
+
+## Fail-closed behaviour
+
+Every one of these returns without reaching the dispatch RPC. `authorizeFronteraDispatch`
+never throws; every failure resolves to a denial, because the only safe reading of
+an exception at this boundary is "do not dispatch".
+
+| Condition | Result | Dispatch RPC calls |
+|---|---|---|
+| Frontera DENY (wrong project) | `frontera_denied` | **0** |
+| Frontera DENY (wrong action) | `frontera_denied` | **0** |
+| unknown / unbound external subject | `frontera_actor_unbound` | **0** |
+| revoked actor | `frontera_actor_unbound` | **0** |
+| revoked capability / authority grant | `frontera_denied` | **0** |
+| cross-organization request | `frontera_actor_unbound` | **0** |
+| store unavailable / corrupt / config missing | `frontera_unavailable` | **0** |
+| provider hydration or reload failure | `frontera_unavailable` | **0** |
+| kernel error | `frontera_unavailable` | **0** |
+| malformed kernel result | `frontera_malformed_result` | **0** |
+| `approval_required` / `indeterminate` | `frontera_denied` | **0** |
+
+There is no `catch { allowAnyway() }`, no "Frontera unavailable → bypass", no
+"missing config → allow", and no development bypass. A missing store path is a
+denial, not a skip. `check:frontera-consumer` fails the build if a catch block
+ever reaches the RPC.
+
+`approval_required` and `indeterminate` are treated as non-allow rather than
+rounded up: only an explicit `allowed` proceeds.
+
+## Authority composition
+
+```
+PMFREAK_DENY  + FRONTERA_ALLOW = DENY    the RPC still re-checks every PMFreak precondition
+PMFREAK_ALLOW + FRONTERA_DENY  = DENY    the RPC is never reached
+PMFREAK_ALLOW + FRONTERA_ALLOW = dispatch
+FRONTERA_ERROR / malformed     = DENY, no dispatch
+```
+
+Frontera can only narrow. A Frontera ALLOW skips, relaxes and pre-satisfies
+nothing: the RPC re-runs membership, actor match, proposal digest, evaluation
+freshness, `governance_state`, policy/grant references, source-decision
+eligibility, evidence lineage and project dispatchability inside its own
+transaction afterwards. `PMFreak DENY can be overridden by Frontera = NO`.
+
+## Idempotency
+
+The RPC remains the sole transaction and idempotency boundary. No task creation
+was moved into TypeScript and no part of the RPC's logic was reimplemented.
+
+```
+one Material Action -> at most one Task    PRESERVED (advisory lock + unique index)
+concurrent authorized dispatch             PRESERVED (unchanged RPC)
+Frontera denial creates a Task             NO
+Frontera failure creates a Task            NO
+```
+
+**One behavioural change, characterised rather than glossed.** Frontera is now
+consulted before every dispatch attempt, including a retry of an action that
+already produced a Task. If an operator revokes authority *after* a successful
+dispatch, a subsequent retry returns a Frontera denial instead of replaying the
+existing Task. No Task is created, destroyed or duplicated — the exactly-one
+invariant is untouched — but the retry's *response* differs from before. This is
+the intended reading of fail-closed: an actor whose authority has been withdrawn
+should not be able to replay a dispatch. It is recorded here because it is a real
+contract change, not because it was discovered late.
+
+## Product consumption proof
+
+```
+FRONTERA_PRODUCT_CONSUMERS = 3   (was 0)
+```
+
+| file | specifier | export key | purpose |
+|---|---|---|---|
+| `src/lib/integrations/frontera/enforcement-adapter.ts` | `@aoc-enterprise/runtime/enterprise` | declared | `createSqliteKernelAuthorityStore`, `createDurableKernelProviders`, `KernelAuthorityStore` |
+| `src/lib/integrations/frontera/enforcement-adapter.ts` | `@aoc-enterprise/runtime/kernel` | declared | `createAocKernel` |
+
+Reachable product call path:
+`/api/operational-flow` → `dispatchGovernedMaterialActionToTask` →
+`authorizeFronteraDispatch` → `AocKernel.evaluate()`.
+
+`npm run check:frontera-consumer` proves this structurally rather than by
+counting strings. It fails if the Frontera call is removed, moved after the RPC,
+stripped of its early return, replaced with the empty in-process world, given a
+deep or private import, or if any product file touches the provisioning surface.
+**Each of those failure modes has its own negative-control test** in
+`tests/frontera-product-consumer-gate.test.ts` — a gate only ever observed to
+pass is not evidence.
+
+## Test evidence
+
+`tests/frontera-enforcement-boundary.test.ts` — 10 tests, all against the **real
+packaged 1.1.0 runtime**. No test stubs `allowed: true`; the only mock is the
+Supabase client, and only so dispatch RPC calls can be counted.
+
+```
+ALLOW  -> dispatch RPC called exactly once, Frontera decision id correlated
+DENY   (wrong project)            -> 0 RPC calls
+DENY   (unknown external subject) -> 0 RPC calls, and the principal stays unbound
+DENY   (cross-organization)       -> 0 RPC calls
+ERROR  (store unavailable)        -> 0 RPC calls
+MALFORMED result                  -> 0 RPC calls
+external subject binding          -> Frontera actor id != PMFreak user id
+evaluation                        -> provisions nothing, even when it denies
+denial                            -> leaks no Frontera reason codes to the caller
+SQLite durability                 -> see below
+```
+
+The last one is the proof that Phase A's blocker is genuinely closed rather than
+relocated:
+
+```
+operator process   provision authority in a SQLite store, then CLOSE it
+application        fresh store handle, nothing carried in memory -> ALLOW, 1 RPC call
+operator process   revoke capability + authority grant out of band, CLOSE
+application        fresh store handle -> DENY, 0 RPC calls
+```
+
+Authority survives a process boundary, and a revocation written by a different
+process is observed on the next dispatch. That is exactly the pair of properties
+Phase A found `createDefaultKernelProviders()` could not provide.
+
+## Founder browser acceptance — instrumentation added, run outstanding
+
+`tests/e2e/p2-14-founder-story.spec.ts` keeps all **17 canonical checkpoints**;
+none was rewritten, reduced or replaced. STEP 12 gained one assertion: the
+dispatch response must carry `fronteraDecisionId`, the opaque id minted by
+`AocKernel.evaluate()`. It cannot exist unless that evaluation returned
+`allowed`, and PMFreak never mints one — so the browser journey either crosses
+the real boundary or fails. No production bypass and no fake marker was added.
+
+Run order for an environment that can host the stack:
+
+```
+npm run seed:p2-13-founder          # PMFreak DB state
+npm run provision:founder-frontera  # OPERATOR-side Frontera authority
+npm run test:e2e:p2-14              # the 17-checkpoint journey
+```
+
+`scripts/provision-founder-frontera-authority.mjs` provisions the **minimum**
+authority for the one actor that actually dispatches: Tenant A's owner, one
+action, one project scope, no wildcard. Tenant B is given **no** Frontera
+authority at all — it dispatches nothing in the journey, and provisioning it
+"just in case" would weaken the isolation the two-tenant scenario exists to show.
+It resolves the real authenticated principal id from the seeded stack and fails
+loudly rather than inventing an identity.
+
+## Database impact
+
+```
+DATABASE_SCHEMA_CHANGED=NO   MIGRATION_ADDED=NO   RLS_CHANGED=NO
+EXISTING_SERIALIZED_VALUES_CHANGED=NO   AUDIT_HISTORY_REWRITTEN=NO
+EXISTING_EVENT_VOCABULARY_CHANGED=NO
+```
+
+No `.sql` file, no migration and no RLS policy is in the diff. Frontera's
+authority state lives in Frontera's own SQLite store and was not copied into
+Supabase. No PMFreak authority-mapping table was created — Frontera owns the
+external-subject binding, which is why none is needed.
+
+## Audit / evidence lineage
+
+The two systems' evidence is kept distinct and correlated, never merged:
+
+```
+Recommendation -> Decision -> Material Action        PMFreak evidence (unchanged tables)
+        |
+        +-- Frontera authorization decision           Frontera's own audit trail
+        |   correlated by requestId = Material Action id
+        v
+      Task -> Execution -> Outcome -> Observation     PMFreak evidence (unchanged)
+```
+
+The Frontera decision id is returned on the dispatch response for correlation
+and is **not** written to any PMFreak table — durable cross-system evidence would
+need a schema change, which this increment is not authorized to make. That
+limitation is recorded rather than worked around. Frontera's reason codes and any
+infrastructure diagnostic are logged server-side and deliberately not returned to
+the client: they are what an operator needs and precisely what an arbitrary
+caller should not learn about another system's authority structure.
+
+## Verification (Phase C)
+
+```
+PMFREAK_FRONTERA_INTEGRATION_SOURCE_COMMIT = b27e7464da65c8af08bf7b5a7b0052dfb61b9a65
+```
+
+Every gate below ran from that commit's tree, Node v22.22.2 / npm 10.9.7. This
+document is committed separately and contains no application, runtime, schema or
+dependency change, so nothing verified above can have moved beneath it.
+
+| Gate | Result |
+|---|---|
+| `npm ci` from a deleted `node_modules` | PASS — no `--force`, no `--legacy-peer-deps`; resolves 1.1.0 |
+| `npm run typecheck` | PASS — 0 errors |
+| `npm run lint` | PASS — 0 errors |
+| `npm test` | PASS — **13,328 tests, 0 fail, 17 skipped** (baseline 13,308; +20 new) |
+| `npm run build` | PASS |
+| `npm run check:governance` (full chain) | PASS |
+| `npm run check:aoc-boundaries` | PASS |
+| `npm run check:packaged-aoc-artifacts` | PASS — 1.1.0 SHA-256 and exports fingerprint verified |
+| `npm run check:governance-ownership` | PASS — 44/44 |
+| `npm run check:governance-collisions` | PASS |
+| `npm run check:package-purity` | PASS |
+| `npm run check:release-readiness` | PASS |
+| **`npm run check:frontera-consumer`** | **PASS — FRONTERA_PRODUCT_CONSUMERS=3** |
+| `npm run compliance:check` | PASS — regenerated; `blocked: 0` |
+
+Two gates needed updating for the artifact swap and were updated rather than
+weakened: `check-package-exports.mjs` pinned 1.0.0 (now 1.1.0, and it now also
+requires `./kernel` and `./enterprise` to be present), and the compliance
+inventory/SBOM were regenerated with the repo's own generators.
+
+`check:packaged-aoc-artifacts` also caught something worth recording: the
+negative-control test file contained *literal* deep-import and private-workspace
+specifiers as fixtures, and the gate flagged them — correctly, since it cannot
+tell a fixture from a real import. The fixtures now compose those strings at
+runtime, so the gate stays strict and the negative control stays real. The gate
+was not relaxed.
+
+## Database and browser acceptance — NOT RUN (environment)
+
+```
+DB_ACCEPTANCE=NOT_RUN_ENVIRONMENT
+FOUNDER_BROWSER_ACCEPTANCE=NOT_RUN_ENVIRONMENT
+```
+
+Unchanged from Phase A and re-confirmed: no Supabase stack is reachable here.
+`OPERATIONAL_FLOW_TEST_*` is unset, the Supabase CLI is absent, and container
+image blobs return `403` through the agent proxy. The proxy documentation
+classifies this as report-don't-work-around; no bypass was attempted.
+
+This is an environment limitation and is **not** being used to describe an
+architectural gap. The architectural question Phase A raised is closed, by
+execution against the real artifact.
+
+## Upstream impact (Phase C)
+
+```
+Protocol modified          = NO      Frontera modified        = NO
+Protocol exports widened   = NO      Frontera exports widened = NO
+deep/private upstream imports = NO
+packages published         = NO      tags created = NO      GitHub Releases = NO
+P2-15 started              = NO
+```
+
+The Soberania-Enterprise clone was read-only: a detached worktree, a build and a
+pack. Nothing was committed or pushed to either upstream repository.
+
+## Known upstream debt (unchanged)
+
+`@aoc-enterprise/runtime@1.1.0` still declares no `license`, and neither do its
+four bundled private workspaces — re-confirmed after the swap
+(`REVIEW_REQUIRED`, `blocked: 0`), exactly as recorded for 1.0.0. Upstream
+packaging debt, not fixable from PMFreak, and not this increment's subject.

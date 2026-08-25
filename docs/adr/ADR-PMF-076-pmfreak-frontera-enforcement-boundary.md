@@ -1,6 +1,9 @@
 # ADR-PMF-076 — Where the PMFreak → Frontera enforcement boundary sits, and why it is not yet built
 
-**Status:** Accepted as a record of an unresolved architectural gap (P0-PKG-06)
+**Status:** Accepted — gap closed. Originally recorded an unresolved architectural
+gap (P0-PKG-06 Phase A); the gap was closed upstream by Frontera P0-PKG-07 (PR #112)
+and consumed by PMFreak in Phase C. The original reasoning is preserved below rather
+than rewritten, because it is why the upstream work exists.
 **Builds on:** [ADR-PMF-075](ADR-PMF-075-pmfreak-governance-ownership.md) — PMFreak governance ownership
 **Evidence:** [P0-PKG-06 enforcement boundary report](../release/p0-pkg-06-frontera-enforcement-boundary.md)
 
@@ -164,3 +167,90 @@ The gap is a *contract* gap, visible entirely from the frozen public surfaces an
 by executing them. Changing either upstream to make PMFreak's case work would have decided,
 inside a PMFreak increment, a question that belongs to Protocol and Frontera. It is
 specified in the P0-PKG-06 report instead, as input to a Frontera increment.
+
+---
+
+# Addendum — the gap is closed (P0-PKG-06 Phase C)
+
+Everything above was written when Frontera 1.0.0 was the frozen artifact, and it
+still describes the decision correctly. Two of its conclusions were load-bearing
+and both held:
+
+* **`AocKernel` is the right surface, not `orchestrateAuthorization`.** Confirmed.
+  The integration is built on `AocKernel.evaluate()`.
+* **PMFreak must not seed the world it then asks about.** Confirmed, and now
+  structurally guaranteed rather than merely intended.
+
+## What changed
+
+Frontera's P0-PKG-07 (`Soberania-Enterprise` PR #112, merge commit
+`8e7ded3b…`, artifact `@aoc-enterprise/runtime@1.1.0`, source commit
+`74308ad1…`) added the durable **Kernel Authority Runtime**: an append-only,
+digest-chained authority store with a SQLite implementation, world hydration, a
+durable provider set, and an operator-only provisioning service.
+
+That resolves the blocker in the two ways this ADR said it needed resolving:
+
+**Durability.** `createSqliteKernelAuthorityStore` + `createDurableKernelProviders`
+restore an operator-provisioned world from disk. Authority survives a process
+boundary, so PMFreak no longer has to choose between a tautological in-process
+world and no boundary at all.
+
+**Provenance — better than proposed.** This ADR asked for a way to obtain a
+canonical `CapabilityToken` honestly. Frontera instead made the question moot:
+`KernelEvaluationRequest` carries no token, and credentials are Frontera's own
+durable records resolved during evaluation. PMFreak therefore never holds,
+constructs or maps a capability token. The fabrication risk is not mitigated —
+it is absent.
+
+## Decisions this addendum adds
+
+**1. The organization boundary is the PMFreak workspace.** It is the tenancy
+root: memberships hang off it, every project belongs to exactly one, and RLS
+isolates on it. Used as an identity, not a formatted string — one tenant
+boundary must have exactly one spelling.
+
+**2. The external principal binding is explicit and Frontera-owned.**
+`scope.userId` is never assumed to be a Frontera actor id. It is presented as
+`{ system: "pmfreak", subjectId }` and Frontera returns the bound actor or
+`null`. PMFreak keeps **no** authority-mapping table; upstream owns the mapping,
+which is why none is needed and why none was added.
+
+**3. Frontera is consulted on every dispatch attempt.** A pre-check that skipped
+the call for an apparently-ineligible action was implemented and reverted: it
+restated PMFreak governance semantics outside the RPC that owns them, and it
+opened a race in which an action that looked ineligible at read time but passed
+the RPC's own re-check would dispatch having never been authorized. One
+read-only evaluation on a rare operation is the cheaper correctness.
+
+**4. The world is hydrated per evaluation.** Frontera v1 propagation is
+single-writer: a cached provider set would keep answering ALLOW after an
+operator revoked authority in another process. Opening the store and hydrating
+per dispatch makes a stale ALLOW impossible, and incidentally makes
+per-workspace provider isolation automatic.
+
+**5. One characterised behaviour change.** A retry of an already-dispatched
+action, by an actor whose authority was revoked in between, now returns a
+Frontera denial instead of replaying the existing Task. No Task is created,
+destroyed or duplicated; the exactly-one invariant is untouched. This is the
+intended reading of fail-closed, and it is recorded as a contract change rather
+than left to be discovered.
+
+## Consequences
+
+```
+FRONTERA_PRODUCT_RUNTIME_CONSUMPTION = PASS      (was BLOCKED)
+FRONTERA_PRODUCT_CONSUMERS           = 3         (was 0)
+THREE_REPOSITORY_INTEGRATION         = NOT_CLAIMED
+```
+
+`THREE_REPOSITORY_INTEGRATION` remains NOT_CLAIMED because the Founder browser
+journey has not been re-run in an environment that can host the stack. The
+definition is not being downgraded to fit the container.
+
+The statement in the original PR body that "the next implementation work belongs
+in Frontera" is now **discharged**: that work was done, merged, and consumed.
+
+Neither upstream repository was modified in either phase. No public export was
+widened, no deep or private import was introduced, nothing was published, and no
+PMFreak schema, migration or RLS policy changed.
