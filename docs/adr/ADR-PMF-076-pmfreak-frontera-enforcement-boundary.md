@@ -334,3 +334,69 @@ edits away its own wrong turn teaches nothing.
 The canonical Frontera repository is now `Republika-Network/Frontera`, renamed
 from `Soberania-Protocol/Soberania-Enterprise`; continuity was proven by commit
 ancestry rather than assumed from the name.
+
+# Third addendum — local acceptance executed; the integration claim is now whole
+
+The first addendum closed the architectural gap. The second withdrew 1.1.0 and
+adopted the reviewed 1.2.0. Both were written from a cloud container that could
+not host Supabase or drive Chromium, so both stopped short of the one claim that
+matters to a user: that a real Founder, in a real browser, crosses this boundary.
+
+That run has now happened, on the real local Windows/WSL checkout, against
+Frontera **1.2.0**, at candidate commit `e1264d12`. Full evidence lives in
+`docs/release/p0-pkg-06-frontera-enforcement-boundary.md`, "Phase E".
+
+## What the run establishes
+
+```
+canonical Founder checkpoints   17/17 PASS      founder-story tests   30/30 PASS
+browser                         real Chromium   Frontera              1.2.0
+DB acceptance                   PASS            fresh migrations      PASS
+tenancy negatives               PASS            revocation freshness  PASS
+stale ALLOW after revocation    NO              product source changed NO
+```
+
+```
+Material Action ID     5f60060b-11a8-5ab7-a195-0ed704b5eb19
+Frontera Decision ID   enforcement-decision-5ba6c3c2-260b-476f-93a5-f525c15a81b3
+Task ID                7ad34e9d-1a91-4728-88a2-2c2acd7ed6d8
+```
+
+## Decision added
+
+**7. Traversal is proven by behaviour, not by a passing unit test.** Two
+independent proofs were required and obtained. The `enforcement-decision` prefix
+exists nowhere in `src/`, `scripts/` or `tests/` — only 1.2.0's action-enforcement
+domain mints it, so its presence on a dispatch response cannot be manufactured
+downstream. And with the application serving, an operator revoked authority out
+of band between two otherwise identical dispatches: the first was allowed with a
+decision id, the next was denied with none and created no Task, and a
+re-provision restored the allow. An application not reading Frontera's durable
+store on every attempt could not have changed its answer and changed it back.
+
+This is what makes `PMFREAK_FOUNDER_JOURNEY` a claim about the product rather
+than about its test suite.
+
+## Consequences
+
+```
+PROTOCOL_PACKAGE_INTEGRATION          PASS
+FRONTERA_PACKAGE_INTEGRATION          PASS
+FRONTERA_PRODUCT_RUNTIME_CONSUMPTION  PASS
+PMFREAK_GOVERNANCE_OWNERSHIP_BOUNDARY PASS
+PMFREAK_FOUNDER_JOURNEY               PASS
+THREE_REPOSITORY_INTEGRATION          PASS
+```
+
+`THREE_REPOSITORY_INTEGRATION` was deliberately never claimed on 1.1.0 and is
+claimed here for the first time, on 1.2.0, with the Founder journey behind it.
+
+Two findings surfaced during acceptance and are recorded as **non-blocking and
+out of scope**: a CRLF residue in one local working tree (`STALE_LOCAL_STATE`;
+committed blobs are LF, and a clean worktree at this commit passes
+13,315/13,315), and a pre-existing `auth-session-continuity` assertion that
+expects `405` where Next 16.3.2 first emits a framework-wide `307 ?_rsc=`
+normalization — byte-identical to `main`, not introduced here, and not one of the
+17 checkpoints. Neither requires a product change; neither is fixed in this PR,
+because fixing unrelated things inside an evidence closure is how a diff stops
+being reviewable.

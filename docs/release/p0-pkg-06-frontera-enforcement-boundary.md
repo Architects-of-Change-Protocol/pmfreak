@@ -918,6 +918,11 @@ DB_ACCEPTANCE=NOT_RUN_ENVIRONMENT
 FOUNDER_BROWSER_ACCEPTANCE=NOT_RUN_ENVIRONMENT
 ```
 
+> **Superseded by Phase E.** Both were executed on the local checkout at
+> `e1264d12`: DB acceptance PASS and the Founder journey 17/17. See
+> "Phase E — Local acceptance executed" at the end of this document. This
+> section stays as written because it was true of the environment it describes.
+
 Unchanged from Phase A and re-confirmed: no Supabase stack is reachable here.
 `OPERATIONAL_FLOW_TEST_*` is unset, the Supabase CLI is absent, and container
 image blobs return `403` through the agent proxy. The proxy documentation
@@ -1194,6 +1199,11 @@ DB_ACCEPTANCE=NOT_RUN_ENVIRONMENT
 FOUNDER_BROWSER_ACCEPTANCE=NOT_RUN_ENVIRONMENT
 ```
 
+> **Superseded by Phase E.** Both were executed on the local checkout at
+> `e1264d12`: DB acceptance PASS and the Founder journey 17/17. See
+> "Phase E — Local acceptance executed" at the end of this document. This
+> section stays as written because it was true of the environment it describes.
+
 The Phase D adoption was completed in a cloud container, which can build,
 install and test but cannot host Supabase or drive Chromium. The Founder journey
 must run on the local checkout:
@@ -1212,3 +1222,308 @@ All 17 checkpoints remain intact, and STEP 12 still asserts `fronteraDecisionId`
 `@aoc-enterprise/runtime@1.2.0` still declares no `license`, re-confirmed after
 the swap (`REVIEW_REQUIRED`, `blocked: 0`). Upstream packaging debt, unchanged
 across all three artifacts, not fixable from PMFreak.
+
+# Phase E — Local acceptance executed; the Founder journey is closed
+
+Phases A–D closed the architectural question but left one thing genuinely
+open: every prior run happened in a cloud container that could build, install
+and test but could not host Supabase or drive Chromium. Phase E is that missing
+run, and nothing else. No product source, dependency, migration, schema or RLS
+policy was touched to obtain it.
+
+```
+ACCEPTANCE_PHASE                 = B (local DB + real Chromium)
+CANDIDATE_COMMIT                 = e1264d12d13b08b995dc7e9021ae641c5dfc48a0
+PRODUCT_SOURCE_CHANGED           = NO
+DEPENDENCIES_CHANGED             = NO
+MIGRATIONS/SCHEMA/RLS_CHANGED    = NO
+FRONTERA_OR_PROTOCOL_MODIFIED    = NO
+```
+
+## Where it ran
+
+The real local Windows/WSL checkout, not a cloud one:
+
+```
+repo root   C:\Users\Usuario\source\Republika-Network\pmfreak
+            (reached as /mnt/wsl/docker-desktop-bind-mounts/Ubuntu-24.04/e27fa1b4...,
+             proven the SAME device + inode as /mnt/c/Users/Usuario/source/Republika-Network/pmfreak)
+origin      Republika-Network/pmfreak
+branch      claude/pmfreak-upstream-packaging-0ojfyc
+HEAD        e1264d12d13b08b995dc7e9021ae641c5dfc48a0
+worktree    clean at start
+```
+
+Node v22.23.1 · npm 10.9.8 · Docker 29.7.2 · Supabase local stack healthy on
+54321/54322 · Playwright 1.62.1 with its own `chromium-1234` build. The
+`supabase_vector` container restart-loops; it ships logs and takes part in no
+gate.
+
+## Frontera artifact actually consumed
+
+```
+package               @aoc-enterprise/runtime
+version               1.2.0
+tarball SHA-256       1b59c63d911bd16ec7c1974a9ea7579cfa65a269badc81f0aa2bbdad1bace082   verified
+exports fingerprint   2b0ee1e3afee7c02d600615771eac3fa8aeec680c27bf4189041715729a22438   verified
+```
+
+`npm ci` replaced a stale local `node_modules` that still held 1.1.0; every
+result below is against the installed 1.2.0.
+
+## Database acceptance
+
+| Gate | Result |
+| --- | --- |
+| `seed:p2-13-founder preflight` | `LOCAL_ISOLATED`, all signals ok |
+| `seed:p2-13-founder reseed` / `verify` | `COMPLETE`, both tenants, P2-14 owns nothing |
+| `check:p2-13-db` | PASS |
+| `check:p2-14-db` | PASS — 38 assertions |
+| `check:operational-flow-db` | PASS |
+| `check:fresh-db-migrations` | PASS — 161 migrations applied from empty, 433 tables, 1 pre-existing table without RLS (unrelated) |
+
+The fresh-migration target was an **independent** Postgres 16 container and a
+separate database (`pmfreak_fresh_v3`, re-confirmed on a second database
+`pmfreak_fresh_v4`) — never the Founder DB. This WSL distro has no `psql`
+client, so a shim ran the real `psql` **inside** that container, streaming each
+`-f <file>` to stdin; no migration under `supabase/migrations` uses a backslash
+meta-command, so the two forms are equivalent. The gate's own logic, ordering
+and `ON_ERROR_STOP=1` were not modified.
+
+## Operator-side authority provisioning
+
+`npm run provision:founder-frontera`, run before the browser, in a process the
+product cannot reach:
+
+```
+frontera version      1.2.0
+operator context      system: true
+organization          a766e43a-b980-59e8-8861-4e166c5d16e8   (PMFreak workspace = Tenant A)
+action                execute.material-action                (one action, no wildcard)
+resource scope        project:060659c6-40a3-56d0-982d-80e5fd15ad74   (one project, no wildcard)
+Tenant A authority    MINIMUM ONLY
+Tenant B authority    NONE — dispatches nothing; isolation is the point
+```
+
+## Pre-browser authority matrix — against the real durable store
+
+Evaluated through PMFreak's own adapter with default deps, so the real SQLite
+store and the real `AocKernel.evaluate()` answered every case:
+
+| Case | Expected | Actual |
+| --- | --- | --- |
+| matching actor / action / project / organization | ALLOW | ALLOW, decision id minted |
+| wrong project | DENY | DENY — `AUTHORITY_CAPABILITY_MISSING`, `POLICY_ACTION_PROHIBITED` |
+| wrong organization | DENY | DENY — `FRONTERA_ACTOR_UNBOUND` |
+| organization omitted | never ALLOW | DENY — `FRONTERA_EVALUATION_UNAVAILABLE` |
+| unknown principal | DENY | DENY — `FRONTERA_ACTOR_UNBOUND` |
+| Tenant B dispatch | DENY | DENY — `FRONTERA_ACTOR_UNBOUND` |
+
+```
+FRONTERA_PRE_BROWSER_AUTHORITY_CHECK=PASS
+```
+
+## Founder browser acceptance — run, not outstanding
+
+Real Chromium via Playwright against the real application reading the real
+durable authority store. No fake adapter, no fake ALLOW, no
+`createDefaultKernelProviders()`, no mock dispatch route, no application
+self-provisioning.
+
+```
+canonical checkpoints   STEP_01 .. STEP_17   =  17/17 PASS
+founder-story tests                          =  30/30 PASS
+named checkpoints (incl. PRECHECK, negatives,
+  accessibility, responsive)                 =  33/33 PASS
+```
+
+No test was skipped, no checkpoint count reduced, no expectation rewritten.
+STEP 12 retains and passes its `fronteraDecisionId` assertion.
+
+### Correlation IDs from the canonical run
+
+```
+Material Action ID     5f60060b-11a8-5ab7-a195-0ed704b5eb19
+Frontera Decision ID   enforcement-decision-5ba6c3c2-260b-476f-93a5-f525c15a81b3
+Task ID                7ad34e9d-1a91-4728-88a2-2c2acd7ed6d8
+```
+
+### That the real boundary was traversed, not run beside
+
+Two independent proofs, neither of which infers traversal from a passing unit
+test:
+
+1. **Provenance of the id.** The string `enforcement-decision` appears nowhere
+   in `src/`, `scripts/` or `tests/`. It is minted only by
+   `@aoc-enterprise/runtime/dist/src/features/action-enforcement/domain/enforcement-decision`.
+   PMFreak cannot produce one.
+
+2. **Live revocation against the running application.** With the app serving,
+   the same dispatch was driven through `POST /api/operational-flow` while an
+   operator process revoked authority out of band between attempts:
+
+   ```
+   [1] dispatch                  200, fronteraDecisionId=enforcement-decision-101100c8-...
+   [2] operator revokes externally (separate process, Frontera's own store)
+   [3] next dispatch             409, disposition=denied, failureClass=frontera_denied,
+                                 no decision id, reason=frontera_enforcement_denied
+   [4] Tasks after revocation    unchanged — 0 new
+   [5] operator re-provisions    200, fronteraDecisionId=enforcement-decision-d4607031-...
+   ```
+
+   An application that did not read Frontera's durable store on every attempt
+   could not have changed its answer at step [3] and changed it back at [5].
+
+```
+Founder browser -> POST /api/operational-flow -> dispatchGovernedMaterialActionToTask
+  -> authorizeFronteraDispatch -> findActorByExternalSubject
+  -> createDurableKernelProviders -> AocKernel.evaluate -> ALLOW
+  -> dispatch_governed_action_to_internal_task -> Task           TRAVERSED
+```
+
+## Tenancy negatives
+
+```
+TENANCY_NEGATIVES=PASS
+```
+
+Tenant A cannot read or mutate Tenant B and Tenant B cannot read or mutate
+Tenant A, in both directions and with no cached context leaking across the
+switch; Tenant B holds no Frontera dispatch authority; cross-workspace and
+cross-project authority both fail at the Frontera boundary; an unknown
+principal is unbound. The same-tenant role negatives (PM lacks terminal
+Decision authority, viewer may read but not mutate) and the logged-out refusal
+also pass.
+
+## Revocation freshness and integrity
+
+```
+FRONTERA_REVOCATION_FRESHNESS=PASS
+STALE_ALLOW_AFTER_REVOCATION=NO
+dispatch RPC calls after revocation = 0
+```
+
+The 1.2.0 downstream integrity proofs were re-executed here and all hold:
+payload tampering fails closed, tail revocation truncation fails closed, the
+self-authorization mutation surface is unreachable at any depth, and an omitted
+organization is never an implicit match. No Task dispatch follows any integrity
+failure. Revocation in 1.2.0 is terminal — a revoked entity id cannot be
+re-granted — so the operator rebuilds rather than re-issues; that is upstream
+behaving correctly and is recorded, not worked around.
+
+## Post-journey invariants
+
+```
+Material Actions   2   (one dispatched, one denied by the real governance contract)
+Tasks              1   one Material Action -> at most one Task
+Internal Executions 1  Outcomes 1   Observations 1
+```
+
+Retries added no Task, the hard refresh added no Task, and the denied action
+produced none. Existing Outcome / Observation semantics are unchanged.
+
+## Final regression battery
+
+Run on a **clean detached worktree of this exact candidate commit** (see
+`LOCAL_WORKTREE_CRLF_RESIDUE` below for why that mattered), with its own
+`npm ci` resolving 1.2.0:
+
+| Gate | Result |
+| --- | --- |
+| `npm run typecheck` | PASS — 0 errors |
+| `npm run lint` | PASS — 0 errors (620 pre-existing warnings) |
+| `npm test` | PASS — 13,332 tests, **13,315 pass, 0 fail**, 17 skipped; module-mocks 8/8 |
+| `npm run build` | PASS |
+| `npm run check:governance` | PASS |
+| `npm run check:package-purity` | PASS |
+| `npm run check:packaged-aoc-artifacts` | PASS |
+| `npm run check:governance-ownership` | PASS |
+| `npm run check:governance-collisions` | PASS |
+| `npm run check:frontera-consumer` | PASS — `FRONTERA_PRODUCT_RUNTIME_CONSUMPTION=PASS` |
+| `npm run check:release-readiness` | PASS |
+| `npm run compliance:check` | PASS — regeneration is timestamp/commit stamp only, lockfile SHA-256 unchanged |
+
+## Integration status after Phase E
+
+```
+PROTOCOL_PACKAGE_INTEGRATION          = PASS
+FRONTERA_PACKAGE_INTEGRATION          = PASS
+FRONTERA_PRODUCT_RUNTIME_CONSUMPTION  = PASS
+PMFREAK_GOVERNANCE_OWNERSHIP_BOUNDARY = PASS
+PMFREAK_FOUNDER_JOURNEY               = PASS
+THREE_REPOSITORY_INTEGRATION          = PASS
+```
+
+This supersedes the `DB_ACCEPTANCE=NOT_RUN_ENVIRONMENT` and
+`FOUNDER_BROWSER_ACCEPTANCE=NOT_RUN_ENVIRONMENT` blocks recorded in Phase B (ii)
+and Phase D. Those sections stay as written — they were true of the environment
+they described, and an evidence document that edits away its own gaps teaches
+nothing.
+
+## Two findings, both NON-BLOCKING and OUT OF SCOPE for this PR
+
+### 1. `LOCAL_WORKTREE_CRLF_RESIDUE`
+
+```
+classification              = STALE_LOCAL_STATE
+product defect              = NO
+product code change required = NO
+in scope for this PR        = NO
+```
+
+4,063 of 4,207 tracked files carry CRLF in the local working tree while **every
+committed blob is LF**. `core.autocrlf=input` normalizes on commit, so
+`git status` stays clean and the divergence is invisible. Ten source-scanning
+tests anchor regexes on `\n` and fail against CRLF; stripping CR makes the
+content byte-identical, the same files pass on `origin/main`, and a clean
+detached worktree at this exact candidate commit passes **13,315/13,315, 0
+fail**. The residue is a property of one local checkout, not of the commit.
+
+The residue has a second, subtler manifestation worth naming, because the
+obvious reaction to it is wrong: `compliance:artifacts:drift` fails locally,
+reporting that the committed artifacts describe a different `package-lock.json`.
+They do not. The lockfile SHA-256 is taken over file bytes, and CRLF changes
+them:
+
+```
+working-tree bytes (CRLF)   35470a91780bd008...
+same file, CR stripped      fac4cf7639cb5bd9...   <- matches
+committed blob              fac4cf7639cb5bd9...   <- matches
+committed compliance artifact fac4cf7639cb5bd9... <- matches
+```
+
+`git status` reports `package-lock.json` unmodified, and `compliance:check`
+passes in full on the clean worktree. Regenerating the compliance artifacts
+here would bake a CRLF-derived hash into them and break the gate for everyone
+else — so they were **not** regenerated.
+
+Repair belongs to the operator's own checkout (`git checkout-index -f -a`).
+**A line-ending rewrite is deliberately NOT committed in this PR** — it would
+touch thousands of files, bury the evidence diff, and fix nothing about the
+candidate.
+
+### 2. `auth-session-continuity.spec.ts` — `GET /logout` RSC assertion
+
+```
+classification              = TEST_DEFECT, PRE-EXISTING
+introduced by #585          = NO
+one of the 17 checkpoints   = NO
+product code change required = NO
+in scope for this PR        = NO
+```
+
+`npm run test:e2e:p2-14` runs the whole `tests/e2e` directory, so it exits
+non-zero on one assertion outside the Founder story: `GET /logout` carrying
+`RSC: 1` expects `405` directly, but Next.js 16.3.2 first emits its framework-wide
+`307 -> ?_rsc=<hash>` normalization before any route handler runs. `/login`
+answers with the identical redirect and hash, so this is not logout-specific.
+
+**The security property the test names still holds.** Following the redirect
+reaches `405` with `Allow: POST` and **no `Set-Cookie`** — no GET path can end
+a session; `GET` performs no session mutation at all. Both
+`src/app/logout/route.ts` and the spec are **byte-identical to `main`**, Next is
+16.3.2 on both, and no CI workflow runs Playwright, so this assertion has not
+been exercised since #584 merged. It reproduces on the clean candidate worktree.
+
+Left for a separate follow-up. Rewriting the expectation here would be exactly
+the "get it green" move this PR's gates exist to prevent.
