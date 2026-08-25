@@ -1,8 +1,8 @@
 # Third-Party License Summary
 
-Generated: 2026-08-25T02:41:39.183Z
-Commit: 4caf14cd2d720c389c6258f039702f6edf50dfc6
-Lockfile SHA-256: 76670f53fe40cb655040832fbcb095baa37cf0e39f16b0cea88fea88d9f73ea2
+Generated: 2026-08-25T04:33:22.230Z
+Commit: 66ec5b042fc4239a2187bc490d7fec60a99dc0d2
+Lockfile SHA-256: fac4cf7639cb5bd96eeea4942460abc6b74e8b9d75a22e6160dd8f969a92cca7
 
 | Metric | Count |
 | --- | ---: |

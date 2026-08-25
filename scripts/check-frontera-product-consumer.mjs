@@ -50,6 +50,30 @@ const PROVISIONING_SYMBOLS = [
   "appendEvent",
 ];
 
+/**
+ * Mutable Recognition/Authority engine handles.
+ *
+ * Frontera 1.1.0 handed these to consumers alongside the decision surface, so an
+ * application could mint itself an actor and a covering token in the live world
+ * and then be allowed — without ever holding an operator context. 1.2.0 removed
+ * them from `DurableKernelDecisionService`. Product code must never reach for
+ * them again, including through the deprecated 1.1.0 alias.
+ */
+const MUTABLE_WORLD_HANDLES = [
+  "recognitionRuntime",
+  "authorityRuntime",
+  "approvalRuntime",
+  "handshakeRuntime",
+  "createDurableKernelWorld",
+  "registerActor",
+  "issuePassport",
+  "issueCapabilityToken",
+  "registerRootIssuer",
+  "issueAuthorityGrant",
+  "issueDelegationGrant",
+  "createTrustDomain",
+];
+
 /** Frontera's bundled private workspaces. Never a direct PMFreak import. */
 const PRIVATE_WORKSPACES = [
   "@aoc-enterprise/governed-authority",
@@ -148,6 +172,21 @@ export function analyzeFronteraProductConsumption({ readFile, productFiles } = {
     if (/from\s+["'][^"']*frontera-authority-provisioning/.test(source)) {
       failures.push(`${rel}: product source imports the operator provisioning script`);
     }
+    // Scoped to files that actually import Frontera. PMFreak has its own
+    // recognition-runtime module (src/features/recognition-runtime, tracked
+    // since #531) whose methods share these names by coincidence of domain
+    // vocabulary — the same kind of collision P0-PKG-05 catalogued. The hazard
+    // being guarded is reaching a mutable handle OFF A FRONTERA OBJECT, so an
+    // unqualified name match in a file that never imports Frontera is noise,
+    // and treating it as a finding would train a reviewer to ignore this gate.
+    const importsFrontera = importSpecifiers(source).some((spec) => spec.startsWith("@aoc-enterprise/runtime"));
+    if (importsFrontera) {
+      for (const handle of MUTABLE_WORLD_HANDLES) {
+        if (new RegExp(`\\b${handle}\\b`).test(source)) {
+          failures.push(`${rel}: product source reaches a mutable Frontera world handle '${handle}'`);
+        }
+      }
+    }
   }
 
   // ---- 3. The adapter exists and reaches the real kernel.
@@ -171,6 +210,15 @@ export function analyzeFronteraProductConsumption({ readFile, productFiles } = {
     }
     if (!/system:\s*false/.test(adapter)) {
       failures.push(`${ADAPTER}: does not build an organization-scoped read context (system: false).`);
+    }
+    // Frontera 1.2.0 requires the organization to be STATED with the typed
+    // field. An omitted organization is not an implicit match, and a free-form
+    // context key cannot substitute for it.
+    if (!/organization:\s*\{/.test(adapter)) {
+      failures.push(`${ADAPTER}: does not pass the typed organization field required by Frontera 1.2.0.`);
+    }
+    if (/context:\s*\{[^}]*organizationId/.test(adapter)) {
+      failures.push(`${ADAPTER}: smuggles organizationId through free-form context instead of the typed field.`);
     }
   }
 

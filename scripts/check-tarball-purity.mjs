@@ -12,7 +12,7 @@ const root = process.cwd();
 
 const ARTIFACTS = [
   { name: '@aoc/protocol', tarball: 'vendor/aoc-protocol-0.2.0-rc.0.tgz', sha256: 'dbe8a08f432a0324ad34eb7cb85054b6dcd23c0d9a073914edf23fccd10445e5' },
-  { name: '@aoc-enterprise/runtime', tarball: 'vendor/aoc-enterprise-runtime-1.1.0.tgz', sha256: 'ab4072b7c34971265ba637e63c7fd21bd8a95a5ef342056d59632f8ff6200e60' },
+  { name: '@aoc-enterprise/runtime', tarball: 'vendor/aoc-enterprise-runtime-1.2.0.tgz', sha256: '1b59c63d911bd16ec7c1974a9ea7579cfa65a269badc81f0aa2bbdad1bace082' },
 ];
 
 // A canonical artifact must never contain PMFreak application source.

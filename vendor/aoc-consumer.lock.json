@@ -85,21 +85,21 @@
     },
     "@aoc-enterprise/runtime": {
       "package": "@aoc-enterprise/runtime",
-      "version": "1.1.0",
-      "sourceRepository": "Soberania-Protocol/Soberania-Enterprise",
-      "sourceCommit": "74308ad1ee21108b9c1964ddf8f7530ba8c5308f",
-      "sourceCommitNote": "P0-PKG-07. Ancestor of Soberania-Enterprise main via the PR #112 merge commit below; verified locally with `git merge-base --is-ancestor`.",
-      "mergedVia": "PR #112",
-      "mergeCommit": "8e7ded3b70855a47eb01bf2a9bc466f098b02438",
-      "tarball": "vendor/aoc-enterprise-runtime-1.1.0.tgz",
-      "sha256": "ab4072b7c34971265ba637e63c7fd21bd8a95a5ef342056d59632f8ff6200e60",
-      "sha512": "65f4f6da2cab2abe72ced1abfa29c9ee904c9020f0d58b92c81d86eeccc2ccbec4c81b58bf0eedef044c66817b1ea663b525ea9a32dc2a8a5f8a54d87e25f320",
-      "npmIntegrity": "sha512-ZfT22iyrKr5yztGr+inJ7pBMkCDw1YuSyB2G7szCzL7EyBtYvw7t7wRMZoF7HqZjtSXqmjLcKopfilTYfiXzIA==",
-      "sizeBytes": 3375780,
-      "fileCount": 6362,
+      "version": "1.2.0",
+      "sourceRepository": "Republika-Network/Frontera",
+      "sourceCommit": "7d9d1f0952e67fb95a653e4815bc9183a10f1c90",
+      "sourceCommitNote": "P0-PKG-07 follow-up. Ancestor of PR #113 head d6031894 and of the merge commit; the two commits after it are evidence/manifest-only, so the frozen artifact is built from 7d9d1f09 rather than from the newer head.",
+      "mergedVia": "PR #113",
+      "mergeCommit": "a937cfb4180ec02de7b736b92039f5f8210152bc",
+      "tarball": "vendor/aoc-enterprise-runtime-1.2.0.tgz",
+      "sha256": "1b59c63d911bd16ec7c1974a9ea7579cfa65a269badc81f0aa2bbdad1bace082",
+      "sha512": "6d367c4e53c8229b9477f603263e6e6e1b3e19cec1f0c155a597999360feef047d41d89d6a7df7e8f931e16fe16e38de1e4579c71b5ffb3389ac05ee4d1c1461",
+      "npmIntegrity": "sha512-bTZ8TlPIIpuUd/YDJj5ubhs+Gc7B8MFVpZeZk2D+7wR9Qdidan336Pkx4W/hbjjeHkV5xxtf+zOJrAXuTRwUYQ==",
+      "sizeBytes": 3390079,
+      "fileCount": 6366,
       "exportsFingerprint": "2b0ee1e3afee7c02d600615771eac3fa8aeec680c27bf4189041715729a22438",
       "reproducedLocally": true,
-      "reproductionProcedure": "git worktree detached at sourceCommit; npm ci; npm run build; npm pack . (node v22.22.2, npm 10.9.7). Reproduced bit-for-bit in this environment: the resulting tarball SHA-256 equalled the frozen value above before it was vendored, and npm pack itself reported \"total files: 6362\".",
+      "reproductionProcedure": "git worktree detached at sourceCommit; npm ci; npm run build; npm pack . (node v22.22.2, npm 10.9.7). Reproduced bit-for-bit: the resulting tarball SHA-256 equalled the frozen value before it was vendored, and npm pack reported \"total files: 6366\".",
       "declaredExports": [
         ".",
         "./authorization",
@@ -112,8 +112,16 @@
         "./enterprise",
         "./kernel-host"
       ],
-      "mergeCommitNote": "Verified live: this SHA is the current head of Soberania-Enterprise main and its message names \"Merge pull request #112 ... P0-PKG-07: productionize durable Frontera authority/recognition for external enforcement\".",
-      "exportsFingerprintNote": "Byte-identical to 1.0.0 and verified, not copied: the fingerprint covers the export MAP only, and P0-PKG-07 added its durable-authority surface to the existing ./enterprise and ./kernel subpaths without introducing a new one. Recomputed from the INSTALLED 1.1.0 manifest by scripts/check-packaged-aoc-artifacts.mjs on every run."
+      "mergeCommitNote": "Verified live: current head of Republika-Network/frontera main; message names \"Merge pull request #113 ... P0-PKG-07 follow-up: close ten defects in the durable Kernel Authority world\".",
+      "exportsFingerprintNote": "Byte-identical across 1.0.0, 1.1.0 and 1.2.0 and verified rather than copied: the fingerprint covers the export MAP only, and both follow-ups changed symbols within the existing ./enterprise and ./kernel subpaths without introducing a new one. Recomputed from the INSTALLED manifest by scripts/check-packaged-aoc-artifacts.mjs on every run.",
+      "sourceRepositoryNote": "Renamed/transferred from Soberania-Protocol/Soberania-Enterprise. Continuity verified: the 1.1.0 source commit 74308ad1 and the PR #112 merge commit 8e7ded3b are both present in this repository, and 8e7ded3b is the first parent of the PR #113 merge commit below.",
+      "supersedes": {
+        "version": "1.1.0",
+        "sourceCommit": "74308ad1ee21108b9c1964ddf8f7530ba8c5308f",
+        "sha256": "ab4072b7c34971265ba637e63c7fd21bd8a95a5ef342056d59632f8ff6200e60",
+        "status": "SUPERSEDED",
+        "reason": "Post-merge review of P0-PKG-07 found ten defects in the durable Kernel Authority world, including a decision surface that handed applications mutable Recognition/Authority engine handles. Closed by PR #113. PMFreak consumed 1.1.0 briefly and aborted its downstream acceptance before any Founder claim was made."
+      }
     }
   },
   "exportsFingerprintAlgorithm": "sha256 of JSON.stringify(Object.keys(pkg.exports).sort().map((k) => [k, pkg.exports[k]])) — identical to scripts/fingerprint-public-surface.mjs (exportMap digest) in Soberania-Protocol/Soberania_Protocol"

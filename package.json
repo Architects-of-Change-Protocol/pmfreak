@@ -98,7 +98,7 @@
     "provision:founder-frontera": "node scripts/provision-founder-frontera-authority.mjs"
   },
   "dependencies": {
-    "@aoc-enterprise/runtime": "file:vendor/aoc-enterprise-runtime-1.1.0.tgz",
+    "@aoc-enterprise/runtime": "file:vendor/aoc-enterprise-runtime-1.2.0.tgz",
     "@aoc/protocol": "file:vendor/aoc-protocol-0.2.0-rc.0.tgz",
     "@supabase/auth-helpers-nextjs": "^0.15.0",
     "@supabase/ssr": "^0.10.2",

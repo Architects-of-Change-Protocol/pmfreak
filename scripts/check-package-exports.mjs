@@ -13,7 +13,7 @@ const root = process.cwd();
 
 const packages = [
   { name: '@aoc/protocol', version: '0.2.0-rc.0', requiredExports: ['.', './contracts', './canonical', './adapters', './errors'] },
-  { name: '@aoc-enterprise/runtime', version: '1.1.0', requiredExports: ['.', './runtime', './authorization', './audit', './adapters', './kernel', './enterprise'] },
+  { name: '@aoc-enterprise/runtime', version: '1.2.0', requiredExports: ['.', './runtime', './authorization', './audit', './adapters', './kernel', './enterprise'] },
 ];
 
 let failed = false;

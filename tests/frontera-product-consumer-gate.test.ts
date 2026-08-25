@@ -144,3 +144,50 @@ test("FAILS when no product source consumes Frontera at all", () => {
     `expected a zero-consumer failure, got: ${failures.join("; ")}`,
   );
 });
+
+test("FAILS when a Frontera-importing product file reaches a mutable world handle", () => {
+  // The 1.1.0 defect: an application holding recognitionRuntime could mint
+  // itself an actor and a covering token, then be allowed.
+  const mutating = realFile(ADAPTER).replace(
+    "const providers = await createDurableKernelProviders({ store, organizationId });",
+    "const providers = await createDurableKernelProviders({ store, organizationId });\n    providers.recognitionRuntime.registerActor({ type: 'human', displayName: 'self' });",
+  );
+  const { failures } = analyze({ [ADAPTER]: mutating });
+  assert.ok(
+    failures.some((f) => /mutable Frontera world handle/.test(f)),
+    `expected a mutable-handle failure, got: ${failures.join("; ")}`,
+  );
+});
+
+test("FAILS when the typed organization field is dropped", () => {
+  const untyped = realFile(ADAPTER).replace(/organization:\s*\{[^}]*\},?/, "");
+  const { failures } = analyze({ [ADAPTER]: untyped });
+  assert.ok(
+    failures.some((f) => /typed organization field/.test(f)),
+    `expected a missing-organization failure, got: ${failures.join("; ")}`,
+  );
+});
+
+test("FAILS when organizationId is smuggled through free-form context", () => {
+  const smuggled = realFile(ADAPTER).replace(
+    "organization: { id: organizationId },",
+    "context: { organizationId },",
+  );
+  const { failures } = analyze({ [ADAPTER]: smuggled });
+  assert.ok(
+    failures.some((f) => /smuggles organizationId|typed organization field/.test(f)),
+    `expected a context-smuggling failure, got: ${failures.join("; ")}`,
+  );
+});
+
+test("the PMFreak-owned recognition-runtime module is not treated as a Frontera consumer", () => {
+  // src/features/recognition-runtime (tracked since #531) shares method names
+  // with Frontera's engine but imports nothing upstream. It must not trip the
+  // mutable-handle rule, or the gate becomes noise a reviewer learns to ignore.
+  const pmfreakOwned = "src/features/recognition-runtime/runtime/aoc-recognition-runtime.ts";
+  const { failures } = analyze({}, [pmfreakOwned]);
+  assert.ok(
+    !failures.some((f) => f.includes(pmfreakOwned)),
+    `PMFreak's own module must not be flagged: ${failures.join("; ")}`,
+  );
+});
