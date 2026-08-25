@@ -1,9 +1,9 @@
 // PMFreak adapter: SecurityAuditPort implementation.
-// Maps AocGovernanceEventType to PMFreak's SecurityEventType and delegates to logSecurityEvent.
+// Maps GovernanceAuditEventType to PMFreak's SecurityEventType and delegates to logSecurityEvent.
 import { logSecurityEvent, type SecurityEventType } from "@/lib/security/telemetry";
-import type { SecurityAuditPort, AocGovernanceEventType, AocAuditEventPayload } from "@/aoc/protocol/ports/security-audit";
+import type { SecurityAuditPort, GovernanceAuditEventType, GovernanceAuditEventPayload } from "@/lib/governance/authority/ports/security-audit";
 
-const EVENT_MAP: Record<AocGovernanceEventType, SecurityEventType> = {
+const EVENT_MAP: Record<GovernanceAuditEventType, SecurityEventType> = {
   governance_action_allowed: "governance_action_allowed",
   governance_violation: "governance_violation",
   governance_approval_requested: "approval_requested",
@@ -25,7 +25,7 @@ const EVENT_MAP: Record<AocGovernanceEventType, SecurityEventType> = {
 };
 
 export class PmfreakSecurityAuditAdapter implements SecurityAuditPort {
-  async logEvent(event: AocGovernanceEventType, payload: AocAuditEventPayload = {}): Promise<void> {
+  async logEvent(event: GovernanceAuditEventType, payload: GovernanceAuditEventPayload = {}): Promise<void> {
     await logSecurityEvent(EVENT_MAP[event], payload);
   }
 }

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 const baselines = {
-  'src/aoc/enterprise/runtime/runtime-contracts.ts': 20,
-  'src/aoc/enterprise/runtime/authority-port.ts': 17,
+  'src/lib/governance/authority/runtime/runtime-contracts.ts': 20,
+  'src/lib/governance/authority/runtime/authority-port.ts': 17,
 };
 for (const [file, maxAny] of Object.entries(baselines)) {
   const c = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');

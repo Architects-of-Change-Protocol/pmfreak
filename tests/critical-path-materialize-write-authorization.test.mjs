@@ -24,7 +24,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AccessDeniedError } from "../src/aoc/enterprise/runtime/access-guards-bridge.ts";
+import { AccessDeniedError } from "../src/lib/governance/authority/runtime/access-guards-bridge.ts";
 import { handleMaterializeCriticalPath } from "../src/app/api/critical-path/materialize/route.ts";
 
 const ROLE_RANK = { viewer: 1, pm: 2, admin: 3, owner: 4 };

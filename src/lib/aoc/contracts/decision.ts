@@ -1,4 +1,4 @@
-import type { GovernanceDecisionState } from "@aoc-enterprise/runtime";
+import type { GovernanceDecisionState } from "@/lib/governance/authority/runtime";
 import type { RuntimeLineage } from "@/lib/aoc/contracts/lineage";
 import type { RuntimeAuthoritySource, RuntimeMetadata, RuntimeScope } from "@/lib/aoc/contracts/metadata";
 

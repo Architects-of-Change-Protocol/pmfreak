@@ -15,8 +15,6 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
-      - name: Build AOC packages
-        run: npm run build:aoc
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
@@ -25,8 +23,8 @@ jobs:
         run: npm test
       - name: Runtime governance
         run: npm run check:governance
-      - name: Publish readiness
-        run: npm run check:publish-ready
+      - name: Governance ownership boundary
+        run: npm run check:governance-boundary
 
       - name: Package purity
         run: npm run check:package-purity

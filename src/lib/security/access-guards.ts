@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { logSecurityEvent } from "@/lib/security/telemetry";
 import { type Permission, type WorkspaceRole } from "@/lib/security/rbac";
 import { authorizeRuntimeAction, buildEnterpriseRuntimeRequest } from "@/aoc/runtime-consumer";
-import { AccessDeniedError } from "@/aoc/enterprise/runtime/access-guards-bridge";
+import { AccessDeniedError } from "@/lib/governance/authority/runtime/access-guards-bridge";
 import { PERMISSION_TO_GOVERNANCE_ACTION } from "@/lib/aoc/runtime/governance-actions";
 
 export { AccessDeniedError };

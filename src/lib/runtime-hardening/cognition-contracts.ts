@@ -52,14 +52,14 @@ const CONTRACTS: Array<CognitionContractCheck & {
     id: "governance_boundary_type",
     description: "governance boundary must be represented in enterprise runtime",
     subsystem: "governance",
-    filePath: "src/aoc/enterprise/runtime/governance-core.ts",
+    filePath: "src/lib/governance/authority/runtime/governance-core.ts",
     requiredSymbols: ["workspaceId", "tenantId", "allowed"],
   },
   {
     id: "runtime_authorization_surface",
     description: "runtime authorization surface must expose canonical methods",
     subsystem: "runtime_authorization",
-    filePath: "src/aoc/enterprise/runtime/authority-port.ts",
+    filePath: "src/lib/governance/authority/runtime/authority-port.ts",
     requiredSymbols: ["authorizeAction", "enforceAuthorization", "evaluateAgentAccess"],
   },
   {

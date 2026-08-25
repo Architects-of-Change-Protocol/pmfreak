@@ -1,13 +1,13 @@
 import { ensurePmfreakAocAdaptersRegistered } from "@/lib/aoc/bootstrap";
 import { getAocAdapter } from "@/aoc/runtime/adapters";
-import { composeRuntimeContext } from "@/aoc/enterprise/runtime";
+import { composeRuntimeContext } from "@/lib/governance/authority/runtime";
 import {
   generateExecutionGrantToken,
   issueExecutionGrant as _issueExecutionGrant,
   validateExecutionGrant as _validateExecutionGrant,
   consumeExecutionGrant as _consumeExecutionGrant,
   type ExecutionGrantInput,
-} from "@/aoc/enterprise/runtime/execution-grants";
+} from "@/lib/governance/authority/runtime/execution-grants";
 
 export { generateExecutionGrantToken };
 export type { ExecutionGrantInput };

@@ -1,0 +1,128 @@
+{
+  "_comment": "PMFreak consumer lock for the frozen AOC packaged artifacts (P0-PKG-04). Records repository, commit, version and SHA-256 of every installed artifact, as required by the pmfreak.obligations block of the frozen aoc.cross-repository-integration@1.0.0 contract shipped inside the @aoc/protocol tarball. Verified by scripts/check-packaged-aoc-artifacts.mjs. P0-PKG-05 additionally removed the retained local copies; ownership of what they contained is recorded in governance-ownership.lock.json. This file records identity; it authorizes no publication or release.",
+  "contract": "aoc.cross-repository-integration",
+  "contractVersion": "1.0.0",
+  "localSourceFallback": {
+    "allowed": false,
+    "rationale": "The canonical @aoc/protocol and @aoc-enterprise/runtime are the frozen packaged artifacts recorded below. Falling back to a repository-local source copy — under any specifier, alias or resolution path — would silently restore the pre-P0-PKG-04 state in which no import crossed a real package boundary, while the evidence in this file continued to assert that it did. There is no permitted fallback, not even a temporary or diagnostic one.",
+    "forbiddenSpecifiers": [
+      "file:src/aoc/protocol",
+      "file:src/aoc/enterprise",
+      "file:./src/aoc/protocol",
+      "file:./src/aoc/enterprise",
+      "link:src/aoc/protocol",
+      "link:src/aoc/enterprise",
+      "workspace:*"
+    ],
+    "forbiddenResolutionRoots": [
+      "src/aoc/protocol",
+      "src/aoc/enterprise"
+    ],
+    "forbiddenTypeScriptAliases": [
+      "@aoc/protocol",
+      "@aoc/protocol/*",
+      "@aoc-enterprise/runtime",
+      "@aoc-enterprise/runtime/*"
+    ],
+    "enforcedBy": "npm run check:packaged-aoc-artifacts (scripts/check-packaged-aoc-artifacts.mjs), with negative controls in tests/packaged-aoc-artifact-gate.test.mjs"
+  },
+  "localCopies": {
+    "disposition": "REMOVED",
+    "marker": "NON_CANONICAL_LEGACY_COPY",
+    "packages": {
+      "src/aoc/protocol": "@pmfreak/aoc-protocol-internal",
+      "src/aoc/enterprise": "@pmfreak/aoc-enterprise-internal"
+    },
+    "rationale": "P0-PKG-04 retained these directories as RETAINED_NON_CANONICAL because removing them would have meant deciding, inside a packaging increment, which layer owned the 44 governance symbols they held. P0-PKG-05 made those 44 ownership decisions (governance-ownership.lock.json) and relocated the code to PMFreak-owned space under src/lib/governance/authority, so both directories are now absent. The packages map below is retained as a deny-list: if either directory ever reappears, the gate still requires it to be non-canonical and correctly marked.",
+    "constraint": "Neither directory may exist. Should one be reintroduced, it may never declare, alias or otherwise resolve the names @aoc/protocol or @aoc-enterprise/runtime, and must carry the NON_CANONICAL_LEGACY_COPY marker.",
+    "removedBy": "P0-PKG-05"
+  },
+  "privateFronteraWorkspaces": {
+    "directDependencyAllowed": false,
+    "packages": [
+      "@aoc-enterprise/governed-authority",
+      "@aoc-enterprise/governed-authorization",
+      "@aoc-enterprise/identity",
+      "@aoc-enterprise/scoped-access"
+    ],
+    "rationale": "These are internal to the self-contained Frontera artifact and reach PMFreak only as its bundleDependencies. A direct PMFreak dependency or import would bypass the packaged boundary."
+  },
+  "artifacts": {
+    "@aoc/protocol": {
+      "package": "@aoc/protocol",
+      "version": "0.2.0-rc.0",
+      "sourceRepository": "Soberania-Protocol/Soberania_Protocol",
+      "sourceCommit": "dde34517d956156a0c735c18a805763a5e712879",
+      "sourceCommitNote": "PR #387 was squash-merged; the RC source commit is not an ancestor of main but is retained on origin/claude/soberania-protocol-rc-package-fg02tq, and main (merge commit below) differs from it only in docs/release evidence files — no packaging input differs.",
+      "mergedVia": "PR #387",
+      "mergeCommit": "7ce27f1be0980bf75a23eb4b15ed0a45d8bfd2f3",
+      "tarball": "vendor/aoc-protocol-0.2.0-rc.0.tgz",
+      "sha256": "dbe8a08f432a0324ad34eb7cb85054b6dcd23c0d9a073914edf23fccd10445e5",
+      "sha512": "f8cb8dd45bc656a2ab0ba8b01a80d6edad7291addb36088606a9ba4bf547c62333e32c137c6776ea308e25022673ecebabb6f797bfd580a22675132cdba90573",
+      "npmIntegrity": "sha512-+MuN1FvGVqKrC6iwGoDW7a1yka3bNgiGBqm6S/VHxiMz4ywTfGd26jCOJQImc+zrq7b3l7/VgKImdRMs26kFcw==",
+      "sizeBytes": 278205,
+      "fileCount": 407,
+      "exportsFingerprint": "a67d65b17dcb34c7da84d9a07cb893e073e21e9edbbc621bcae649afa5cdeb45",
+      "reproducedLocally": true,
+      "reproductionProcedure": "git worktree detached at sourceCommit; npm ci; npm run build; npm pack ./packages/protocol (node v22.22.2, npm 10.9.7)",
+      "declaredExports": [
+        ".",
+        "./contracts",
+        "./errors",
+        "./claims",
+        "./adapters",
+        "./runtime-registry",
+        "./canonical",
+        "./identity",
+        "./manifest",
+        "./portability",
+        "./interoperability",
+        "./licensing",
+        "./governance-compatibility",
+        "./sovereignty-capabilities",
+        "./package.json"
+      ]
+    },
+    "@aoc-enterprise/runtime": {
+      "package": "@aoc-enterprise/runtime",
+      "version": "1.2.0",
+      "sourceRepository": "Republika-Network/Frontera",
+      "sourceCommit": "7d9d1f0952e67fb95a653e4815bc9183a10f1c90",
+      "sourceCommitNote": "P0-PKG-07 follow-up. Ancestor of PR #113 head d6031894 and of the merge commit; the two commits after it are evidence/manifest-only, so the frozen artifact is built from 7d9d1f09 rather than from the newer head.",
+      "mergedVia": "PR #113",
+      "mergeCommit": "a937cfb4180ec02de7b736b92039f5f8210152bc",
+      "tarball": "vendor/aoc-enterprise-runtime-1.2.0.tgz",
+      "sha256": "1b59c63d911bd16ec7c1974a9ea7579cfa65a269badc81f0aa2bbdad1bace082",
+      "sha512": "6d367c4e53c8229b9477f603263e6e6e1b3e19cec1f0c155a597999360feef047d41d89d6a7df7e8f931e16fe16e38de1e4579c71b5ffb3389ac05ee4d1c1461",
+      "npmIntegrity": "sha512-bTZ8TlPIIpuUd/YDJj5ubhs+Gc7B8MFVpZeZk2D+7wR9Qdidan336Pkx4W/hbjjeHkV5xxtf+zOJrAXuTRwUYQ==",
+      "sizeBytes": 3390079,
+      "fileCount": 6366,
+      "exportsFingerprint": "2b0ee1e3afee7c02d600615771eac3fa8aeec680c27bf4189041715729a22438",
+      "reproducedLocally": true,
+      "reproductionProcedure": "git worktree detached at sourceCommit; npm ci; npm run build; npm pack . (node v22.22.2, npm 10.9.7). Reproduced bit-for-bit: the resulting tarball SHA-256 equalled the frozen value before it was vendored, and npm pack reported \"total files: 6366\".",
+      "declaredExports": [
+        ".",
+        "./authorization",
+        "./audit",
+        "./crypto",
+        "./adapters",
+        "./runtime",
+        "./runtime-host",
+        "./kernel",
+        "./enterprise",
+        "./kernel-host"
+      ],
+      "mergeCommitNote": "Verified live: current head of Republika-Network/frontera main; message names \"Merge pull request #113 ... P0-PKG-07 follow-up: close ten defects in the durable Kernel Authority world\".",
+      "exportsFingerprintNote": "Byte-identical across 1.0.0, 1.1.0 and 1.2.0 and verified rather than copied: the fingerprint covers the export MAP only, and both follow-ups changed symbols within the existing ./enterprise and ./kernel subpaths without introducing a new one. Recomputed from the INSTALLED manifest by scripts/check-packaged-aoc-artifacts.mjs on every run.",
+      "sourceRepositoryNote": "Renamed/transferred from Soberania-Protocol/Soberania-Enterprise. Continuity verified: the 1.1.0 source commit 74308ad1 and the PR #112 merge commit 8e7ded3b are both present in this repository, and 8e7ded3b is the first parent of the PR #113 merge commit below.",
+      "supersedes": {
+        "version": "1.1.0",
+        "sourceCommit": "74308ad1ee21108b9c1964ddf8f7530ba8c5308f",
+        "sha256": "ab4072b7c34971265ba637e63c7fd21bd8a95a5ef342056d59632f8ff6200e60",
+        "status": "SUPERSEDED",
+        "reason": "Post-merge review of P0-PKG-07 found ten defects in the durable Kernel Authority world, including a decision surface that handed applications mutable Recognition/Authority engine handles. Closed by PR #113. PMFreak consumed 1.1.0 briefly and aborted its downstream acceptance before any Founder claim was made."
+      }
+    }
+  },
+  "exportsFingerprintAlgorithm": "sha256 of JSON.stringify(Object.keys(pkg.exports).sort().map((k) => [k, pkg.exports[k]])) — identical to scripts/fingerprint-public-surface.mjs (exportMap digest) in Soberania-Protocol/Soberania_Protocol"
+}

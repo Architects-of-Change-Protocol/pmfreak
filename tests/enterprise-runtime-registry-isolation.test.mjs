@@ -22,10 +22,10 @@ function collectSourceFiles(directory) {
   return files;
 }
 
-const enterpriseFiles = collectSourceFiles(path.join("src", "aoc", "enterprise"));
-const runtimeCompositionRoot = path.join("src", "aoc", "enterprise", "runtime", "composition.ts");
+const enterpriseFiles = collectSourceFiles(path.join("src", "lib", "governance", "authority"));
+const runtimeCompositionRoot = path.join("src", "lib", "governance", "authority", "runtime", "composition.ts");
 
-test("enterprise registry access is isolated to the runtime composition root", () => {
+test("governance registry access is isolated to the runtime composition root", () => {
   const violations = [];
   for (const file of enterpriseFiles) {
     const source = readFileSync(file, "utf8");
@@ -37,11 +37,11 @@ test("enterprise registry access is isolated to the runtime composition root", (
   assert.deepEqual(violations, []);
 });
 
-test("enterprise orchestration modules consume RuntimeContext explicitly", () => {
+test("governance orchestration modules consume RuntimeContext explicitly", () => {
   for (const file of [
-    "src/aoc/enterprise/runtime/governance-core.ts",
-    "src/aoc/enterprise/runtime/execution-grants.ts",
-    "src/aoc/enterprise/runtime/delegated-capabilities.ts",
+    "src/lib/governance/authority/runtime/governance-core.ts",
+    "src/lib/governance/authority/runtime/execution-grants.ts",
+    "src/lib/governance/authority/runtime/delegated-capabilities.ts",
   ]) {
     const source = readFileSync(file, "utf8");
     assert.match(source, /RuntimeContext/, `${file} should depend on RuntimeContext`);
@@ -50,7 +50,7 @@ test("enterprise orchestration modules consume RuntimeContext explicitly", () =>
 });
 
 test("runtime context exposes canonical dependency groups for orchestration", () => {
-  const source = readFileSync("src/aoc/enterprise/runtime/context.ts", "utf8");
+  const source = readFileSync("src/lib/governance/authority/runtime/context.ts", "utf8");
   assert.match(source, /export interface RuntimeContext/);
   assert.match(source, /RuntimeSecurityContext/);
   assert.match(source, /RuntimeGovernanceContext/);

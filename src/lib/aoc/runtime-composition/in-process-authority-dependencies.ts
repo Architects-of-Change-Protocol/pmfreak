@@ -1,5 +1,5 @@
-import { registerInProcessAuthorityDependencies } from "@/aoc/enterprise/runtime/authority-provider";
-import type { RuntimeAgentAccessInput, RuntimeAgentScopeInput } from "@/aoc/enterprise/runtime/runtime-contracts";
+import { registerInProcessAuthorityDependencies } from "@/lib/governance/authority/runtime/authority-provider";
+import type { RuntimeAgentAccessInput, RuntimeAgentScopeInput } from "@/lib/governance/authority/runtime/runtime-contracts";
 import { authorizeRuntimeAction } from "@/lib/aoc/enterprise/authorization";
 import { enforceRuntimeAuthorization } from "@/lib/aoc/enterprise/runtime";
 import { consumeExecutionGrant, issueExecutionGrant, validateExecutionGrant } from "@/lib/security/execution-grants";

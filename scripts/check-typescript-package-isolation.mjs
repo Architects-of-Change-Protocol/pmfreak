@@ -1,61 +1,62 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+// P0-PKG-05 — TypeScript resolution isolation.
+//
+// Previously this proved a local pseudo-package's dist did not leak protocol source.
+// Those packages are gone. It now proves the stronger property that replaced them:
+// no TypeScript configuration or source import can resolve a canonical package name,
+// or any governance type, back into a local pseudo-upstream tree.
+import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 
-const enterpriseSrcDir = 'src/aoc/enterprise';
-const enterpriseRuntimeDir = join(enterpriseSrcDir, 'runtime');
-const enterpriseDistDir = join(enterpriseSrcDir, 'dist');
+const root = process.cwd();
+const CANONICAL = ['@aoc/protocol', '@aoc-enterprise/runtime'];
+const REMOVED = ['src/aoc/protocol', 'src/aoc/enterprise', '@pmfreak/aoc-protocol-internal', '@pmfreak/aoc-enterprise-internal'];
 
-function walk(dir, predicate, acc = []) {
+let failed = false;
+const fail = (message) => { console.error(`[isolation] ${message}`); failed = true; };
+
+// 1. Every tsconfig path alias must be free of canonical impersonation and removed trees.
+const tsconfigs = readdirSync(root).filter((f) => /^tsconfig.*\.json$/.test(f));
+for (const file of tsconfigs) {
+  const raw = readFileSync(join(root, file), 'utf8').replace(/^\s*\/\/.*$/gm, '');
+  const paths = JSON.parse(raw).compilerOptions?.paths ?? {};
+  for (const [key, targets] of Object.entries(paths)) {
+    const base = key.replace(/\/\*$/, '');
+    if (CANONICAL.includes(base)) fail(`${file}: alias '${key}' impersonates canonical package`);
+    if (REMOVED.includes(base)) fail(`${file}: removed alias '${key}' reintroduced`);
+    for (const target of targets) {
+      if (REMOVED.some((r) => target.includes(r))) fail(`${file}: alias '${key}' resolves into removed tree '${target}'`);
+    }
+  }
+}
+
+// 2. No source file may import a removed tree, and none may deep-import an artifact.
+const sources = [];
+const walk = (dir) => {
+  if (!existsSync(dir)) return;
   for (const entry of readdirSync(dir)) {
+    if (entry === 'node_modules' || entry === '.next') continue;
     const full = join(dir, entry);
-    const st = statSync(full);
-    if (st.isDirectory()) walk(full, predicate, acc);
-    else if (predicate(full)) acc.push(full);
+    if (statSync(full).isDirectory()) walk(full);
+    else if (/\.(ts|tsx)$/.test(full)) sources.push(full);
   }
-  return acc;
-}
+};
+walk(join(root, 'src'));
 
-function assert(condition, message) {
-  if (!condition) {
-    console.error(`[isolation] ${message}`);
-    process.exit(1);
-  }
-}
-
-const sourceFiles = walk(enterpriseRuntimeDir, (p) => p.endsWith('.ts'));
-const forbiddenSourceImports = [];
-for (const file of sourceFiles) {
+for (const file of sources) {
+  const rel = relative(root, file).replaceAll(sep, '/');
   const content = readFileSync(file, 'utf8');
-  const importStatements = [...content.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1]);
-  if (importStatements.some((spec) => /^(?:\.\.\/)+protocol/.test(spec) || spec === '@/aoc/protocol' || spec.startsWith('src/aoc/protocol'))) {
-    forbiddenSourceImports.push(`${file}: forbidden protocol source import`);
-  }
-  if (importStatements.some((spec) => /^(?:\.\.\/)+runtime\/adapters/.test(spec) || spec.startsWith('src/aoc/runtime/adapters'))) {
-    forbiddenSourceImports.push(`${file}: forbidden host adapter registry import`);
-  }
-}
-assert(forbiddenSourceImports.length === 0, `enterprise source contains forbidden imports:\n${forbiddenSourceImports.join('\n')}`);
-
-const distFiles = walk(enterpriseDistDir, (p) => p.endsWith('.d.ts') || p.endsWith('.js'));
-const forbiddenDistRefs = [];
-for (const file of distFiles) {
-  const content = readFileSync(file, 'utf8');
-  if (content.includes('../../protocol') || content.includes('../protocol') || content.includes('dist/protocol/') || content.includes('dist/aoc/protocol/')) {
-    forbiddenDistRefs.push(`${file}: contains protocol artifact path reference`);
+  for (const spec of [...content.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1])) {
+    if (REMOVED.some((r) => spec.includes(r))) fail(`${rel}: imports removed pseudo-upstream path '${spec}'`);
+    if (/^@aoc\/protocol\/dist|^@aoc-enterprise\/runtime\/dist|^@aoc\/protocol\/src|^@aoc-enterprise\/runtime\/src/.test(spec)) {
+      fail(`${rel}: deep/private upstream import '${spec}'`);
+    }
   }
 }
-assert(forbiddenDistRefs.length === 0, `enterprise dist contains protocol path references:\n${forbiddenDistRefs.join('\n')}`);
 
-const pack = spawnSync('npm', ['pack', '--dry-run', '--json'], {
-  cwd: enterpriseSrcDir,
-  encoding: 'utf8',
-});
-assert(pack.status === 0, `npm pack failed for enterprise package:\n${pack.stderr || pack.stdout}`);
+// 3. The governance authority layer must actually exist and own its own types.
+if (!existsSync(join(root, 'src/lib/governance/authority'))) {
+  fail('src/lib/governance/authority is missing — governance ownership layer not present');
+}
 
-const packed = JSON.parse(pack.stdout)[0];
-const tarballFiles = packed.files.map((f) => f.path);
-const tarballLeaks = tarballFiles.filter((f) => /dist\/.*protocol\//.test(f) || /dist\/aoc\/protocol\//.test(f));
-assert(tarballLeaks.length === 0, `enterprise tarball contains protocol artifacts:\n${tarballLeaks.join('\n')}`);
-
-console.log('[isolation] TypeScript package isolation checks passed');
+if (failed) process.exit(1);
+console.log(`[isolation] TypeScript resolution isolation verified across ${sources.length} source files and ${tsconfigs.length} tsconfig(s).`);

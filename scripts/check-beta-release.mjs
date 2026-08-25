@@ -13,10 +13,10 @@
 // No flags: a gate whose checks can be bypassed is not a gate.
 //
 // Ordering notes:
-//   * build:aoc runs FIRST — @aoc/protocol and @aoc-enterprise/runtime dist/
-//     artifacts are gitignored, so on a clean checkout check:governance's
-//     package-exports validation fails until they are built (found during the
-//     Perilla 11 baseline run).
+//   * There is no longer a local AOC package build step: P0-PKG-05 removed the
+//     local pseudo-packages, and the canonical @aoc/protocol and
+//     @aoc-enterprise/runtime artifacts arrive pre-built and checksum-pinned
+//     through npm ci.
 //   * Output is streamed to per-gate log files under .beta-release-logs/ and
 //     the last lines are replayed on failure so nothing relevant is hidden.
 // ============================================================================
@@ -32,7 +32,7 @@ const MAX_OUTPUT_BUFFER = 64 * 1024 * 1024;
 
 /** @type {Array<{name: string, command: string, severity: "blocking" | "advisory"}>} */
 const GATES = [
-  { name: "AOC Packages Build", command: "npm run build:aoc", severity: "blocking" },
+  { name: "Governance Ownership Boundary", command: "npm run check:governance-boundary", severity: "blocking" },
   { name: "Typecheck", command: "npm run typecheck", severity: "blocking" },
   { name: "Lint", command: "npm run lint", severity: "blocking" },
   { name: "Tests", command: "npm test", severity: "blocking" },

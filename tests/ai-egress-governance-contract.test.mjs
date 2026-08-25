@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
 
-const policySource = fs.readFileSync('src/aoc/enterprise/runtime/ai-egress/policy-engine.ts', 'utf8');
+const policySource = fs.readFileSync('src/lib/governance/authority/runtime/ai-egress/policy-engine.ts', 'utf8');
 const gatewaySource = fs.readFileSync('src/lib/ai/gateway/inference-gateway.ts', 'utf8');
 const registrySource = fs.readFileSync('src/lib/ai/providers/provider-registry.ts', 'utf8');
 const auditSource = fs.readFileSync('src/lib/aoc/audit/ai-egress-audit.ts', 'utf8');

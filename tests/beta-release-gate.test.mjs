@@ -23,7 +23,7 @@ test("check:beta-release is registered in package.json", () => {
 test("gate covers every release-blocking check in a sane order", () => {
   const source = read("scripts/check-beta-release.mjs");
   const required = [
-    "npm run build:aoc",
+    "npm run check:governance-boundary",
     "npm run typecheck",
     "npm run lint",
     "npm test",
@@ -43,9 +43,15 @@ test("gate covers every release-blocking check in a sane order", () => {
     assert.ok(index > lastIndex, `gate command out of expected order: ${command}`);
     lastIndex = index;
   }
-  // build:aoc must precede check:governance — package-exports fails on a
-  // clean checkout otherwise (found during the Perilla 11 baseline run).
-  assert.ok(source.indexOf('"npm run build:aoc"') < source.indexOf('"npm run check:governance"'));
+  // The ownership boundary must precede check:governance. P0-PKG-05 removed the
+  // local AOC package build that used to hold this slot (there is nothing local
+  // left to build); what belongs first now is the gate proving the canonical
+  // names still mean the frozen artifacts and that no pseudo-upstream tree came
+  // back — if that has regressed, every later gate is reasoning about the wrong
+  // package boundary.
+  assert.ok(source.indexOf('"npm run check:governance-boundary"') < source.indexOf('"npm run check:governance"'));
+  // The build that used to run here must not silently return.
+  assert.doesNotMatch(source, /npm run build:aoc/, "there is no local AOC package to build any more");
 });
 
 test("blocking failures stop the gate and exit 1; advisory gates cannot block", () => {

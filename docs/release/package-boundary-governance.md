@@ -1,8 +1,18 @@
 # Package Boundary Governance
 
+> **P0-PKG-04:** `@aoc/protocol` and `@aoc-enterprise/runtime` now name the frozen
+> upstream packaged artifacts installed from `vendor/*.tgz` (see
+> `docs/release/p0-pkg-04-packaged-artifact-integration.md` and
+> `vendor/aoc-consumer.lock.json`). The repository-local packages formerly published
+> under those names are renamed `@pmfreak/aoc-protocol-internal` /
+> `@pmfreak/aoc-enterprise-internal`; every rule below applies to them under their new
+> names. Imports of the upstream names must go only through their declared export keys,
+> enforced by `npm run check:packaged-aoc-artifacts` and the consumer boundary audit.
+
 ## Allowed dependency direction
-- `@aoc/protocol` is the canonical contract layer and has no dependency on `@aoc-enterprise/runtime`.
-- `@aoc-enterprise/runtime` may depend on `@aoc/protocol` **only through package exports** (`@aoc/protocol`, `@aoc/protocol/contracts`, `@aoc/protocol/ports`, `@aoc/protocol/actor-model`).
+- `@pmfreak/aoc-protocol-internal` is the canonical contract layer and has no dependency on `@pmfreak/aoc-enterprise-internal`.
+- `@pmfreak/aoc-enterprise-internal` may depend on the protocol layer **only through package exports** (`@pmfreak/aoc-protocol-internal`, `.../contracts`, `.../ports`, `.../actor-model`).
+- The internal protocol layer may consume the packaged `@aoc/protocol` through its declared export keys (today: `@aoc/protocol/canonical` on the capability-claim signing path).
 - PMFreak app code consumes protocol/runtime through package exports and must not import package source internals.
 
 ## Forbidden imports

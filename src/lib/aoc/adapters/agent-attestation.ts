@@ -3,8 +3,8 @@
 import { verifyAgentAttestation } from "@/lib/security/agent-attestation";
 import { AccessDeniedError } from "@/lib/security/access-guards";
 import type { Permission } from "@/lib/security/rbac";
-import type { AgentAttestationPort } from "@/aoc/protocol/ports/agent-attestation";
-import { AocAccessDeniedError } from "@/aoc/protocol/ports/access-verification";
+import type { AgentAttestationPort } from "@/lib/governance/authority/ports/agent-attestation";
+import { GovernanceAccessDeniedError } from "@/lib/governance/authority/ports/access-verification";
 
 export class PmfreakAgentAttestationAdapter implements AgentAttestationPort {
   async verifyAttestation(input: {
@@ -25,7 +25,7 @@ export class PmfreakAgentAttestationAdapter implements AgentAttestationPort {
       return { agentId: claims.agentId, workspaceId: claims.workspaceId };
     } catch (error) {
       if (error instanceof AccessDeniedError) {
-        throw new AocAccessDeniedError(error.message, error.metadata);
+        throw new GovernanceAccessDeniedError(error.message, error.metadata);
       }
       throw error;
     }

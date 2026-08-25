@@ -4,9 +4,9 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 const repoRoot = process.cwd();
-const runtimeContractsPath = path.join(repoRoot, "src/aoc/enterprise/runtime/runtime-contracts.ts");
-const runtimeInputContractsPath = path.join(repoRoot, "src/aoc/enterprise/runtime/runtime-input-contracts.ts");
-const authorityPortPath = path.join(repoRoot, "src/aoc/enterprise/runtime/authority-port.ts");
+const runtimeContractsPath = path.join(repoRoot, "src/lib/governance/authority/runtime/runtime-contracts.ts");
+const runtimeInputContractsPath = path.join(repoRoot, "src/lib/governance/authority/runtime/runtime-input-contracts.ts");
+const authorityPortPath = path.join(repoRoot, "src/lib/governance/authority/runtime/authority-port.ts");
 
 test("runtime-contracts.ts canonical surface exists", () => {
   assert.equal(existsSync(runtimeContractsPath), true);

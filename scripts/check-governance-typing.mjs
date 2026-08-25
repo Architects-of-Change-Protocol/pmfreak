@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 const paths = [
-  'src/aoc/enterprise/runtime/external-authority-adapter.ts',
-  'src/aoc/enterprise/runtime/delegated-capabilities-bridge.ts',
+  'src/lib/governance/authority/runtime/external-authority-adapter.ts',
+  'src/lib/governance/authority/runtime/delegated-capabilities-bridge.ts',
 ];
 let failed = false;
 for (const p of paths) {

@@ -1,4 +1,4 @@
-import type { AIEgressDecision, AIEgressRequest, DataSensitivity } from "@/aoc/enterprise/runtime/ai-egress/types";
+import type { AIEgressDecision, AIEgressRequest, DataSensitivity } from "@/lib/governance/authority/runtime/ai-egress/types";
 
 export interface AIEgressAuditEvent {
   eventType: "ai_egress_decision";

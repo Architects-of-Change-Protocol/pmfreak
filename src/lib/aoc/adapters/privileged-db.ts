@@ -1,10 +1,10 @@
 // PMFreak adapter: PrivilegedDbPort implementation.
 // Delegates to PMFreak's createPrivilegedSupabaseClient with the required audit context.
 import { createPrivilegedSupabaseClient, type PrivilegedAccessContext } from "@/lib/security/privileged-access";
-import type { PrivilegedDbPort, AocPrivilegedDbContext } from "@/aoc/protocol/ports/privileged-db";
+import type { PrivilegedDbPort, PrivilegedDbContext } from "@/lib/governance/authority/ports/privileged-db";
 
 export class PmfreakPrivilegedDbAdapter implements PrivilegedDbPort {
-  createClient(context: AocPrivilegedDbContext) {
+  createClient(context: PrivilegedDbContext) {
     const pmCtx: PrivilegedAccessContext = {
       routeId: context.routeId,
       operation: context.operation,

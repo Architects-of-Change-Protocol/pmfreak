@@ -5,16 +5,16 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { type Permission } from "@/lib/security/rbac";
 import { requireWorkspaceMembership } from "@/lib/security/access-guards";
-import type { CapabilityPermission, CapabilityResourceType } from "@/lib/security/capability-flow";
+import type { CapabilityFlowPermission, CapabilityFlowResourceType } from "@/lib/security/capability-flow";
 import type {
   PolicyEvaluatorPort,
-  PolicyDecision,
+  PolicyEvaluationOutcome,
   PolicyEvaluationInput,
   PolicyEvaluationResult,
-} from "@/aoc/protocol/ports/policy-evaluation";
+} from "@/lib/governance/authority/ports/policy-evaluation";
 
 type PolicyRow = { id: string; effect: "allow" | "deny" | "require_approval"; conditions: Record<string, unknown>; priority: number };
-type GrantRow = { id: string; status: string; expires_at: string | null; target_resource_type: CapabilityResourceType; target_resource_id: string; permission: CapabilityPermission; scope: Record<string, unknown> | null };
+type GrantRow = { id: string; status: string; expires_at: string | null; target_resource_type: CapabilityFlowResourceType; target_resource_id: string; permission: CapabilityFlowPermission; scope: Record<string, unknown> | null };
 
 function withinBusinessHours(now = new Date()) { const h = now.getUTCHours(); return h >= 13 && h <= 22; }
 

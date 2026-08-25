@@ -1,5 +1,5 @@
-import { evaluateAIEgressPolicy } from "@/aoc/enterprise/runtime/ai-egress/policy-engine";
-import type { AIEgressRequest, DataSensitivity } from "@/aoc/enterprise/runtime/ai-egress/types";
+import { evaluateAIEgressPolicy } from "@/lib/governance/authority/runtime/ai-egress/policy-engine";
+import type { AIEgressRequest, DataSensitivity } from "@/lib/governance/authority/runtime/ai-egress/types";
 import type { InferenceRequest, InferenceResponse } from "@/lib/ai/inference/types";
 import { recordAIEgressDecision } from "@/lib/aoc/audit/ai-egress-audit";
 import { getProviderMetadata } from "@/lib/ai/providers/provider-registry";

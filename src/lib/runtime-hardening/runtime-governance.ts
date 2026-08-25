@@ -22,21 +22,21 @@ export function evaluateRuntimeGovernanceIntegrity(): GovernanceIntegrityResult 
   const now = new Date().toISOString();
   const checks: Array<{ id: string; passed: boolean; evidence: string }> = [];
 
-  const govCoreExists = existsSync(p("src/aoc/enterprise/runtime/governance-core.ts"));
+  const govCoreExists = existsSync(p("src/lib/governance/authority/runtime/governance-core.ts"));
   checks.push({
     id: "governance_core_exists",
     passed: govCoreExists,
     evidence: govCoreExists ? "governance-core.ts present" : "governance-core.ts missing",
   });
 
-  const authorityPortExists = existsSync(p("src/aoc/enterprise/runtime/authority-port.ts"));
+  const authorityPortExists = existsSync(p("src/lib/governance/authority/runtime/authority-port.ts"));
   checks.push({
     id: "authority_port_exists",
     passed: authorityPortExists,
     evidence: authorityPortExists ? "authority-port.ts present" : "authority-port.ts missing",
   });
 
-  const govCoreContent = safeRead("src/aoc/enterprise/runtime/governance-core.ts");
+  const govCoreContent = safeRead("src/lib/governance/authority/runtime/governance-core.ts");
   const hasBoundaryLanguage = /workspaceId|tenantId|allowed|deny/i.test(govCoreContent);
   checks.push({
     id: "governance_boundary_language",
@@ -46,7 +46,7 @@ export function evaluateRuntimeGovernanceIntegrity(): GovernanceIntegrityResult 
       : "governance-core.ts missing boundary language",
   });
 
-  const runtimeContractsExists = existsSync(p("src/aoc/enterprise/runtime/runtime-contracts.ts"));
+  const runtimeContractsExists = existsSync(p("src/lib/governance/authority/runtime/runtime-contracts.ts"));
   checks.push({
     id: "runtime_contracts_exist",
     passed: runtimeContractsExists,

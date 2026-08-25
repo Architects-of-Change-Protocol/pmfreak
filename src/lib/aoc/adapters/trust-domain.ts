@@ -8,7 +8,7 @@ import {
   verifyIssuerTrust,
   evaluateVerifierPolicy,
 } from "@/lib/security/trust-domains";
-import type { TrustDomainPort, TrustKeyRecord, TrustVerificationResult } from "@/aoc/protocol/ports/trust-domain";
+import type { TrustDomainPort, TrustKeyRecord, TrustVerificationResult } from "@/lib/governance/authority/ports/trust-domain";
 import { resolveCapabilityClaimSecret } from "@/lib/security/governance-capability";
 
 export class PmfreakTrustDomainAdapter implements TrustDomainPort {

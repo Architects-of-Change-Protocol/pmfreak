@@ -19,11 +19,7 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"],
-      "@aoc/protocol": ["./src/aoc/protocol/index.ts"],
-      "@aoc/protocol/*": ["./src/aoc/protocol/*"],
-      "@aoc-enterprise/runtime": ["./src/aoc/enterprise/runtime/index.ts"],
-      "@aoc-enterprise/runtime/*": ["./src/aoc/enterprise/runtime/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": [

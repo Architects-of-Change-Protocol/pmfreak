@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const runtime = fs.readFileSync('src/aoc/enterprise/runtime/execution-grants.ts', 'utf8');
+const runtime = fs.readFileSync('src/lib/governance/authority/runtime/execution-grants.ts', 'utf8');
 const approveRoute = fs.readFileSync('src/app/api/governance/approvals/[id]/approve/route.ts', 'utf8');
 const consumeRoute = fs.readFileSync('src/app/api/governance/executions/consume/route.ts', 'utf8');
 const copilot = fs.readFileSync('src/app/api/copilot/route.ts', 'utf8');

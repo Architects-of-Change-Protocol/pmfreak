@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const runtimeWrapper = fs.readFileSync('src/lib/aoc/enterprise/runtime.ts', 'utf8');
-const legacyRuntime = fs.readFileSync('src/aoc/enterprise/runtime/governance-core.ts', 'utf8');
+const legacyRuntime = fs.readFileSync('src/lib/governance/authority/runtime/governance-core.ts', 'utf8');
 const pmfreakRuntimeWrapper = fs.readFileSync('src/lib/aoc/enterprise/runtime.ts', 'utf8');
 
 const governedRoutes = [

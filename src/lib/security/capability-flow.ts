@@ -5,8 +5,11 @@ import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
 import { authorizeRuntimeAction, buildEnterpriseRuntimeRequest } from "@/aoc/runtime-consumer";
 import { CAPABILITY_PERMISSION_TO_GOVERNANCE_ACTION, PERMISSION_TO_GOVERNANCE_ACTION } from "@/lib/aoc/runtime/governance-actions";
 
-export type CapabilityPermission = "read" | "write" | "approve" | "manage" | "execute" | "delegate";
-export type CapabilityResourceType = "workspace" | "project" | "operational_memory" | "governance_object" | "ai_coprocess";
+// Named for this flow rather than after the canonical @aoc/protocol contracts:
+// these are narrower PMFreak request/grant vocabularies, not canonical capability
+// permissions or resource types. Enforced by scripts/check-governance-collisions.mjs.
+export type CapabilityFlowPermission = "read" | "write" | "approve" | "manage" | "execute" | "delegate";
+export type CapabilityFlowResourceType = "workspace" | "project" | "operational_memory" | "governance_object" | "ai_coprocess";
 
 function nowIso() { return new Date().toISOString(); }
 
@@ -15,7 +18,7 @@ async function audit(workspaceId: string, eventType: "requested" | "approved" | 
   await supabase.from("capability_audit_events").insert({ workspace_id: workspaceId, actor_user_id: actorUserId, request_id: ids.requestId ?? null, grant_id: ids.grantId ?? null, event_type: eventType, event_detail: detail });
 }
 
-export async function createCapabilityRequest(input: { workspaceId: string; targetResourceType: CapabilityResourceType; targetResourceId: string; requestedPermission: CapabilityPermission; requestedScope?: Record<string, unknown>; justification?: string; expiresAt?: string | null; }) {
+export async function createCapabilityRequest(input: { workspaceId: string; targetResourceType: CapabilityFlowResourceType; targetResourceId: string; requestedPermission: CapabilityFlowPermission; requestedScope?: Record<string, unknown>; justification?: string; expiresAt?: string | null; }) {
   const { user } = await requireAuthenticatedUser();
   await requireWorkspaceRole(input.workspaceId, ["owner", "admin", "PM", "contributor", "executive_viewer", "external_stakeholder", "ai_agent"]);
   const supabase = await createSupabaseServerClient();

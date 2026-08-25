@@ -10,8 +10,8 @@
 
 import { getAuthUser } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { AccessVerificationPort } from "@/aoc/protocol/ports/access-verification";
-import { AocAccessDeniedError } from "@/aoc/protocol/ports/access-verification";
+import type { AccessVerificationPort } from "@/lib/governance/authority/ports/access-verification";
+import { GovernanceAccessDeniedError } from "@/lib/governance/authority/ports/access-verification";
 import {
   ROLE_PERMISSION_MAP,
   WORKSPACE_ROLES,
@@ -25,7 +25,7 @@ function deny(
   message: string,
   context: Record<string, unknown>,
 ): never {
-  throw new AocAccessDeniedError(message, context);
+  throw new GovernanceAccessDeniedError(message, context);
 }
 
 function normalizeWorkspaceRole(rawRole: string): WorkspaceRole | null {

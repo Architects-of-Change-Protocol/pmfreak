@@ -36,7 +36,7 @@ export const PRIVILEGED_ACCESS_REGISTRY: readonly PrivilegedAccessEntry[] = [
     needsRlsBeforeSwap: false,
   },
   {
-    file: "src/lib/security/governance-runtime.ts",
+    file: "src/lib/governance/authority/runtime/governance-core.ts",
     purpose: "Approval request persistence: governance decisions requiring human approval are persisted to governance_approval_requests. INSERT is revoked for the authenticated role in the RLS migration; the record is created by the system on behalf of the requesting actor, not by the actor directly.",
     riskLevel: "HIGH",
     mitigations: [
@@ -86,7 +86,7 @@ export const PRIVILEGED_ACCESS_REGISTRY: readonly PrivilegedAccessEntry[] = [
     needsRlsBeforeSwap: false,
   },
   {
-    file: "src/aoc/enterprise/runtime/execution-grants.ts",
+    file: "src/lib/governance/authority/runtime/execution-grants.ts",
     purpose: "Governance execution grant lifecycle: issues, validates, and consumes single-use execution grants after governance approval. INSERT/UPDATE/DELETE on governance_execution_grants are revoked for the authenticated role in the RLS migration; grants span approval request, actor, and resource tables that cross user-level RLS boundaries.",
     riskLevel: "HIGH",
     mitigations: [
@@ -100,7 +100,7 @@ export const PRIVILEGED_ACCESS_REGISTRY: readonly PrivilegedAccessEntry[] = [
     needsRlsBeforeSwap: false,
   },
   {
-    file: "src/aoc/enterprise/runtime/delegated-capabilities.ts",
+    file: "src/lib/governance/authority/runtime/delegated-capabilities.ts",
     purpose: "Delegated capability chain: issues, validates, revokes, and consumes delegated capabilities that may flow across user and agent actors within a workspace. The delegation chain resolver must traverse records owned by multiple actors.",
     riskLevel: "HIGH",
     mitigations: [
