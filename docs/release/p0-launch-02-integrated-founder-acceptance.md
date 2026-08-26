@@ -47,7 +47,7 @@ genuine `AocKernel` reading a genuine durable `KernelAuthorityStore`.
 | E | Negative authorization (DENY) | integrated acceptance + browser NEGATIVE tests | PASS |
 | F | Tenant isolation | integrated acceptance + browser Tenant A/B, both directions | PASS |
 | G | Revocation → subsequent denial | integrated acceptance | PASS |
-| H | Audit / evidence observable | integrated acceptance + browser STEP 17 lineage/audit export | PASS |
+| H | Audit / evidence **retrieved** from the durable trail | integrated acceptance + browser STEP 17 lineage/audit export | PASS |
 | I | Persistence across store restart | integrated acceptance (file-backed SQLite) | PASS |
 | J | Runtime package identity | integrated acceptance | PASS |
 
@@ -104,22 +104,84 @@ alone would still pass if the lock itself regressed to the burned candidate.
 
 ---
 
-## Negative controls
+## Review hardening (PR #588)
 
-Each was broken deliberately and the acceptance was confirmed to FAIL, then restored:
+Seven P2 findings, all against this acceptance gate rather than the product. Each was reproduced
+before anything was changed. No product code, database, migration, RLS, auth implementation or
+package pin was touched; the browser journey and the upstream artifacts stayed frozen.
+
+Every finding was the same species of defect: **a way for the gate to pass vacuously.**
+
+| # | Defect | Fix |
+|---|---|---|
+| 1 | Identity was compared only against the mutable consumer lock, so pins and lock moving together were accepted | An **immutable `LAUNCH_BASELINE` literal** owned by this increment; the lock is checked *against* it, not trusted as the source of truth |
+| 2 | Hashing the tarball and separately resolving `node_modules` never proved the install came from those bytes | The installed tree is **content-fingerprinted** against an extraction of the verified tarball |
+| 3 | The private-package guard read only `dependencies` and `devDependencies` | Every declaration section is guarded, including `optionalDependencies` and `peerDependencies` |
+| 4 | "H covered" rested on a non-empty decision id — correlation, not evidence | The **durable authority audit trail is read back** from a reopened store |
+| 5 | Redaction was asserted on an *unbound* principal, which returns before the actor is ever loaded | Redaction is asserted on the **bound Founder's policy denial**, against the known provisioned identifier **values** |
+| 6 | Every negative case accepted any `allowed === false`, so an outage satisfied them | Each denial asserts its **exact failure class and reason codes** |
+| 7 | "Minimum authority" checked only that ids came back | The **persisted grant and capability token are read** and their effective capability set asserted exactly |
+
+### Exact denial semantics, established empirically
+
+Probed against the real runtime before being asserted, so the test encodes the product's actual
+contract rather than an assumption:
+
+| Case | `failureClass` | `reasonCodes` |
+|---|---|---|
+| ALLOW | — | `ACTION_ALLOWED` |
+| Ungranted project scope | `frontera_denied` | `AUTHORITY_CAPABILITY_MISSING`, `POLICY_ACTION_PROHIBITED` |
+| Tenant isolation | `frontera_actor_unbound` | `FRONTERA_ACTOR_UNBOUND` |
+| Post-revocation | `frontera_denied` | `AUTHORITY_CAPABILITY_REVOKED`, `POLICY_ACTION_PROHIBITED` |
+| **Induced outage** | `frontera_unavailable` | `FRONTERA_EVALUATION_UNAVAILABLE` |
+
+The last row is asserted as a **negative control**: an outage must never satisfy an authorization
+criterion. Before the fix, it would have satisfied E, F and G.
+
+### Minimum authority, as actually persisted
+
+Read from the store rather than inferred from behaviour, because the adapter only ever asks for one
+action — a grant broadened to ten would answer identically:
+
+```
+authority-grant  grant-…  capability material-action.dispatch
+                          actions        ["execute.material-action"]      exactly
+                          resourceScopes ["project:<PROJ_A>"]             exactly
+capability-token cap-…    same capability, actions and scopes
+```
+
+Exact set equality, no wildcard, no reach into the second project, and no third authority record.
+
+### Durable evidence, actually retrieved
+
+`listEvents` on a **reopened** store returns the immutable, sequenced audit trail for each entity:
+the provisioning event (crediting the operator, describing the governed action and scope) and,
+after revocation, the revocation event — with the original provisioning still present, because the
+trail is append-only.
+
+The enforcement-decision audit *export* remains owned by P2-14 STEP 17 against PMFreak's canonical
+store; it is referenced, not duplicated here.
+
+### Negative controls
+
+Each broken deliberately, the acceptance confirmed to FAIL, then restored:
 
 | Broken condition | Result |
 |---|---|
-| Protocol pin moved away from rc.1 | FAILS |
-| Frontera pin moved away from 1.2.1 | FAILS |
+| Protocol pin moved off rc.1 | FAILS |
+| Protocol lock moved to **rc.2** (a coordinated forward drift) | FAILS |
+| Frontera lock regressed to **1.2.0** | FAILS |
+| Integration contract moved to **1.0.2** | FAILS |
+| `node_modules` content altered while name and version stay correct | FAILS |
+| Private Frontera package declared via **`optionalDependencies`** | FAILS |
+| Provisioning **broadened** with one extra action | FAILS |
 | Local fallback `src/aoc/protocol` reintroduced | FAILS |
-| Private Frontera internal declared as a direct dependency | FAILS |
 | Vendored tarball checksum altered | FAILS |
+| Store made unavailable | **does not count as a denial** |
 
-Tenant isolation, missing authority and revocation are structurally non-vacuous rather than
-separately mutated: each is paired with a positive assertion in the same file that would fail first
-if the capability were absent — tenant A is asserted ALLOWed with the same principal that tenant B
-is asserted DENYed, and the revocation test asserts the allow before revoking.
+Tenant isolation and revocation remain structurally non-vacuous in addition: each is paired with a
+positive assertion in the same file that would fail first if the capability were absent — the
+revocation test asserts the ALLOW before revoking.
 
 ---
 
