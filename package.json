@@ -31,6 +31,7 @@
     "check:package-purity": "npm run check:forbidden-imports && npm run check:package-exports && npm run check:typescript-package-isolation && npm run check:tarball-purity",
     "check:typescript-package-isolation": "node scripts/check-typescript-package-isolation.mjs",
     "test:launch-smoke": "node scripts/run-launch-smoke-tests.mjs",
+    "check:founder-launch-acceptance": "tsx --test tests/p0-launch-02-founder-acceptance.test.ts",
     "diag:runtime": "node scripts/runtime-diagnostics-report.mjs",
     "check:launch-readiness": "node scripts/check-launch-readiness.mjs",
     "smoke-test:vault": "node scripts/smoke-test-vault-digestion.mjs",
