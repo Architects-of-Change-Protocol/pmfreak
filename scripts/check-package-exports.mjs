@@ -11,10 +11,28 @@ import { createRequire } from 'node:module';
 const require = createRequire(path.join(process.cwd(), 'package.json'));
 const root = process.cwd();
 
-const packages = [
-  { name: '@aoc/protocol', version: '0.2.0-rc.0', requiredExports: ['.', './contracts', './canonical', './adapters', './errors'] },
-  { name: '@aoc-enterprise/runtime', version: '1.2.0', requiredExports: ['.', './runtime', './authorization', './audit', './adapters', './kernel', './enterprise'] },
-];
+// The expected VERSION comes from vendor/aoc-consumer.lock.json; only the
+// required export surface is asserted here.
+//
+// Duplicating the version inline made this gate drift with every repin: it had
+// to be hand-edited in lockstep with the lock or it failed for the wrong
+// reason. The lock is the single source of artifact identity. The export lists
+// stay here on purpose -- they are a deliberate MINIMUM surface this repository
+// depends on, not a restatement of what the artifact happens to declare, so
+// they must not be derived from the artifact or from the lock.
+const LOCK = JSON.parse(fs.readFileSync(path.join(root, 'vendor/aoc-consumer.lock.json'), 'utf8'));
+const REQUIRED_EXPORTS = {
+  '@aoc/protocol': ['.', './contracts', './canonical', './adapters', './errors'],
+  '@aoc-enterprise/runtime': ['.', './runtime', './authorization', './audit', './adapters', './kernel', './enterprise'],
+};
+const packages = Object.entries(REQUIRED_EXPORTS).map(([name, requiredExports]) => {
+  const version = LOCK.artifacts?.[name]?.version;
+  if (!version) {
+    console.error(`[exports] ${name}: the consumer lock records no version; artifact identity cannot be established.`);
+    process.exit(1);
+  }
+  return { name, version, requiredExports };
+});
 
 let failed = false;
 const fail = (msg) => { console.error(`[exports] ${msg}`); failed = true; };

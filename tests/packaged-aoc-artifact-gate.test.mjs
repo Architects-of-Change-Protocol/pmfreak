@@ -23,6 +23,9 @@ import { staticChecks } from "../scripts/check-packaged-aoc-artifacts.mjs";
 const repositoryRoot = path.resolve(import.meta.dirname, "..");
 const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 
+/** The real consumer lock — the single source of active artifact identity. */
+const lock = readJson(path.join(repositoryRoot, "vendor/aoc-consumer.lock.json"));
+
 /**
  * Build a minimal but genuine repository root: the real lock file and the real
  * manifest shape, plus both legacy copies with their markers. `mutate` receives the
@@ -30,7 +33,6 @@ const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
  */
 function fixture(mutate) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "packaged-aoc-gate-"));
-  const lock = readJson(path.join(repositoryRoot, "vendor/aoc-consumer.lock.json"));
   const realManifest = readJson(path.join(repositoryRoot, "package.json"));
 
   const state = {
@@ -185,8 +187,22 @@ test("NEGATIVE CONTROL: a lock that stops forbidding local-source fallback fails
 });
 
 test("NEGATIVE CONTROL: a wrong pinned tarball in the manifest fails the gate", () => {
+  // The expected tarball is READ FROM THE LOCK rather than written out here.
+  // Hard-coding it made this control go stale on every repin: after P0-PKG-09
+  // moved the pin to rc.1 the gate still reported the mutation correctly, but
+  // this assertion was still looking for the rc.0 filename, so it failed for
+  // the wrong reason. Asserting against the lock also strengthens the control —
+  // it now proves the gate names the CURRENT pin, not merely that it complains.
+  const pinned = lock.artifacts["@aoc/protocol"].tarball;
+  const mutated = "vendor/aoc-protocol-9.9.9.tgz";
+  assert.notEqual(mutated, pinned, "the mutation must differ from the active pin");
+
   const failures = failuresFor((state) => {
-    state.manifest.dependencies["@aoc/protocol"] = "file:vendor/aoc-protocol-9.9.9.tgz";
+    state.manifest.dependencies["@aoc/protocol"] = `file:${mutated}`;
   });
-  assert.match(failures, /expected the pinned tarball "file:vendor\/aoc-protocol-0\.2\.0-rc\.0\.tgz"/);
+  // Plain substring, so no regex escaping can silently weaken the assertion.
+  assert.ok(
+    failures.includes(`expected the pinned tarball "file:${pinned}"`),
+    failures
+  );
 });
