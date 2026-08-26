@@ -118,12 +118,16 @@ test.describe("authenticated session continuity", () => {
     // carrying NO speculative signal at all — which under the pre-P2-15 contract WOULD have
     // signed the user out. The plain case is the one proving the repair no longer depends on
     // recognising the caller.
+    // `allowsFrameworkRedirect` is the whole point of splitting these: ONLY the RSC-flavoured
+    // request is entitled to Next's redirect. The ordinary GET must reach the refusal with no
+    // hops at all, and that is asserted as an exact empty list below rather than as a
+    // predicate over whatever hops happen to exist.
     const cases = [
-      { label: "prefetch-flavoured GET", headers: { RSC: "1", "Next-Router-Prefetch": "1" } },
-      { label: "ordinary GET", headers: undefined },
+      { label: "prefetch-flavoured GET", headers: { RSC: "1", "Next-Router-Prefetch": "1" }, allowsFrameworkRedirect: true },
+      { label: "ordinary GET", headers: undefined, allowsFrameworkRedirect: false },
     ];
 
-    for (const { label, headers } of cases) {
+    for (const { label, headers, allowsFrameworkRedirect } of cases) {
       const chain = await followGet(page, "/logout", headers);
       const final = chain[chain.length - 1];
 
@@ -143,11 +147,31 @@ test.describe("authenticated session continuity", () => {
         ).toBe(false);
       }
 
-      // 4. Only the prefetch case should ever have been redirected; record the shape so a
-      //    future framework change that starts redirecting the plain GET is visible rather
-      //    than silently absorbed.
+      // 4. Only the prefetch case is entitled to a redirect at all.
+      //
+      //    An `every()` over the observed hops cannot express this: it is vacuously true for
+      //    the ordinary GET's empty list TODAY, and would stay true the moment that GET
+      //    acquired a 307 — so the framework change this test exists to expose would pass
+      //    straight through it. Each case therefore gets the assertion that can actually fail
+      //    for it.
       const redirects = chain.slice(0, -1).map((hop) => hop.status);
-      expect(redirects.every((status) => status === 307 || status === 308), `${label}: only RSC redirects`).toBe(true);
+      if (allowsFrameworkRedirect) {
+        // Next's RSC redirect is permitted, but only as a redirect — nothing else.
+        expect(
+          redirects.every((status) => status === 307 || status === 308),
+          `${label}: every intermediate hop must be a 307/308 redirect, got ${JSON.stringify(redirects)}`
+        ).toBe(true);
+      } else {
+        // THE ASSERTION: an ordinary GET must reach 405 directly. Exact equality, so one
+        // single new hop fails it and names what appeared.
+        expect(
+          redirects,
+          `${label}: must reach 405 with NO redirect hops — a redirect here means /logout ` +
+            `started answering ordinary GETs differently, which is exactly the framework change ` +
+            `this test exists to expose`
+        ).toEqual([]);
+        expect(chain.length, `${label}: exactly one response, no chain`).toBe(1);
+      }
 
       // 5. The session is intact on the client...
       const names = (await context.cookies()).map((cookie) => cookie.name);
