@@ -1,10 +1,10 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-08-25T04:33:22.230Z",
-  "repositoryCommit": "66ec5b042fc4239a2187bc490d7fec60a99dc0d2",
+  "generatedAt": "2026-08-26T16:49:03.261Z",
+  "repositoryCommit": "40a7c222df94663eee081b473e9c97fe922d9983",
   "lockfile": {
     "path": "package-lock.json",
-    "sha256": "fac4cf7639cb5bd96eeea4942460abc6b74e8b9d75a22e6160dd8f969a92cca7",
+    "sha256": "a5aac352575f79d1eea6155277ea2c709d351a7bfa6f7ae656bf70e4e8cc0cdb",
     "lockfileVersion": 3
   },
   "packageManager": "npm",
@@ -35,7 +35,7 @@
     },
     {
       "name": "@aoc-enterprise/runtime",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "relationship": "direct",
       "scope": "runtime",
       "declaredLicense": "UNKNOWN",
@@ -110,7 +110,7 @@
     },
     {
       "name": "@aoc/protocol",
-      "version": "0.2.0-rc.0",
+      "version": "0.2.0-rc.1",
       "relationship": "direct",
       "scope": "runtime",
       "declaredLicense": "Apache-2.0",

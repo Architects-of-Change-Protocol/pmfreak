@@ -1,7 +1,7 @@
 {
-  "_comment": "PMFreak consumer lock for the frozen AOC packaged artifacts (P0-PKG-04). Records repository, commit, version and SHA-256 of every installed artifact, as required by the pmfreak.obligations block of the frozen aoc.cross-repository-integration@1.0.0 contract shipped inside the @aoc/protocol tarball. Verified by scripts/check-packaged-aoc-artifacts.mjs. P0-PKG-05 additionally removed the retained local copies; ownership of what they contained is recorded in governance-ownership.lock.json. This file records identity; it authorizes no publication or release.",
+  "_comment": "PMFreak consumer lock for the frozen AOC packaged artifacts (P0-PKG-04). Records repository, commit, version and SHA-256 of every installed artifact, as required by the pmfreak.obligations block of the frozen aoc.cross-repository-integration contract shipped inside the @aoc/protocol tarball (1.0.1 as of P0-PKG-09; the top-level contract/contractVersion fields above track that shipped contract and are compared against the installed artifact by scripts/check-packaged-aoc-artifacts.mjs). Verified by scripts/check-packaged-aoc-artifacts.mjs. P0-PKG-05 additionally removed the retained local copies; ownership of what they contained is recorded in governance-ownership.lock.json. This file records identity; it authorizes no publication or release. P0-PKG-09 converged this consumer on the repaired Protocol candidate 0.2.0-rc.1 and the Frontera patch successor 1.2.1.",
   "contract": "aoc.cross-repository-integration",
-  "contractVersion": "1.0.0",
+  "contractVersion": "1.0.1",
   "localSourceFallback": {
     "allowed": false,
     "rationale": "The canonical @aoc/protocol and @aoc-enterprise/runtime are the frozen packaged artifacts recorded below. Falling back to a repository-local source copy — under any specifier, alias or resolution path — would silently restore the pre-P0-PKG-04 state in which no import crossed a real package boundary, while the evidence in this file continued to assert that it did. There is no permitted fallback, not even a temporary or diagnostic one.",
@@ -50,21 +50,21 @@
   "artifacts": {
     "@aoc/protocol": {
       "package": "@aoc/protocol",
-      "version": "0.2.0-rc.0",
-      "sourceRepository": "Soberania-Protocol/Soberania_Protocol",
-      "sourceCommit": "dde34517d956156a0c735c18a805763a5e712879",
-      "sourceCommitNote": "PR #387 was squash-merged; the RC source commit is not an ancestor of main but is retained on origin/claude/soberania-protocol-rc-package-fg02tq, and main (merge commit below) differs from it only in docs/release evidence files — no packaging input differs.",
-      "mergedVia": "PR #387",
-      "mergeCommit": "7ce27f1be0980bf75a23eb4b15ed0a45d8bfd2f3",
-      "tarball": "vendor/aoc-protocol-0.2.0-rc.0.tgz",
-      "sha256": "dbe8a08f432a0324ad34eb7cb85054b6dcd23c0d9a073914edf23fccd10445e5",
-      "sha512": "f8cb8dd45bc656a2ab0ba8b01a80d6edad7291addb36088606a9ba4bf547c62333e32c137c6776ea308e25022673ecebabb6f797bfd580a22675132cdba90573",
-      "npmIntegrity": "sha512-+MuN1FvGVqKrC6iwGoDW7a1yka3bNgiGBqm6S/VHxiMz4ywTfGd26jCOJQImc+zrq7b3l7/VgKImdRMs26kFcw==",
-      "sizeBytes": 278205,
+      "version": "0.2.0-rc.1",
+      "sourceRepository": "Republika-Network/Soberania_Protocol",
+      "sourceCommit": "eec79cdd4019dd42e1767909c5bd4e26d04c6f0f",
+      "sourceCommitNote": "The artifact-producing commit (\"chore(release): cut repaired protocol RC candidate 0.2.0-rc.1\"). PR #388 was squash-merged, so the repair reached main as its own commit and the merge node below is not an ancestor of this commit; both identifiers are recorded rather than reconciled, as the rc.0 record already did.",
+      "mergedVia": "PR #388",
+      "mergeCommit": "e1ba3032989d9778e5575d727eeee33d38c83f95",
+      "tarball": "vendor/aoc-protocol-0.2.0-rc.1.tgz",
+      "sha256": "b0d6ee6ff2010c4addab0bd683e2a89b9b2246f430c7e892fdc3d4123f3a3f60",
+      "sha512": "889aa0c28f592dec16858e0758e5f5a307e99603b37239360ae3ce708ee77bc661c0cf1d7a40daced6818647e0a2cd0843d9921fa7e679f340db28b1f033b66c",
+      "npmIntegrity": "sha512-iJqgwo9ZLewWhY4HWOX1owfplgOzcjk2CuPOcI7ne8ZhwM8dekDaztaBhkfgos0IQ9mSH6fmefNA2yix8DO2bA==",
+      "sizeBytes": 280149,
       "fileCount": 407,
       "exportsFingerprint": "a67d65b17dcb34c7da84d9a07cb893e073e21e9edbbc621bcae649afa5cdeb45",
       "reproducedLocally": true,
-      "reproductionProcedure": "git worktree detached at sourceCommit; npm ci; npm run build; npm pack ./packages/protocol (node v22.22.2, npm 10.9.7)",
+      "reproductionProcedure": "Shallow clone of Republika-Network/Soberania_Protocol detached at sourceCommit on a genuine ext4 filesystem (never the /mnt/c DrvFs mount, which alters tar metadata), then Frontera's governed tool scripts/protocol/build-protocol-tarball.mjs with AOC_PROTOCOL_REF set so its own assertCommitMatches validated HEAD. sha256 and npm integrity both equal the authorized values exactly. Re-hashed again from the vendored copy in this repository after the file was placed here.",
       "declaredExports": [
         ".",
         "./contracts",
@@ -81,25 +81,34 @@
         "./governance-compatibility",
         "./sovereignty-capabilities",
         "./package.json"
-      ]
+      ],
+      "exportsFingerprintNote": "Unchanged from the burned rc.0 candidate: the repair moved canonicalization behaviour, not the public export map (15 keys). Recomputed from the packed rc.1 artifact's own package.json.",
+      "integrationContract": "aoc.cross-repository-integration@1.0.1 (read from integration-contract.json inside the packed artifact)",
+      "supersedes": {
+        "version": "0.2.0-rc.0",
+        "sourceCommit": "dde34517d956156a0c735c18a805763a5e712879",
+        "sha256": "dbe8a08f432a0324ad34eb7cb85054b6dcd23c0d9a073914edf23fccd10445e5",
+        "status": "BURNED",
+        "reason": "UG-003. canonicalizeJSON truncated the exponent of numbers rendered in exponential notation with a fractional mantissa, so canonicalizeJSON(7.9e-10) and canonicalizeJSON(7.9e-100) both produced \"7.9e-1\": two distinct values, one canonical form, therefore one digest. The collision is wider than the reported pair -- 1.5e-300 collapsed to \"1.5e-3\". Any record whose integrity rests on a canonical digest inherits it. Found by Live Data Rail while consuming the rc.0 artifact. Soberania Protocol declared the candidate burned rather than repacking its bytes under the same identity, and cut 0.2.0-rc.1 from commit eec79cdd. This identity must never be reinstated."
+      }
     },
     "@aoc-enterprise/runtime": {
       "package": "@aoc-enterprise/runtime",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "sourceRepository": "Republika-Network/Frontera",
-      "sourceCommit": "7d9d1f0952e67fb95a653e4815bc9183a10f1c90",
-      "sourceCommitNote": "P0-PKG-07 follow-up. Ancestor of PR #113 head d6031894 and of the merge commit; the two commits after it are evidence/manifest-only, so the frozen artifact is built from 7d9d1f09 rather than from the newer head.",
-      "mergedVia": "PR #113",
-      "mergeCommit": "a937cfb4180ec02de7b736b92039f5f8210152bc",
-      "tarball": "vendor/aoc-enterprise-runtime-1.2.0.tgz",
-      "sha256": "1b59c63d911bd16ec7c1974a9ea7579cfa65a269badc81f0aa2bbdad1bace082",
-      "sha512": "6d367c4e53c8229b9477f603263e6e6e1b3e19cec1f0c155a597999360feef047d41d89d6a7df7e8f931e16fe16e38de1e4579c71b5ffb3389ac05ee4d1c1461",
-      "npmIntegrity": "sha512-bTZ8TlPIIpuUd/YDJj5ubhs+Gc7B8MFVpZeZk2D+7wR9Qdidan336Pkx4W/hbjjeHkV5xxtf+zOJrAXuTRwUYQ==",
-      "sizeBytes": 3390079,
+      "sourceCommit": "bbce6472e6a4bc20e234505b083b203ea6fdc963",
+      "sourceCommitNote": "The artifact-producing commit. The closure commit 8a3d701f and the PR #114 merge commit below add only handoff-lock and candidate-manifest records, neither of which is a packed input (files is [\"dist\"], and the packed entries outside dist/ and the bundled internals are exactly package.json, README.md and LICENSE), so the frozen artifact is built from bbce6472 rather than from the merge head.",
+      "mergedVia": "PR #114",
+      "mergeCommit": "27fadddac36e3037b4b659093ada75b65155cb76",
+      "tarball": "vendor/aoc-enterprise-runtime-1.2.1.tgz",
+      "sha256": "6b11e68e71b73e8a599c25c3b1ba26129de201b567664accf9874e06366e0628",
+      "sha512": "93762643f197e9c1cb2c68cdcf360a1d22144f5f54df8da3245efa97ea886ebd932994c9261bc84128cb211bb07db78b652d44a8a394343ae03f376ed2ce4adc",
+      "npmIntegrity": "sha512-k3YmQ/GX6cHLLGjNzzYKHSIUT19U342jJF76l+qIbr2TKZTJJhvIQSjLIRuwfbeLZS1EqKOUNDrgPzdu0s5K3A==",
+      "sizeBytes": 3390104,
       "fileCount": 6366,
       "exportsFingerprint": "2b0ee1e3afee7c02d600615771eac3fa8aeec680c27bf4189041715729a22438",
       "reproducedLocally": true,
-      "reproductionProcedure": "git worktree detached at sourceCommit; npm ci; npm run build; npm pack . (node v22.22.2, npm 10.9.7). Reproduced bit-for-bit: the resulting tarball SHA-256 equalled the frozen value before it was vendored, and npm pack reported \"total files: 6366\".",
+      "reproductionProcedure": "Fresh clone detached at sourceCommit on a genuine ext4 filesystem (never /mnt/c DrvFs), then Frontera's governed sequence: npm ci; npm run build; npm pack --json --pack-destination <dir> (node v22.23.1, npm 10.9.8). Reproduced bit-for-bit: sha256, sha512, npm integrity, 3390104 bytes and 6366 entries all equal the upstream governed evidence. Re-hashed again from the vendored copy in this repository after the file was placed here.",
       "declaredExports": [
         ".",
         "./authorization",
@@ -116,12 +125,21 @@
       "exportsFingerprintNote": "Byte-identical across 1.0.0, 1.1.0 and 1.2.0 and verified rather than copied: the fingerprint covers the export MAP only, and both follow-ups changed symbols within the existing ./enterprise and ./kernel subpaths without introducing a new one. Recomputed from the INSTALLED manifest by scripts/check-packaged-aoc-artifacts.mjs on every run.",
       "sourceRepositoryNote": "Renamed/transferred from Soberania-Protocol/Soberania-Enterprise. Continuity verified: the 1.1.0 source commit 74308ad1 and the PR #112 merge commit 8e7ded3b are both present in this repository, and 8e7ded3b is the first parent of the PR #113 merge commit below.",
       "supersedes": {
-        "version": "1.1.0",
-        "sourceCommit": "74308ad1ee21108b9c1964ddf8f7530ba8c5308f",
-        "sha256": "ab4072b7c34971265ba637e63c7fd21bd8a95a5ef342056d59632f8ff6200e60",
-        "status": "SUPERSEDED",
-        "reason": "Post-merge review of P0-PKG-07 found ten defects in the durable Kernel Authority world, including a decision surface that handed applications mutable Recognition/Authority engine handles. Closed by PR #113. PMFreak consumed 1.1.0 briefly and aborted its downstream acceptance before any Founder claim was made."
-      }
+        "version": "1.2.0",
+        "sourceCommit": "7d9d1f0952e67fb95a653e4815bc9183a10f1c90",
+        "sha256": "1b59c63d911bd16ec7c1974a9ea7579cfa65a269badc81f0aa2bbdad1bace082",
+        "status": "SUPERSEDED_FOR_DOWNSTREAM_CONSUMPTION_DUE_TO_BURNED_PROTOCOL_INPUT",
+        "notDefective": "1.2.0 is NOT burned and NOT defective. Its compiled output is byte-identical to 1.2.1's: dist/, the public export map, the bundled internals, the frozen v1 HTTP surface and every store schema identifier are unchanged between them. What the burn invalidated is its COMPATIBILITY EVIDENCE -- it was validated and handed off against @aoc/protocol@0.2.0-rc.0, an input later declared burned. The burned artifact is the Protocol candidate, not this one.",
+        "reason": "Frontera repinned its own validation input to the repaired rc.1. That repin edits package.json, which ships inside the npm tarball, so the packed artifact bytes moved even though no compiled output did. PMFreak had already vendored and checksum-pinned 1.2.0, so the identity could not be reused for different bytes; 1.2.1 is the patch successor derived from that, not a semantic change. See release/frontera-candidate-manifest-1.2.1.json in Republika-Network/Frontera.",
+        "supersedes": {
+          "version": "1.1.0",
+          "sourceCommit": "74308ad1ee21108b9c1964ddf8f7530ba8c5308f",
+          "sha256": "ab4072b7c34971265ba637e63c7fd21bd8a95a5ef342056d59632f8ff6200e60",
+          "status": "SUPERSEDED",
+          "reason": "Post-merge review of P0-PKG-07 found ten defects in the durable Kernel Authority world, including a decision surface that handed applications mutable Recognition/Authority engine handles. Closed by PR #113. PMFreak consumed 1.1.0 briefly and aborted its downstream acceptance before any Founder claim was made."
+        }
+      },
+      "protocolPeerInput": "@aoc/protocol@0.2.0-rc.1, sha256 b0d6ee6ff2010c4addab0bd683e2a89b9b2246f430c7e892fdc3d4123f3a3f60 -- the SAME artifact bytes PMFreak vendors beside it. The packed 1.2.1 manifest names file:./vendor/aoc-protocol-0.2.0-rc.1.tgz as the input it was validated against, and its peerDependencies range >=0.1.0 || >=0.2.0-rc.0 already admits rc.1, so it was left unchanged. Protocol is NOT bundled inside this artifact: the tarball contains zero node_modules/@aoc/protocol entries."
     }
   },
   "exportsFingerprintAlgorithm": "sha256 of JSON.stringify(Object.keys(pkg.exports).sort().map((k) => [k, pkg.exports[k]])) — identical to scripts/fingerprint-public-surface.mjs (exportMap digest) in Soberania-Protocol/Soberania_Protocol"

@@ -10,10 +10,30 @@ import path from 'node:path';
 
 const root = process.cwd();
 
-const ARTIFACTS = [
-  { name: '@aoc/protocol', tarball: 'vendor/aoc-protocol-0.2.0-rc.0.tgz', sha256: 'dbe8a08f432a0324ad34eb7cb85054b6dcd23c0d9a073914edf23fccd10445e5' },
-  { name: '@aoc-enterprise/runtime', tarball: 'vendor/aoc-enterprise-runtime-1.2.0.tgz', sha256: '1b59c63d911bd16ec7c1974a9ea7579cfa65a269badc81f0aa2bbdad1bace082' },
-];
+// Derived from vendor/aoc-consumer.lock.json rather than duplicated here.
+//
+// These constants used to be written out inline, which made this gate silently
+// stale the moment the active pins moved: it kept checksumming the retired
+// tarballs that happened to still sit in vendor/, reported "checksum verified"
+// and never noticed that nothing installed them any more. Reproduced during
+// P0-PKG-09 -- after the repin to Protocol rc.1 + Frontera 1.2.1 this gate still
+// exited 0 while validating rc.0 and 1.2.0. The lock is the single source of
+// artifact identity; this gate now reads it.
+const LOCK_PATH = path.join(root, 'vendor/aoc-consumer.lock.json');
+if (!fs.existsSync(LOCK_PATH)) {
+  console.error('[purity] vendor/aoc-consumer.lock.json is missing; artifact identity cannot be established.');
+  process.exit(1);
+}
+const LOCK = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));
+const ARTIFACTS = Object.entries(LOCK.artifacts ?? {}).map(([name, entry]) => ({
+  name,
+  tarball: entry.tarball,
+  sha256: entry.sha256,
+}));
+if (ARTIFACTS.length === 0) {
+  console.error('[purity] the consumer lock declares no artifacts; refusing to vacuously pass.');
+  process.exit(1);
+}
 
 // A canonical artifact must never contain PMFreak application source.
 const PMFREAK_MARKERS = ['src/lib/governance/authority', '@pmfreak/aoc-', 'src/aoc/protocol', 'src/aoc/enterprise'];
