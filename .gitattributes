@@ -1,0 +1,49 @@
+# ============================================================================
+# P0-LAUNCH-01 — line-ending policy.
+#
+# Until this file existed the repository had NO checkout protection at all.
+#
+# Every text blob here is committed LF — verified across all tracked files at
+# 85511ce: zero non-binary blobs contain CR. Nothing enforced that on the way
+# OUT, and Git for Windows ships `core.autocrlf=true` as its default, so a
+# permitted, entirely ordinary clone materialises those LF blobs as CRLF.
+#
+# That contamination is invisible to `git status`: `autocrlf` normalises CRLF
+# back to LF on read, so the worktree compares clean against the LF blob while
+# every file on disk carries CR. Nothing in the repository noticed.
+#
+# It is not cosmetic. This repository gates itself largely by INSPECTING ITS
+# OWN SOURCE TEXT, and those regexes are anchored with `\n` / `$`. In
+# JavaScript `.` does not match `\r` (a line terminator) and `$` without the
+# `m` flag matches only end-of-input, so a `\r` silently defeats them. On a
+# CRLF materialisation of these exact blobs, 13 tests fail and the
+# `check:ci-workflow-integrity` governance gate reports a FALSE failure — its
+# `stripComments` helper stops stripping, and prose that literally reads
+# "no `|| true`" trips the assertion forbidding `|| true`.
+#
+# `eol=lf` makes the checkout deterministic on every platform and every
+# `core.autocrlf` setting. The blobs are unchanged by this file — they were
+# already LF; this only fixes how they are written to disk.
+#
+# tests/line-ending-policy.test.mjs is the negative guard: it fails if this
+# policy is weakened or if any tracked text file is ever materialised with CR.
+# ============================================================================
+
+* text=auto eol=lf
+
+# ---------------------------------------------------------------------------
+# Binary artifacts — never pass through a text filter.
+#
+# `text=auto` already detects these by content, but the frozen upstream
+# tarballs are CHECKSUM-VERIFIED (check:tarball-purity, check:packaged-aoc-
+# artifacts pin @aoc/protocol 0.2.0-rc.0 and @aoc-enterprise/runtime 1.2.0 by
+# SHA-256). Their integrity must not rest on a heuristic, so it is declared.
+# ---------------------------------------------------------------------------
+*.tgz  binary
+*.png  binary
+*.gif  binary
+*.ico  binary
+*.mp4  binary
+*.webp binary
+*.woff binary
+*.woff2 binary
