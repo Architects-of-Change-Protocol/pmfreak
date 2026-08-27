@@ -132,6 +132,13 @@ A second review round on the hardened commit found two more of the same species,
 Finding 8 was reproduced exactly as described: with the integrity falsified coherently in both locks the
 acceptance still passed, while `npm ci` failed with `EINTEGRITY`.
 
+A third round found two more, also fixed:
+
+| # | Defect | Fix |
+|---|---|---|
+| 10 | `createRequire.resolve` answers for the *unaliased* specifier, but `tsx` honours tsconfig `paths` for the static imports actually used — a `@aoc-enterprise/runtime/*` alias would run local bytes with every fingerprint still green | The acceptance now checks tsconfig `paths` against the lock's `forbiddenTypeScriptAliases` itself, plus a prefix check, instead of relying on the separate `check-packaged-aoc-artifacts` command having been run |
+| 11 | Revocation ordering compared `sequence > 1`, a constant, so a malformed chain with revocation at 2 and a later provisioning at 3 satisfied it | The revocation sequence is compared against the **provisioning event's own sequence** |
+
 ### Exact denial semantics, established empirically
 
 Probed against the real runtime before being asserted, so the test encodes the product's actual
@@ -190,6 +197,8 @@ Each broken deliberately, the acceptance confirmed to FAIL, then restored:
 | Store made unavailable | **does not count as a denial** |
 | Integrity falsified **coherently in both locks** | FAILS |
 | Child process pointed at a non-existent store | FAILS |
+| `tsconfig` aliases `@aoc-enterprise/runtime/*` into local source | FAILS |
+| `tsconfig` aliases `@aoc/protocol/canonical` into local source | FAILS |
 
 Tenant isolation and revocation remain structurally non-vacuous in addition: each is paired with a
 positive assertion in the same file that would fail first if the capability were absent — the

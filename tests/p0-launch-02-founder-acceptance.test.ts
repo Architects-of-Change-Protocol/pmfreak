@@ -276,6 +276,38 @@ test("J: the installed integration contract is the baseline contract", () => {
   assert.equal(shipped.contractVersion, LAUNCH_BASELINE.contractVersion);
 });
 
+test("J: no TypeScript alias redirects an upstream package name into local source", () => {
+  // `createRequire.resolve` answers for the UNALIASED specifier, but tsx honours
+  // tsconfig `paths` for the static imports this file and the enforcement
+  // adapter actually use. A mapping of `@aoc-enterprise/runtime/*` into local
+  // code would therefore run unverified bytes while every tarball fingerprint
+  // above stayed green. The repository already forbids these aliases in
+  // check-packaged-aoc-artifacts.mjs; this acceptance must not rely on that
+  // separate command having been run.
+  const tsconfigPath = path.join(ROOT, "tsconfig.json");
+  const tsconfig = JSON.parse(fs.readFileSync(tsconfigPath, "utf8").replace(/^\s*\/\/.*$/gm, ""));
+  const paths: Record<string, unknown> = tsconfig.compilerOptions?.paths ?? {};
+  const forbidden: string[] = lock.localSourceFallback?.forbiddenTypeScriptAliases ?? [];
+  assert.ok(forbidden.length > 0, "the lock must name the aliases this guards");
+
+  const aliased = forbidden.filter((alias) => alias in paths);
+  assert.deepEqual(aliased, [], `tsconfig.json aliases upstream package name(s) into local source: ${aliased.join(", ")}`);
+
+  // Belt and braces: no mapping may target an upstream package name by prefix
+  // either, which catches a differently-spelled alias for the same effect.
+  for (const [alias, targets] of Object.entries(paths)) {
+    for (const target of targets as string[]) {
+      for (const name of PACKAGES) {
+        assert.equal(
+          alias === name || alias.startsWith(`${name}/`),
+          false,
+          `tsconfig path "${alias}" -> "${target}" redirects ${name}`,
+        );
+      }
+    }
+  }
+});
+
 test("J: no local source fallback — both artifacts resolve from node_modules", () => {
   for (const name of PACKAGES) {
     const resolved = requireFromRoot.resolve(name);
@@ -522,11 +554,18 @@ test("H: the revocation itself is recorded in the durable audit trail", async ()
     const revoked = events.find((event) => event.eventType === "KernelAuthorityEntityRevoked");
     assert.ok(revoked, `${entityKind}: the revocation is not observable in the audit trail`);
     assert.equal(revoked.provisionedBy, "operator-p0-launch-02", `${entityKind}: the revocation credits the operator`);
+
     // The trail is append-only: provisioning is still there after revocation.
+    const provisionedEvent = events.find((event) => event.eventType === "KernelAuthorityEntityProvisioned");
+    assert.ok(provisionedEvent, `${entityKind}: the audit trail must retain the original provisioning`);
+
+    // Compared against the PROVISIONING EVENT'"'"'S OWN SEQUENCE, not a constant.
+    // `> 1` would accept a malformed chain in which the revocation is sequence 2
+    // and a later provisioning is sequence 3 — exactly the ordering this claims
+    // to rule out.
     assert.ok(
-      events.some((event) => event.eventType === "KernelAuthorityEntityProvisioned"),
-      `${entityKind}: the audit trail must retain the original provisioning`,
+      revoked.sequence > provisionedEvent.sequence,
+      `${entityKind}: revocation (sequence ${revoked.sequence}) must follow provisioning (sequence ${provisionedEvent.sequence})`,
     );
-    assert.ok(revoked.sequence > 1, `${entityKind}: the revocation must follow the provisioning in sequence`);
   }
 });
