@@ -96,6 +96,15 @@ npm run check:production-runtime-acceptance
 Required: `OPERATIONAL_FLOW_TEST_SUPABASE_URL`, `OPERATIONAL_FLOW_TEST_SERVICE_ROLE_KEY`,
 `P2_13_FIXTURE_ACTOR_PASSWORD`, `NEXT_PUBLIC_APP_URL`.
 
+**The target must also pass the repository's canonical isolation guard** before
+the gate touches anything. `scripts/p2-13/isolation-guard.mjs` is called in SEED
+mode — this gate mutates — ahead of the first privileged call, so the P2-13
+environment it reads is required too: `P2_13_FOUNDER_FIXTURE_ENABLED=true`,
+`OPERATIONAL_FLOW_TEST_ANON_KEY`, `OPERATIONAL_FLOW_TEST_BASE_URL`, and a
+`NEXT_PUBLIC_SUPABASE_URL` equal to the harness's target. All are present in the
+canonical `.env.local`. A target that cannot be *proven* local and isolated is
+refused with the exact failing signals named, before any network access.
+
 The gate is **deliberately not wired into CI.** It needs a reachable Supabase
 stack, the seeded P2-13 tenant state and real credentials; CI has none of those,
 and a gate that cannot run there would either fail every build or be quietly
@@ -128,42 +137,59 @@ constants anyone should expect to see again.
 
 ```json
 {
+  "isolationClassification": "LOCAL_ISOLATED",
+  "isolationTarget": "127.0.0.1:54321",
+  "installedBytes:@aoc/protocol": "777034460ee21725… (407 files, identical to vendor/aoc-protocol-0.2.0-rc.1.tgz)",
+  "installedBytes:@aoc-enterprise/runtime": "776242a73ade688b… (6366 files, identical to vendor/aoc-enterprise-runtime-1.2.1.tgz)",
   "buildCommand": "npm run build",
   "buildOutput": ".next",
-  "buildId": "RKqVltNZH18AEOC0YNftw",
-  "startCommand": "npm run start -- --port 41765",
-  "processModel": "npm(480750) -> sh -> next-server (v16.3.2)(480762)",
-  "port": 41765,
-  "healthyAfterMs": 21034,
-  "oldPid": 480762,
-  "authorityStore": "/tmp/pmfreak-p0-launch-03-SkxgSJ/authority.sqlite",
+  "buildId": "gpxeCLBRP6Eku3osHGKyt",
+  "startCommand": "npm run start -- --port 41151",
+  "processModel": "npm(546961) -> sh -> next-server (v16.3.2)(546973)",
+  "port": 41151,
+  "healthyAfterMs": 110384,
+  "oldPid": 546973,
+  "authorityStore": "/tmp/pmfreak-p0-launch-03-923zEQ/authority.sqlite",
   "health": "200 ok (7 adapters)",
   "readiness": "200 ready (configuration=pass, governance_capability=pass, database=pass)",
+  "livenessDuringDatabaseOutage": "pid 547180: /api/health=200 ok, /api/ready=503 not_ready (database=unreachable)",
   "governedOperation": "POST /api/operational-flow {operation:dispatch_material_action_to_task}",
-  "actionId": "9ddc917e-a1f1-5fb2-a749-390767992af7",
-  "allowDecisionId": "enforcement-decision-f4aca092-9096-4204-a173-28b3a36dcc9e",
+  "actionId": "910d9eca-3ec0-52fb-a213-dbf758e7f704",
+  "allowDecisionId": "enforcement-decision-9320d5f6-6bde-41b7-ae93-fbe7e94ab504",
   "nativeBindingMappedIntoServer": "node_modules/better-sqlite3/build/Release/better_sqlite3.node",
   "activeProtocol": "@aoc/protocol@0.2.0-rc.1",
   "activeFrontera": "@aoc-enterprise/runtime@1.2.1",
   "shutdownMethod": "SIGTERM to the process group",
-  "shutdownExitedAfterMs": 850,
+  "shutdownExitedAfterMs": 51,
   "shutdownSignal": "SIGTERM",
+  "shutdownEscalatedToSigkill": false,
   "orphanProcesses": 0,
-  "newPid": 480865,
-  "postRestartAllowDecisionId": "enforcement-decision-395109b6-e9aa-48a3-92b9-ad394d705ccc",
-  "denyDecision": "409 frontera_denied"
+  "newPid": 547346,
+  "postRestartAllowDecisionId": "enforcement-decision-c13bbdf4-a92a-445e-96f7-dd517b724099",
+  "denyDecision": "409 frontera_denied",
+  "failedStartControl": "timeoutMs=0 — an expired deadline, not a timing assumption",
+  "productionProcessesStarted": 9,
+  "processResidueAcrossEveryShutdown": 0
 }
 ```
 
-Read the two decision ids together: `oldPid` 480762 produced
-`…f4aca092…`; a **different** process, `newPid` 480865, produced
-`…395109b6…` from the same durable store it was handed only the path to; and that
+Read the two decision ids together: `oldPid` 546973 produced
+`…9320d5f6…`; a **different** process, `newPid` 547346, produced
+`…c13bbdf4…` from the same durable store it was handed only the path to; and that
 same restarted process then answered `409 frontera_denied` after an operator
 revoked out of process. `orphanProcesses: 0` is measured against every descendant
 pid recorded before the signal, not assumed.
 
-`25 tests, 25 pass, 0 fail` in ~777 s (the gate builds, and starts eight
-production processes — seven that must become healthy, and one deliberately
+`processResidueAcrossEveryShutdown: 0` is the wider claim, and the one that was
+missing until review: **every** production process this gate starts is stopped
+through one path that *awaits* the exit, and anything it could not account for —
+still running, or terminated and not yet collected — is recorded and asserted
+empty. `shutdownEscalatedToSigkill: false` says SIGTERM alone was sufficient; the
+shutdown path can escalate, so without that flag a process that ignored the
+graceful signal would have passed the same assertion.
+
+`30 tests, 30 pass, 0 fail` in ~1331 s (the gate builds, and starts nine
+production processes — eight that must become healthy, and one deliberately
 denied the chance, as a control).
 
 ### Build, start, health, readiness
@@ -171,6 +197,8 @@ denied the chance, as a control).
 | Item | Result | Evidence |
 |---|---|---|
 | `A` clean install | PASS | `npm ci` exit 0; both vendored tarballs re-hashed to the frozen sha256 |
+| `A` installed **bytes** | PASS | each installed tree fingerprinted file-by-file against the tree extracted from the already-verified tarball: `@aoc/protocol` 407 files, `@aoc-enterprise/runtime` 6366 files, digests identical. Name and version alone cannot see a mutated file; this can |
+| `ISOLATION` | PASS | `LOCAL_ISOLATED` against `127.0.0.1:54321`, asserted **before** the first privileged call |
 | `B` production build | PASS | `next build` exit 0; `.next/BUILD_ID` rewritten by *this* build (stale output is explicitly refused); `routes-manifest.json` carries `/api/health`, `/api/ready`, `/api/login`, `/api/operational-flow` |
 | `C` production start | PASS | `npm run start` reaches healthy; the process serving HTTP is `next-server (v16.3.2)`, not npm and not the intermediate shell; startup log carries no dev-server banner |
 | `D` liveness | PASS | `GET /api/health` → `200 {"status":"ok","app":"pmfreak", runtime.adapterCount > 0}` including `policyEvaluator` |
@@ -178,9 +206,30 @@ denied the chance, as a control).
 | `F` database | PASS | authenticated tenant-scoped read returns tenant A's persisted Decisions through the running process |
 | `G` auth dependency | PASS | unauthenticated read → `401`; `POST /api/login` → `307` + `sb-*-auth-token`; authenticated read → `200` |
 
-Liveness and readiness are asserted **separately and are not interchangeable**.
-`/api/health` answers `200` with the database unreachable; only `/api/ready`
-probes it.
+Liveness and readiness are asserted **separately and are not interchangeable**,
+and that separation now has its own control rather than resting on `D` and `E`
+alone — both of which only ever ran while the database was *reachable*.
+
+| Control | Result |
+|---|---|
+| ONE production process, database unreachable | PASS — `GET /api/health` → `200 {"status":"ok"}` and `GET /api/ready` → `503 {"status":"not_ready"}` with `database` = `fail` (`unreachable`), from the same pid, checked alive across both requests |
+
+The outage is real and confined to that one process. It cannot be produced by an
+environment override: Next inlines `NEXT_PUBLIC_*` into the **server** bundle at
+build time, and a search of `.next/server` finds no surviving
+`process.env.NEXT_PUBLIC_SUPABASE_URL` lookup to re-point — a control built that
+way would report a *passing* database probe while claiming an outage. Rebuilding
+against a dead endpoint would answer for a different build than the one under
+acceptance. So `tests/acceptance/support/database-outage-shim.cjs` is loaded into
+that single server via `NODE_OPTIONS=--require` and refuses outbound TCP to the
+database's host and port exactly as a stopped service does, touching nothing
+else. Two further assertions keep the control honest: the server's own log must
+carry `P0_LAUNCH_03_DATABASE_OUTAGE_BLOCKED` (the readiness probe *reached* for
+the database and was refused, so the failure is attributable to the outage rather
+than to some other check failing first), and the `configuration` check must still
+pass (nothing but reachability changed). Reaching healthy at all is already half
+the claim: the gate waits on `/api/health` to start, so a health route that
+touched the database could not have started.
 
 ### The converged stack, in the running process
 
@@ -306,8 +355,12 @@ mechanical control:
 
 | Claim | Control | Behaviour |
 |---|---|---|
-| production start | a start given no chance to become healthy | reported as **not started**, never tolerated |
+| production start | a start against an **already-expired** deadline (`timeoutMs: 0`) | reported as **not started**, with the spawned process reaped and the port released. An expired deadline is a mechanical impossibility; the earlier 1.5 s form was a bet on machine speed and would have failed the gate on a fast host |
 | health | a probe against a port with nothing listening | rejects |
+| liveness ≠ readiness | one process with its database made unreachable | `/api/health` `200`, `/api/ready` `503` with `database=fail`, from the same pid |
+| the target is local and disposable | the canonical guard handed a hosted `*.supabase.co` project, a LAN host, a public host, a host merely *containing* `localhost`, and loopback on the wrong port | all **refused**, each naming the expected refusal signal; the genuine target still classifies `LOCAL_ISOLATED` |
+| installed artifacts are the frozen bytes | the frozen tarball extracted, one file appended to, name/version/file-count untouched | the fingerprint **differs** — the mutation the version, lock and integrity assertions cannot see |
+| nothing is left running | the residue detector shown reporting a live process, then seeing it collected | reports it, then reports it gone; the ledger across **every** shutdown is asserted empty |
 | readiness fails on dependency loss | governance-capability control above | `503` |
 | runtime identity / no local fallback | the same pure guards handed a poisoned tree (an `@aoc/protocol` tsconfig alias, a direct dependency on a Frontera internal, a resolution into `src/aoc/protocol`) | all **throw**; the genuine tree still passes |
 | governed DENY is policy, not outage | a `frontera_unavailable` response | **fails** the policy-denial assertion |
@@ -316,6 +369,33 @@ mechanical control:
 The local-fallback controls are expressed as *arguments to pure functions*, so no
 file in the checkout is mutated to prove they work — nothing has to be restored,
 and nothing can be left behind.
+
+---
+
+## 4a. Review closure
+
+Automated review of the first submission raised six defects **in this acceptance
+harness** — three P1, three P2. All six are accepted as valid and fixed; no
+product code, database schema, migration, RLS policy, authentication path or
+artifact pin was touched in closing them.
+
+| # | Sev | Finding | Closure |
+|---|---|---|---|
+| 1 | P1 | startup and runtime probes had no per-request timeout | one bounded `fetch` helper on `AbortSignal.timeout`; the startup probe is bounded by `min(probe budget, remaining deadline)`, so a request can never outlive the deadline it is checked against. Reproduced first: a socket that accepts and never answers left a bare `fetch` unsettled indefinitely |
+| 2 | P1 | a hosted or production Supabase target was accepted on non-emptiness alone | the canonical `scripts/p2-13/isolation-guard.mjs` in SEED mode, before the first privileged call |
+| 3 | P1 | installed package **bytes** were never verified | file-by-file fingerprint of each installed tree against its verified tarball, for both artifacts |
+| 4 | P2 | force-killed process groups were signalled and abandoned | one shutdown path that awaits, escalates once, and counts running and uncollected processes separately — applied to the fail-closed controls too, not only the graceful-shutdown test |
+| 5 | P2 | liveness during a database outage was claimed but never exercised | a per-process socket-layer outage, asserted against one running pid |
+| 6 | P2 | the failed-start control assumed startup could not finish in 1.5 s | an already-expired deadline instead |
+
+Two of these were found to be **live defects rather than theoretical**: the
+zombie of finding 4 is observable at the moment the old helper returned, and the
+timeout of finding 1 was demonstrated against a socket that accepts and never
+replies. Closing finding 6 also exposed a defect in the fix for finding 4 — with
+the shutdown now *awaiting* the exit, the failed-start `reason` was being read
+after the helper's own `SIGKILL` and would have described every failed start as
+`the process exited (signal SIGKILL)` whatever the cause. The exit status is now
+captured before shutdown, and the control that caught it is in the table above.
 
 ---
 

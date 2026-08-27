@@ -91,6 +91,12 @@ import {
   revokePmfreakDispatchAuthority,
 } from "../../scripts/frontera-authority-provisioning.mjs";
 import { buildP2_14HandoffManifest } from "../../scripts/p2-13/founder-scenario-manifest.mjs";
+import {
+  GUARD_MODES,
+  LOCAL_ISOLATED,
+  assertIsolatedTarget,
+  classifyP2_13Target,
+} from "../../scripts/p2-13/isolation-guard.mjs";
 
 const ROOT = process.cwd();
 const requireFromRoot = createRequire(path.join(ROOT, "package.json"));
@@ -126,6 +132,47 @@ function resolvePackageRoot(name: string): string {
 }
 
 const installedManifest = (name: string) => readJson(path.join(resolvePackageRoot(name), "package.json"));
+
+/** Where the harness's per-process database outage lives. See the file itself. */
+const DATABASE_OUTAGE_SHIM = path.join(ROOT, "tests/acceptance/support/database-outage-shim.cjs");
+
+/**
+ * A deterministic fingerprint of a package tree: every file's path and content
+ * hash, ordered, hashed again.
+ *
+ * The technique is P0-LAUNCH-02's, applied here for the reason that gate found:
+ * a matching name and version prove IDENTITY, never PROVENANCE. A package whose
+ * manifest still reads `0.2.0-rc.1` while one installed file has been edited
+ * satisfies every version, lock and integrity assertion in this file — the lock
+ * records the TARBALL's integrity, and npm does not re-verify what is already
+ * unpacked under node_modules. The server would then execute bytes this gate
+ * had just certified as frozen.
+ */
+function fingerprintTree(root: string): { digest: string; count: number } {
+  const entries: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      // npm writes these INTO an installed package; they are not package content.
+      if (entry.name === ".package-lock.json" || entry.name === ".bin") continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.isFile()) entries.push(`${path.relative(root, full).split(path.sep).join("/")}:${sha256File(full)}`);
+    }
+  };
+  walk(root);
+  return { digest: createHash("sha256").update(entries.join("\n")).digest("hex"), count: entries.length };
+}
+
+/** Extracts a tarball to a temp directory and hands the caller its `package/` root. */
+function withExtractedTarball<T>(tarball: string, fn: (packageRoot: string) => T): T {
+  const extractDir = fs.mkdtempSync(path.join(os.tmpdir(), "p0-launch-03-extract-"));
+  try {
+    execFileSync("tar", ["xzf", tarball, "-C", extractDir]);
+    return fn(path.join(extractDir, "package"));
+  } finally {
+    fs.rmSync(extractDir, { recursive: true, force: true });
+  }
+}
 
 /**
  * THE IMMUTABLE LAUNCH BASELINE.
@@ -166,6 +213,45 @@ const FRONTERA_STORE_ENV = "AOC_ENTERPRISE_KERNEL_AUTHORITY_SQLITE_PATH";
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 const sha256File = (file: string) => createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 
+/** Polls a condition to a deadline. Returns whether it came true in time. */
+async function waitUntil(condition: () => boolean, timeoutMs: number, intervalMs = 50): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (condition()) return true;
+    await sleep(intervalMs);
+  }
+  return condition();
+}
+
+/**
+ * EVERY HTTP REQUEST THIS GATE MAKES IS BOUNDED.
+ *
+ * A bare `fetch` against a process that ACCEPTS the connection and then never
+ * answers stays pending forever — a socket server that accepts and never writes
+ * leaves it unsettled indefinitely, which is not a hypothesis about slow
+ * machines but the observable behaviour of an unbounded request. That is
+ * precisely the broken-startup shape the startup probe exists to DIAGNOSE, and
+ * an unbounded probe there parks the `await` so the surrounding deadline is
+ * never re-checked and the server is never killed: the gate hangs instead of
+ * returning a failed `StartOutcome`.
+ */
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+const HEALTH_PROBE_TIMEOUT_MS = 10_000;
+
+function boundedFetch(url: string, init: RequestInit = {}, timeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS): Promise<Response> {
+  const timeout = AbortSignal.timeout(Math.max(1, Math.floor(timeoutMs)));
+  return fetch(url, { ...init, signal: init.signal ? AbortSignal.any([init.signal, timeout]) : timeout });
+}
+
+/** A one-line, non-secret description of why a request did not answer. */
+function describeRequestFailure(error: unknown): string {
+  if (error instanceof Error) {
+    const code = (error as { cause?: { code?: string } }).cause?.code;
+    return code ? `${error.name}: ${code}` : `${error.name}: ${error.message}`;
+  }
+  return String(error);
+}
+
 /**
  * A cookie jar over fetch.
  *
@@ -181,12 +267,16 @@ class HttpSession {
     this.baseUrl = baseUrl;
   }
 
-  async request(pathname: string, init: RequestInit = {}): Promise<{ status: number; text: string; json: <T = unknown>() => T }> {
+  async request(
+    pathname: string,
+    init: RequestInit = {},
+    timeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS,
+  ): Promise<{ status: number; text: string; json: <T = unknown>() => T }> {
     const headers = new Headers(init.headers);
     if (this.cookies.size > 0) {
       headers.set("cookie", [...this.cookies].map(([name, value]) => `${name}=${value}`).join("; "));
     }
-    const response = await fetch(`${this.baseUrl}${pathname}`, { ...init, headers, redirect: "manual" });
+    const response = await boundedFetch(`${this.baseUrl}${pathname}`, { ...init, headers, redirect: "manual" }, timeoutMs);
     for (const raw of response.headers.getSetCookie()) {
       const [pair] = raw.split(";");
       const eq = pair.indexOf("=");
@@ -301,14 +391,82 @@ function mappedFiles(pid: number): string[] {
   return [...out];
 }
 
+/**
+ * The scheduler state of a process: `R`/`S`/`D` while it is still running, `Z`
+ * once it has terminated and is waiting for its parent to collect it, and null
+ * when the table entry is gone.
+ *
+ * The distinction is the whole of the reaping fix. A zombie is NOT a running
+ * process — waiting for one to "die" waits for something only its parent can
+ * do — but it is also not nothing: on a machine whose PID 1 does not reap
+ * adopted children, a gate that signalled a process group and returned
+ * immediately would accumulate table entries across runs while reporting zero
+ * orphans. So the two are counted separately and both are reported.
+ */
+function processState(pid: number): string | null {
+  const stat = readProc(pid, "stat");
+  if (stat === "") return null;
+  return stat.slice(stat.lastIndexOf(")") + 2).split(" ")[0] ?? null;
+}
+
 const pidAlive = (pid: number) => {
-  try {
-    fs.statSync(`/proc/${pid}`);
-    return true;
-  } catch {
-    return false;
-  }
+  const state = processState(pid);
+  return state !== null && state !== "Z";
 };
+const pidUnreaped = (pid: number) => processState(pid) === "Z";
+const runningPids = (pids: readonly number[]) => pids.filter(pidAlive);
+const unreapedPids = (pids: readonly number[]) => pids.filter(pidUnreaped);
+
+/**
+ * Process-table residue this gate could not account for, recorded as it is
+ * observed and asserted empty by a control at the bottom of this file. A count
+ * measured only around the graceful-shutdown test would say nothing about the
+ * eight other production processes this gate starts.
+ */
+const HARNESS_PROCESS_RESIDUE: { control: string; orphans: number[]; unreaped: number[] }[] = [];
+let PRODUCTION_PROCESSES_STARTED = 0;
+
+/**
+ * Kills a launcher's process GROUP and WAITS for it.
+ *
+ * `process.kill` only DELIVERS a signal. Sending SIGKILL and returning leaves
+ * the launcher in state `Z` at the moment of return — observably, not in
+ * theory — so a caller that checked for stragglers right afterwards would be
+ * sampling a tree that had not finished coming down.
+ */
+async function reapProcessGroup(
+  launcherPid: number | undefined,
+  hasExited: () => boolean,
+  timeoutMs = 10_000,
+): Promise<{ reaped: boolean; survivors: number[]; unreaped: number[] }> {
+  if (!launcherPid) return { reaped: true, survivors: [], unreaped: [] };
+  // Recorded BEFORE the signal: afterwards the tree is being dismantled, and a
+  // descendant already re-parented can no longer be found by walking down.
+  const recorded = [launcherPid, ...descendantPids(launcherPid)].filter((pid, index, all) => all.indexOf(pid) === index);
+
+  try {
+    process.kill(-launcherPid, "SIGKILL");
+  } catch {
+    /* already gone */
+  }
+  // Directly as well as by group: a descendant that left the group cannot be
+  // reached by the group signal, and it is exactly the one that would survive.
+  for (const pid of recorded) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      /* already gone */
+    }
+  }
+
+  await waitUntil(() => hasExited() && runningPids(recorded).length === 0, timeoutMs);
+  // Zombies clear only when their parent collects them, so wait briefly and
+  // then REPORT rather than block for a budget that cannot help.
+  await waitUntil(() => unreapedPids(recorded).length === 0, 2_000);
+
+  const survivors = runningPids(recorded);
+  return { reaped: hasExited() && survivors.length === 0, survivors, unreaped: unreapedPids(recorded) };
+}
 
 // ───────────────────────────── server lifecycle ─────────────────────────────
 
@@ -323,9 +481,16 @@ type ServerHandle = {
   exitStatus(): { code: number | null; signal: NodeJS.Signals | null } | null;
 };
 
-type StartOutcome =
-  | { readonly started: true; readonly handle: ServerHandle }
-  | { readonly started: false; readonly reason: string; readonly log: string };
+type FailedStart = {
+  readonly started: false;
+  readonly reason: string;
+  readonly log: string;
+  readonly launcherPid: number | null;
+  readonly reaped: boolean;
+  readonly survivors: number[];
+};
+
+type StartOutcome = { readonly started: true; readonly handle: ServerHandle } | FailedStart;
 
 /**
  * Starts PMFreak through its SUPPORTED production entrypoint: `npm run start`,
@@ -363,36 +528,53 @@ async function startProductionServer(options: {
     state.exit = { code, signal };
   });
 
+  PRODUCTION_PROCESSES_STARTED += 1;
   const startedAt = Date.now();
   const deadline = startedAt + timeoutMs;
   let healthy = false;
-  while (Date.now() < deadline && !state.exit) {
+  let lastProbe = "no probe was attempted before the deadline expired";
+  while (!state.exit) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
     try {
-      const response = await fetch(`${baseUrl}/api/health`);
+      // Bounded by the SMALLER of the per-probe budget and what is left of the
+      // startup deadline, so one request can never outlive the deadline it is
+      // supposed to be checked against. A process that accepts the connection
+      // and never answers is the case this exists for: it now fails the probe
+      // and the loop returns to the deadline, instead of parking here forever.
+      const response = await boundedFetch(`${baseUrl}/api/health`, {}, Math.min(HEALTH_PROBE_TIMEOUT_MS, remaining));
+      const body = await response.text();
       if (response.ok) {
         healthy = true;
         break;
       }
-    } catch {
-      /* not accepting connections yet */
+      lastProbe = `/api/health answered ${response.status}: ${body.slice(0, 200)}`;
+    } catch (error) {
+      lastProbe = describeRequestFailure(error);
     }
-    await sleep(400);
+    await sleep(Math.max(0, Math.min(400, deadline - Date.now())));
   }
 
   if (!healthy) {
-    if (child.pid) {
-      try {
-        process.kill(-child.pid, "SIGKILL");
-      } catch {
-        /* already gone */
-      }
-    }
+    // WHY THE EXIT STATUS IS READ BEFORE THE SHUTDOWN. Whether the process died
+    // on its own or was still running when the deadline expired is decided by
+    // the state at THIS point. Reading it after the shutdown below — which now
+    // awaits the exit rather than signalling and returning — would report the
+    // SIGKILL this helper itself just sent, and every failed start would be
+    // described as "the process exited (signal SIGKILL)" no matter why it
+    // failed. That is not hypothetical: it is what this returned before the
+    // zero-deadline control caught it.
+    const exitedOnItsOwn = state.exit;
+    const reaping = await reapProcessGroup(child.pid, () => state.exit !== null);
     return {
       started: false,
       log,
-      reason: state.exit
-        ? `the process exited (code ${state.exit.code}, signal ${state.exit.signal}) before it became healthy`
-        : `the process never became healthy within ${timeoutMs}ms`,
+      launcherPid: child.pid ?? null,
+      reaped: reaping.reaped,
+      survivors: reaping.survivors,
+      reason: exitedOnItsOwn
+        ? `the process exited (code ${exitedOnItsOwn.code}, signal ${exitedOnItsOwn.signal}) before it became healthy`
+        : `the process never became healthy within ${timeoutMs}ms (last probe: ${lastProbe})`,
     };
   }
 
@@ -420,15 +602,43 @@ async function startProductionServer(options: {
   };
 }
 
-/** Stops the process GROUP the way a supervisor or `docker stop` would. */
-async function stopProductionServer(
+type ShutdownOutcome = {
+  readonly exitedAfterMs: number | null;
+  readonly code: number | null;
+  readonly signal: NodeJS.Signals | null;
+  readonly escalated: boolean;
+  readonly orphans: number[];
+  readonly unreaped: number[];
+};
+
+/**
+ * Stops the process GROUP the way a supervisor or `docker stop` would — and
+ * then WAITS for the tree to come down.
+ *
+ * EVERY production process this gate starts is stopped through this one path,
+ * the fail-closed controls included. The previous arrangement had two: a
+ * graceful stop used by one test, and a fire-and-forget SIGKILL used by the
+ * five controls and the final hook, which signalled the group and returned
+ * before anything had exited. Only the first reported stragglers, so the
+ * gate's "zero orphans" covered a single shutdown out of nine.
+ *
+ * The ladder is: signal, await the handle this gate owns and the descendants it
+ * recorded, escalate ONCE to SIGKILL if that did not take, then await reaping
+ * and report whatever is left — running (`orphans`) and terminated-but-uncollected
+ * (`unreaped`) counted apart.
+ */
+async function shutdownProductionServer(
   handle: ServerHandle,
-  signal: NodeJS.Signals = "SIGTERM",
-  timeoutMs = 30_000,
-): Promise<{ exitedAfterMs: number | null; code: number | null; signal: NodeJS.Signals | null; orphans: number[] }> {
-  const known = [handle.serverPid, ...descendantPids(handle.launcherPid)].filter(
+  options: { label: string; signal?: NodeJS.Signals; graceMs?: number; reapMs?: number },
+): Promise<ShutdownOutcome> {
+  const signal = options.signal ?? "SIGTERM";
+  const graceMs = options.graceMs ?? 30_000;
+  const reapMs = options.reapMs ?? 10_000;
+
+  const recorded = [handle.serverPid, handle.launcherPid, ...descendantPids(handle.launcherPid)].filter(
     (pid, index, all) => all.indexOf(pid) === index,
   );
+
   const startedAt = Date.now();
   try {
     process.kill(-handle.launcherPid, signal);
@@ -436,26 +646,37 @@ async function stopProductionServer(
     /* already dead */
   }
 
-  const deadline = startedAt + timeoutMs;
-  while (Date.now() < deadline && handle.exitStatus() === null) await sleep(100);
+  // 1. Await the handle, and the descendants that are not this process's to await.
+  await waitUntil(() => handle.exitStatus() !== null && runningPids(recorded).length === 0, graceMs);
+  // Read BEFORE any escalation, so `exitedAfterMs` answers the question the
+  // graceful-shutdown test actually asks: did the signal SENT stop it in time?
   const status = handle.exitStatus();
+  const exitedAfterMs = status === null ? null : Date.now() - startedAt;
 
-  await sleep(750); // let descendants reap before looking for stragglers
-  return {
-    exitedAfterMs: status === null ? null : Date.now() - startedAt,
+  // 2. Escalate exactly once, and only if graceful termination did not take. A
+  //    shutdown that always escalated could not tell a clean stop from a hung one.
+  let escalated = false;
+  if (status === null || runningPids(recorded).length > 0) {
+    escalated = true;
+    await reapProcessGroup(handle.launcherPid, () => handle.exitStatus() !== null, reapMs);
+  }
+
+  // 3. Await reaping rather than sampling once.
+  await waitUntil(() => runningPids(recorded).length === 0, reapMs);
+  await waitUntil(() => unreapedPids(recorded).length === 0, 2_000);
+
+  const outcome: ShutdownOutcome = {
+    exitedAfterMs,
     code: status?.code ?? null,
     signal: status?.signal ?? null,
-    orphans: known.filter((pid) => pidAlive(pid)),
+    escalated,
+    orphans: runningPids(recorded),
+    unreaped: unreapedPids(recorded),
   };
-}
-
-function forceKill(handle: ServerHandle | null | undefined): void {
-  if (!handle) return;
-  try {
-    process.kill(-handle.launcherPid, "SIGKILL");
-  } catch {
-    /* already gone */
+  if (outcome.orphans.length > 0 || outcome.unreaped.length > 0) {
+    HARNESS_PROCESS_RESIDUE.push({ control: options.label, orphans: outcome.orphans, unreaped: outcome.unreaped });
   }
+  return outcome;
 }
 
 // ───────────────────────── governed-operation helpers ─────────────────────────
@@ -667,6 +888,32 @@ before(async () => {
     );
   }
 
+  // ── ISOLATION, BEFORE THE FIRST PRIVILEGED ACCESS.
+  //
+  //    The assertions above prove those variables are NONEMPTY, which says
+  //    nothing about WHERE they point. An acceptance environment that has
+  //    drifted onto a hosted or production Supabase satisfies every one of
+  //    them — and this gate then opens an admin client with the SERVICE-ROLE
+  //    key, lists users, and goes on to create Material Actions and Tasks
+  //    through the running application. That contradicts the disposable-local
+  //    boundary this gate is scoped to and would mutate real data.
+  //
+  //    The guard is the repository's own canonical one, not a weaker local
+  //    copy: literal loopback host, the disposable local API port 54321, a
+  //    plaintext loopback scheme, equality with the NEXT_PUBLIC_SUPABASE_URL
+  //    the running application is configured with, and an independent refusal
+  //    of known hosted/staging/production host shapes. It is a pure function
+  //    over the environment, so "before any network access" is a property of
+  //    this call's position, not a hope about timing.
+  const isolation = assertIsolatedTarget(process.env, { mode: GUARD_MODES.SEED });
+  assert.equal(
+    isolation.classification,
+    LOCAL_ISOLATED,
+    `the acceptance target was not classified local and isolated: ${JSON.stringify(isolation.target ?? null)}`,
+  );
+  EVIDENCE.isolationClassification = String(isolation.classification);
+  EVIDENCE.isolationTarget = String(isolation.target?.supabaseHost ?? "(not reported)");
+
   // ── A FRESH authority store, per run, under the OS temp directory.
   //    Never the operator's configured store: that file is developer-machine
   //    residue, and reusing it would make "durable state survived" unfalsifiable.
@@ -702,7 +949,7 @@ before(async () => {
 });
 
 after(async () => {
-  forceKill(server);
+  if (server) await shutdownProductionServer(server, { label: "after(): the last production server", graceMs: 10_000 });
   console.log(`\nP0_LAUNCH_03_PRODUCTION_RUNTIME_EVIDENCE ${JSON.stringify(EVIDENCE, null, 2)}`);
   try {
     fs.rmSync(RUN_DIR, { recursive: true, force: true });
@@ -730,6 +977,27 @@ test("A: the installed dependency tree is the frozen launch baseline", () => {
     assert.equal(entry.integrity, expected.integrity, `${name}: the locked integrity is not the launch baseline`);
 
     assert.equal(installedManifest(name).version, expected.version, `${name}: the INSTALLED version is not the launch baseline`);
+
+    // ── and the installed BYTES, not merely the installed version.
+    //
+    // Everything above this line is satisfied by a node_modules tree whose
+    // contents have been edited while the manifest version stayed put, which is
+    // exactly the state in which the server executes different Protocol or
+    // Frontera JavaScript than the artifact this gate certifies. The comparison
+    // is against the tarball ALREADY hashed to the frozen sha256 four lines up,
+    // so it inherits that verification rather than trusting the file anew, and
+    // it fingerprints the tree reached by RESOLUTION — the one the running
+    // server actually loads — rather than a constructed path.
+    const packed = withExtractedTarball(tarball, fingerprintTree);
+    const installed = fingerprintTree(resolvePackageRoot(name));
+    assert.ok(packed.count > 0, `${name}: the frozen tarball extracted no files`);
+    assert.equal(
+      installed.digest,
+      packed.digest,
+      `${name}: the INSTALLED tree (${installed.count} files) is not the frozen tarball's bytes (${packed.count} files). ` +
+        `Name and version match, so only a content fingerprint could catch this. Run \`npm ci\`.`,
+    );
+    EVIDENCE[`installedBytes:${name}`] = `${packed.digest.slice(0, 16)}… (${packed.count} files, identical to ${expected.tarball})`;
   }
 });
 
@@ -871,6 +1139,83 @@ test("E: readiness answers separately, and its database probe reaches a REAL dat
   assert.ok(database, `readiness reported no database check: ${JSON.stringify(body.checks)}`);
   assert.equal(database.status, "pass", `the readiness database probe did not reach the database: ${JSON.stringify(database)}`);
   EVIDENCE.readiness = `200 ready (${body.checks.map((check) => `${check.name}=${check.status}`).join(", ")})`;
+});
+
+test("D/E: ONE process stays LIVE while its database is unreachable, and reports NOT READY", async () => {
+  requireProc("attributing liveness and readiness to a single production process");
+
+  // D and E above prove `/api/health` is 200 and `/api/ready` is 200 while the
+  // database is REACHABLE — which is the only condition either of them was ever
+  // asserted under. The claim that distinguishes them ("liveness stays 200 with
+  // the database down; only readiness fails") had no control at all, so a
+  // regression that added a database call to the health route would leave this
+  // file entirely green.
+  //
+  // The outage is genuine and confined to ONE process: see the shim's own
+  // comment for why an environment override cannot produce it (Next inlines
+  // NEXT_PUBLIC_* into the server bundle at build time, so there is no runtime
+  // lookup left to re-point) and why rebuilding would answer for a different
+  // build than the one under acceptance.
+  const supabase = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!);
+  const hostPort = `${supabase.hostname}:${supabase.port || (supabase.protocol === "https:" ? "443" : "80")}`;
+  const port = await freePort();
+  const outcome = await startProductionServer({
+    port,
+    env: productionEnv({
+      NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --require ${DATABASE_OUTAGE_SHIM}`.trim(),
+      P0_LAUNCH_03_UNREACHABLE_HOSTPORT: hostPort,
+    }),
+  });
+  // Reaching HEALTHY is already half the claim: `startProductionServer` waits on
+  // `/api/health`, so a health route that touched the database could not get
+  // this far — it would time out and fail here rather than pass quietly.
+  if (!outcome.started) {
+    assert.fail(`the process must stay live with its database unreachable, but: ${outcome.reason}\n${outcome.log.slice(-2000)}`);
+  }
+  try {
+    assert.match(
+      outcome.handle.log(),
+      /P0_LAUNCH_03_DATABASE_OUTAGE_SHIM_ACTIVE/,
+      "the outage was never installed in the server process, so 'the database is unreachable' is not established",
+    );
+
+    const isolated = new HttpSession(outcome.handle.baseUrl);
+    const health = await isolated.request("/api/health");
+    const ready = await isolated.request("/api/ready");
+    // Both answers came from the SAME process: one process listens on this
+    // port, it is the one started above, and it is still that process now.
+    assert.ok(pidAlive(outcome.handle.serverPid), "the server process died between the two requests");
+
+    assert.equal(health.status, 200, `/api/health must stay 200 with the database down, got ${health.status}: ${health.text.slice(0, 300)}`);
+    assert.equal(health.json<{ status: string }>().status, "ok");
+
+    assert.equal(ready.status, 503, `/api/ready must be 503 with the database down, got ${ready.status}: ${ready.text.slice(0, 300)}`);
+    const body = ready.json<{ status: string; checks: { name: string; status: string; detail?: string }[] }>();
+    assert.equal(body.status, "not_ready");
+    const database = body.checks.find((check) => check.name === "database");
+    assert.equal(database?.status, "fail", `the database check did not fail: ${JSON.stringify(body.checks)}`);
+    assert.match(String(database?.detail), /unreachable|timeout/, `the database failure is not an outage: ${JSON.stringify(database)}`);
+
+    // The probe REACHED for the database and was refused, so readiness failed
+    // BECAUSE of the outage rather than because some other check happened to
+    // fail first — and nothing but reachability was changed, which is why the
+    // configuration check must still pass.
+    assert.match(
+      outcome.handle.log(),
+      /P0_LAUNCH_03_DATABASE_OUTAGE_BLOCKED/,
+      "no connection to the database was ever attempted, so the readiness failure is not attributable to the outage",
+    );
+    assert.equal(
+      body.checks.find((check) => check.name === "configuration")?.status,
+      "pass",
+      `the control changed more than the database's reachability: ${JSON.stringify(body.checks)}`,
+    );
+
+    EVIDENCE.livenessDuringDatabaseOutage =
+      `pid ${outcome.handle.serverPid}: /api/health=200 ok, /api/ready=503 not_ready (database=${String(database?.detail)})`;
+  } finally {
+    await shutdownProductionServer(outcome.handle, { label: "D/E: database-outage control", graceMs: 10_000 });
+  }
 });
 
 // ═══════════════════════ G / F — auth and database, in the running process ═══════════════════════
@@ -1022,15 +1367,21 @@ test("NEGATIVE CONTROL: an infrastructure outage is not accepted as a policy den
 
 test("K: SIGTERM stops the production process cleanly and releases the port", async () => {
   const storeBefore = sha256File(STORE_PATH);
-  const outcome = await stopProductionServer(server!, "SIGTERM");
+  const outcome = await shutdownProductionServer(server!, { label: "K: SIGTERM to the process group", signal: "SIGTERM", graceMs: 30_000 });
 
   assert.notEqual(outcome.exitedAfterMs, null, "the production process did not exit within 30s of SIGTERM");
-  assert.deepEqual(outcome.orphans, [], `SIGTERM left orphaned processes: ${outcome.orphans.join(", ")}`);
+  // SIGTERM alone was enough. The shutdown path CAN escalate to SIGKILL, so
+  // without this the test would pass just as happily on a process that ignored
+  // the graceful signal entirely.
+  assert.equal(outcome.escalated, false, "SIGTERM did not stop the process group; the shutdown had to escalate to SIGKILL");
+  assert.deepEqual(outcome.orphans, [], `SIGTERM left running processes behind: ${outcome.orphans.join(", ")}`);
+  assert.deepEqual(outcome.unreaped, [], `SIGTERM left terminated-but-uncollected processes behind: ${outcome.unreaped.join(", ")}`);
   assert.equal(await portAcceptsConnections(PORT), false, `port ${PORT} is still accepting connections after shutdown`);
   assert.equal(sha256File(STORE_PATH), storeBefore, "the durable authority store changed during shutdown");
   EVIDENCE.shutdownMethod = "SIGTERM to the process group";
   EVIDENCE.shutdownExitedAfterMs = outcome.exitedAfterMs ?? -1;
   EVIDENCE.shutdownSignal = String(outcome.signal);
+  EVIDENCE.shutdownEscalatedToSigkill = outcome.escalated;
   EVIDENCE.orphanProcesses = outcome.orphans.length;
   server = null;
 });
@@ -1119,7 +1470,7 @@ test("P: a production process missing a required server secret reports NOT READY
     assert.match(String(configuration?.detail), /SUPABASE_SERVICE_ROLE_KEY/, "the failure does not name the missing variable");
     assert.doesNotMatch(response.text, /eyJ[A-Za-z0-9_-]{10,}/, "the readiness failure leaked a credential-shaped value");
   } finally {
-    forceKill(outcome.handle);
+    await shutdownProductionServer(outcome.handle, { label: "P: missing server secret", graceMs: 10_000 });
   }
 });
 
@@ -1139,7 +1490,7 @@ test("P: readiness fails closed when a declared dependency is misconfigured", as
     assert.equal(body.status, "not_ready");
     assert.equal(body.checks.find((check) => check.name === "governance_capability")?.status, "fail");
   } finally {
-    forceKill(outcome.handle);
+    await shutdownProductionServer(outcome.handle, { label: "P: misconfigured declared dependency", graceMs: 10_000 });
   }
 });
 
@@ -1153,7 +1504,7 @@ test("P: an unconfigured Frontera authority store denies as an OUTAGE, never as 
     const response = await governedPost(isolated, { operation: "dispatch_material_action_to_task", actionId });
     asGovernedInfrastructureFailure(response, "an unconfigured authority store must fail closed as an outage");
   } finally {
-    forceKill(outcome.handle);
+    await shutdownProductionServer(outcome.handle, { label: "P: unconfigured authority store", graceMs: 10_000 });
   }
 });
 
@@ -1169,7 +1520,7 @@ test("P: a MALFORMED Frontera authority store is refused, never silently substit
     // The malformed file must be left as it was — never repaired into a store.
     assert.equal(fs.readFileSync(MALFORMED_STORE_PATH, "utf8"), "this is not a SQLite database\n", "the runtime rewrote the malformed store file");
   } finally {
-    forceKill(outcome.handle);
+    await shutdownProductionServer(outcome.handle, { label: "P: malformed authority store", graceMs: 10_000 });
   }
 });
 
@@ -1177,16 +1528,30 @@ test("P: a MALFORMED Frontera authority store is refused, never silently substit
 
 test("NON-VACUITY: the health probe fails when nothing is listening", async () => {
   const port = await freePort();
-  await assert.rejects(fetch(`http://127.0.0.1:${port}/api/health`), "a probe against a dead port resolved, so 'healthy' proves nothing");
+  await assert.rejects(
+    boundedFetch(`http://127.0.0.1:${port}/api/health`, {}, 5_000),
+    "a probe against a dead port resolved, so 'healthy' proves nothing",
+  );
 });
 
 test("NON-VACUITY: the start check fails when the process cannot become healthy", async () => {
   const port = await freePort();
-  // A start that is given no chance to become healthy must be reported as a
-  // failure to start, not silently tolerated.
-  const outcome = await startProductionServer({ port, env: productionEnv(), timeoutMs: 1_500 });
+  // A ZERO startup deadline is a MECHANICAL impossibility, not a bet on how
+  // slow this machine is. The previous form allowed 1.5s, so on a machine where
+  // an already-built server became healthy inside that window the control
+  // received a successful StartOutcome and failed the whole gate even though
+  // `startProductionServer` was behaving correctly: it was reporting the
+  // machine's speed rather than the helper's behaviour. No machine can beat a
+  // deadline that has already expired.
+  const outcome = await startProductionServer({ port, env: productionEnv(), timeoutMs: 0 });
   assert.equal(outcome.started, false, "startProductionServer reported success without a healthy process");
-  assert.match((outcome as { reason: string }).reason, /never became healthy|exited/);
+  const failed = outcome as FailedStart;
+  assert.match(failed.reason, /never became healthy within 0ms/);
+
+  // A failed start must also not leave the process it spawned behind.
+  assert.equal(failed.reaped, true, `the failed start left processes behind: ${failed.survivors.join(", ")}`);
+  assert.equal(await portAcceptsConnections(port), false, `port ${port} is still accepting connections after a failed start`);
+  EVIDENCE.failedStartControl = "timeoutMs=0 — an expired deadline, not a timing assumption";
 });
 
 test("NON-VACUITY: durable-state survival fails against an EMPTY authority store", async () => {
@@ -1207,8 +1572,125 @@ test("NON-VACUITY: durable-state survival fails against an EMPTY authority store
     );
     assert.throws(() => asGovernedAllow(response, "control"), /fronteraDecisionId|denied/);
   } finally {
-    forceKill(outcome.handle);
+    await shutdownProductionServer(outcome.handle, { label: "NON-VACUITY: empty authority store", graceMs: 10_000 });
   }
+});
+
+test("NON-VACUITY: the isolation guard refuses a non-local Supabase target, before any network access", () => {
+  // The guard is a PURE function over an environment object — it opens no
+  // socket and reads no file — so these are the states the `before` hook would
+  // have refused, evaluated without going anywhere near a database.
+  const withTarget = (url: string) => ({ ...process.env, OPERATIONAL_FLOW_TEST_SUPABASE_URL: url, NEXT_PUBLIC_SUPABASE_URL: url });
+
+  const refused: readonly (readonly [string, string, string])[] = [
+    ["a hosted Supabase project", "https://abcdefghijklmnop.supabase.co", "supabase_url_loopback"],
+    ["a LAN host", "http://192.168.1.50:54321", "supabase_url_loopback"],
+    ["an arbitrary public host", "http://db.example.com:54321", "supabase_url_loopback"],
+    ["a host that merely CONTAINS localhost", "http://localhost.attacker.example:54321", "supabase_url_loopback"],
+    ["loopback on the wrong port", "http://127.0.0.1:5432", "supabase_url_expected_port"],
+  ];
+
+  for (const [why, url, expectedRefusal] of refused) {
+    assert.throws(
+      () => assertIsolatedTarget(withTarget(url), { mode: GUARD_MODES.SEED }),
+      /P2-13 SAFETY REFUSAL/,
+      `${why} (${url}) was accepted as a disposable local target, so this gate would have used a service-role key against it`,
+    );
+    const verdict = classifyP2_13Target(withTarget(url), { mode: GUARD_MODES.SEED });
+    assert.equal(verdict.ok, false, `${why}: the guard returned ok`);
+    assert.ok(
+      verdict.refusals.includes(expectedRefusal),
+      `${why}: expected the ${expectedRefusal} refusal, got ${verdict.refusals.join(", ")}`,
+    );
+  }
+
+  // A hosted target is refused even when only ONE of the two variables moved,
+  // so a half-updated environment cannot slip a privileged call through.
+  assert.throws(
+    () => assertIsolatedTarget({ ...process.env, OPERATIONAL_FLOW_TEST_SUPABASE_URL: "https://abcdefghijklmnop.supabase.co" }, { mode: GUARD_MODES.SEED }),
+    /P2-13 SAFETY REFUSAL/,
+    "a harness pointed at a hosted project was accepted because the application's own variable still looked local",
+  );
+
+  // and it must still accept the genuine target, or it is merely broken.
+  assert.equal(classifyP2_13Target(process.env, { mode: GUARD_MODES.SEED }).classification, LOCAL_ISOLATED);
+});
+
+test("NON-VACUITY: the installed-bytes fingerprint catches a mutated file whose version is untouched", () => {
+  // Nothing under node_modules is touched. The frozen tarball is extracted, its
+  // pristine tree fingerprinted, ONE file edited, and the SAME function asked
+  // again — a tree wrong in exactly the way the acceptance must catch, and in
+  // the only way the version, lock and integrity assertions cannot see.
+  const name = "@aoc/protocol";
+  const expected = LAUNCH_BASELINE[name];
+  withExtractedTarball(path.join(ROOT, expected.tarball), (tree) => {
+    const pristine = fingerprintTree(tree);
+    assert.ok(pristine.count > 0, "the frozen tarball extracted no files");
+
+    const firstJavaScriptFile = (dir: string): string | null => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          const found = firstJavaScriptFile(full);
+          if (found) return found;
+        } else if (entry.isFile() && /\.(js|mjs|cjs)$/.test(entry.name)) return full;
+      }
+      return null;
+    };
+    const victim = firstJavaScriptFile(tree);
+    assert.ok(victim, "the packaged artifact carries no JavaScript to mutate");
+
+    fs.appendFileSync(victim, "\n// one line an attacker appended\n");
+    const mutated = fingerprintTree(tree);
+
+    // The mutation must leave every signal the other assertions read intact,
+    // or it would not be demonstrating their blindness.
+    const manifest = readJson(path.join(tree, "package.json"));
+    assert.equal(manifest.name, name, "the mutation changed the package name; it must change CONTENT only");
+    assert.equal(manifest.version, expected.version, "the mutation changed the version; it must change CONTENT only");
+    assert.equal(mutated.count, pristine.count, "the mutation added or removed a file; it must change CONTENT only");
+
+    assert.notEqual(
+      mutated.digest,
+      pristine.digest,
+      "a mutated file did not change the fingerprint, so the installed-bytes assertion in A would pass straight over it",
+    );
+  });
+});
+
+test("NON-VACUITY: the process-residue detector can see a live process, and sees it go", async () => {
+  requireProc("classifying the state of the processes this gate started");
+
+  // If `pidAlive` could not report a running process, every orphan count in
+  // this file would be zero for the wrong reason.
+  const child = spawn("sh", ["-c", "sleep 30"], { detached: true, stdio: "ignore" });
+  const pid = child.pid!;
+  const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+  assert.ok(await waitUntil(() => pidAlive(pid), 5_000), "a running process is not reported as running");
+  assert.deepEqual(runningPids([pid]), [pid]);
+
+  process.kill(-pid, "SIGKILL");
+  await exited;
+  assert.ok(await waitUntil(() => processState(pid) === null, 5_000), `pid ${pid} was never collected after SIGKILL`);
+  assert.equal(pidAlive(pid), false, "a collected process is still reported as running");
+  assert.deepEqual(runningPids([pid]), []);
+});
+
+test("NON-VACUITY: this gate left no orphaned or unreaped production process behind", () => {
+  requireProc("accounting for every process this gate started");
+
+  // Every production process this gate starts — the primary server, the
+  // restarted server, the database-outage control and every fail-closed
+  // control — is stopped through `shutdownProductionServer`, which AWAITS the
+  // exit instead of signalling and returning. Anything it could not account
+  // for was recorded as it happened, and this is where that ledger is read.
+  assert.deepEqual(
+    HARNESS_PROCESS_RESIDUE,
+    [],
+    `the gate left process-table residue behind: ${JSON.stringify(HARNESS_PROCESS_RESIDUE)}`,
+  );
+  EVIDENCE.productionProcessesStarted = PRODUCTION_PROCESSES_STARTED;
+  EVIDENCE.processResidueAcrossEveryShutdown = 0;
 });
 
 test("NON-VACUITY: the local-fallback guards reject a redirected tree", () => {
