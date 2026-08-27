@@ -20,6 +20,9 @@
  * server's own log that the readiness probe REACHED for the database and was
  * refused, rather than that some earlier check happened to fail first.
  */
+// This file is CommonJS by necessity: it is loaded as a NODE_OPTIONS=--require
+// preload, which ESM cannot serve, so `require` is the only way to reach node:net.
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS preload
 const net = require("node:net");
 
 const target = String(process.env.P0_LAUNCH_03_UNREACHABLE_HOSTPORT || "").trim();
