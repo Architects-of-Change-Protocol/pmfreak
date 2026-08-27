@@ -122,6 +122,16 @@ Every finding was the same species of defect: **a way for the gate to pass vacuo
 | 6 | Every negative case accepted any `allowed === false`, so an outage satisfied them | Each denial asserts its **exact failure class and reason codes** |
 | 7 | "Minimum authority" checked only that ids came back | The **persisted grant and capability token are read** and their effective capability set asserted exactly |
 
+A second review round on the hardened commit found two more of the same species, both fixed:
+
+| # | Defect | Fix |
+|---|---|---|
+| 8 | `package-lock` integrity was compared against the consumer lock — two mutable values that agree when changed together, while `npm ci` rejects the install with `EINTEGRITY` | The SRI is **derived from the verified tarball bytes** and both records are checked against it and against the immutable baseline |
+| 9 | Durability closed and reopened the store **inside one process**, which cannot distinguish a durable store from module-level state that merely created the file | The post-provision authorization is repeated in a **fresh child process** that receives nothing but the store path |
+
+Finding 8 was reproduced exactly as described: with the integrity falsified coherently in both locks the
+acceptance still passed, while `npm ci` failed with `EINTEGRITY`.
+
 ### Exact denial semantics, established empirically
 
 Probed against the real runtime before being asserted, so the test encodes the product's actual
@@ -178,6 +188,8 @@ Each broken deliberately, the acceptance confirmed to FAIL, then restored:
 | Local fallback `src/aoc/protocol` reintroduced | FAILS |
 | Vendored tarball checksum altered | FAILS |
 | Store made unavailable | **does not count as a denial** |
+| Integrity falsified **coherently in both locks** | FAILS |
+| Child process pointed at a non-existent store | FAILS |
 
 Tenant isolation and revocation remain structurally non-vacuous in addition: each is paired with a
 positive assertion in the same file that would fail first if the capability were absent — the

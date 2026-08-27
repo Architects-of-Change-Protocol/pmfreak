@@ -109,11 +109,13 @@ const LAUNCH_BASELINE = {
   "@aoc/protocol": {
     version: "0.2.0-rc.1",
     sha256: "b0d6ee6ff2010c4addab0bd683e2a89b9b2246f430c7e892fdc3d4123f3a3f60",
+    integrity: "sha512-iJqgwo9ZLewWhY4HWOX1owfplgOzcjk2CuPOcI7ne8ZhwM8dekDaztaBhkfgos0IQ9mSH6fmefNA2yix8DO2bA==",
     tarball: "vendor/aoc-protocol-0.2.0-rc.1.tgz",
   },
   "@aoc-enterprise/runtime": {
     version: "1.2.1",
     sha256: "6b11e68e71b73e8a599c25c3b1ba26129de201b567664accf9874e06366e0628",
+    integrity: "sha512-k3YmQ/GX6cHLLGjNzzYKHSIUT19U342jJF76l+qIbr2TKZTJJhvIQSjLIRuwfbeLZS1EqKOUNDrgPzdu0s5K3A==",
     tarball: "vendor/aoc-enterprise-runtime-1.2.1.tgz",
   },
   contract: "aoc.cross-repository-integration",
@@ -129,6 +131,8 @@ const manifest = readJson(path.join(ROOT, "package.json"));
 const packageLock = readJson(path.join(ROOT, "package-lock.json"));
 const installedManifest = (name: string) => readJson(path.join(ROOT, "node_modules", name, "package.json"));
 const sha256File = (file: string) => createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+/** npm's Subresource Integrity form, computed from the artifact's own bytes. */
+const sriOf = (file: string) => `sha512-${createHash("sha512").update(fs.readFileSync(file)).digest("base64")}`;
 
 const ORG_A = "workspace-launch02-a";
 const ORG_B = "workspace-launch02-b";
@@ -196,7 +200,18 @@ test("J: package.json and package-lock.json target exactly the baseline artifact
     assert.ok(record, `${name}: package-lock has no installed record`);
     assert.equal(record.version, expected.version, `${name}: package-lock version`);
     assert.equal(record.resolved, `file:${expected.tarball}`, `${name}: package-lock resolved target`);
-    assert.equal(record.integrity, lock.artifacts[name].npmIntegrity, `${name}: package-lock integrity`);
+    // Comparing the two locks to each other proves nothing: changed together
+    // they still agree, while `npm ci` rejects the install with EINTEGRITY.
+    // The SRI is therefore DERIVED from the verified tarball bytes and both
+    // records are checked against it, and against the immutable baseline.
+    const derivedIntegrity = sriOf(path.join(ROOT, expected.tarball));
+    assert.equal(derivedIntegrity, expected.integrity, `${name}: tarball SRI must equal the launch baseline`);
+    assert.equal(record.integrity, derivedIntegrity, `${name}: package-lock integrity must match the tarball bytes`);
+    assert.equal(
+      lock.artifacts[name].npmIntegrity,
+      derivedIntegrity,
+      `${name}: consumer lock npmIntegrity must match the tarball bytes`,
+    );
   }
 });
 
@@ -421,6 +436,44 @@ test("I: authority survives closing and reopening the durable store", async () =
   assert.equal(fs.existsSync(storePath), true, "the authority store must be file-backed to prove durability");
   const decision = asAllow(await decide(), "a restart must not silently lose provisioned authority");
   assert.deepEqual([...decision.reasonCodes], ["ACTION_ALLOWED"]);
+});
+
+test("I: authority survives a FRESH PROCESS that only knows the store path", () => {
+  // Closing and reopening inside one process cannot distinguish a durable store
+  // from module-level state that merely created the configured file, and
+  // `existsSync` only proves a path exists. This authorizes from a child process
+  // that receives nothing but the path, so no in-memory state can cross.
+  const childSource = `
+import { openOperatorStore } from ${JSON.stringify(path.join(ROOT, "scripts/frontera-authority-provisioning.mjs"))};
+import { authorizeFronteraDispatch } from "@/lib/integrations/frontera/enforcement-adapter";
+const store = await openOperatorStore(process.env.STORE_PATH);
+try {
+  const decision = await authorizeFronteraDispatch(
+    { workspaceId: ${JSON.stringify(ORG_A)}, projectId: ${JSON.stringify(PROJ_A)}, principalUserId: ${JSON.stringify(FOUNDER)}, actionId: ${JSON.stringify(ACTION)} },
+    { openAuthorityStore: async () => store },
+  );
+  process.stdout.write("RESULT:" + JSON.stringify(decision));
+} finally {
+  await store.close();
+}
+`;
+  const childFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "p0-launch-02-child-")), "restart-probe.mts");
+  fs.writeFileSync(childFile, childSource);
+  try {
+    const stdout = execFileSync("npx", ["tsx", childFile], {
+      cwd: ROOT,
+      encoding: "utf8",
+      env: { ...process.env, STORE_PATH: storePath },
+    });
+    const marker = stdout.lastIndexOf("RESULT:");
+    assert.notEqual(marker, -1, `the child process produced no decision: ${stdout}`);
+    const decision = JSON.parse(stdout.slice(marker + "RESULT:".length)) as FronteraDispatchAuthorization;
+    const allowed = asAllow(decision, "a fresh process must still see the provisioned authority");
+    assert.deepEqual([...allowed.reasonCodes], ["ACTION_ALLOWED"]);
+    assert.equal(allowed.fronteraActorId, provisioned.actorId, "the fresh process resolved the same bound actor");
+  } finally {
+    fs.rmSync(path.dirname(childFile), { recursive: true, force: true });
+  }
 });
 
 test("NEGATIVE CONTROL: an unavailable store is NOT accepted as a denial", async () => {
