@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/observability/logger";
 
 export type UserRole = "owner" | "admin" | "pm" | "viewer";
 
@@ -98,9 +99,37 @@ export const getAuthUser = cache(async (): Promise<AuthUserContext | null> => {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
 
   if (!user) {
+    // P0-LAUNCH-04. An unreachable auth dependency and an ordinary
+    // unauthenticated caller both resolve to "no principal", and both must
+    // continue to — this function's contract is unchanged and a transport
+    // failure MUST NEVER read as an authenticated user. But before this, the two
+    // were indistinguishable to an operator: every protected route answered a
+    // bare 401 and nothing was recorded, so "nobody is logged in" and "nobody
+    // CAN log in" looked identical in production.
+    //
+    // The classification is on the error CLASS, not on its status code.
+    // `AuthRetryableFetchError` (status 0) is auth-js's transport failure;
+    // `AuthSessionMissingError` carries status *400*, so the widely-copied
+    // "not 401/403 means network" test — which
+    // src/lib/supabase/proxy.ts and src/lib/auth/runtime-auth-continuity.ts
+    // both still use — treats every anonymous request as a network error and
+    // therefore cannot make this distinction. Keying on the class makes this
+    // signal QUIET: it appears only when the dependency is genuinely
+    // unreachable, never on ordinary anonymous traffic.
+    //
+    // Only the error class and its status are recorded. The provider's message
+    // is deliberately not logged, and the logger redacts regardless.
+    if (error?.name === "AuthRetryableFetchError") {
+      logger.error("auth_dependency_unavailable", {
+        operation: "getAuthUser",
+        error_code: error.name,
+        status: error.status ?? 0,
+      });
+    }
     return null;
   }
 
