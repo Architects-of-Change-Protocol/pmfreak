@@ -458,7 +458,11 @@ before(async () => {
 });
 
 after(async () => {
-  if (server) await shutdownProductionServer(server, { label: "after(): the last production server", graceMs: 10_000 });
+  // Normally already null: the residue test stops the long-lived server itself,
+  // so its shutdown is inside the ledger that test asserts. This remains only as
+  // a safety net for a run that aborted before reaching it — in which case the
+  // residue assertion never ran either, so nothing is being certified.
+  if (server) await shutdownProductionServer(server, { label: "after(): the last production server (run aborted early)", graceMs: 10_000 });
   console.log(`\nP0_LAUNCH_03_PRODUCTION_RUNTIME_EVIDENCE ${JSON.stringify(EVIDENCE, null, 2)}`);
   try {
     fs.rmSync(RUN_DIR, { recursive: true, force: true });
@@ -1185,14 +1189,33 @@ test("NON-VACUITY: the process-residue detector can see a live process, and sees
   assert.deepEqual(runningPids([pid]), []);
 });
 
-test("NON-VACUITY: this gate left no orphaned or unreaped production process behind", () => {
+test("NON-VACUITY: this gate left no orphaned or unreaped production process behind", async () => {
   requireProc("accounting for every process this gate started");
 
-  // Every production process this gate starts — the primary server, the
-  // restarted server, the database-outage control and every fail-closed
-  // control — is stopped through `shutdownProductionServer`, which AWAITS the
-  // exit instead of signalling and returning. Anything it could not account
-  // for was recorded as it happened, and this is where that ledger is read.
+  // THE LONG-LIVED SERVER IS STOPPED HERE, NOT IN after().
+  //
+  // P0-LAUNCH-04's review found this ordering defect and it is the same one
+  // here, so it is closed in the same place rather than left to be rediscovered.
+  // Every other production process this gate starts is stopped inside the test
+  // that started it, so its shutdown is already in the ledger. The long-lived
+  // one was not: it used to be stopped by `after()`, which runs AFTER this
+  // assertion — so if its shutdown orphaned or failed to reap anything,
+  // `shutdownProductionServer` appended it to the ledger after this test had
+  // already passed, and the gate could report zero residue while leaking a
+  // process.
+  //
+  // It is now stopped and accounted for FIRST, through the same shared path as
+  // every other one, and `server` is cleared so `after()` cannot double-stop it.
+  if (server) {
+    const outcome = await shutdownProductionServer(server, { label: "the long-lived production server", graceMs: 20_000 });
+    server = null;
+    assert.deepEqual(outcome.orphans, [], `stopping the long-lived server left running processes behind: ${JSON.stringify(outcome.orphans)}`);
+    assert.deepEqual(outcome.unreaped, [], `stopping the long-lived server left uncollected process-table entries behind: ${JSON.stringify(outcome.unreaped)}`);
+  }
+
+  // Now the ledger covers EVERY production process this gate started. Anything
+  // `shutdownProductionServer` could not account for was recorded as it
+  // happened, and this is where that ledger is read.
   assert.deepEqual(
     HARNESS_PROCESS_RESIDUE,
     [],
@@ -1200,6 +1223,7 @@ test("NON-VACUITY: this gate left no orphaned or unreaped production process beh
   );
   EVIDENCE.productionProcessesStarted = productionProcessesStarted();
   EVIDENCE.processResidueAcrossEveryShutdown = 0;
+  EVIDENCE.residueLedgerCoversEveryProcess = true;
 });
 
 test("NON-VACUITY: the local-fallback guards reject a redirected tree", () => {

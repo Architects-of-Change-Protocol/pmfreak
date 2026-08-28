@@ -48,6 +48,8 @@
 const fs = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
+// One definition of host normalisation, shared with the pure control that proves it.
+const { normalizeHost } = require("./host-matching.cjs");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const controlDir = String(process.env.P0_LAUNCH_04_OUTAGE_DIR || "").trim();
@@ -60,7 +62,7 @@ const separator = target.lastIndexOf(":");
 if (separator <= 0) {
   throw new Error("P0_LAUNCH_04_OUTAGE_HOSTPORT must be set to host:port for the dependency-outage shim");
 }
-const blockedHost = target.slice(0, separator);
+const blockedHost = normalizeHost(target.slice(0, separator));
 const blockedPort = target.slice(separator + 1);
 
 const pathPrefixes = String(process.env.P0_LAUNCH_04_OUTAGE_PATH_PREFIXES || "")
@@ -160,7 +162,10 @@ function destinationOf(args) {
 
 net.Socket.prototype.connect = function connect(...args) {
   const { host, port } = destinationOf(args);
-  const hostMatches = host === undefined ? blockedHost === "127.0.0.1" || blockedHost === "localhost" : String(host) === blockedHost;
+  const hostMatches =
+    host === undefined
+      ? blockedHost === "127.0.0.1" || blockedHost === "localhost" || blockedHost === "::1"
+      : normalizeHost(host) === blockedHost;
   const isBlockedDestination = hostMatches && String(port) === blockedPort;
   // Enforce synchronously as well as on the timer, so a connect attempt made in
   // the same tick the flag appeared cannot slip through on a pooled socket.

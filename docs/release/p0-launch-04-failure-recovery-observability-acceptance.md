@@ -117,6 +117,28 @@ the canonical `.env.local`. Linux is required: the `/proc`-based process evidenc
 **fails** rather than skips where `/proc` is unavailable — an environment that
 cannot produce the evidence must never be reported as having produced it.
 
+```
+NON_ROOT_LINUX_REQUIRED=YES
+```
+
+**The gate refuses to run as root**, checked before any privileged access. The
+Frontera authority outage is a *permission* denial (`chmod 000` on the store's
+directory); under UID 0 that denies nothing — root traverses the directory and
+opens the file — so a root run would assert `frontera_unavailable` against a
+perfectly readable store. Independent review raised this for root-run containers.
+The response is to refuse such an environment rather than build a second outage
+mechanism for it, applying the same rule this gate already applies to `/proc`: an
+environment that cannot produce the evidence must not be reported as having
+produced it. **No root-container portability is claimed.** The production child
+inherits the uid, so the parent check covers it.
+
+The socket scope normalises host comparison for **IPv6 loopback**: a URL carries
+it bracketed (`[::1]`) while Node reports the socket destination as bare `::1`, so
+an exact comparison would accept such an environment and then silently match
+nothing — blocking and resetting no sockets while the gate believed an outage was
+installed. Only brackets and case are normalised; a pure control proves `[::1]`
+matches `::1` and that unrelated hosts stay apart.
+
 One `next build` serves every scenario. Several isolated processes run from that
 one validated build, so a failure is attributable to runtime behaviour rather
 than to compilation drift between scenarios.
@@ -258,8 +280,7 @@ The database was held **up** throughout (readiness stayed `200 ready` with
 | no unauthenticated access | anonymous read `401`; anonymous governed write refused |
 | no authority for an existing session | governed write refused, `HTTP 401` |
 | not mistaken for policy | `failureClass` is **not** `frontera_denied` |
-| documented page fallback | observed, and it **announced itself in the server log** |
-| fallback is bounded | a **forged** session cookie was redirected away from the protected page |
+| a forged session is not a way in | a **fabricated** session cookie was redirected away from the protected page |
 
 **Operator classification — the claim independent review corrected.**
 Fail-closed was never the question; being able to tell WHY was. A bare `401` is
@@ -379,12 +400,26 @@ behaviour is `STARTS_BUT_NOT_READY`, and that is what was observed.
 
 #### K — secret safety of failure output
 
-Marker-shaped synthetic values (`P0_LAUNCH_04_SECRET_MARKER_<digest>`) were
-placed in `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`,
-`STRIPE_WEBHOOK_SECRET`, `PMFREAK_TRUST_EVENT_HMAC_SECRET`,
-`PMFREAK_AGENT_TOKEN_SECRET`, `ABUSE_HASH_PEPPER` and
-`PMFREAK_CAPABILITY_CLAIM_SECRET`, and a real governed failure was induced. **No
-real credential was placed in that environment.**
+**The redaction-control child is sanitized, and that is a correction.**
+Independent review found that `productionEnv()` spreads `process.env`, so this
+child inherited the harness's own real `OPERATIONAL_FLOW_TEST_SERVICE_ROLE_KEY`
+and `P2_13_FIXTURE_ACTOR_PASSWORD`. The capture is only searched for the
+synthetic marker, so a failure path that logged one of those inherited values
+would have passed unnoticed — while this document claimed no real credential was
+present. It was not true as written.
+
+The four acceptance-only credentials the product never reads are now blanked in
+that child (emptied, not deleted, so `.env.local` cannot refill them), verified
+from the child's **own** `/proc/environ` rather than from the object handed to
+`spawn`, and the parent's real values are additionally proven absent from the
+child's entire environment block under any name. The capture is then checked for
+both the marker **and** those real values. Values are compared, never printed.
+
+The truthful boundary for the whole gate: **no production credential is used and
+no production database is contacted.** Local *disposable* acceptance credentials
+ARE used by the harness — that is what makes it a real acceptance run — and the
+redaction-control child is the one process from which they are removed, because
+it is the process whose output is being certified.
 
 The marker shape is deliberately one the product's redaction layer does **not**
 recognise — not `sk_live_`, not `whsec_`, not JWT-shaped, not `Bearer`, not
@@ -469,7 +504,19 @@ Ten mechanical controls, each requiring an assertion this gate depends on to
 | 8 | The redaction assertion **fails** on deliberately poisoned output, and still accepts clean output | An absence assertion that cannot detect a presence |
 | 9 | `boundedFetch` against a socket that **accepts and never answers** fails inside its deadline | An unbounded wait hanging exactly when the dependency is broken |
 | 10 | The process-residue detector sees a live process and then sees it go | Every orphan count being zero for the wrong reason |
-| — | Zero orphaned and zero unreaped processes across all 6 production processes | The gate itself leaking process-table residue |
+| — | Zero orphaned and zero unreaped processes across **every** production process, with the long-lived server stopped and accounted for BEFORE the ledger is read | The gate itself leaking process-table residue — and, as independent review found, the ledger being read before the last shutdown had happened at all |
+
+### Closures from independent review of PR #591
+
+Five threads were raised on the pushed head; all five are closed here, grouped.
+
+| Finding | Closure |
+| --- | --- |
+| **P1** — the residue ledger was read BEFORE the long-lived server was stopped, so a leak from that shutdown would be appended after the test had already passed. The claim covered five of six processes and said six. | The long-lived server is now stopped inside the residue test, through the same shared `shutdownProductionServer`, awaited, its own orphans/unreaped asserted, `server` cleared so `after()` cannot double-stop it — and only then is the ledger read. **The same defect was present in P0-LAUNCH-03 and is closed there identically**, since both share the lifecycle. |
+| **P2** — the redaction-control child inherited the harness's REAL service-role key and fixture password, so a claim in this document was false. | The child environment is sanitized; see §4/K. |
+| **P2** — `chmod 000` denies nothing under UID 0, so a root run would assert an outage against a readable store. | The gate refuses to run as root; see §2. No root portability is claimed. |
+| **P2** — bracketed IPv6 loopback (`[::1]`) would never match Node's bare `::1`, so the outage would install nothing while the gate believed it had. | Host comparison is normalised, with a pure control; see §2. |
+| **P2** — the page-level fallback signal was recorded either way, so its absence failed nothing while this document reported it as observed. | **Removed from the acceptance claim.** That path already carries `RR-AUTH-ERROR-MISCLASSIFICATION` and belongs to P0-LAUNCH-05; `AUTH_UNAVAILABLE` rests solely on the asserted product signal. The forged-cookie negative is kept, because it proves absence of a bypass. |
 
 ### Two defects this found in its own harness
 
@@ -546,14 +593,14 @@ documentation.
 | --- | --- |
 | `tests/acceptance/support/runtime-acceptance.ts` | **new** — the production-runtime lifecycle, `/proc` evidence and governed-decision vocabulary, **extracted verbatim** from P0-LAUNCH-03 |
 | `tests/acceptance/support/dependency-outage-shim.cjs` | **new** — the toggleable, two-scope dependency outage |
-| `tests/acceptance/p0-launch-04-failure-recovery-observability.test.ts` | **new** — the 24-case gate |
+| `tests/acceptance/p0-launch-04-failure-recovery-observability.test.ts` | **new** — the failure/recovery/observability gate |
 | `tests/acceptance/p0-launch-03-production-runtime-acceptance.test.ts` | −551/+28 — declarations replaced by imports; **no assertion changed** |
 | `src/lib/auth.ts` | **+29/-0** — `getAuthUser()` classifies an auth-dependency transport failure; return value unchanged |
 | `package.json` | +1 script: `check:failure-recovery-observability` |
 | `docs/release/p0-launch-04-…-acceptance.md` | **new** — this document |
 | `docs/release/pilot-operational-runbook.md` | corrected the false build-hard-fail claim (§3) |
 | `docs/release/startup-readiness.md` | records that `/api/ready` is the runtime guard and points here |
-| `docs/release/residual-risk-register.md` | +3 rows: `RR-BOOT-ENV-GUARD`, `RR-AUTH-NOT-IN-READINESS`, `RR-READINESS-NOT-A-GOVERNED-GATE` |
+| `docs/release/residual-risk-register.md` | **+4 rows**: `RR-BOOT-ENV-GUARD`, `RR-AUTH-NOT-IN-READINESS`, `RR-AUTH-ERROR-MISCLASSIFICATION`, `RR-READINESS-NOT-A-GOVERNED-GATE` |
 
 ### Why P0-LAUNCH-03 was touched at all
 
@@ -596,8 +643,9 @@ deployment. Not GA ready. Nothing was published, tagged or released.
 
 * **One machine, one process, one local stack.** Every failure was injected into
   a single `next start` process on this machine against the disposable local
-  Supabase stack. Nothing was deployed to an internet-facing environment, no real
-  secret was touched, and no real production database was contacted. Multi-instance
+  Supabase stack. Nothing was deployed to an internet-facing environment, no
+  production credential was used, and no production database was contacted. Local
+  disposable acceptance credentials ARE used by the harness. Multi-instance
   behaviour, load-balancer interaction and platform-level failover are untested.
 * **The detection and recovery timings are bounds, not SLOs.** 85 ms and 808 ms
   are evidence that the transitions complete inside a deadline on an idle local

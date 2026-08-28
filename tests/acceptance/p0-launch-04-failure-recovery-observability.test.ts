@@ -76,8 +76,14 @@
  * pilot path, and this file proves it. See
  * docs/release/p0-launch-04-failure-recovery-observability-acceptance.md.
  *
- * It does not redesign auth, Frontera persistence, or observability. No product
- * code is changed by this increment.
+ * It does not redesign auth, Frontera persistence, or observability.
+ *
+ * EXACTLY ONE product change exists, in `src/lib/auth.ts`: `getAuthUser()`
+ * records `auth_dependency_unavailable` when auth-js returns its transport error
+ * class, so an unreachable auth dependency is distinguishable from an ordinary
+ * unauthenticated caller. Its return value is unchanged, so authentication,
+ * authorization, tenancy and every fail-closed path are untouched, and nothing
+ * branches on the new value. Observability only.
  *
  * ---------------------------------------------------------------------------
  * SCOPE. LOCAL_PRODUCTION_LIKE_FAILURE_RECOVERY_ACCEPTANCE: `next build` +
@@ -120,6 +126,7 @@ import {
   asGovernedPolicyDenial,
   boundedFetch,
   cmdlineOf,
+  environOf,
   freePort,
   pidAlive,
   portAcceptsConnections,
@@ -358,6 +365,44 @@ function productionEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEn
   return { ...process.env, [FRONTERA_STORE_ENV]: STORE_PATH, ...overrides };
 }
 
+/**
+ * Acceptance-only, real, secret-bearing variables that the PRODUCT never reads.
+ *
+ * `productionEnv()` spreads `process.env`, which is right for every other server
+ * — they must run with the operator's real configuration. It is WRONG for the
+ * redaction control, and independent review was correct that this made a claim
+ * false: the child inherited the real service-role key and the real fixture
+ * password, so "no real credential was placed in that environment" did not hold,
+ * and a failure path that logged one of those inherited values would have gone
+ * unnoticed because the capture is only searched for the synthetic marker.
+ *
+ * These are the harness's OWN credentials — used by this test process to open an
+ * admin client and to construct login requests. `next start` needs none of them,
+ * so the redaction control gets them removed. The product's own configuration
+ * (`NEXT_PUBLIC_*`, and the marker-valued secrets K deliberately injects) is
+ * preserved, because removing it would change what is being certified.
+ */
+const ACCEPTANCE_ONLY_REAL_SECRETS = [
+  "OPERATIONAL_FLOW_TEST_SERVICE_ROLE_KEY",
+  "OPERATIONAL_FLOW_TEST_ANON_KEY",
+  "OPERATIONAL_FLOW_TEST_DATABASE_URL",
+  "P2_13_FIXTURE_ACTOR_PASSWORD",
+] as const;
+
+/**
+ * A child environment with the harness's own real credentials removed.
+ *
+ * Emptied rather than deleted, for the same reason every other override in this
+ * file is: `next start` loads `.env.local` itself and @next/env fills any name
+ * whose `process.env` value is `undefined`, so a deletion would let the dotenv
+ * file put the real value straight back and the sanitisation would be imaginary.
+ */
+function sanitizedProductionEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
+  const blanked: Record<string, string> = {};
+  for (const name of ACCEPTANCE_ONLY_REAL_SECRETS) blanked[name] = "";
+  return productionEnv({ ...blanked, ...overrides });
+}
+
 /** The environment for a process whose dependency availability this run controls. */
 function outageEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
   return productionEnv({
@@ -474,6 +519,29 @@ before(async () => {
     );
   }
 
+  // ── NON-ROOT, because the authority outage is a PERMISSION denial.
+  //
+  //    The Frontera outage works by making the store's directory unreadable
+  //    (`chmod 000`). Under UID 0 that denies nothing: root traverses the
+  //    directory and opens the file regardless, so the "outage" would not exist
+  //    and the gate would assert `frontera_unavailable` against a perfectly
+  //    readable store. Independent review raised this for root-run containers.
+  //
+  //    The response is to REFUSE such an environment rather than to build a
+  //    second outage mechanism for it: an environment that cannot produce the
+  //    evidence must not be reported as having produced it — the same rule this
+  //    gate already applies to `/proc`. The production child inherits this uid,
+  //    so checking it here covers the child too.
+  assert.equal(typeof process.getuid, "function", "this gate requires a POSIX platform exposing process.getuid()");
+  assert.notEqual(
+    process.getuid!(),
+    0,
+    "this gate must not run as root: the Frontera authority outage is produced by Unix permission denial (chmod 000), " +
+      "which root bypasses, so a root run would assert an outage against a fully readable store. Run it as a non-root user.",
+  );
+  EVIDENCE.executionUid = process.getuid!();
+  EVIDENCE.nonRootLinuxRequired = true;
+
   // ── ISOLATION, BEFORE THE FIRST PRIVILEGED ACCESS.
   //
   //    The assertions above prove those variables are NONEMPTY, which says
@@ -544,7 +612,11 @@ before(async () => {
 });
 
 after(async () => {
-  if (server) await shutdownProductionServer(server, { label: "after(): the last production server", graceMs: 10_000 });
+  // Normally already null: the residue test stops the long-lived server itself,
+  // so its shutdown is inside the ledger that test asserts. This remains only as
+  // a safety net for a run that aborted before reaching it — in which case the
+  // residue assertion never ran either, so nothing is being certified.
+  if (server) await shutdownProductionServer(server, { label: "after(): the last production server (run aborted early)", graceMs: 10_000 });
   // A store directory left unreadable by a failed test would defeat the cleanup
   // below, and a gate that cannot clean up after itself leaves the next run to
   // inherit its damage.
@@ -886,20 +958,26 @@ test("D: an ISOLATED authentication outage grants nothing and is not mistaken fo
     assert.equal(authEvent.message, AUTH_DEPENDENCY_EVENT, `the event name is not the stable classification: ${JSON.stringify(authEvent)}`);
     assert.doesNotMatch(JSON.stringify(authEvent), /fetch failed|ECONNREFUSED|apikey|eyJ[A-Za-z0-9_-]{10,}/, `the auth dependency signal leaked provider or credential detail: ${JSON.stringify(authEvent)}`);
 
-    const page = await session.request("/command-center");
-    EVIDENCE.authFailureProtectedPageStatus = String(page.status);
+    // 7. A FORGED SESSION IS STILL NOT A WAY IN. Kept because it proves absence
+    //    of a bypass, which is this gate's business.
+    //
+    //    WHAT IS DELIBERATELY NOT CLAIMED: the page-level non-auth-error session
+    //    fallback in `src/proxy.ts` / `runtime-auth-continuity.ts`. Earlier
+    //    versions of this gate recorded whether that fallback's warning appeared
+    //    — but recorded it either way, so its absence failed nothing while the
+    //    evidence document reported it as observed. Rather than start certifying
+    //    pre-existing behaviour that already carries
+    //    RR-AUTH-ERROR-MISCLASSIFICATION, P0-LAUNCH-04 drops it from its
+    //    acceptance claim entirely. AUTH_UNAVAILABLE diagnosability rests on the
+    //    product signal asserted in step 6, and nothing else.
     const forged = await new HttpSession(server!.baseUrl).request("/command-center", {
       headers: { cookie: "sb-p0-launch-04-auth-token=not-a-real-session" },
     });
     assert.ok(
       [302, 307].includes(forged.status),
-      `a FORGED session cookie was not redirected away from a protected page during the authentication outage (status ${forged.status}) — the fallback is not bounded to a real session`,
+      `a FORGED session cookie was not redirected away from a protected page during the authentication outage (status ${forged.status})`,
     );
-
-    const fallbackSignal = /getuser_network_error_session_fallback|\[proxy\] getUser failed with a non-auth error/.test(server!.log());
-    EVIDENCE.authFailureDocumentedPageFallbackSignal = fallbackSignal
-      ? "observed: the non-auth-error session fallback announced itself in the server log"
-      : "not exercised in this run (no protected page reached the fallback branch)";
+    EVIDENCE.authFailureForgedCookieRefused = `redirected (${forged.status}) — a fabricated session is not a way in`;
 
     EVIDENCE.authFailureNewLogin = "refused — no session cookie established";
     EVIDENCE.authFailureAnonymousRead = "401";
@@ -1245,16 +1323,24 @@ test("H: a production process given broken production-required configuration fai
 
 // ═══════════════════════ K — secret safety of failure output ═══════════════════════
 
-test("K: failure output never carries a secret VALUE, only the variable NAME", async () => {
+test("K: the sanitized redaction control emits no secret VALUE, only variable NAMES", async () => {
+  requireProc("reading the child environment to prove the sanitisation actually took");
   const port = await freePort();
   // Marker-shaped synthetic values, in a shape the product's redaction layer
   // does NOT recognise (not sk_live_/whsec_/JWT/Bearer/service_role). If the
   // marker appears anywhere, the product echoed a secret VALUE — the claim rests
   // on it never doing so, not on shape-based scrubbing catching it afterwards.
-  // No real credential is ever placed in this environment.
+  //
+  // THE ENVIRONMENT IS SANITISED, and that is a correction rather than a
+  // nicety. `productionEnv()` spreads `process.env`, so this child used to
+  // inherit the harness's REAL service-role key and REAL fixture password. The
+  // capture below is only searched for the synthetic marker, so a failure path
+  // that logged one of those inherited real values would have passed unnoticed
+  // — while the evidence document claimed no real credential was present. The
+  // product needs neither variable, so both are removed here.
   const outcome = await startProductionServer({
     port,
-    env: productionEnv({
+    env: sanitizedProductionEnv({
       SUPABASE_SERVICE_ROLE_KEY: SECRET_MARKER,
       STRIPE_SECRET_KEY: SECRET_MARKER,
       STRIPE_WEBHOOK_SECRET: SECRET_MARKER,
@@ -1270,6 +1356,53 @@ test("K: failure output never carries a secret VALUE, only the variable NAME", a
   });
   if (!outcome.started) assert.fail(`the redaction control process did not start: ${outcome.reason}\n${outcome.log.slice(-2000)}`);
   try {
+    // 1. THE SANITISATION IS REAL, read from the child's OWN environment rather
+    //    than trusted from the object handed to spawn. Values are compared, never
+    //    printed: an assertion message that echoed the credential it is checking
+    //    for would be the leak it exists to prevent.
+    const childEnv = environOf(outcome.handle.serverPid);
+    for (const name of ACCEPTANCE_ONLY_REAL_SECRETS) {
+      const parentValue = process.env[name];
+      const childValue = childEnv.get(name) ?? "";
+      assert.equal(childValue, "", `${name} reached the redaction-control child; it is an acceptance-only credential the product never reads`);
+      if (parentValue) {
+        assert.notEqual(childValue, parentValue, `${name} still carries the parent's real value in the child environment`);
+      }
+    }
+    // 2. Which acceptance-only VALUES must be absent — and which legitimately
+    //    are not, because the product needs them.
+    //
+    //    `OPERATIONAL_FLOW_TEST_ANON_KEY` carries the SAME value as
+    //    `NEXT_PUBLIC_SUPABASE_ANON_KEY`, which `next start` requires and which
+    //    this repository documents as public by design (RLS is the real
+    //    boundary). Asserting that value's absence would be asserting that the
+    //    product cannot run — the first version of this control did exactly that
+    //    and failed. So a value the child legitimately RETAINS under a name that
+    //    is not an acceptance-only alias is not an acceptance-only secret at all,
+    //    and is excluded from the leak checks rather than the checks being
+    //    quietly softened.
+    const acceptanceOnly = new Set<string>(ACCEPTANCE_ONLY_REAL_SECRETS);
+    const childRetainedValues = new Set(
+      [...childEnv.entries()]
+        .filter(([name]) => !acceptanceOnly.has(name))
+        .map(([, value]) => value)
+        .filter((value) => value.length >= 8),
+    );
+    const leakCandidates = ACCEPTANCE_ONLY_REAL_SECRETS.map((name) => ({ name, value: process.env[name] ?? "" }))
+      .filter((entry) => entry.value.length >= 8)
+      .filter((entry) => !childRetainedValues.has(entry.value));
+    assert.ok(
+      leakCandidates.length > 0,
+      "no acceptance-only credential value remained to check, so the leak assertions below would be vacuous",
+    );
+
+    //    Those values appear nowhere in the child's environment block under ANY
+    //    name — a rename would defeat the per-name check above.
+    const childEnviron = [...childEnv.entries()].map(([k, v]) => `${k}=${v}`).join("\n");
+    for (const { name, value } of leakCandidates) {
+      assert.equal(childEnviron.includes(value), false, `the real value of ${name} is present in the child environment under some other name`);
+    }
+
     const isolated = new HttpSession(outcome.handle.baseUrl);
     const health = await isolated.request("/api/health");
     const ready = await isolated.request("/api/ready");
@@ -1286,13 +1419,29 @@ test("K: failure output never carries a secret VALUE, only the variable NAME", a
       { where: "the /api/ready body", text: ready.text },
       { where: "the governed failure body", text: governed.raw },
     ];
+
+    // 3. No synthetic marker in any captured surface.
     assertMarkerAbsent(SECRET_MARKER, captures);
+
+    // 4. And no acceptance-only real credential either — the check that was
+    //    missing. It can only be made because the environment was sanitised
+    //    first: without that, absence here would prove nothing about a value the
+    //    child was still holding.
+    for (const { name, value } of leakCandidates) {
+      for (const capture of captures) {
+        assert.equal(capture.text.includes(value), false, `the real value of ${name} appeared in ${capture.where}`);
+      }
+    }
 
     // The other half of the same contract — that a MISSING variable is still
     // NAMED, because a fail-closed readiness answer that names nothing is not
     // actionable — is proven by test H above. Names are not secrets; values are.
-    EVIDENCE.secretRedaction = `no synthetic marker in ${captures.length} captured surfaces (log, health, readiness, governed failure)`;
+    EVIDENCE.secretRedaction = `no synthetic marker and no acceptance-only real credential in ${captures.length} captured surfaces (log, health, readiness, governed failure)`;
     EVIDENCE.secretRedactionMarkerShape = "P0_LAUNCH_04_SECRET_MARKER_<digest> — deliberately NOT a shape the redaction layer recognises";
+    EVIDENCE.redactionChildSanitized = `${ACCEPTANCE_ONLY_REAL_SECRETS.length} acceptance-only credentials removed, verified from the child's own /proc/environ`;
+    EVIDENCE.redactionChildLeakCandidatesChecked = leakCandidates.map((entry) => entry.name).join(", ");
+    EVIDENCE.redactionChildProductRetainedByDesign =
+      "the local anon key value is retained because next start requires it and the repository documents it as public by design";
   } finally {
     await shutdownProductionServer(outcome.handle, { label: "K: secret-redaction control", graceMs: 10_000 });
   }
@@ -1538,6 +1687,32 @@ test("NON-VACUITY: the bounded request helper fails boundedly against a dependen
   }
 });
 
+test("NON-VACUITY: the outage shim's host matching normalises IPv6 loopback", async () => {
+  // The isolation guard accepts IPv6 loopback, so the shim must not accept that
+  // environment and then quietly fail to match its socket: a bracketed `[::1]`
+  // configured host against Node's bare `::1` destination would block and reset
+  // nothing while this gate believed an outage was installed. Pure, so it needs
+  // no server.
+  // The shared normaliser, NOT the shim: importing the shim would execute a
+  // preload — patching net/fetch in this process and throwing without the outage
+  // control environment.
+  const { normalizeHost } = (await import("./support/host-matching.cjs")) as unknown as {
+    normalizeHost: (host: string) => string;
+  };
+
+  assert.equal(normalizeHost("[::1]"), normalizeHost("::1"), "bracketed and bare IPv6 loopback must match");
+  assert.equal(normalizeHost("[::1]"), "::1");
+  assert.equal(normalizeHost("127.0.0.1"), "127.0.0.1");
+  assert.equal(normalizeHost("LOCALHOST"), "localhost");
+  assert.equal(normalizeHost(" [::1] "), "::1");
+
+  // And matching is not weakened: unrelated hosts stay apart.
+  assert.notEqual(normalizeHost("::1"), normalizeHost("127.0.0.1"));
+  assert.notEqual(normalizeHost("[::1]"), normalizeHost("[::2]"));
+  assert.notEqual(normalizeHost("localhost"), normalizeHost("127.0.0.1"));
+  assert.notEqual(normalizeHost("::1"), normalizeHost("::10"));
+});
+
 test("NON-VACUITY: the process-residue detector can see a live process, and sees it go", async () => {
   // Control 10. If `pidAlive` could not report a running process, every orphan
   // count in this file would be zero for the wrong reason.
@@ -1554,13 +1729,32 @@ test("NON-VACUITY: the process-residue detector can see a live process, and sees
   assert.equal(pidAlive(pid), false, "a collected process is still reported as running");
 });
 
-test("NON-VACUITY: this gate left no orphaned or unreaped production process behind", () => {
+test("NON-VACUITY: this gate left no orphaned or unreaped production process behind", async () => {
   requireProc("accounting for every process this gate started");
-  // Every production process this gate starts — the long-lived one, the
-  // hard-killed one, its replacement and every control — is stopped through
-  // `shutdownProductionServer`, which AWAITS the exit rather than signalling and
-  // returning. Anything it could not account for was recorded as it happened,
-  // and this is where that ledger is read.
+
+  // THE LONG-LIVED SERVER IS STOPPED HERE, NOT IN after().
+  //
+  // This ordering is the whole point of the test. Every other production process
+  // this gate starts is stopped inside the test that started it, so its shutdown
+  // is already in the ledger by now. The long-lived one was not: it used to be
+  // stopped by `after()`, which runs AFTER this assertion — so if its shutdown
+  // orphaned or failed to reap anything, `shutdownProductionServer` appended it
+  // to the ledger after this test had already passed, and the gate could report
+  // zero residue while leaking a process. The claim covered five of six
+  // processes and said six.
+  //
+  // So it is shut down and accounted for FIRST, through the same shared path as
+  // every other one, and `server` is cleared so `after()` cannot double-stop it.
+  if (server) {
+    const outcome = await shutdownProductionServer(server, { label: "the long-lived production server", graceMs: 20_000 });
+    server = null;
+    assert.deepEqual(outcome.orphans, [], `stopping the long-lived server left running processes behind: ${JSON.stringify(outcome.orphans)}`);
+    assert.deepEqual(outcome.unreaped, [], `stopping the long-lived server left uncollected process-table entries behind: ${JSON.stringify(outcome.unreaped)}`);
+  }
+
+  // Now the ledger covers EVERY production process this gate started. Anything
+  // `shutdownProductionServer` could not account for was recorded as it
+  // happened, and this is where that ledger is read.
   assert.deepEqual(
     HARNESS_PROCESS_RESIDUE,
     [],
@@ -1568,4 +1762,5 @@ test("NON-VACUITY: this gate left no orphaned or unreaped production process beh
   );
   EVIDENCE.productionProcessesStarted = productionProcessesStarted();
   EVIDENCE.processResidueAcrossEveryShutdown = 0;
+  EVIDENCE.residueLedgerCoversEveryProcess = true;
 });
