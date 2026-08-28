@@ -231,7 +231,7 @@ assertion in the gate — none is narrated.
 isolation                 LOCAL_ISOLATED, 127.0.0.1:54321
 dependency under test     127.0.0.1:54321
 production processes      6 started, 0 orphaned, 0 unreaped
-focused gate              27 cases, 27 PASS
+focused gate              28 cases, 28 PASS
 ```
 
 #### A — the healthy control state
@@ -318,15 +318,21 @@ the supported claim is not "auth outages are diagnosable" but **"auth outages ar
 diagnosable on any request that requires verifying a session"**, which is the
 operationally meaningful case.
 
-The two page-fallback rows above are the other nuance that matters. `src/proxy.ts` and
-`runtime-auth-continuity.ts` deliberately fall back to an unexpired **local**
-session on a transport error, so a momentary Supabase hiccup does not bounce a
-genuinely authenticated user to `/login`. That is product behaviour with a stated
-rationale at both call sites, it is page-routing only, it announces itself, and
-it requires a session that already exists. The API and governed paths resolve
-their principal through `getUser()` **only** and have no such fallback — which is
-why an established session still loses governed authority. A forged cookie gains
-nothing.
+**What is deliberately NOT part of this claim.** `src/proxy.ts` and
+`runtime-auth-continuity.ts` fall back to an unexpired **local** session on a
+transport error, so a momentary Supabase hiccup does not bounce a genuinely
+authenticated user to `/login`. Independent review found that this gate recorded
+that fallback's warning whether or not it appeared, so its absence failed nothing
+while this document reported it as observed. It is therefore **removed from the
+acceptance claim**: that path already carries `RR-AUTH-ERROR-MISCLASSIFICATION`
+and belongs to P0-LAUNCH-05, and `AUTH_UNAVAILABLE` diagnosability rests solely
+on the product signal asserted above.
+
+What remains asserted about that boundary is only the absence of a bypass: the
+API and governed paths resolve their principal through `getUser()` **only** and
+have no such fallback — which is why an established session still loses governed
+authority — and a forged session cookie is redirected away from the protected
+page rather than admitted.
 
 Recovery: a **new** login succeeded, the tenant-scoped read returned `200`, and
 the governed dispatch returned ALLOW. The gate does not require the *old* session
@@ -469,7 +475,7 @@ code stays a bare `401` and the classification lives in the log.
 | Failure | What failed | What exposed it | What restored it | Same state, or restart? |
 | --- | --- | --- | --- | --- |
 | Database loss | Supabase reachability | readiness `503` + `readiness_check_failed` log | restoring reachability | **same process**, no restart |
-| Authentication loss | GoTrue reachability | login failure + `401` on every protected path + fallback warning in the log | restoring reachability | **same process**, new login |
+| Authentication loss | GoTrue reachability | `PRODUCT_LOG auth_dependency_unavailable` with `error_code=AuthRetryableFetchError`, on a request whose existing session must actually be verified against the dependency. HTTP stays a fail-closed `401` but is **not** the distinguishing signal — it is what an ordinary unauthenticated caller receives too | restoring reachability | **same process**, new login |
 | Authority backing loss | Frontera SQLite availability | governed `409` `frontera_unavailable` + server log | restoring readability | **same process**, same store |
 | Policy revocation | operator decision, not a fault | governed `409` `frontera_denied` + server log | *nothing* — revocation is terminal by design | n/a |
 | Broken configuration | production-required variable | readiness `503` naming the variable | correcting the configuration | restart (configuration is read at start) |
