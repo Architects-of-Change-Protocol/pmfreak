@@ -25,3 +25,16 @@ builds the application, starts it through its supported production entrypoint
 See [P0-LAUNCH-03 — Production Runtime & Deployment Acceptance](./p0-launch-03-production-runtime-acceptance.md)
 for the acceptance evidence, the environment the gate requires, and the limits of
 what it claims.
+
+## Failure, recovery and the boot-time question
+
+`/api/ready` is the **runtime** fail-closed guard for the current closed free
+pilot path. There is no boot-time environment rejection:
+`assertProductionEnvSafety()` is implemented and unit-tested but has no caller,
+and wiring it is a deferred configuration-contract decision rather than a
+runtime defect — see
+[P0-LAUNCH-04 — Failure, Recovery & Observability Acceptance](./p0-launch-04-failure-recovery-observability-acceptance.md).
+
+What that readiness guard does under a dependency that breaks *while the process
+is running* — and what recovers it — is proven by
+`npm run check:failure-recovery-observability`.
