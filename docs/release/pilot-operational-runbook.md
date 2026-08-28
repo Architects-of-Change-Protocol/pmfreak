@@ -23,8 +23,13 @@ topology enforced by `docs/security/production-deployment-boundary.md`.
       `OPENAI_API_KEY`, `ABUSE_HASH_PEPPER` (real value, not default).
 - [ ] Public vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
       `NEXT_PUBLIC_APP_URL` (+ `NEXT_PUBLIC_SITE_URL` kept in sync) — real
-      https URLs; production build hard-fails on localhost values
-      (`assertProductionEnvSafety`).
+      https URLs. **Verify these by hand.** Nothing currently rejects a
+      localhost value: `assertProductionEnvSafety()` implements that check but
+      has no caller, and `/api/ready` checks only that `NEXT_PUBLIC_APP_URL` is
+      *present*, not that it is a real https origin. See
+      [P0-LAUNCH-04 §Startup env safety](./p0-launch-04-failure-recovery-observability-acceptance.md)
+      for why wiring it is a deferred configuration-contract decision rather
+      than a runtime defect.
 - [ ] Optional guardrail tuning reviewed: `AI_*` limits, `LOG_LEVEL`,
       `HEALTHCHECK_DATABASE_TIMEOUT_MS`, `INVITE_TOKEN_TTL_HOURS`,
       `UPLOAD_MAX_*`. Unset = conservative defaults; invalid values fall back

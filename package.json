@@ -33,6 +33,7 @@
     "test:launch-smoke": "node scripts/run-launch-smoke-tests.mjs",
     "check:founder-launch-acceptance": "tsx --test tests/p0-launch-02-founder-acceptance.test.ts",
     "check:production-runtime-acceptance": "tsx --test tests/acceptance/p0-launch-03-production-runtime-acceptance.test.ts",
+    "check:failure-recovery-observability": "tsx --test tests/acceptance/p0-launch-04-failure-recovery-observability.test.ts",
     "diag:runtime": "node scripts/runtime-diagnostics-report.mjs",
     "check:launch-readiness": "node scripts/check-launch-readiness.mjs",
     "smoke-test:vault": "node scripts/smoke-test-vault-digestion.mjs",
