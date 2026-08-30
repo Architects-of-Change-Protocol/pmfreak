@@ -145,3 +145,56 @@ export function assertProductionEnvSafety(): void {
     throw new Error(`Production environment safety check failed:\n${violations.map((v) => `  - [${v.code}] ${v.message}`).join("\n")}`);
   }
 }
+
+export const CLOSED_FREE_BETA_PROFILE = "closed-free-beta" as const;
+
+export type BetaEnvSafetyViolation = ProductionEnvSafetyViolation;
+
+/** Capability-aware contract for the invitation-only, no-billing beta. */
+export function evaluateClosedFreeBetaEnvSafety(env: NodeJS.ProcessEnv = process.env): BetaEnvSafetyViolation[] {
+  const violations: BetaEnvSafetyViolation[] = [];
+  if (env.PMFREAK_OPERATING_PROFILE !== CLOSED_FREE_BETA_PROFILE) {
+    violations.push({ code: "beta_profile_not_selected", message: `PMFREAK_OPERATING_PROFILE must be ${CLOSED_FREE_BETA_PROFILE}.` });
+  }
+  for (const name of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "NEXT_PUBLIC_APP_URL"] as const) {
+    if (!env[name]) violations.push({ code: "missing_beta_environment", message: `${name} is required for the closed free beta.` });
+  }
+  const appUrl = env.NEXT_PUBLIC_APP_URL;
+  if (appUrl && !isHttpUrl(appUrl)) violations.push({ code: "invalid_app_url", message: "NEXT_PUBLIC_APP_URL must be an http(s) URL." });
+  if (env.PMFREAK_GOVERNANCE_CAPABILITY_ENABLED === "true" && !env.PMFREAK_CAPABILITY_CLAIM_SECRET) {
+    violations.push({ code: "missing_governance_secret", message: "Enabled governance capability requires PMFREAK_CAPABILITY_CLAIM_SECRET." });
+  }
+  for (const name of Object.keys(env).filter(isSecretLikePublicEnvName)) {
+    violations.push({ code: "secret_like_public_env", message: `${name} is a secret-shaped NEXT_PUBLIC_ variable.` });
+  }
+  return violations;
+}
+
+/** Names the guard that rejected, so a preflight can attribute a refusal without parsing prose. */
+export type GuardAttributedError = Error & { guard?: string };
+
+export function assertClosedFreeBetaEnvSafety(env: NodeJS.ProcessEnv = process.env): void {
+  // This sibling assertion is deliberately invoked by the supported beta
+  // preflight/start boundary, closing its previously uncalled status.
+  //
+  // Its failure is TAGGED rather than left bare. Both guards reject a
+  // secret-shaped NEXT_PUBLIC_ name, so without a structural marker the
+  // preflight's output cannot show which one ran, and "the sibling is wired"
+  // would rest on reading the source rather than on observing the boundary.
+  // The tag carries no environment VALUE — only the guard's own name.
+  try {
+    assertServerOnlyEnvBoundary();
+  } catch (error) {
+    const tagged: GuardAttributedError = error instanceof Error ? error : new Error(String(error));
+    tagged.guard = "assertServerOnlyEnvBoundary";
+    throw tagged;
+  }
+  const violations = evaluateClosedFreeBetaEnvSafety(env);
+  if (violations.length > 0) {
+    const failure: GuardAttributedError = new Error(
+      `Closed free beta environment safety check failed:\n${violations.map((v) => `  - [${v.code}] ${v.message}`).join("\n")}`,
+    );
+    failure.guard = "evaluateClosedFreeBetaEnvSafety";
+    throw failure;
+  }
+}

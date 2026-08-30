@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AccessDeniedError } from "@/aoc/runtime-consumer";
 import { denyFromAccessError, denyResponse } from "@/lib/security/deny-response";
 import { requireAuthenticatedUser } from "@/lib/security/server-authorization";
-import { listWorkspaceMembersForAssignment } from "@/lib/workspace-team";
+import { listWorkspaceMembersForAssignment, removeWorkspaceMember, WorkspaceMembershipRemovalError } from "@/lib/workspace-team";
 import { getProjectWorkspaceId } from "@/lib/projects/project-admin-service";
 
 const ROUTE = "/api/workspace-team/members";
@@ -39,6 +39,26 @@ export async function GET(request: NextRequest) {
       if (String(error.metadata.reason) === "unauthorized") {
         return denyResponse({ status: 401, routeId: ROUTE, message: "Unauthorized", reason: "unauthorized" });
       }
+      return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
+    }
+    throw error;
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { user } = await requireAuthenticatedUser();
+    const body = (await request.json()) as { workspaceId?: unknown; targetUserId?: unknown };
+    if (typeof body.workspaceId !== "string" || typeof body.targetUserId !== "string" || !body.workspaceId.trim() || !body.targetUserId.trim()) {
+      return NextResponse.json({ ok: false, failureClass: "invalid_offboarding_request" }, { status: 400 });
+    }
+    const result = await removeWorkspaceMember({ workspaceId: body.workspaceId.trim(), actorUserId: user.id, targetUserId: body.targetUserId.trim() });
+    return NextResponse.json({ ok: true, data: result });
+  } catch (error) {
+    if (error instanceof WorkspaceMembershipRemovalError) {
+      return denyResponse({ status: 403, routeId: ROUTE, message: "Membership removal denied", reason: error.reason });
+    }
+    if (error instanceof AccessDeniedError) {
       return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
     }
     throw error;

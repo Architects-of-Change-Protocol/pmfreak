@@ -323,12 +323,26 @@ export async function startProductionServer(options: {
   port: number;
   env: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  /**
+   * The npm script that starts the server. Defaults to `start`, which is what
+   * every caller before P0-LAUNCH-05 used and what they all still get.
+   *
+   * It exists so a gate can exercise a DIFFERENT supported entrypoint —
+   * `start:closed-free-beta`, which runs the beta preflight before
+   * `next start` — through this one lifecycle rather than growing a second.
+   * Process spawning, the health-probe deadline, server-pid discovery,
+   * shutdown and the residue ledger are shared, so evidence about a beta
+   * process is produced by exactly the same machinery that produced every
+   * predecessor's, and a failed beta start is reaped and counted identically.
+   */
+  script?: string;
 }): Promise<StartOutcome> {
   const { port, env } = options;
+  const script = options.script ?? "start";
   const timeoutMs = options.timeoutMs ?? 180_000;
   const baseUrl = `http://127.0.0.1:${port}`;
 
-  const child = spawn("npm", ["run", "start", "--", "--port", String(port)], {
+  const child = spawn("npm", ["run", script, "--", "--port", String(port)], {
     cwd: ROOT,
     env,
     stdio: ["ignore", "pipe", "pipe"],
@@ -397,8 +411,11 @@ export async function startProductionServer(options: {
   }
 
   const launcherPid = child.pid!;
-  // `npm run start` is the supported command, so the process tree is
-  //   npm  ->  sh -c "next start --port N"  ->  next-server (vX.Y.Z)
+  // The supported command is an npm script, so the process tree is
+  //   npm  ->  sh -c "[preflight &&] next start --port N"  ->  next-server (vX.Y.Z)
+  // For `start:closed-free-beta` the preflight has already exited by the time
+  // this runs — it is awaited by the `&&` before `next start` is reached, and
+  // this line is only reached once /api/health has answered.
   // Claims about which bytes are executing must name the server, not npm and
   // not the shell in between — both of those load none of the application.
   const descendants = descendantPids(launcherPid);

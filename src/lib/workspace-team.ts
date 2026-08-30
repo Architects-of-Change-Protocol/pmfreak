@@ -79,17 +79,72 @@ export async function inviteWorkspaceMember(input: {
   routeId: string;
 }): Promise<{ acceptPath: string; expiresAt: string }> {
   const actor = await requireWorkspaceInviteActor({ userId: input.inviterUserId, workspaceId: input.workspaceId });
-
-  const targetRole = normalizeWorkspaceRole(input.role);
-  if (!targetRole || !canAssignWorkspaceRole({ actorRole: actor.role, targetRole })) {
-    throw new Error("You are not authorized to invite a member at that role.");
-  }
+  assertAssignableWorkspaceRole(actor.role, input.role);
 
   // Additional governance pipeline check (audit trail + seat accounting side effects).
   // Not the authoritative actor gate — requireWorkspaceInviteActor above is.
+  // Both this and the seat snapshot resolve the AUTHENTICATED request user, so
+  // they belong to the request path only; see createWorkspaceInvitationRecord.
   await requireGovernancePermission(input.workspaceId, "manage_members");
-  // SCOPED_CLIENT: RLS policy added in 20260515100000_rls_governance_fixes.sql
-  const supabase = await createSupabaseServerClient();
+
+  return createWorkspaceInvitationRecord(
+    { workspaceId: input.workspaceId, companyId: input.companyId, inviterUserId: input.inviterUserId, actorRole: actor.role, email: input.email, role: input.role },
+    // SCOPED_CLIENT: RLS policy added in 20260515100000_rls_governance_fixes.sql
+    async () => (await createSupabaseServerClient()) as unknown as MinimalSupabaseClient,
+    // Seat accounting is request-scoped so it stays on this path, but it is
+    // passed as a post-duplicate precondition rather than run ahead of the
+    // domain: a duplicate invite must be refused AS a duplicate, exactly as it
+    // was before the invitation domain was extracted.
+    async () => {
+      const snapshot = await getWorkspaceSeatSnapshot({ workspaceId: input.workspaceId, companyId: input.companyId, actorUserId: input.inviterUserId, routeId: input.routeId });
+      if (!snapshot.seatGate.ok) throw new Error(`Seat limit reached (${snapshot.seatGate.seatLimit}).`);
+    },
+  );
+}
+
+/** The one role gate for invitation creation, shared by every caller. */
+export function assertAssignableWorkspaceRole(actorRole: WorkspaceRole, requestedRole: unknown): WorkspaceRole {
+  const targetRole = normalizeWorkspaceRole(requestedRole);
+  if (!targetRole || !canAssignWorkspaceRole({ actorRole, targetRole })) {
+    throw new Error("You are not authorized to invite a member at that role.");
+  }
+  return targetRole;
+}
+
+/**
+ * The invitation-creation DOMAIN, with an injectable client.
+ *
+ * Extracted so the supported operator boundary (`npm run beta:invite-participant`)
+ * creates invitations through the SAME duplicate refusal, role gate, token/hash
+ * semantics, expiry and audit event as the request path — rather than a second
+ * implementation, or hand-written SQL, which could drift from the product.
+ *
+ * It deliberately does NOT run `requireGovernancePermission` or the seat
+ * snapshot: both resolve the authenticated REQUEST user and cannot execute
+ * outside one. A caller that has a request runs the permission check before
+ * calling in and supplies the seat check as `assertRequestScopedPreconditions`
+ * (see `inviteWorkspaceMember`), which keeps that state out of this domain
+ * while preserving the duplicate-before-seat precedence. The operator boundary
+ * authorises through the workspace actor role instead and passes no
+ * preconditions, and that difference is documented, not implied.
+ */
+export async function createWorkspaceInvitationRecord(
+  input: { workspaceId: string; companyId: string; inviterUserId: string; actorRole: WorkspaceRole; email: string; role: unknown },
+  getSupabaseClient: () => Promise<MinimalSupabaseClient>,
+  /**
+   * Request-scoped preconditions, evaluated only AFTER duplicate rejection.
+   *
+   * This preserves the product's pre-existing error precedence: an invite that
+   * duplicates an active one is refused as a duplicate, and request-scoped
+   * accounting is never consulted for it - so no `exceeded_seat_limit` gate
+   * event is emitted for an invite that was never admissible in the first place.
+   * The domain does not know what these preconditions are; the operator
+   * boundary passes none and therefore runs none.
+   */
+  assertRequestScopedPreconditions: () => Promise<void> = async () => {},
+): Promise<{ acceptPath: string; expiresAt: string }> {
+  const targetRole = assertAssignableWorkspaceRole(input.actorRole, input.role);
+  const supabase = await getSupabaseClient();
   const normalizedEmail = input.email.trim().toLowerCase();
 
   const { data: duplicate } = await supabase
@@ -102,8 +157,7 @@ export async function inviteWorkspaceMember(input: {
     .maybeSingle<{ id: string }>();
   if (duplicate?.id) throw new Error("An active invitation already exists for this email.");
 
-  const snapshot = await getWorkspaceSeatSnapshot({ workspaceId: input.workspaceId, companyId: input.companyId, actorUserId: input.inviterUserId, routeId: input.routeId });
-  if (!snapshot.seatGate.ok) throw new Error(`Seat limit reached (${snapshot.seatGate.seatLimit}).`);
+  await assertRequestScopedPreconditions();
 
   const token = createWorkspaceInviteToken();
   const expiresAt = new Date(Date.now() + resolveInviteTtlHours() * 60 * 60 * 1000).toISOString();
@@ -247,6 +301,59 @@ export class WorkspaceRoleUpdateError extends Error {
 }
 
 export type UpdatedWorkspaceMemberRole = { workspaceId: string; targetUserId: string; role: WorkspaceRole };
+
+export class WorkspaceMembershipRemovalError extends Error {
+  constructor(readonly reason: "deny_actor_insufficient_role" | "deny_target_not_member" | "deny_self_removal" | "deny_last_owner") {
+    super(`Membership removal denied: ${reason}`);
+    this.name = "WorkspaceMembershipRemovalError";
+  }
+}
+
+export function evaluateWorkspaceMembershipRemoval(input: {
+  actorRole: WorkspaceRole;
+  actorUserId: string;
+  targetUserId: string;
+  targetRole: WorkspaceRole;
+  ownerCount: number;
+}): "allow" | WorkspaceMembershipRemovalError["reason"] {
+  if (input.actorUserId === input.targetUserId) return "deny_self_removal";
+  if (input.actorRole !== "owner" && input.actorRole !== "admin") return "deny_actor_insufficient_role";
+  if (input.targetRole === "owner" && input.ownerCount <= 1) return "deny_last_owner";
+  return "allow";
+}
+
+/** Supported offboarding boundary: removes tenant authority, not identity. */
+export async function removeWorkspaceMember(
+  input: { workspaceId: string; actorUserId: string; targetUserId: string },
+  getSupabaseClient: () => Promise<MinimalSupabaseClient> = async () =>
+    createSupabaseServiceRoleClient({
+      routeId: "lib.workspace-team.removeWorkspaceMember",
+      operation: "remove_workspace_member",
+      reason: "existing_privileged_flow",
+      systemActor: "system",
+      actorUserId: input.actorUserId,
+      workspaceId: input.workspaceId,
+    }),
+): Promise<{ workspaceId: string; targetUserId: string; removed: true }> {
+  const supabase = await getSupabaseClient();
+  const getClient = async () => supabase;
+  const actor = await requireWorkspaceRoleUpdateActor({ userId: input.actorUserId, workspaceId: input.workspaceId }, getClient).catch(() => null);
+  if (!actor) throw new WorkspaceMembershipRemovalError("deny_actor_insufficient_role");
+  const target = await requireWorkspaceRoleUpdateTarget({ workspaceId: input.workspaceId, targetUserId: input.targetUserId }, getClient).catch(() => null);
+  if (!target) throw new WorkspaceMembershipRemovalError("deny_target_not_member");
+  const ownerCount = target.role === "owner" ? await countWorkspaceOwners({ workspaceId: input.workspaceId }, getClient) : 0;
+  const decision = evaluateWorkspaceMembershipRemoval({ actorRole: actor.role, actorUserId: input.actorUserId, targetUserId: input.targetUserId, targetRole: target.role, ownerCount });
+  if (decision !== "allow") throw new WorkspaceMembershipRemovalError(decision);
+  const { error } = await supabase.from("workspace_memberships").delete().eq("workspace_id", input.workspaceId).eq("user_id", input.targetUserId);
+  if (error) throw new Error(error.message);
+  await supabase.from("workspace_audit_events").insert({
+    workspace_id: input.workspaceId,
+    actor_user_id: input.actorUserId,
+    event_type: "member_removed",
+    payload: { targetUserId: input.targetUserId, previousRole: target.role },
+  });
+  return { workspaceId: input.workspaceId, targetUserId: input.targetUserId, removed: true };
+}
 
 /**
  * Updates an existing workspace member's role. This is the sole authorized path to change

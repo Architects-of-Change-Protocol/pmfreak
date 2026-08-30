@@ -176,7 +176,7 @@ test("fixed contract: a single shared getUser() call never hits the already-used
 
 test("assertRuntimeAuthContinuity: genuine auth rejection (no fallback) returns ok:false, not a crash", async () => {
   const report = await assertRuntimeAuthContinuity({
-    getUser: async () => ({ data: { user: null }, error: { status: 401, message: "Invalid Refresh Token: Already Used" } }),
+    getUser: async () => ({ data: { user: null }, error: { name: "AuthApiError", status: 401, message: "Invalid Refresh Token: Already Used" } }),
     getSession: async () => ({ data: { session: null } }),
     getPathname: async () => "/command-center",
     getAuthCookieNames: async () => [],
@@ -190,7 +190,7 @@ test("assertRuntimeAuthContinuity: genuine auth rejection (no fallback) returns 
 test("assertRuntimeAuthContinuity: transient network error falls back to a valid local session (unchanged prior behavior)", async () => {
   const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
   const report = await assertRuntimeAuthContinuity({
-    getUser: async () => ({ data: { user: null }, error: { message: "fetch failed" } }),
+    getUser: async () => ({ data: { user: null }, error: { name: "AuthRetryableFetchError", status: 0, message: "fetch failed" } }),
     getSession: async () => ({ data: { session: { user: { id: "user-5", email: "x@example.com" }, expires_at: futureExpiry } } }),
     getPathname: async () => "/command-center",
     getAuthCookieNames: async () => ["sb-project-auth-token"],

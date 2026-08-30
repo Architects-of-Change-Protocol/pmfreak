@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { logContinuityIssue } from "@/lib/auth/auth-continuity-diagnostics";
 import { cookies, headers } from "next/headers";
 import type { MinimalSupabaseUser } from "@/lib/auth";
+import { classifyAuthError } from "@/lib/auth/auth-error-classification";
 
 export type RuntimeAuthContinuityReport = {
   ok: boolean;
@@ -17,7 +18,7 @@ export type RuntimeAuthContinuityReport = {
   issues: string[];
 };
 
-type GetUserResult = { data: { user: MinimalSupabaseUser | null }; error: { message?: string; status?: number } | null };
+type GetUserResult = { data: { user: MinimalSupabaseUser | null }; error: { name?: string; message?: string; status?: number } | null };
 type GetSessionResult = { data: { session: { user: MinimalSupabaseUser; expires_at?: number | null } | null } };
 
 // Every dependency this function actually uses, individually injectable.
@@ -81,8 +82,8 @@ export async function assertRuntimeAuthContinuity(deps?: Partial<RuntimeAuthCont
   // error. For network errors, fall back to getSession() to avoid bouncing an
   // authenticated user to /login when Supabase has a momentary hiccup.
   const errorStatus = error?.status;
-  const isAuthRejection = errorStatus === 401 || errorStatus === 403;
-  const isNetworkError = !isAuthRejection && Boolean(error);
+  const classification = classifyAuthError(error);
+  const isNetworkError = classification === "retryable_transport";
 
   if (isNetworkError) {
     console.log("[auth-continuity] getUser returned a non-auth error; falling back to getSession()");
@@ -101,7 +102,7 @@ export async function assertRuntimeAuthContinuity(deps?: Partial<RuntimeAuthCont
     }
   }
 
-  const issue = isAuthRejection ? "auth_rejected" : "missing_session";
+  const issue = classification === "auth_rejection" || classification === "auth_api_error" ? "auth_rejected" : "missing_session";
   logContinuityIssue(
     "auth",
     { code: issue, severity: "warn", message: error?.message ?? "No authenticated user" },
