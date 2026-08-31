@@ -53,7 +53,23 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { user } = await requireAuthenticatedUser();
-    const body = (await request.json()) as { workspaceId?: unknown; targetUserId?: unknown };
+
+    // Malformed input is a CLIENT error, not a server fault. `request.json()`
+    // rejects on syntactically invalid JSON, and a valid-but-non-object body
+    // (`null`, an array, a bare string) would throw on property access — both
+    // previously escaped to the generic 500 path. Parse defensively and validate
+    // the shape before touching any field, so every malformed body answers with
+    // the documented envelope and no parser text is leaked to the caller.
+    let parsed: unknown;
+    try {
+      parsed = await request.json();
+    } catch {
+      return NextResponse.json({ ok: false, failureClass: "invalid_offboarding_request" }, { status: 400 });
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return NextResponse.json({ ok: false, failureClass: "invalid_offboarding_request" }, { status: 400 });
+    }
+    const body = parsed as { workspaceId?: unknown; targetUserId?: unknown };
     if (typeof body.workspaceId !== "string" || typeof body.targetUserId !== "string" || !body.workspaceId.trim() || !body.targetUserId.trim()) {
       return NextResponse.json({ ok: false, failureClass: "invalid_offboarding_request" }, { status: 400 });
     }
@@ -92,6 +108,13 @@ export async function DELETE(request: NextRequest) {
       );
     }
     if (error instanceof AccessDeniedError) {
+      // An UNAUTHENTICATED caller and an authenticated-but-unauthorized one are
+      // different answers and must not be collapsed: 401 says "who are you",
+      // 403 says "not allowed". The sibling GET already distinguishes them and
+      // this now matches it, using the same deny-response conventions.
+      if (String(error.metadata.reason) === "unauthorized") {
+        return denyResponse({ status: 401, routeId: ROUTE, message: "Unauthorized", reason: "unauthorized" });
+      }
       return denyFromAccessError(error, { status: 403, routeId: ROUTE, message: "Forbidden" });
     }
     throw error;

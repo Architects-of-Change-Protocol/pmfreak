@@ -12,9 +12,14 @@ CLAIM            LOCAL_CLOSED_BETA_ONBOARDING_OPERATIONAL_READINESS_ACCEPTANCE
 FOCUSED_GATE     npm run check:beta-onboarding-operational-readiness
 BETA_ENTRYPOINT  npm run start:closed-free-beta
 CLOSED_BETA_AUTHORITY_MODEL  INVITATION_CONTROLLED_TENANT_AUTHORITY
-FOCUSED_ACCEPTANCE           46/46_PASS
-  40/40  SUPERSEDED_PRE_REVIEW      (before the independent review fixes)
-  44/47  FAILED_DIAGNOSTIC_RUN      (EXIT=1; not acceptance evidence)
+FOCUSED_ACCEPTANCE           51/51_PASS
+  40/40  SUPERSEDED_PRE_REVIEW              (before the independent review fixes)
+  44/47  FAILED_DIAGNOSTIC_RUN              (EXIT=1; not acceptance evidence)
+  46/46  SUPERSEDED_BY_FINAL_REVIEW_FIXES
+PROTOCOL_PACKAGE_PIN_CHANGED  NO
+FRONTERA_PACKAGE_PIN_CHANGED  NO
+PACKAGE_LOCK_CHANGED          YES  (tsx promoted to a runtime dependency)
+TSX_RUNTIME_DEPENDENCY        YES
 OFFBOARDING_AUTHORIZATION_HIERARCHY  RESOLVED
 OFFBOARDING_AUTHORIZATION_MODEL      AUTHENTICATED_SESSION_PLUS_SERVER_RESOLVED_WORKSPACE_HIERARCHY
 OFFBOARDING_FRONTERA_GOVERNED        NO
@@ -124,7 +129,7 @@ deferred until the executable candidate was stable, so they were paid once.
 | --- | --- | --- | --- |
 | Founder launch | `check:founder-launch-acceptance` | 21/21 PASS | not rerun — see below |
 | P0-LAUNCH-03 production runtime | `check:production-runtime-acceptance` | **30/30 PASS** | candidate before the invite-precedence patch |
-| P0-LAUNCH-05 focused | `check:beta-onboarding-operational-readiness` | **46/46 PASS** | **final candidate (post-review-fix)** |
+| P0-LAUNCH-05 focused | `check:beta-onboarding-operational-readiness` | **51/51 PASS** | **final candidate (post-review-fix)** |
 | P0-LAUNCH-04 failure/recovery/obs | `check:failure-recovery-observability` | **28/28 PASS** | **final candidate** |
 
 Every result above was read from a TAP summary whose process exit status was
@@ -548,6 +553,90 @@ anything but a local isolated target. **Atomicity is not claimed**
 `OPERATOR_INVITE_SUBSCRIPTION_SEAT_GATED=NO`. Commercial parity between the
 operator boundary and the ordinary subscription invite is explicitly NOT claimed;
 see `RR-NORMAL-INVITE-SEAT-MODEL`.
+
+## 9c. Final independent-review cycle
+
+A second review pass on `f8e24e20` raised six findings. Five were accepted and
+fixed; one was rejected on evidence.
+
+### The last-owner concurrency finding — FALSE POSITIVE
+
+The comment assumed owner A can remove owner B while owner B removes owner A,
+both observing `ownerCount === 2`. That cannot happen under the current policy,
+which short-circuits **every** owner target before the count is consulted.
+Enumerated exhaustively over all 160 combinations of
+`actorRole x targetRole x ownerCount x self`: **zero** cases return `allow` for an
+owner target. The repository also contains exactly **one**
+`workspace_memberships` delete site — inside `removeWorkspaceMember`, after the
+decision — with exactly one caller. Neither concurrent request is ever authorised
+to delete an owner, so no interleaving can orphan the workspace.
+`RR_LAST_OWNER_CONCURRENCY=NOT_APPLICABLE_CURRENT_POLICY`. No residual, and no
+transaction, constraint, migration or locking scheme was added.
+
+### The beta preflight could not run in a production install — RESOLVED
+
+`start:closed-free-beta` runs `check-beta-environment.mjs` through `tsx`, which
+was dev-only. Reproduced in a disposable production-style install:
+`npm ci --omit=dev` then the canonical command produced `sh: 1: tsx: not found`,
+**exit 127** — the beta environment contract could not be enforced at all outside
+a dev checkout, which directly undermined `BETA_PREFLIGHT=ENFORCED`.
+
+A Node-native path was tested rather than assumed: `--experimental-strip-types`
+does work (the module has no external imports) and emits the correct envelope, but
+it depends on an experimental flag and prints a `MODULE_TYPELESS_PACKAGE_JSON`
+warning into operator output. It was rejected in favour of promoting the already
+required, already pinned loader — which changes no code at all.
+
+Re-proven in a fresh disposable install after the fix:
+
+```
+PRODUCTION_INSTALL_NPM_CI_OMIT_DEV=PASS
+BETA_PREFLIGHT_EXECUTABLE_WITHOUT_DEV_DEPENDENCIES=PASS
+  -> {"ok":false,"failureClass":"CONFIGURATION_FAILURE",
+      "guard":"evaluateClosedFreeBetaEnvSafety",...}  exit 1, 0 loader failures
+```
+
+This legitimately changes package metadata, recorded precisely rather than under a
+blanket "pins unchanged" claim: `PROTOCOL_PACKAGE_PIN_CHANGED=NO`,
+`FRONTERA_PACKAGE_PIN_CHANGED=NO`, `PACKAGE_LOCK_CHANGED=YES`. The lock diff is
+confined to the `tsx` move and the `dev: true` flags it drops; no AOC, vendor or
+integrity line changed.
+
+### Operator isolation refusals were unstructured — RESOLVED
+
+`assertIsolatedTarget` THROWS for a non-local, unparsable or prerequisite-missing
+target, so the documented `non_isolated_target` envelope was unreachable and the
+command died with a raw stack trace. The guard is unchanged and not weakened; only
+its refusal is converted, still before any privileged client exists:
+
+```
+OPERATOR_NON_LOCAL_TARGET=REFUSED_STRUCTURED
+OPERATOR_UNKNOWN_TARGET=REFUSED_STRUCTURED
+OPERATOR_MISSING_ISOLATION_PREREQUISITE=REFUSED_STRUCTURED
+```
+
+### HTTP classification and malformed input — RESOLVED
+
+`OFFBOARDING_UNAUTHENTICATED=401` and
+`OFFBOARDING_AUTHENTICATED_INSUFFICIENT_ROLE=403` are now distinct, matching the
+sibling GET and using the existing deny-response convention; the 403 case also
+proves the target membership survived. Malformed bodies answer `400` with the
+documented `invalid_offboarding_request` envelope and leak no parser text:
+
+```
+MALFORMED_JSON=400 NULL_BODY=400 ARRAY_BODY=400 EMPTY_OBJECT=400
+MISSING_TARGET=400 MISSING_WORKSPACE=400 NON_STRING_IDS=400 BLANK_IDS=400
+```
+
+### The privileged offboarding flow is now registered — RESOLVED
+
+`removeWorkspaceMember` declared `reason: "existing_privileged_flow"` while the
+privileged-access registry documented no offboarding. The reason is now
+`workspace_member_offboarding`, and the existing file-scoped entry (not a
+duplicate) documents the authenticated-session requirement, server-side actor and
+target resolution, the canonical hierarchy, owner-target protection, cross-tenant
+fail-closed behaviour, why the service role is required for the DELETE, the
+checked audit write, and the `RR-OFFBOARD-AUDIT-NONATOMIC` caveat.
 
 ## 10. Candidate identity: technical freeze vs documentation head
 

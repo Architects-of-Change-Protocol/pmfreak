@@ -59,9 +59,25 @@ if (!workspaceId || !email || !role || !inviter) {
   // Never a hosted or production target. The repository's own guard, before any
   // privileged access — an operator admission script must not be usable to write
   // into a real tenant by mistake.
-  const isolation = assertIsolatedTarget(process.env, { mode: GUARD_MODES.SEED });
-  if (isolation.classification !== LOCAL_ISOLATED) {
-    fail("non_isolated_target", `Refusing to admit a participant against a non-local target: ${JSON.stringify(isolation.target ?? null)}`);
+  //
+  // `assertIsolatedTarget` THROWS for a non-local, unknown, or prerequisite-missing
+  // target, so the documented `non_isolated_target` envelope below was previously
+  // unreachable and the command died with a raw stack trace instead. The guard
+  // itself is unchanged and is NOT weakened — only its refusal is converted into
+  // the stable structured envelope, and still before any privileged client exists.
+  let isolation = null;
+  let isolationRefusal = null;
+  try {
+    isolation = assertIsolatedTarget(process.env, { mode: GUARD_MODES.SEED });
+  } catch (error) {
+    isolationRefusal = error instanceof Error ? error.message : String(error);
+  }
+
+  if (isolationRefusal !== null || isolation === null || isolation.classification !== LOCAL_ISOLATED) {
+    fail(
+      "non_isolated_target",
+      `Refusing to admit a participant against a non-local target: ${isolationRefusal ?? JSON.stringify(isolation?.target ?? null)}`,
+    );
   } else {
     const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },

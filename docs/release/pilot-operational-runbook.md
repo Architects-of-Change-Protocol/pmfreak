@@ -31,7 +31,10 @@ topology enforced by `docs/security/production-deployment-boundary.md`.
 - [ ] **Closed-free-beta profile selected.** Set
       `PMFREAK_OPERATING_PROFILE=closed-free-beta` and start the runtime with
       `npm run start:closed-free-beta` (**not** a bare `next start`). That script
-      runs `npm run check:beta-environment` first and refuses to start on any
+      runs `npm run check:beta-environment` first, through the `tsx` loader, which
+      is a **runtime dependency** precisely so the preflight survives
+      `npm ci --omit=dev` — verified in a production-style install. It refuses to
+      start on any
       violation, printing `{"ok":false,"failureClass":"CONFIGURATION_FAILURE",...}`
       with the violation codes. It validates: profile selected, Supabase trio
       present, `NEXT_PUBLIC_APP_URL` present **and a valid http(s) URL**, no
@@ -248,7 +251,9 @@ structured logs (Vercel log drain-ready), `security_events`,
    the identity** — the `auth.users` record is deliberately untouched. Refusals
    return 403 with a reason: `deny_self_removal` (you cannot remove yourself),
    `deny_last_owner` (the final owner cannot be orphaned),
-   `deny_actor_insufficient_role`, `deny_target_not_member`. Authority is
+   `deny_actor_insufficient_role`, `deny_target_not_member`. An unauthenticated
+   request returns **401**; an authenticated but unauthorized one returns **403**;
+   a malformed body returns **400** `invalid_offboarding_request`. Authority is
    re-derived through Frontera per request, so a removed member's existing
    session retains no governed authority — proven live by P0-LAUNCH-03's
    out-of-process revocation scenario. Not yet exercised end-to-end against two

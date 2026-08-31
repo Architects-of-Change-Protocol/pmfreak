@@ -403,7 +403,10 @@ export async function removeWorkspaceMember(
     createSupabaseServiceRoleClient({
       routeId: "lib.workspace-team.removeWorkspaceMember",
       operation: "remove_workspace_member",
-      reason: "existing_privileged_flow",
+      // NOT "existing_privileged_flow": this offboarding flow is NEW in
+      // P0-LAUNCH-05 and is registered under its own reason in
+      // privileged-access-registry.ts rather than borrowing a pre-existing one.
+      reason: "workspace_member_offboarding",
       systemActor: "system",
       actorUserId: input.actorUserId,
       workspaceId: input.workspaceId,

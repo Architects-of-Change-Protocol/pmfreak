@@ -866,6 +866,145 @@ test("46. OFFBOARD_AUDIT_FAILURE_SURFACED: an audit-write failure is NOT reporte
   }
 });
 
+// ───────────────── final review fixes: HTTP classification + operator envelope ─────────────────
+
+test("47. OFFBOARDING request classification: 401 unauthenticated, 403 authenticated-but-unauthorized", async () => {
+  // A dedicated disposable target created HERE, so the persistence assertion
+  // below depends on this test alone rather than on which fixtures earlier
+  // hierarchy rows happened to consume.
+  const supabase = admin();
+  const targetEmail = `p0-launch-05-classification-${Date.now()}@example.test`;
+  const made = await supabase.auth.admin.createUser({ email: targetEmail, password: process.env.P2_13_FIXTURE_ACTOR_PASSWORD!, email_confirm: true });
+  assert.ok(!made.error && made.data.user, `could not create the classification target: ${made.error?.message}`);
+  const target = { email: targetEmail, userId: made.data.user.id, role: "pm" };
+  OFFBOARD_FIXTURES.classificationTarget = target;
+  const bind = await supabase.from("workspace_memberships").insert({ workspace_id: TENANT_A.workspaceId, user_id: target.userId, role: "pm" });
+  assert.ok(!bind.error, `could not bind the classification target: ${bind.error?.message}`);
+
+  // No session at all: "who are you", not "not allowed".
+  const anonymous = new HttpSession(`http://127.0.0.1:${PORT}`);
+  const unauth = await anonymous.request("/api/workspace-team/members", {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ workspaceId: TENANT_A.workspaceId, targetUserId: target.userId }),
+  });
+  assert.equal(unauth.status, 401, `an unauthenticated offboarding request was not 401: ${unauth.status} ${unauth.text.slice(0, 200)}`);
+
+  // Authenticated, but not permitted: 403, and the target must survive. The two
+  // codes must not collapse into one another.
+  const outsider = await sessionFor(outsiderEmail);
+  const forbidden = await outsider.request("/api/workspace-team/members", {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ workspaceId: TENANT_A.workspaceId, targetUserId: target.userId }),
+  });
+  assert.equal(forbidden.status, 403, `an authenticated non-member offboarding request was not 403: ${forbidden.status} ${forbidden.text.slice(0, 200)}`);
+  assert.notEqual(unauth.status, forbidden.status, "401 and 403 were collapsed into the same answer");
+  assert.ok(await membershipRow(target.userId), "PERSISTENCE: an unauthorized offboarding attempt deleted the membership");
+
+  EVIDENCE.offboardingHttpClassification = `unauthenticated=401 authenticated_insufficient=403 (target membership intact)`;
+});
+
+test("48. OFFBOARDING rejects malformed request bodies with 400, never a generic 500", async () => {
+  const s = await sessionFor(OWNER_A.email);
+  const send = (body: string) =>
+    s.request("/api/workspace-team/members", { method: "DELETE", headers: { "content-type": "application/json" }, body });
+
+  const cases: Array<[string, string]> = [
+    ["MALFORMED_JSON", "{not json"],
+    ["NULL_BODY", "null"],
+    ["ARRAY_BODY", "[]"],
+    ["EMPTY_OBJECT", "{}"],
+    ["MISSING_TARGET", JSON.stringify({ workspaceId: TENANT_A.workspaceId })],
+    ["MISSING_WORKSPACE", JSON.stringify({ targetUserId: outsiderUserId })],
+    ["NON_STRING_IDS", JSON.stringify({ workspaceId: 1, targetUserId: 2 })],
+    ["BLANK_IDS", JSON.stringify({ workspaceId: "   ", targetUserId: "  " })],
+  ];
+
+  const observed: string[] = [];
+  for (const [label, body] of cases) {
+    const response = await send(body);
+    assert.equal(response.status, 400, `${label} did not return 400: ${response.status} ${response.text.slice(0, 200)}`);
+    assert.match(response.text, /invalid_offboarding_request/, `${label} did not use the documented envelope: ${response.text.slice(0, 200)}`);
+    // No parser internals may leak to the caller.
+    assert.doesNotMatch(response.text, /JSON\.parse|Unexpected token|SyntaxError/i, `${label} leaked parser text: ${response.text.slice(0, 200)}`);
+    observed.push(`${label}=400`);
+  }
+  EVIDENCE.offboardingMalformedRequests = observed.join(" ");
+});
+
+test("49. OPERATOR isolation refusals emit the documented structured envelope, not a stack trace", () => {
+  const refuse = (env: Record<string, string>, label: string) => {
+    try {
+      const out = execFileSync("npx", ["tsx", "scripts/beta-invite-participant.mjs", "--workspace", TENANT_A.workspaceId, "--email", `iso-${Date.now()}@example.test`, "--role", "pm", "--inviter", OWNER_A.email], {
+        cwd: ROOT,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env, ...env },
+      });
+      return { exit: 0, text: out };
+    } catch (error) {
+      const shell = error as { status?: number; stdout?: string; stderr?: string };
+      return { exit: shell.status ?? -1, text: `${shell.stdout ?? ""}\n${shell.stderr ?? ""}` };
+    }
+  };
+
+  const cases: Array<[string, Record<string, string>]> = [
+    ["OPERATOR_NON_LOCAL_TARGET", { NEXT_PUBLIC_SUPABASE_URL: "https://prod.supabase.co", OPERATIONAL_FLOW_TEST_SUPABASE_URL: "https://prod.supabase.co" }],
+    ["OPERATOR_UNKNOWN_TARGET", { NEXT_PUBLIC_SUPABASE_URL: "not-a-url", OPERATIONAL_FLOW_TEST_SUPABASE_URL: "not-a-url" }],
+    ["OPERATOR_MISSING_ISOLATION_PREREQUISITE", { P2_13_FOUNDER_FIXTURE_ENABLED: "false" }],
+  ];
+
+  const observed: string[] = [];
+  for (const [label, env] of cases) {
+    const result = refuse(env, label);
+    assert.notEqual(result.exit, 0, `${label} did not refuse (exit 0)`);
+    const line = result.text.split("\n").filter((v) => v.trim().startsWith("{")).pop();
+    assert.ok(line, `${label} emitted no structured envelope: ${result.text.slice(0, 250)}`);
+    const parsed = JSON.parse(line) as { ok: boolean; failureClass?: string };
+    assert.equal(parsed.ok, false, `${label} reported success`);
+    assert.equal(parsed.failureClass, "non_isolated_target", `${label} used the wrong failureClass: ${parsed.failureClass}`);
+    // An unhandled throw would surface a stack trace instead of the envelope.
+    assert.doesNotMatch(result.text, /^\s+at .*\(.*:\d+:\d+\)/m, `${label} emitted an unhandled stack trace`);
+    observed.push(`${label}=REFUSED_STRUCTURED`);
+  }
+  EVIDENCE.operatorIsolationRefusals = observed.join(" ");
+});
+
+test("50. the beta preflight runs through a TS-capable loader that production installs actually get", () => {
+  // RELEASE-READINESS: `start:closed-free-beta` invokes check-beta-environment.mjs
+  // through `tsx`, which must therefore survive `npm ci --omit=dev`. Proven in a
+  // disposable production-style install; this control pins the declaration so a
+  // future move back to devDependencies fails here rather than at beta startup.
+  const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
+    dependencies: Record<string, string>;
+    devDependencies: Record<string, string>;
+    scripts: Record<string, string>;
+  };
+  assert.match(pkg.scripts["start:closed-free-beta"], /check:beta-environment/);
+  assert.match(pkg.scripts["check:beta-environment"], /tsx /);
+  assert.ok(pkg.dependencies.tsx, "tsx is the beta preflight's runtime loader and must be a production dependency");
+  assert.equal(pkg.devDependencies.tsx, undefined, "tsx must not remain dev-only, or the beta preflight cannot run after npm ci --omit=dev");
+  EVIDENCE.betaPreflightLoaderIsProductionDependency = `tsx ${pkg.dependencies.tsx} in dependencies`;
+});
+
+test("51. the privileged offboarding flow is registered and does not claim to be pre-existing", () => {
+  const domain = readFileSync("src/lib/workspace-team.ts", "utf8");
+  const fn = domain.slice(domain.indexOf("export async function removeWorkspaceMember"), domain.indexOf("export async function updateWorkspaceMemberRole"));
+  assert.match(fn, /reason: "workspace_member_offboarding"/, "the offboarding privileged client does not declare its own reason");
+  assert.doesNotMatch(fn, /reason: "existing_privileged_flow"/, "a NEW privileged flow is still labelled pre-existing");
+
+  const registry = readFileSync("src/lib/security/privileged-access-registry.ts", "utf8");
+  const entry = registry.slice(registry.indexOf('file: "src/lib/workspace-team.ts"'), registry.indexOf('file: "src/app/(protected)/early-access/page.tsx"'));
+  assert.match(entry, /removeWorkspaceMember/, "the registry entry does not document the offboarding flow");
+  assert.match(entry, /owner/i);
+  assert.match(entry, /RR-OFFBOARD-AUDIT-NONATOMIC/, "the registry does not carry the audit non-atomicity caveat");
+  // File-scoped registry: exactly one entry for this file, never a duplicate.
+  assert.equal(registry.split('file: "src/lib/workspace-team.ts"').length - 1, 1, "the registry gained a duplicate entry for workspace-team.ts");
+  EVIDENCE.privilegedOffboardingRegistered = "reason=workspace_member_offboarding; registry entry documents hierarchy, owner protection, cross-tenant fail-closed and audit non-atomicity";
+});
+
+
 test("40. NON-VACUITY: PLATFORM_SIGNUP_IS_DISABLED is NOT claimed", async () => {
   // The identity created in before() was never invited and was never blocked
   // from existing. This gate's CLOSED claim is about tenant authority only.
