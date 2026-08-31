@@ -12,7 +12,18 @@ CLAIM            LOCAL_CLOSED_BETA_ONBOARDING_OPERATIONAL_READINESS_ACCEPTANCE
 FOCUSED_GATE     npm run check:beta-onboarding-operational-readiness
 BETA_ENTRYPOINT  npm run start:closed-free-beta
 CLOSED_BETA_AUTHORITY_MODEL  INVITATION_CONTROLLED_TENANT_AUTHORITY
-FOCUSED_ACCEPTANCE           40/40_PASS
+FOCUSED_ACCEPTANCE           46/46_PASS
+  40/40  SUPERSEDED_PRE_REVIEW      (before the independent review fixes)
+  44/47  FAILED_DIAGNOSTIC_RUN      (EXIT=1; not acceptance evidence)
+OFFBOARDING_AUTHORIZATION_HIERARCHY  RESOLVED
+OFFBOARDING_AUTHORIZATION_MODEL      AUTHENTICATED_SESSION_PLUS_SERVER_RESOLVED_WORKSPACE_HIERARCHY
+OFFBOARDING_FRONTERA_GOVERNED        NO
+OPERATOR_INVITE_FRONTERA_GOVERNED    NO
+OPERATOR_INVITE_SUBSCRIPTION_SEAT_GATED  NO
+BETA_OPERATOR_SEAT_POLICY    OPERATOR_CONTROLLED_NOT_SUBSCRIPTION_GATED
+GOVERNED_FIRST_USE_PATH      GET /api/execution-tasks?projectId=<beta-project>
+GOVERNED_FIRST_USE_CAPABILITY        project.read
+GOVERNED_FIRST_USE_FRONTERA_REACHED  YES
 SUPPORTED_OPERATOR_INVITE_CREATION   PASS
 INVALID_OR_DUPLICATE_INVITE_REFUSAL  PASS
 FIXTURE_ONLY_INVITE_CREATION         NOT_CLAIMED
@@ -113,7 +124,7 @@ deferred until the executable candidate was stable, so they were paid once.
 | --- | --- | --- | --- |
 | Founder launch | `check:founder-launch-acceptance` | 21/21 PASS | not rerun — see below |
 | P0-LAUNCH-03 production runtime | `check:production-runtime-acceptance` | **30/30 PASS** | candidate before the invite-precedence patch |
-| P0-LAUNCH-05 focused | `check:beta-onboarding-operational-readiness` | **40/40 PASS** | **final candidate** |
+| P0-LAUNCH-05 focused | `check:beta-onboarding-operational-readiness` | **46/46 PASS** | **final candidate (post-review-fix)** |
 | P0-LAUNCH-04 failure/recovery/obs | `check:failure-recovery-observability` | **28/28 PASS** | **final candidate** |
 
 Every result above was read from a TAP summary whose process exit status was
@@ -430,6 +441,113 @@ NEW_TEST_FAILURES     0
 
   The 17 skips are unrelated PMF-004 concurrency tests requiring a local
   Postgres admin socket; each carries its own enablement disclosure.
+
+## 9b. Independent review fixes, and the governance boundaries they settled
+
+An independent GitHub review of `fd4685ca` raised four issues. All are closed, but
+two of them changed what this increment is allowed to CLAIM, so the corrections
+are recorded here rather than folded away.
+
+### Offboarding authorization hierarchy — RESOLVED
+
+The first removal policy was materially weaker than the repository's own
+`canUpdateWorkspaceMemberRole` boundary: it permitted an admin to remove another
+admin, an admin to remove an owner, and an owner to remove a co-owner whenever a
+second owner existed. Last-owner protection was the ONLY owner-target protection.
+Removing a membership is at least as privilege-sensitive as demoting it, so the
+policy now mirrors the role-update boundary, with `deny_owner_removal_requires_transfer`
+distinguishing a co-owner refusal from a last-owner refusal.
+
+Proven through the REAL DELETE route on REAL memberships, both directions — every
+DENY row also asserts the target membership survived, every ALLOW row asserts it
+was actually deleted, so neither an all-deny nor an all-allow implementation passes:
+
+```
+PM_REMOVES_MEMBER=DENY      VIEWER_REMOVES_MEMBER=DENY
+ADMIN_REMOVES_ADMIN=DENY    ADMIN_REMOVES_OWNER=DENY
+OWNER_REMOVES_OTHER_OWNER=DENY   CROSS_TENANT_ACTOR=DENY   SELF_REMOVAL=DENY
+ADMIN_REMOVES_VIEWER=ALLOW  ADMIN_REMOVES_PM=ALLOW    OWNER_REMOVES_ADMIN=ALLOW
+LAST_OWNER=DENY (final owner membership intact)
+```
+
+The cross-tenant actor is first proven to OWN a different workspace, so its
+refusal is attributable to tenant scope rather than to being unprivileged.
+
+### Offboarding is NOT Frontera-governed, and that is deliberate
+
+`OFFBOARDING_FRONTERA_GOVERNED=NO`. The review asked for a Frontera boundary on
+`DELETE /api/workspace-team/members`, and it was implemented — then removed,
+because a runtime gate proved the guard cannot support it.
+`requireGovernancePermission` performs its own check and then calls
+`requireWorkspaceMembership`, whose `"read"` permission maps to the PROJECT-scoped
+`project.read` policy and is invoked with no `projectId`. It therefore denies
+every caller unconditionally; a legitimate workspace OWNER received
+`403 "Denied because project scope is missing for project-scoped action."`
+That run (44/47, EXIT=1) is a **FAILED_DIAGNOSTIC_RUN**, not acceptance evidence,
+and two of its controls that appeared to pass were **withdrawn as vacuous** —
+they asserted 403 against a baseline of universal denial, so they would have
+passed with the hierarchy deleted entirely.
+
+The accepted boundary is therefore
+`AUTHENTICATED_SESSION_PLUS_SERVER_RESOLVED_WORKSPACE_HIERARCHY`: authenticated
+session, then server-resolved actor and target membership, then the canonical
+hierarchy, then deletion, then a checked audit write. No client-supplied role or
+authority is trusted. The guard defect is recorded as
+`RR-GOVERNANCE-PERMISSION-GUARD-BROKEN` and belongs to its own post-beta
+increment — explicitly not P0-LAUNCH-06.
+
+### The governed first-use path, corrected
+
+The gate previously described `POST /api/operational-flow` as the governed tenant
+operation. It is not: it authorizes by a DIRECT `workspace_memberships` role check
+and reaches no runtime-authorization symbol. Its coverage is kept and relabelled
+accurately. The genuinely Frontera-reached first-use operation is the tenant read:
+
+```
+GOVERNED_FIRST_USE_PATH        GET /api/execution-tasks?projectId=<beta-project>
+GOVERNED_FIRST_USE_CAPABILITY  project.read
+GOVERNED_FIRST_USE_FRONTERA_REACHED  YES   (server-authorization.requireProjectAccess
+                                            -> evaluateCapability -> authorizeRuntimeAction)
+```
+
+which the gate proves at runtime as `403 -> 200 -> 403` across admission and
+offboarding on one unchanged session.
+
+### Certified beta path inventory
+
+Mechanically searched for `requireGovernancePermission` across every certified path:
+
+| Path | Frontera reached | Authorization | Broken-guard call sites |
+| --- | --- | --- | --- |
+| Operator invite | NO | isolation guard + owner/admin membership + shared domain | 0 |
+| Invite acceptance | NO | token hash -> server-side tenant/role binding | 0 |
+| `/api/execution-tasks` (governed first use) | **YES** | `project.read` via server-authorization | 0 |
+| `/api/operational-flow` | NO | direct membership/role check | 0 |
+| Offboarding `DELETE` | NO | authenticated session + canonical hierarchy | 0 |
+| Readiness / liveness | NO | unauthenticated probes by design | 0 |
+
+The ordinary request invitation path DOES reach the broken guard
+(`workspace-team.ts:42,75`) — a second independent reason it is not the certified
+admission boundary, alongside `RR-NORMAL-INVITE-SEAT-MODEL`.
+
+### Offboarding auditability
+
+The audit insert result was previously discarded, so a successful-looking removal
+could carry no audit trail. It is now inspected, and both directions are proven at
+runtime: a successful removal persists `member_removed` with the correct workspace,
+actor, target and `previousRole`; and an injected failure returns
+`500 offboarding_audit_write_failed` with the membership already deleted and no
+audit row — the partial state itself, observed rather than described. The fault
+seam is server-side and env-only, inert when unset, and throws if armed against
+anything but a local isolated target. **Atomicity is not claimed**
+(`RR-OFFBOARD-AUDIT-NONATOMIC`).
+
+### Seat policy
+
+`BETA_OPERATOR_SEAT_POLICY=OPERATOR_CONTROLLED_NOT_SUBSCRIPTION_GATED`,
+`OPERATOR_INVITE_SUBSCRIPTION_SEAT_GATED=NO`. Commercial parity between the
+operator boundary and the ordinary subscription invite is explicitly NOT claimed;
+see `RR-NORMAL-INVITE-SEAT-MODEL`.
 
 ## 10. Candidate identity: technical freeze vs documentation head
 

@@ -217,11 +217,32 @@ structured logs (Vercel log drain-ready), `security_events`,
    link, and deliver it out-of-band. The participant then accepts through the
    normal `/accept-invite/<token>` page.
 
-   Note: the request-path governance-pipeline and seat checks resolve an
-   authenticated HTTP user and therefore do NOT run on this path; the operator
-   boundary authorises through the workspace actor role instead.
+   Note: this path is **not Frontera-governed**
+   (`OPERATOR_INVITE_FRONTERA_GOVERNED=NO`, `RR-BETA-OPERATOR-FRONTERA-BOUNDARY`)
+   and does **not** enforce subscription seat limits
+   (`OPERATOR_INVITE_SUBSCRIPTION_SEAT_GATED=NO`,
+   `BETA_OPERATOR_SEAT_POLICY=OPERATOR_CONTROLLED_NOT_SUBSCRIPTION_GATED`).
+   Both resolve an authenticated HTTP user and cannot run here. The operator
+   boundary authorises through local isolation plus the workspace actor role
+   instead, and admission count is controlled by the operator cohort.
 3. **Offboarding a participant** (P0-LAUNCH-05): `DELETE /api/workspace-team/members`
    with `{ workspaceId, targetUserId }`, as an owner or admin of that workspace.
+
+   **Authorization model:** authenticated HTTP session, then server-resolved actor
+   and target membership, then the canonical owner/admin hierarchy. It is
+   **NOT Frontera-governed** (`OFFBOARDING_FRONTERA_GOVERNED=NO`) — a deliberate
+   beta decision, because `requireGovernancePermission` currently denies every
+   caller (`RR-GOVERNANCE-PERMISSION-GUARD-BROKEN`). No client-supplied role is
+   trusted. The enforced hierarchy: pm/viewer may remove nobody; admin may remove
+   pm/viewer only; owner may remove any non-owner, non-self member; an owner
+   target is never removable here (`deny_owner_removal_requires_transfer`, or
+   `deny_last_owner` for the final owner); self-removal is denied.
+
+   **If a removal returns `500 offboarding_audit_write_failed`:** the membership
+   deletion and the audit write are separate operations
+   (`RR-OFFBOARD-AUDIT-NONATOMIC`), so authority may ALREADY be removed. Inspect
+   effective membership FIRST, treat it as an incident requiring reconciliation,
+   and record the removal manually. **Do not blindly retry the deletion.**
    This removes the `workspace_memberships` row and writes a `member_removed`
    audit event carrying the previous role. It **removes tenant authority, not
    the identity** — the `auth.users` record is deliberately untouched. Refusals

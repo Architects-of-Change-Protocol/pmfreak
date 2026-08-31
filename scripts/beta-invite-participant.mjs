@@ -10,8 +10,24 @@
  *
  * Authority: the inviter must already hold an owner/admin membership in the
  * target workspace, checked by the product's own `requireWorkspaceInviteActor`.
- * The request-path governance-pipeline and seat checks resolve an authenticated
- * HTTP user and cannot run here; that difference is documented, not implied.
+ *
+ * OPERATOR_INVITE_FRONTERA_GOVERNED=NO. This boundary is NOT Frontera-governed,
+ * and that is stated rather than implied. The workspace-scoped Frontera evaluator
+ * re-resolves its actor from HTTP request context, so it cannot truthfully
+ * authorize this non-request operator boundary without a governance-architecture
+ * change that is deliberately out of scope. What protects this command instead:
+ * it refuses any non-local/non-isolated target BEFORE privileged access, the
+ * inviter identity must already exist, the inviter must already hold owner/admin
+ * membership in the exact target workspace, and role assignment still runs the
+ * shared invitation policy so "owner" can never be granted. It is an operator-only
+ * boundary, not a hosted/production or self-service admission API.
+ * See RR-BETA-OPERATOR-FRONTERA-BOUNDARY.
+ *
+ * BETA_OPERATOR_SEAT_POLICY=OPERATOR_CONTROLLED_NOT_SUBSCRIPTION_GATED.
+ * Subscription seat capacity is deliberately NOT enforced here: the closed free
+ * beta has no billing surface and admission count is controlled by the operator
+ * cohort. OPERATOR_INVITE_SUBSCRIPTION_SEAT_GATED=NO.
+ * See RR-NORMAL-INVITE-SEAT-MODEL.
  *
  * The accept path contains the ONLY copy of the plaintext token and is printed
  * only with --emit-accept-path, for out-of-band delivery to the participant.

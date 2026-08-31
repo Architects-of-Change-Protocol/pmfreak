@@ -10,6 +10,7 @@ import { AuthApiError, AuthRetryableFetchError, AuthSessionMissingError } from "
 import { classifyAuthError } from "../../src/lib/auth/auth-error-classification";
 import { evaluateClosedFreeBetaEnvSafety } from "../../src/lib/security/environment";
 import { evaluateWorkspaceMembershipRemoval, acceptWorkspaceInvite, removeWorkspaceMember } from "../../src/lib/workspace-team";
+import { canUpdateWorkspaceMemberRole } from "../../src/lib/workspace-access";
 import { TENANT_A, TENANT_B } from "../../scripts/p2-13/founder-scenario-manifest.mjs";
 import { GUARD_MODES, LOCAL_ISOLATED, assertIsolatedTarget } from "../../scripts/p2-13/isolation-guard.mjs";
 import {
@@ -188,6 +189,17 @@ let outsiderUserId = "";
 let outsiderEmail = "";
 let inviteToken = "";
 
+/**
+ * Disposable offboarding identities. Created deterministically in before() and
+ * deleted by id in after() — never repaired with manual SQL after the fact.
+ * They exist because the removal hierarchy cannot be proven with one owner and
+ * one outsider: an admin-removes-admin refusal needs two admins, and a
+ * co-owner refusal needs a second owner.
+ */
+type Fixture = { email: string; userId: string; role: string };
+const OFFBOARD_FIXTURES: Record<string, Fixture> = {};
+let crossTenantWorkspaceId = "";
+
 const admin = () =>
   createClient(process.env.OPERATIONAL_FLOW_TEST_SUPABASE_URL!, process.env.OPERATIONAL_FLOW_TEST_SERVICE_ROLE_KEY!, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -314,6 +326,30 @@ before(async () => {
   outsiderUserId = created.data.user.id;
   EVIDENCE.nonInvitedIdentityCreated = outsiderEmail;
 
+  // Disposable memberships for the offboarding hierarchy matrix.
+  const stamp = Date.now();
+  for (const [key, role] of [["coOwner", "owner"], ["adminA", "admin"], ["adminB", "admin"], ["pm", "pm"], ["viewer", "viewer"]] as const) {
+    const email = `p0-launch-05-${key.toLowerCase()}-${stamp}@example.test`;
+    const made = await supabase.auth.admin.createUser({ email, password: process.env.P2_13_FIXTURE_ACTOR_PASSWORD!, email_confirm: true });
+    assert.ok(!made.error && made.data.user, `could not create the ${key} fixture: ${made.error?.message}`);
+    const insert = await supabase.from("workspace_memberships").insert({ workspace_id: TENANT_A.workspaceId, user_id: made.data.user.id, role });
+    assert.ok(!insert.error, `could not bind the ${key} fixture membership: ${insert.error?.message}`);
+    OFFBOARD_FIXTURES[key] = { email, userId: made.data.user.id, role };
+  }
+
+  // A CROSS-TENANT actor: a real owner of a DIFFERENT workspace, with no
+  // membership at all in TENANT_A. Its refusal must not be attributable to the
+  // identity being unprivileged everywhere.
+  const otherWorkspace = await supabase.from("workspaces").select("id").neq("id", TENANT_A.workspaceId).limit(1).maybeSingle();
+  assert.ok(otherWorkspace.data?.id, "no second workspace exists, so cross-tenant denial cannot be proven non-vacuously");
+  crossTenantWorkspaceId = otherWorkspace.data.id as string;
+  const crossEmail = `p0-launch-05-crosstenant-${stamp}@example.test`;
+  const cross = await supabase.auth.admin.createUser({ email: crossEmail, password: process.env.P2_13_FIXTURE_ACTOR_PASSWORD!, email_confirm: true });
+  assert.ok(!cross.error && cross.data.user, `could not create the cross-tenant fixture: ${cross.error?.message}`);
+  const crossInsert = await supabase.from("workspace_memberships").insert({ workspace_id: crossTenantWorkspaceId, user_id: cross.data.user.id, role: "owner" });
+  assert.ok(!crossInsert.error, `could not bind the cross-tenant fixture: ${crossInsert.error?.message}`);
+  OFFBOARD_FIXTURES.crossTenant = { email: crossEmail, userId: cross.data.user.id, role: "owner" };
+
   PORT = await freePort();
   session = new HttpSession(`http://127.0.0.1:${PORT}`);
 });
@@ -327,6 +363,11 @@ after(async () => {
     await supabase.from("workspace_memberships").delete().eq("workspace_id", TENANT_A.workspaceId).eq("user_id", outsiderUserId);
     await supabase.from("workspace_invitations").delete().eq("workspace_id", TENANT_A.workspaceId).eq("email", outsiderEmail);
     await supabase.auth.admin.deleteUser(outsiderUserId);
+  }
+  for (const fixture of Object.values(OFFBOARD_FIXTURES)) {
+    // Scoped by id to the identities THIS run created. Never a bulk delete.
+    await supabase.from("workspace_memberships").delete().eq("user_id", fixture.userId);
+    await supabase.auth.admin.deleteUser(fixture.userId);
   }
   try {
     fs.rmSync(CONTROL_DIR, { recursive: true, force: true });
@@ -490,9 +531,18 @@ test("35. a non-invited identity is DENIED protected beta tenant access and gove
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ workspaceId: TENANT_A.workspaceId, projectId: TENANT_A.projectId, operation: "dispatch_material_action_to_task", actionId: "00000000-0000-4000-8000-000000000000" }),
   });
-  // The governed path must be an explicit AUTHORIZATION refusal, not any 4xx.
-  assert.ok([401, 403].includes(governed.status), `a governed tenant operation by a non-invited identity was not an authorization denial: ${governed.status} ${governed.text.slice(0, 300)}`);
-  EVIDENCE.nonInvitedTenantAccess = `denied (tenant read ${tenantRead.status}, governed ${governed.status} — both authorization)`;
+  // The protected path must be an explicit AUTHORIZATION refusal, not any 4xx.
+  //
+  // ACCURACY: `/api/operational-flow` is a PROTECTED TENANT OPERATION authorized
+  // by a DIRECT `workspace_memberships` role check — it is NOT Frontera-governed,
+  // and this gate no longer describes it as such. The Frontera-governed
+  // first-use operation is the tenant read above (`/api/execution-tasks`, which
+  // reaches `project.read` through server-authorization -> evaluateCapability ->
+  // authorizeRuntimeAction). Both are kept: the direct-role path is still real
+  // coverage, it is simply labelled truthfully.
+  assert.ok([401, 403].includes(governed.status), `a protected tenant operation by a non-invited identity was not an authorization denial: ${governed.status} ${governed.text.slice(0, 300)}`);
+  EVIDENCE.nonInvitedTenantAccess = `denied (Frontera-governed tenant read ${tenantRead.status}, direct-role protected operation ${governed.status} — both authorization)`;
+  EVIDENCE.operationalFlowAuthorizationModel = "DIRECT_MEMBERSHIP_ROLE_CHECK (not Frontera-governed)";
 });
 
 test("36. SUPPORTED_OPERATOR_INVITE: the operator boundary creates an inspectable invitation", () => {
@@ -576,6 +626,244 @@ test("39. OFFBOARDING removes effective beta authority while the platform identi
   const afterRemoval = await tenantMemberRead();
   assert.notEqual(afterRemoval.status, 200, `an offboarded member kept tenant access on an existing session: ${afterRemoval.text.slice(0, 300)}`);
   EVIDENCE.offboardingRemovesAuthorityNotIdentity = `membership removed; auth.users row intact; same session tenant read 200 -> ${afterRemoval.status}`;
+});
+
+// ───────────────── independent review fixes: offboarding authority ─────────────────
+
+test("41. OFFBOARDING HIERARCHY MATRIX is not weaker than the role-update boundary", () => {
+  const decide = (actorRole: string, targetRole: string, ownerCount: number, self = false) =>
+    evaluateWorkspaceMembershipRemoval({
+      actorRole: actorRole as never,
+      actorUserId: "actor",
+      targetUserId: self ? "actor" : "target",
+      targetRole: targetRole as never,
+      ownerCount,
+    });
+
+  // Named controls, both directions. An all-deny policy would fail the ALLOW rows,
+  // so this cannot pass vacuously.
+  assert.equal(decide("admin", "pm", 2), "allow", "ADMIN_REMOVES_PM must be ALLOW");
+  assert.equal(decide("admin", "viewer", 2), "allow", "ADMIN_REMOVES_VIEWER must be ALLOW");
+  assert.equal(decide("owner", "pm", 2), "allow", "OWNER_REMOVES_PM must be ALLOW");
+
+  assert.equal(decide("admin", "admin", 2), "deny_actor_insufficient_role", "ADMIN_REMOVES_ADMIN must be DENY");
+  assert.equal(decide("admin", "owner", 2), "deny_owner_removal_requires_transfer", "ADMIN_REMOVES_OWNER must be DENY");
+  assert.equal(decide("owner", "owner", 2), "deny_owner_removal_requires_transfer", "OWNER_REMOVES_OTHER_OWNER must be DENY");
+  assert.equal(decide("owner", "owner", 1), "deny_last_owner", "LAST_OWNER must be DENY");
+  assert.equal(decide("owner", "owner", 2, true), "deny_self_removal", "SELF_REMOVAL must be DENY");
+  assert.equal(decide("pm", "viewer", 2), "deny_actor_insufficient_role", "PM must not remove members");
+  assert.equal(decide("viewer", "pm", 2), "deny_actor_insufficient_role", "VIEWER must not remove members");
+
+  EVIDENCE.offboardingHierarchy =
+    "ADMIN_REMOVES_PM=ALLOW ADMIN_REMOVES_ADMIN=DENY ADMIN_REMOVES_OWNER=DENY OWNER_REMOVES_PM=ALLOW OWNER_REMOVES_OTHER_OWNER=DENY LAST_OWNER=DENY SELF_REMOVAL=DENY PM/VIEWER=DENY";
+});
+
+test("42. the removal boundary is no weaker than canUpdateWorkspaceMemberRole on the same shapes", () => {
+  // Structural non-vacuity: every case the ROLE-UPDATE boundary refuses, the
+  // REMOVAL boundary must also refuse. Removing a membership is at least as
+  // privilege-sensitive as demoting it.
+  const shapes = [
+    { actorRole: "admin", targetRole: "admin", ownerCount: 2 },
+    { actorRole: "admin", targetRole: "owner", ownerCount: 2 },
+    { actorRole: "owner", targetRole: "owner", ownerCount: 2 },
+    { actorRole: "owner", targetRole: "owner", ownerCount: 1 },
+    { actorRole: "pm", targetRole: "viewer", ownerCount: 2 },
+  ] as const;
+  for (const shape of shapes) {
+    const update = canUpdateWorkspaceMemberRole({
+      actorRole: shape.actorRole as never,
+      actorUserId: "actor",
+      targetUserId: "target",
+      currentTargetRole: shape.targetRole as never,
+      requestedTargetRole: "viewer",
+      isLastOwner: shape.ownerCount <= 1,
+    });
+    const removal = evaluateWorkspaceMembershipRemoval({
+      actorRole: shape.actorRole as never,
+      actorUserId: "actor",
+      targetUserId: "target",
+      targetRole: shape.targetRole as never,
+      ownerCount: shape.ownerCount,
+    });
+    assert.notEqual(update, "allow", `precondition: role-update should refuse ${JSON.stringify(shape)}`);
+    assert.notEqual(removal, "allow", `removal is WEAKER than the role-update boundary for ${JSON.stringify(shape)}`);
+  }
+});
+
+/** A fresh authenticated session for one fixture identity, against the running beta server. */
+async function sessionFor(email: string): Promise<HttpSession> {
+  const s = new HttpSession(`http://127.0.0.1:${PORT}`);
+  const login = await s.request("/api/login", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ email, password: process.env.P2_13_FIXTURE_ACTOR_PASSWORD! }).toString(),
+  });
+  assert.ok([200, 302, 303, 307].includes(login.status), `fixture ${email} could not authenticate: ${login.status}`);
+  return s;
+}
+
+const deleteMember = (s: HttpSession, workspaceId: string, targetUserId: string) =>
+  s.request("/api/workspace-team/members", {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ workspaceId, targetUserId }),
+  });
+
+const membershipRow = async (userId: string) =>
+  (await admin().from("workspace_memberships").select("role").eq("workspace_id", TENANT_A.workspaceId).eq("user_id", userId).maybeSingle()).data;
+
+/**
+ * The offboarding hierarchy, exercised THROUGH THE RUNNING SERVER on real
+ * memberships — not only through the pure decision function.
+ *
+ * OFFBOARDING_FRONTERA_GOVERNED=NO. The authority proven here is
+ * AUTHENTICATED_SESSION + SERVER_RESOLVED_WORKSPACE_HIERARCHY. Every DENY row
+ * additionally asserts the target membership SURVIVED, and every ALLOW row
+ * asserts it was actually deleted — so an all-deny or all-allow implementation
+ * fails this test rather than passing it vacuously.
+ */
+test("43. OFFBOARDING HIERARCHY, enforced through the real DELETE route on real memberships", async () => {
+  const F = OFFBOARD_FIXTURES;
+  const results: string[] = [];
+
+  const denied = async (actorEmail: string, targetUserId: string, label: string) => {
+    const before = await membershipRow(targetUserId);
+    assert.ok(before, `precondition for ${label}: the target must be a member first`);
+    const response = await deleteMember(await sessionFor(actorEmail), TENANT_A.workspaceId, targetUserId);
+    assert.equal(response.status, 403, `${label} was not refused: ${response.status} ${response.text.slice(0, 250)}`);
+    const after = await membershipRow(targetUserId);
+    assert.ok(after, `PERSISTENCE: ${label} was refused but the membership was deleted anyway`);
+    assert.equal(after.role, before.role, `${label} was refused but the target role changed`);
+    results.push(`${label}=DENY`);
+  };
+
+  const allowed = async (actorEmail: string, targetUserId: string, label: string) => {
+    assert.ok(await membershipRow(targetUserId), `precondition for ${label}: the target must be a member first`);
+    const response = await deleteMember(await sessionFor(actorEmail), TENANT_A.workspaceId, targetUserId);
+    assert.equal(response.status, 200, `${label} was not permitted: ${response.status} ${response.text.slice(0, 250)}`);
+    assert.equal(await membershipRow(targetUserId), null, `${label} returned success but the membership survived`);
+    results.push(`${label}=ALLOW`);
+  };
+
+  // ---- refusals first, so the targets still exist for the ALLOW rows ----
+  await denied(F.pm.email, F.viewer.userId, "PM_REMOVES_MEMBER");
+  await denied(F.viewer.email, F.pm.userId, "VIEWER_REMOVES_MEMBER");
+  await denied(F.adminA.email, F.adminB.userId, "ADMIN_REMOVES_ADMIN");
+  await denied(F.adminA.email, F.coOwner.userId, "ADMIN_REMOVES_OWNER");
+  await denied(OWNER_A.email, F.coOwner.userId, "OWNER_REMOVES_OTHER_OWNER");
+  await denied(F.crossTenant.email, F.pm.userId, "CROSS_TENANT_ACTOR");
+
+  // Self-removal, proven on a real session rather than only in policy.
+  const selfBefore = await membershipRow(F.adminA.userId);
+  assert.ok(selfBefore, "precondition: adminA must be a member before attempting self-removal");
+  const self = await deleteMember(await sessionFor(F.adminA.email), TENANT_A.workspaceId, F.adminA.userId);
+  assert.equal(self.status, 403, `SELF_REMOVAL was not refused: ${self.status} ${self.text.slice(0, 250)}`);
+  assert.ok(await membershipRow(F.adminA.userId), "PERSISTENCE: a refused self-removal deleted the membership anyway");
+  results.push("SELF_REMOVAL=DENY");
+
+  // ---- permitted rows ----
+  await allowed(F.adminA.email, F.viewer.userId, "ADMIN_REMOVES_VIEWER");
+  await allowed(F.adminA.email, F.pm.userId, "ADMIN_REMOVES_PM");
+  await allowed(OWNER_A.email, F.adminB.userId, "OWNER_REMOVES_ADMIN");
+
+  EVIDENCE.offboardingHierarchyRuntime = results.join(" ");
+});
+
+test("44. LAST_OWNER is refused and the final owner is not orphaned", async () => {
+  // The co-owner is removed by direct domain call (the route's hierarchy would
+  // refuse an owner target, which rows above already prove) so that exactly ONE
+  // owner remains and the last-owner rule becomes reachable rather than hypothetical.
+  const supabase = admin();
+  const coOwner = OFFBOARD_FIXTURES.coOwner;
+  const drop = await supabase.from("workspace_memberships").delete().eq("workspace_id", TENANT_A.workspaceId).eq("user_id", coOwner.userId);
+  assert.ok(!drop.error, `could not reduce the workspace to a single owner: ${drop.error?.message}`);
+
+  const owners = await supabase.from("workspace_memberships").select("user_id").eq("workspace_id", TENANT_A.workspaceId).eq("role", "owner");
+  assert.equal((owners.data ?? []).length, 1, "the last-owner control needs exactly one remaining owner to be non-vacuous");
+
+  // A different owner-role actor cannot exist now, so the last owner is exercised
+  // through the domain decision on real resolved state.
+  assert.equal(
+    evaluateWorkspaceMembershipRemoval({ actorRole: "owner", actorUserId: "someone-else", targetUserId: ownerUserId, targetRole: "owner", ownerCount: 1 }),
+    "deny_last_owner",
+  );
+  assert.ok(await membershipRow(ownerUserId), "PERSISTENCE: the final owner membership was removed");
+  EVIDENCE.offboardingLastOwner = "LAST_OWNER=DENY (final owner membership intact)";
+});
+
+test("45. OFFBOARD_AUDIT_EVENT_PERSISTED: a successful removal writes member_removed with its real fields", async () => {
+  const events = await admin()
+    .from("workspace_audit_events")
+    .select("workspace_id, actor_user_id, event_type, payload")
+    .eq("workspace_id", TENANT_A.workspaceId)
+    .eq("event_type", "member_removed")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  assert.ok(!events.error, `audit lookup failed: ${events.error?.message}`);
+
+  // The ADMIN_REMOVES_PM row above is the one whose fields are pinned here.
+  const target = OFFBOARD_FIXTURES.pm;
+  const row = (events.data ?? []).find((e: { payload?: { targetUserId?: string } }) => e.payload?.targetUserId === target.userId);
+  assert.ok(row, "no member_removed audit event was persisted for the removed participant");
+  assert.equal(row.workspace_id, TENANT_A.workspaceId, "the audit event names the wrong workspace");
+  assert.equal(row.actor_user_id, OFFBOARD_FIXTURES.adminA.userId, "the audit event names the wrong actor");
+  assert.equal(row.payload?.previousRole, "pm", "the audit event lost the previous role");
+  EVIDENCE.offboardAuditEventPersisted = `member_removed ws=${row.workspace_id} actor=${row.actor_user_id} target=${target.userId} previousRole=${row.payload?.previousRole}`;
+});
+
+test("46. OFFBOARD_AUDIT_FAILURE_SURFACED: an audit-write failure is NOT reported as clean success", async () => {
+  // Runtime proof for RR-OFFBOARD-AUDIT-NONATOMIC. The seam is server-side and
+  // env-only; it forces the audit insert to fail AFTER the membership delete,
+  // which is exactly the partial state the residual describes. NOT atomicity.
+  const faultPort = await freePort();
+  const target = OFFBOARD_FIXTURES.adminA;
+  assert.ok(await membershipRow(target.userId), "precondition: the adminA fixture must still be a member");
+
+  const faultServer = await startProductionServer({
+    port: faultPort,
+    script: BETA_SCRIPT,
+    env: { ...betaEnv(), PMFREAK_ACCEPTANCE_OFFBOARD_AUDIT_FAULT: "1" },
+    timeoutMs: 240_000,
+  });
+  assert.ok(faultServer.started, "the audit-fault server did not start");
+
+  try {
+    const s = new HttpSession(`http://127.0.0.1:${faultPort}`);
+    const login = await s.request("/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ email: OWNER_A.email, password: process.env.P2_13_FIXTURE_ACTOR_PASSWORD! }).toString(),
+    });
+    assert.ok([200, 302, 303, 307].includes(login.status), `could not authenticate against the audit-fault server: ${login.status}`);
+
+    const response = await s.request("/api/workspace-team/members", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ workspaceId: TENANT_A.workspaceId, targetUserId: target.userId }),
+    });
+
+    assert.notEqual(response.status, 200, "an audit-write failure was reported as a clean success");
+    assert.equal(response.status, 500, `the audit failure was not surfaced with its own classification: ${response.status} ${response.text.slice(0, 300)}`);
+    assert.match(response.text, /offboarding_audit_write_failed/, `the response does not name the audit failure: ${response.text.slice(0, 300)}`);
+
+    // The PARTIAL STATE, stated honestly: authority is already gone even though
+    // the operation did not report success. This is the residual, proven.
+    assert.equal(await membershipRow(target.userId), null, "the residual's premise changed: the membership survived, so this is not the partial-state case");
+    const events = await admin()
+      .from("workspace_audit_events")
+      .select("payload")
+      .eq("workspace_id", TENANT_A.workspaceId)
+      .eq("event_type", "member_removed")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    const recorded = (events.data ?? []).some((e: { payload?: { targetUserId?: string } }) => e.payload?.targetUserId === target.userId);
+    assert.equal(recorded, false, "the fault seam did not suppress the audit write, so this proves nothing");
+
+    EVIDENCE.offboardAuditFailureSurfaced =
+      "500 offboarding_audit_write_failed; membership already removed and NO member_removed event recorded — the non-atomic partial state, surfaced rather than hidden";
+  } finally {
+    if (faultServer.started) await shutdownProductionServer(faultServer.handle, { label: "audit-fault server", graceMs: 10_000 });
+  }
 });
 
 test("40. NON-VACUITY: PLATFORM_SIGNUP_IS_DISABLED is NOT claimed", async () => {

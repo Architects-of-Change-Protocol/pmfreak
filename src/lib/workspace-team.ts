@@ -57,19 +57,6 @@ export async function getWorkspaceSeatSnapshot(input: { workspaceId: string; com
   return { activeSeats: activeSeats ?? 0, pendingInvites: pendingInvites ?? 0, usedSeats, seatGate };
 }
 
-/**
- * Creates a workspace invitation. The invited role is validated server-side against the
- * actor's own workspace role via `requireWorkspaceInviteActor` + `canAssignWorkspaceRole`
- * (src/lib/workspace-access.ts) — this is the authoritative gate and does not depend on
- * the caller having already checked the actor's permissions. "owner" can never be the
- * invited role through this path, regardless of the actor's own role (see
- * docs/security/invite-workspace-role-boundary.md).
- *
- * Token handling (Perilla 11): only sha256(token) is persisted (`token_hash`).
- * The plaintext token exists exactly once — in the returned `acceptPath` — and
- * is never written to the database, audit events, or logs. Losing the returned
- * value means regenerating the invitation; it cannot be recovered.
- */
 export async function inviteWorkspaceMember(input: {
   workspaceId: string;
   companyId: string;
@@ -303,12 +290,54 @@ export class WorkspaceRoleUpdateError extends Error {
 export type UpdatedWorkspaceMemberRole = { workspaceId: string; targetUserId: string; role: WorkspaceRole };
 
 export class WorkspaceMembershipRemovalError extends Error {
-  constructor(readonly reason: "deny_actor_insufficient_role" | "deny_target_not_member" | "deny_self_removal" | "deny_last_owner") {
+  constructor(
+    readonly reason:
+      | "deny_actor_insufficient_role"
+      | "deny_target_not_member"
+      | "deny_self_removal"
+      | "deny_last_owner"
+      | "deny_owner_removal_requires_transfer",
+  ) {
     super(`Membership removal denied: ${reason}`);
     this.name = "WorkspaceMembershipRemovalError";
   }
 }
 
+/** Membership was deleted but its audit event was not recorded — a partial state. */
+export class WorkspaceMembershipAuditError extends Error {
+  constructor(readonly detail: { workspaceId: string; targetUserId: string; cause: string }) {
+    super(
+      `Membership was removed for user ${detail.targetUserId} in workspace ${detail.workspaceId}, but the member_removed audit event FAILED to persist: ${detail.cause}. The removal is not auditable and must be recorded manually.`,
+    );
+    this.name = "WorkspaceMembershipAuditError";
+  }
+}
+
+/**
+ * Authoritative policy for "may actorRole REMOVE this member", deliberately kept
+ * as conservative as `canUpdateWorkspaceMemberRole` in `workspace-access.ts`.
+ *
+ * Removing a membership is at least as privilege-sensitive as changing its role,
+ * so this must not be weaker than the role-update boundary. An earlier revision
+ * WAS weaker — it allowed an admin to remove another admin, an admin to remove an
+ * owner, and an owner to remove a co-owner, in every case where a second owner
+ * existed. Last-owner protection was the ONLY owner-target protection, which left
+ * co-owner removal wide open. That is corrected here.
+ *
+ * Policy, evaluated in this order:
+ * 1. Self-removal is denied outright — no self-service offboarding flow ships.
+ * 2. An owner target can never be removed here: last-owner-protected when they are
+ *    the only owner, otherwise still denied pending an explicit ownership-transfer
+ *    /removal contract. This mirrors the role-update boundary's rule 2, so an owner's
+ *    authority cannot be stripped by removal when it could not be stripped by demotion.
+ * 3. `owner` actor: may remove any non-owner, non-self member.
+ * 4. `admin` actor: may remove pm/viewer only — never another admin (lateral admin
+ *    management stays owner-only) and never an owner (already denied by rule 2).
+ * 5. `pm`/`viewer` actor: may never remove anyone.
+ *
+ * Reasons are kept distinct rather than collapsed, so operator evidence can tell a
+ * last-owner refusal from a co-owner refusal from an insufficient-role refusal.
+ */
 export function evaluateWorkspaceMembershipRemoval(input: {
   actorRole: WorkspaceRole;
   actorUserId: string;
@@ -317,9 +346,54 @@ export function evaluateWorkspaceMembershipRemoval(input: {
   ownerCount: number;
 }): "allow" | WorkspaceMembershipRemovalError["reason"] {
   if (input.actorUserId === input.targetUserId) return "deny_self_removal";
-  if (input.actorRole !== "owner" && input.actorRole !== "admin") return "deny_actor_insufficient_role";
-  if (input.targetRole === "owner" && input.ownerCount <= 1) return "deny_last_owner";
-  return "allow";
+
+  if (input.targetRole === "owner") {
+    return input.ownerCount <= 1 ? "deny_last_owner" : "deny_owner_removal_requires_transfer";
+  }
+
+  if (input.actorRole === "owner") return "allow";
+
+  if (input.actorRole === "admin") {
+    if (input.targetRole === "admin") return "deny_actor_insufficient_role";
+    return "allow";
+  }
+
+  return "deny_actor_insufficient_role";
+}
+
+/**
+ * Acceptance-only fault seam for the offboarding AUDIT write.
+ *
+ * Exists so `OFFBOARD_AUDIT_FAILURE_SURFACED` can be proven at runtime rather
+ * than asserted from source. It is deliberately tiny and deliberately hostile to
+ * accidental use:
+ *
+ * - It is server-side only: an environment variable, never a route, header,
+ *   request field or anything a client can influence.
+ * - When unset it costs one string comparison and changes nothing.
+ * - If it is set anywhere that is not a LOCAL, isolated Supabase target, it
+ *   THROWS instead of quietly disabling itself. A production process that
+ *   somehow carried this variable fails closed and loudly, rather than silently
+ *   running with a fault seam armed.
+ *
+ * It injects no data and repairs nothing; it only forces the audit insert to
+ * report failure so the surfacing path can be exercised.
+ */
+const AUDIT_FAULT_ENV = "PMFREAK_ACCEPTANCE_OFFBOARD_AUDIT_FAULT";
+
+function offboardAuditFaultArmed(): boolean {
+  if (process.env[AUDIT_FAULT_ENV] !== "1") return false;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const isLocalIsolated = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?(\/|$)/.test(url);
+  if (process.env.NODE_ENV === "production" && !isLocalIsolated) {
+    throw new Error(
+      `${AUDIT_FAULT_ENV} is set in a non-local production environment. This is an acceptance-only fault seam and must never be armed against a real target.`,
+    );
+  }
+  if (!isLocalIsolated) {
+    throw new Error(`${AUDIT_FAULT_ENV} is set but ${url || "NEXT_PUBLIC_SUPABASE_URL"} is not a local isolated target.`);
+  }
+  return true;
 }
 
 /** Supported offboarding boundary: removes tenant authority, not identity. */
@@ -346,12 +420,30 @@ export async function removeWorkspaceMember(
   if (decision !== "allow") throw new WorkspaceMembershipRemovalError(decision);
   const { error } = await supabase.from("workspace_memberships").delete().eq("workspace_id", input.workspaceId).eq("user_id", input.targetUserId);
   if (error) throw new Error(error.message);
-  await supabase.from("workspace_audit_events").insert({
-    workspace_id: input.workspaceId,
-    actor_user_id: input.actorUserId,
-    event_type: "member_removed",
-    payload: { targetUserId: input.targetUserId, previousRole: target.role },
-  });
+
+  // The membership delete and this audit insert are two separate operations
+  // against two tables with no enclosing transaction, so a failure here leaves a
+  // real partial state: authority is already gone, but the removal is not
+  // recorded. That window is NOT closed by this code — see RR-OFFBOARDING-AUDIT-NONATOMIC.
+  // What IS closed is silence: the insert result is inspected and a failure is
+  // raised naming the partial state, instead of being discarded so that a
+  // successful-looking removal could carry no audit trail at all.
+  const { error: auditError } = offboardAuditFaultArmed()
+    ? { error: { message: "acceptance fault seam: forced audit write failure" } }
+    : await supabase.from("workspace_audit_events").insert({
+        workspace_id: input.workspaceId,
+        actor_user_id: input.actorUserId,
+        event_type: "member_removed",
+        payload: { targetUserId: input.targetUserId, previousRole: target.role },
+      });
+  if (auditError) {
+    throw new WorkspaceMembershipAuditError({
+      workspaceId: input.workspaceId,
+      targetUserId: input.targetUserId,
+      cause: auditError.message,
+    });
+  }
+
   return { workspaceId: input.workspaceId, targetUserId: input.targetUserId, removed: true };
 }
 
