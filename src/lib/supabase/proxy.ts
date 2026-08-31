@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseEnv, hasSupabaseEnv } from "@/lib/supabase/env";
+import { isRetryableAuthTransportError } from "@/lib/auth/auth-error-classification";
 
 export const updateSession = async (request: NextRequest) => {
   // Build initial request headers including x-pathname so server components
@@ -56,17 +57,17 @@ export const updateSession = async (request: NextRequest) => {
   // API error, mirroring assertRuntimeAuthContinuity. Without this, a momentary
   // Supabase hiccup makes the proxy treat an authenticated user as anonymous
   // and bounce them to /login even though their session is still valid.
-  const errorStatus = (error as { status?: number } | null)?.status;
-  const isAuthRejection = errorStatus === 401 || errorStatus === 403;
-  if (error && !isAuthRejection) {
+  const errorStatus = error?.status;
+  if (isRetryableAuthTransportError(error)) {
+    const errorMessage = error?.message ?? "Auth transport unavailable";
     const {
       data: { session },
     } = await supabase.auth.getSession();
     const sessionExpiresAt = session?.expires_at ?? 0;
     if (session?.user && sessionExpiresAt * 1000 > Date.now()) {
       console.warn(
-        "[proxy] getUser failed with a non-auth error; using unexpired local session fallback.",
-        { pathname: request.nextUrl.pathname, errorStatus: errorStatus ?? "n/a", message: error.message }
+        "[proxy] getUser failed with a retryable transport error; using unexpired local session fallback.",
+        { pathname: request.nextUrl.pathname, errorStatus: errorStatus ?? "n/a", message: errorMessage }
       );
       return { response, user: session.user };
     }

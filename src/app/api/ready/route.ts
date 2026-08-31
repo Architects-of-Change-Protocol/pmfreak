@@ -14,6 +14,8 @@ import { checkGovernanceCapabilityConfiguration } from "@/lib/security/governanc
 
 const DEFAULT_DATABASE_TIMEOUT_MS = 3_000;
 
+const isClosedFreeBeta = () => process.env.PMFREAK_OPERATING_PROFILE === "closed-free-beta";
+
 function resolveDatabaseTimeoutMs(): number {
   const raw = process.env.HEALTHCHECK_DATABASE_TIMEOUT_MS;
   if (!raw) return DEFAULT_DATABASE_TIMEOUT_MS;
@@ -66,11 +68,48 @@ async function checkDatabase(): Promise<ReadinessCheck> {
   }
 }
 
+/**
+ * Authentication reachability, a declared readiness dependency of the
+ * closed-free-beta profile ONLY.
+ *
+ * The profile gate lives at the CALL SITE, not here: outside the beta profile
+ * this check must not appear in the reported `checks` array at all. Returning a
+ * passing `auth` entry instead would leave the readiness VERDICT unchanged while
+ * silently widening the declared dependency set for every non-beta consumer —
+ * which `tests/observability-readiness.test.mjs` exists to prevent, and which it
+ * caught when this check was first wired unconditionally.
+ */
+async function checkAuth(): Promise<ReadinessCheck> {
+  if (!hasSupabaseEnv) return { name: "auth", status: "fail", detail: "supabase env not configured" };
+  const { url, anonKey } = getSupabaseEnv();
+  const controller = new AbortController();
+  const timeoutMs = resolveDatabaseTimeoutMs();
+  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    // GoTrue's anonymous health endpoint verifies dependency reachability
+    // without a synthetic user, service-role key, or login transaction.
+    const response = await fetch(`${url.replace(/\/$/, "")}/auth/v1/health`, {
+      headers: { apikey: anonKey }, signal: controller.signal, cache: "no-store",
+    });
+    return response.ok
+      ? { name: "auth", status: "pass" }
+      : { name: "auth", status: "fail", detail: `upstream ${response.status}` };
+  } catch (error) {
+    const aborted = error instanceof Error && error.name === "AbortError";
+    return { name: "auth", status: "fail", detail: aborted ? `timeout after ${timeoutMs}ms` : "unreachable" };
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+}
+
 export async function GET(request: Request) {
   const requestId = getRequestId(request);
   const startedAt = Date.now();
   try {
     const checks = [checkConfiguration(), checkGovernanceCapabilityConfiguration(), await checkDatabase()];
+    // closed-free-beta declares authentication a readiness dependency; no other
+    // profile does, and no other profile reports the check.
+    if (isClosedFreeBeta()) checks.push(await checkAuth());
     const ready = checks.every((check) => check.status === "pass");
     if (!ready) {
       logger.warn("readiness_check_failed", {

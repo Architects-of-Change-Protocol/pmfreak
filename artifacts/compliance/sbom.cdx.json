@@ -1,10 +1,10 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:2fbce7fe-2389-4216-b0b4-b594b6e20d6d",
+  "serialNumber": "urn:uuid:d96a8185-99d5-46ab-ab28-4ffbc784ee84",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-08-26T16:49:03.711Z",
+    "timestamp": "2026-08-31T19:29:12.144Z",
     "tools": [
       {
         "vendor": "PMFreak",
@@ -26,11 +26,11 @@
       "properties": [
         {
           "name": "repositoryCommit",
-          "value": "40a7c222df94663eee081b473e9c97fe922d9983"
+          "value": "e94eb3bcd130c1a4f7cabfb2a5d29c5bffb144ff"
         },
         {
           "name": "lockfileSha256",
-          "value": "a5aac352575f79d1eea6155277ea2c709d351a7bfa6f7ae656bf70e4e8cc0cdb"
+          "value": "5b51ea2a66ff54c3ce8c22d0b43ac1048e3abf63df42c80fc3f4eb77eadbe6a8"
         }
       ]
     }
@@ -16673,7 +16673,7 @@
       "name": "tsx",
       "version": "4.23.12",
       "purl": "pkg:npm/tsx@4.23.12",
-      "scope": "optional",
+      "scope": "required",
       "licenses": [
         {
           "license": {

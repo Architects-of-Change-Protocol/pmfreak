@@ -115,9 +115,10 @@ test("every proxy redirect carries the refreshed session cookies", () => {
 
 test("updateSession does not treat transient Supabase errors as logged-out", () => {
   const supabaseProxy = readFileSync("src/lib/supabase/proxy.ts", "utf8");
-  // Auth rejections (401/403) log the user out; anything else falls back to a
-  // still-unexpired local session instead of bouncing to /login.
-  assert.match(supabaseProxy, /errorStatus === 401 \|\| errorStatus === 403/);
+  // Only auth-js's typed retryable transport error may use an unexpired local
+  // session for page-routing continuity. Missing-session is not an outage.
+  assert.match(supabaseProxy, /isRetryableAuthTransportError/);
+  assert.doesNotMatch(supabaseProxy, /errorStatus === 401 \|\| errorStatus === 403/);
   assert.match(supabaseProxy, /getSession\(\)/);
   assert.match(supabaseProxy, /expires_at/);
 });

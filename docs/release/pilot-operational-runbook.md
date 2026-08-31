@@ -21,15 +21,41 @@ topology enforced by `docs/security/production-deployment-boundary.md`.
       `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`,
       `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRO_PRICE_ID`, `STRIPE_PMO_PRICE_ID`,
       `OPENAI_API_KEY`, `ABUSE_HASH_PEPPER` (real value, not default).
+      **Under the closed-free-beta profile the `STRIPE_*` variables are not
+      required and no billing surface is exercised** — see §6. They remain
+      declared production-required by
+      `src/lib/security/deployment-boundary-registry.ts`; that contradiction is
+      narrowed but not eliminated (`RR-PRODUCTION-ENV-GUARD`, split out of the
+      now-resolved `RR-BOOT-ENV-GUARD` because the beta and full-production
+      environment contracts are not the same contract).
+- [ ] **Closed-free-beta profile selected.** Set
+      `PMFREAK_OPERATING_PROFILE=closed-free-beta` and start the runtime with
+      `npm run start:closed-free-beta` (**not** a bare `next start`). That script
+      runs `npm run check:beta-environment` first, through the `tsx` loader, which
+      is a **runtime dependency** precisely so the preflight survives
+      `npm ci --omit=dev` — verified in a production-style install. It refuses to
+      start on any
+      violation, printing `{"ok":false,"failureClass":"CONFIGURATION_FAILURE",...}`
+      with the violation codes. It validates: profile selected, Supabase trio
+      present, `NEXT_PUBLIC_APP_URL` present **and a valid http(s) URL**, no
+      secret-shaped `NEXT_PUBLIC_*` name, and the capability claim secret when
+      governance is enabled. Stripe variables are **not** required.
+      **A bare `next start` is UNSUPPORTED for the accepted local closed-beta
+      path.** It bypasses the preflight entirely, and a runtime started that way
+      is outside what P0-LAUNCH-05 accepted — do not use it, and do not treat a
+      runtime started that way as having passed the beta environment contract
+      (`RR-BETA-PREFLIGHT-BYPASSABLE`). There is still no in-process boot guard
+      on either path — the beta contract is enforced by the start command
+      (`RR-BETA-PREFLIGHT-BYPASSABLE`) and the full-production contract is not
+      wired at all (`RR-PRODUCTION-ENV-GUARD`) — so the start command is the
+      enforcement point.
 - [ ] Public vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
       `NEXT_PUBLIC_APP_URL` (+ `NEXT_PUBLIC_SITE_URL` kept in sync) — real
-      https URLs. **Verify these by hand.** Nothing currently rejects a
-      localhost value: `assertProductionEnvSafety()` implements that check but
-      has no caller, and `/api/ready` checks only that `NEXT_PUBLIC_APP_URL` is
-      *present*, not that it is a real https origin. See
-      [P0-LAUNCH-04 §Startup env safety](./p0-launch-04-failure-recovery-observability-acceptance.md)
-      for why wiring it is a deferred configuration-contract decision rather
-      than a runtime defect.
+      https URLs. The beta preflight above now rejects a malformed or non-http
+      `NEXT_PUBLIC_APP_URL`, which it previously did not. It does **not** reject
+      a well-formed `http://localhost` origin, so **still confirm by hand that
+      these point at the deployed origin**, and keep `NEXT_PUBLIC_SITE_URL` in
+      sync manually — it is not covered by the preflight.
 - [ ] Optional guardrail tuning reviewed: `AI_*` limits, `LOG_LEVEL`,
       `HEALTHCHECK_DATABASE_TIMEOUT_MS`, `INVITE_TOKEN_TTL_HOURS`,
       `UPLOAD_MAX_*`. Unset = conservative defaults; invalid values fall back
@@ -72,21 +98,44 @@ topology enforced by `docs/security/production-deployment-boundary.md`.
 
 ```
 curl -s https://<app>/api/health   # 200, status:"ok", adapter list
-curl -s https://<app>/api/ready    # 200, status:"ready", configuration+database pass
+curl -s https://<app>/api/ready    # 200, status:"ready"
 ```
-`/api/ready` returning 503 names the failing check (config var *names* or
-database reachability) — fix env or Supabase before exposing traffic.
+Under `PMFREAK_OPERATING_PROFILE=closed-free-beta`, `/api/ready` reports **four**
+checks — `configuration`, `governance_capability`, `database` and **`auth`**.
+The `auth` check (added by P0-LAUNCH-05) probes GoTrue `/auth/v1/health` with the
+anon key under the `HEALTHCHECK_DATABASE_TIMEOUT_MS` deadline. Outside that
+profile the `auth` check is **absent from `checks` entirely** — the profile gate
+is at the call site, not inside the check, so no `auth` entry is reported at all
+rather than a passing one. A passing entry would silently widen the declared
+dependency set for every non-beta consumer, which is why
+`tests/observability-readiness.test.mjs` pins the non-beta set to exactly
+`configuration`, `database`, `governance_capability`. So if you see **three**
+checks and no `auth`, **the profile is not set** and you are not running the
+beta posture.
+
+`/api/ready` returning 503 names the failing check (config var *names*,
+database reachability, or `auth` = `unreachable` / `timeout after Nms` /
+`upstream <status>`) — fix env or Supabase before exposing traffic.
+Readiness is **advisory**: a NOT READY instance still serves
+(`RR-READINESS-NOT-A-GOVERNED-GATE`), so withdraw it from rotation yourself.
 Then: log in with a pilot account, load `/command-center`, create a test
 project, upload one small file, run one AI suggestion.
 
 ## 6. Billing mode confirmation
 
-- [ ] Stripe keys in production are **live-mode** (`sk_live_`, `pk_live_`)
-      *only if* the pilot actually charges; otherwise keep test mode and say
-      so to participants. Never mix modes.
-- [ ] Webhook endpoint configured with the deployed URL + `STRIPE_WEBHOOK_SECRET`
-      matching; send a test event from the Stripe dashboard and confirm a
-      `billing_webhook_events` row.
+**Closed free beta: there is no billing.** Participants are on the free plan and
+no charge is made. `npm run check:beta-environment` requires **no** `STRIPE_*`
+variable, and P0-LAUNCH-05 focused-gate assertion 9 proves the beta environment
+contract still passes with `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` both
+absent.
+
+- [ ] Confirm the beta is being run as **free** and say so to participants
+      explicitly.
+- [ ] If Stripe variables are set anyway, keep them in **test** mode. Never mix
+      modes (`RR-STRIPE-ENV`).
+- [ ] Only if a later pilot actually charges: use live-mode keys, configure the
+      webhook endpoint with the deployed URL + matching `STRIPE_WEBHOOK_SECRET`,
+      send a test event and confirm a `billing_webhook_events` row.
 
 ## 7. Alerts & monitoring (manual cadence during pilot)
 
@@ -151,7 +200,65 @@ structured logs (Vercel log drain-ready), `security_events`,
    server-side) and invites teammates from `/team` — invite links are
    returned once at creation (hashed at rest, 7-day default TTL) and
    delivered out-of-band by the inviter (RR-INVITE-DELIVERY).
-3. Weekly during pilot: review `ai_usage_events` per workspace (cost trend)
+2b. **Operator-side admission** (P0-LAUNCH-05), when the operator admits a
+   participant rather than a workspace owner doing it in-app:
+
+   ```bash
+   npm run beta:invite-participant -- \
+     --workspace <workspace-uuid> --email <participant@example.com> \
+     --role <pm|admin|viewer> --inviter <operator-email-or-uuid> \
+     [--emit-accept-path]
+   ```
+
+   It runs the SAME invitation domain the `/team` action uses
+   (`createWorkspaceInvitationRecord`), so duplicate rejection, the role gate
+   ("owner" is never invitable), token hashing, TTL and the `invitation_sent`
+   audit event are identical. The inviter must already hold owner/admin
+   membership in that workspace. It refuses a non-local target outright.
+   The plaintext token exists exactly once and is **withheld unless
+   `--emit-accept-path`** is passed — pass it only when you must deliver the
+   link, and deliver it out-of-band. The participant then accepts through the
+   normal `/accept-invite/<token>` page.
+
+   Note: this path is **not Frontera-governed**
+   (`OPERATOR_INVITE_FRONTERA_GOVERNED=NO`, `RR-BETA-OPERATOR-FRONTERA-BOUNDARY`)
+   and does **not** enforce subscription seat limits
+   (`OPERATOR_INVITE_SUBSCRIPTION_SEAT_GATED=NO`,
+   `BETA_OPERATOR_SEAT_POLICY=OPERATOR_CONTROLLED_NOT_SUBSCRIPTION_GATED`).
+   Both resolve an authenticated HTTP user and cannot run here. The operator
+   boundary authorises through local isolation plus the workspace actor role
+   instead, and admission count is controlled by the operator cohort.
+3. **Offboarding a participant** (P0-LAUNCH-05): `DELETE /api/workspace-team/members`
+   with `{ workspaceId, targetUserId }`, as an owner or admin of that workspace.
+
+   **Authorization model:** authenticated HTTP session, then server-resolved actor
+   and target membership, then the canonical owner/admin hierarchy. It is
+   **NOT Frontera-governed** (`OFFBOARDING_FRONTERA_GOVERNED=NO`) — a deliberate
+   beta decision, because `requireGovernancePermission` currently denies every
+   caller (`RR-GOVERNANCE-PERMISSION-GUARD-BROKEN`). No client-supplied role is
+   trusted. The enforced hierarchy: pm/viewer may remove nobody; admin may remove
+   pm/viewer only; owner may remove any non-owner, non-self member; an owner
+   target is never removable here (`deny_owner_removal_requires_transfer`, or
+   `deny_last_owner` for the final owner); self-removal is denied.
+
+   **If a removal returns `500 offboarding_audit_write_failed`:** the membership
+   deletion and the audit write are separate operations
+   (`RR-OFFBOARD-AUDIT-NONATOMIC`), so authority may ALREADY be removed. Inspect
+   effective membership FIRST, treat it as an incident requiring reconciliation,
+   and record the removal manually. **Do not blindly retry the deletion.**
+   This removes the `workspace_memberships` row and writes a `member_removed`
+   audit event carrying the previous role. It **removes tenant authority, not
+   the identity** — the `auth.users` record is deliberately untouched. Refusals
+   return 403 with a reason: `deny_self_removal` (you cannot remove yourself),
+   `deny_last_owner` (the final owner cannot be orphaned),
+   `deny_actor_insufficient_role`, `deny_target_not_member`. An unauthenticated
+   request returns **401**; an authenticated but unauthorized one returns **403**;
+   a malformed body returns **400** `invalid_offboarding_request`. Authority is
+   re-derived through Frontera per request, so a removed member's existing
+   session retains no governed authority — proven live by P0-LAUNCH-03's
+   out-of-process revocation scenario. Not yet exercised end-to-end against two
+   live tenants; see the P0-LAUNCH-05 evidence document §9.
+4. Weekly during pilot: review `ai_usage_events` per workspace (cost trend)
    and `workspace_audit_events` for anomalies.
 
 ## 11. Support contact
