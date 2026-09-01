@@ -656,7 +656,7 @@ test("K1. CERTIFIED BOUNDARY: the runtime boundary is certified; the hosted data
   // Scope discipline: this gate must not be readable as a full-topology claim.
   EVIDENCE.certifiedBetaRuntimeBoundary = "NEXTJS_16_SERVER_RUNTIME_WITH_IN_PROCESS_CLOSED_BETA_GUARD";
   EVIDENCE.certifiedBetaServerRuntimePreflightBypass = "NO";
-  EVIDENCE.hostedDataTierCertification = "PENDING";
+  EVIDENCE.hostedDataTierCertification = "PASS_FOR_FRESH_MIGRATION_AND_LOGICAL_BACKUP_RECOVERABILITY";
   EVIDENCE.fullBetaDeploymentTopologyCertified = "NO";
   EVIDENCE.invalidEnvProcessExits = "NO (Next.js 16.3.2 may keep listening; surfaces still fail closed)";
 
