@@ -328,11 +328,13 @@ function applyLocal(files) {
   return { ok: true, applied: files.length };
 }
 
-function applyHosted(files = loadMigrationFiles()) {
+// `runner` is an injected seam so the credential-free suite can exercise this whole path
+// — link, classification, reason propagation — without npx, a CLI or any network.
+function applyHosted(files = loadMigrationFiles(), runner = runNpx) {
   const projectRef = process.env.SUPABASE_PROJECT_REF;
   console.log(`[apply:hosted] project ref: ${redact(projectRef)}`);
 
-  const link = runNpx(["-y", "supabase", "link", "--project-ref", projectRef], {
+  const link = runner(["-y", "supabase", "link", "--project-ref", projectRef], {
     env: { ...process.env, SUPABASE_ACCESS_TOKEN: process.env.SUPABASE_ACCESS_TOKEN },
   });
   if (link.status !== 0) {
@@ -343,9 +345,18 @@ function applyHosted(files = loadMigrationFiles()) {
   // destructive push, so a populated project can never be delta-applied and then
   // reported as a fresh apply.
   const localTimestamps = files.map((f) => f.match(/^(\d{14})_/)?.[1]).filter(Boolean);
-  const history = readHostedMigrationVersions(localTimestamps);
+  const history = readHostedMigrationVersions(localTimestamps, runner);
   if (!history.ok) {
-    return { ok: false, failedFile: "(supabase migration list)", failure: history.failure, stderr: history.stderr };
+    // Keep the actionable reason. "Failed at: (supabase migration list)" alone hides the
+    // single most useful fact — that the output format was not recognised — which is
+    // exactly the class of regression this check exists to catch.
+    return {
+      ok: false,
+      failedFile: "(supabase migration list)",
+      reason: history.reason ? `HOSTED_MIGRATION_LIST_FAILURE=UNRECOGNIZED_OUTPUT — ${history.reason}` : undefined,
+      failure: history.failure,
+      stderr: history.stderr,
+    };
   }
   const target = classifyHostedTarget(history.remoteVersions, localTimestamps);
   console.log(`[apply:hosted] PRE_APPLY_REMOTE_MIGRATION_COUNT=${target.preApplyRemoteMigrationCount}`);
@@ -356,8 +367,17 @@ function applyHosted(files = loadMigrationFiles()) {
   }
 
   if (target.mode === "fresh") {
-    // Allowlisted + empty ledger is still not enough. Prove the database carries no
-    // application workload before anything destructive runs.
+    // The emptiness proof is only meaningful if psql and the CLI address the SAME
+    // project. Prove that binding first — before the probe, and before any push.
+    const binding = verifyHostedTargetBinding(process.env.SUPABASE_DB_URL, projectRef);
+    console.log(`[apply:hosted] DB_URL_PROJECT_REF_IDENTIFIED=${binding.identified ? "YES" : "NO"}`);
+    if (!binding.ok) {
+      return { ok: false, failedFile: "(hosted target binding)", reason: binding.reason };
+    }
+    console.log(`[apply:hosted] DB_URL_PROJECT_REF=SUPABASE_PROJECT_REF (${binding.form} form)`);
+
+    // Allowlisted + bound + empty ledger is still not enough. Prove the database carries
+    // no application workload before anything destructive runs.
     const probe = probeHostedApplicationState(process.env.SUPABASE_DB_URL);
     if (!probe.ok) {
       return { ok: false, failedFile: "(hosted application-emptiness probe)", reason: probe.reason, failure: probe.failure, stderr: probe.stderr };
@@ -377,7 +397,7 @@ function applyHosted(files = loadMigrationFiles()) {
     return { ok: true, certification: "REPEATABILITY", freshApply: false, preApplyRemoteMigrationCount: target.preApplyRemoteMigrationCount };
   }
 
-  const push = runNpx(["-y", "supabase", "db", "push", "--include-roles"], {
+  const push = runner(["-y", "supabase", "db", "push", "--include-roles"], {
     env: { ...process.env, SUPABASE_ACCESS_TOKEN: process.env.SUPABASE_ACCESS_TOKEN },
   });
   if (push.status !== 0) {
@@ -515,6 +535,65 @@ function classifyHostedTarget(remoteVersions, localVersions) {
   };
 }
 
+// The harness addresses the hosted target through TWO independent channels: the CLI
+// (linked by SUPABASE_PROJECT_REF) and psql (SUPABASE_DB_URL). If those point at
+// different projects, an emptiness proof taken over one says nothing about the other —
+// so the binding is proven before the probe is trusted, and before anything destructive.
+//
+// Positive extraction only. A URL is never accepted because it merely ends in a Supabase
+// domain, contains a ref as a substring, or because the two ref variables agree.
+// Supabase project refs are lowercase alphanumeric; both supported connection shapes
+// encode the ref in a fixed position.
+function extractSupabaseProjectRefFromDbUrl(dbUrl) {
+  let parsed;
+  try {
+    parsed = new URL(String(dbUrl ?? ""));
+  } catch {
+    return { ok: false, reason: "SUPABASE_DB_URL is not a parseable connection URL." };
+  }
+  if (!/^postgres(ql)?:$/.test(parsed.protocol)) {
+    return { ok: false, reason: `SUPABASE_DB_URL is not a postgres connection URL (protocol ${parsed.protocol}).` };
+  }
+  const host = parsed.hostname.toLowerCase();
+  const user = decodeURIComponent(parsed.username ?? "");
+
+  // Direct database host: db.<PROJECT_REF>.supabase.co
+  const direct = /^db\.([a-z0-9]{16,32})\.supabase\.(co|com)$/.exec(host);
+  if (direct) return { ok: true, ref: direct[1], form: "direct" };
+
+  // Pooler: the ref is encoded in the authenticated username as postgres.<PROJECT_REF>
+  if (/(^|\.)pooler\.supabase\.(com|co)$/.test(host)) {
+    const pooled = /^postgres\.([a-z0-9]{16,32})$/.exec(user);
+    if (pooled) return { ok: true, ref: pooled[1], form: "pooler" };
+    return {
+      ok: false,
+      reason: "SUPABASE_DB_URL uses a pooler host but its username is not postgres.<PROJECT_REF>, so the target project cannot be positively identified.",
+    };
+  }
+
+  return {
+    ok: false,
+    reason: `SUPABASE_DB_URL host is not a recognized Supabase project form (expected db.<ref>.supabase.co or a pooler host with a postgres.<ref> username); refusing to guess the target project.`,
+  };
+}
+
+function verifyHostedTargetBinding(dbUrl, projectRef) {
+  const extracted = extractSupabaseProjectRefFromDbUrl(dbUrl);
+  if (!extracted.ok) {
+    return { ok: false, identified: false, reason: `DB_URL_PROJECT_REF_IDENTIFIED=NO — ${extracted.reason}` };
+  }
+  if (extracted.ref !== projectRef) {
+    return {
+      ok: false,
+      identified: true,
+      reason:
+        `DB_URL_PROJECT_REF (${redact(extracted.ref)}) does not match SUPABASE_PROJECT_REF (${redact(projectRef)}). ` +
+        "The CLI and the emptiness probe would address different projects; refusing to proceed.",
+    };
+  }
+  return { ok: true, identified: true, ref: extracted.ref, form: extracted.form };
+}
+
 // An empty MIGRATION LEDGER is not an empty DATABASE. A project can carry a real
 // application workload with no PMFreak migration history at all, and pushing into it
 // would be destructive. This classifier turns raw counts into a structured verdict that
@@ -523,11 +602,15 @@ function classifyHostedTarget(remoteVersions, localVersions) {
 // Normal Supabase platform schemas and system objects must NOT make a genuinely new
 // project look non-fresh, so the probe below counts only non-platform state.
 function classifyObjectEmptiness(counts) {
+  // Tables are not the only way a project carries an application. A target holding only
+  // views, materialised views, sequences, foreign tables, functions/procedures or
+  // user-defined types is NOT pristine and must never be fresh-applied.
   const categories = [
     ["user_schemas", "user-created schemas outside the Supabase platform set"],
-    ["user_relations", "application relations outside the platform schemas"],
-    ["public_relations", "relations in the public schema"],
+    ["user_relations", "application relations (tables, partitioned tables, views, materialised views, sequences, foreign tables)"],
     ["public_rows", "rows in public application tables"],
+    ["user_functions", "user-defined functions/procedures"],
+    ["user_types", "user-defined types (composite, domain, enum)"],
     ["migration_rows", "PMFreak migration-history rows"],
     ["auth_users", "auth.users identities"],
     ["storage_buckets", "storage buckets"],
@@ -556,14 +639,28 @@ const PLATFORM_SCHEMA_PREDICATE =
 // Read-only probe over the already-required SUPABASE_DB_URL, through the existing psql
 // runner. Never mutates; used only to decide whether a fresh apply may proceed.
 function probeHostedApplicationState(dbUrl, runner = sh) {
+  // Application schemas = public, plus any schema outside the Supabase platform set.
+  const APP = `(n.nspname = 'public' OR (${PLATFORM_SCHEMA_PREDICATE}))`;
+  // Extension-owned objects are NOT application state. A stock Supabase project ships
+  // plenty of them, so they are excluded through PostgreSQL's own dependency metadata
+  // (pg_depend deptype 'e') rather than a hand-maintained list that would rot.
+  const notExtensionOwned = (cls, alias) =>
+    `not exists (select 1 from pg_depend d where d.classid = '${cls}'::regclass and d.objid = ${alias}.oid and d.deptype = 'e')`;
   const query = `
     select
       (select count(*) from pg_namespace n where ${PLATFORM_SCHEMA_PREDICATE}) as user_schemas,
       (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
-         where c.relkind in ('r','p') and ${PLATFORM_SCHEMA_PREDICATE}) as user_relations,
-      (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
-         where c.relkind in ('r','p') and n.nspname = 'public') as public_relations,
+         where c.relkind in ('r','p','v','m','S','f') and ${APP}
+           and ${notExtensionOwned("pg_class", "c")}) as user_relations,
       (select coalesce(sum(n_live_tup), 0) from pg_stat_user_tables where schemaname = 'public') as public_rows,
+      (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+         where ${APP} and ${notExtensionOwned("pg_proc", "p")}) as user_functions,
+      (select count(*) from pg_type t join pg_namespace n on n.oid = t.typnamespace
+         where ${APP} and t.typtype in ('c','d','e')
+           and ${notExtensionOwned("pg_type", "t")}
+           -- composite types implicitly created for a relation are already counted above
+           and (t.typtype <> 'c' or not exists (
+                 select 1 from pg_class rc where rc.oid = t.typrelid and rc.relkind <> 'c'))) as user_types,
       (select case when to_regclass('supabase_migrations.schema_migrations') is null then 0
                    else (select count(*) from supabase_migrations.schema_migrations) end) as migration_rows,
       (select case when to_regclass('auth.users') is null then 0
@@ -579,7 +676,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     return { ok: false, failure: describeSpawnResult(result, "psql (hosted application-emptiness probe)"), stderr: result.stderr };
   }
   const fields = (result.stdout ?? "").trim().split(/\r?\n/).pop()?.split(",") ?? [];
-  const keys = ["user_schemas", "user_relations", "public_relations", "public_rows", "migration_rows", "auth_users", "storage_buckets", "storage_objects"];
+  const keys = ["user_schemas", "user_relations", "public_rows", "user_functions", "user_types", "migration_rows", "auth_users", "storage_buckets", "storage_objects"];
   if (fields.length !== keys.length || fields.some((f) => !/^\d+$/.test(f.trim()))) {
     return { ok: false, reason: `the application-emptiness probe returned unrecognized output (${fields.length} field(s)); refusing to infer emptiness.` };
   }
@@ -795,6 +892,8 @@ export {
   classifyHostedTarget,
   classifyObjectEmptiness,
   probeHostedApplicationState,
+  extractSupabaseProjectRefFromDbUrl,
+  verifyHostedTargetBinding,
   recognizeMigrationListRows,
   readHostedMigrationVersions,
   HOSTED_ALLOWED_VALIDATION_REFS,

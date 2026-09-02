@@ -17,6 +17,9 @@ import {
   parseHostedMigrationList,
   classifyHostedTarget,
   classifyObjectEmptiness,
+  extractSupabaseProjectRefFromDbUrl,
+  verifyHostedTargetBinding,
+  applyHosted,
   recognizeMigrationListRows,
   readHostedMigrationVersions,
   HOSTED_ALLOWED_VALIDATION_REFS,
@@ -400,12 +403,21 @@ test("parseHostedMigrationList: the parser accepts backtick cells by shape, not 
 
 test("hosted apply path invokes the official Supabase CLI via npx, not a hand-rolled HTTP client", () => {
   const source = readFileSync(SCRIPT, "utf8");
-  // All three hosted commands go through the portable helper, never bare spawn.
-  assert.match(source, /runNpx\(\["-y", "supabase", "link", "--project-ref", projectRef\]/);
-  assert.ok(source.includes('runNpx(["-y", "supabase", "db", "push", "--include-roles"]'));
-  assert.match(source, /runNpx\(\["-y", "supabase", "migration", "list", "--linked"\]/);
+  // The three hosted commands now go through an injected `runner` seam so the
+  // credential-free suite can exercise the path offline. The seam must DEFAULT to the
+  // portable npx helper — the intent of this control is unchanged: the official Supabase
+  // CLI, never a hand-rolled HTTP client and never a bare spawn.
+  assert.match(source, /function applyHosted\(files = loadMigrationFiles\(\), runner = runNpx\)/,
+    "the hosted apply seam does not default to the portable npx helper");
+  assert.match(source, /function readHostedMigrationVersions\(localTimestamps, runner = runNpx\)/,
+    "the migration-list seam does not default to the portable npx helper");
+  assert.match(source, /runner\(\["-y", "supabase", "link", "--project-ref", projectRef\]/);
+  assert.ok(source.includes('runner(["-y", "supabase", "db", "push", "--include-roles"]'));
+  assert.match(source, /runner\(\["-y", "supabase", "migration", "list", "--linked"\]/);
   // The unportable direct form must not come back at any hosted call site.
   assert.doesNotMatch(source, /sh\("npx", \["-y"/);
+  // No hand-rolled HTTP client on the hosted path.
+  assert.doesNotMatch(source, /\bfetch\(|require\("https?"\)|from "node:https"/, "the hosted path must not speak HTTP directly");
 });
 
 
@@ -570,7 +582,7 @@ test("readHostedMigrationVersions: the real backtick format parses through the i
 });
 
 // ─── Object emptiness: an empty LEDGER is not an empty DATABASE ───────────
-const EMPTY_COUNTS = { user_schemas: 0, user_relations: 0, public_relations: 0, public_rows: 0, migration_rows: 0, auth_users: 0, storage_buckets: 0, storage_objects: 0 };
+const EMPTY_COUNTS = { user_schemas: 0, user_relations: 0, public_rows: 0, user_functions: 0, user_types: 0, migration_rows: 0, auth_users: 0, storage_buckets: 0, storage_objects: 0 };
 
 test("classifyObjectEmptiness: a genuinely new project is empty", () => {
   const v = classifyObjectEmptiness(EMPTY_COUNTS);
@@ -579,7 +591,7 @@ test("classifyObjectEmptiness: a genuinely new project is empty", () => {
 });
 
 test("classifyObjectEmptiness: an empty ledger with application state is NOT fresh, and names the category", () => {
-  for (const key of ["public_relations", "public_rows", "auth_users", "storage_buckets", "storage_objects", "user_schemas", "user_relations"]) {
+  for (const key of ["user_relations", "public_rows", "user_functions", "user_types", "auth_users", "storage_buckets", "storage_objects", "user_schemas"]) {
     const v = classifyObjectEmptiness({ ...EMPTY_COUNTS, [key]: 3 });
     assert.equal(v.empty, false, `${key} must defeat a fresh-apply certification`);
     assert.equal(v.nonEmpty[0].category, key, "the refusal must name the non-empty category");
@@ -934,4 +946,129 @@ test("a rotated (non-designated) ref is no longer hard-refused by identity alone
   const classifyAt = applyHostedSrc.indexOf("classifyHostedTarget(");
   const pushAt = applyHostedSrc.indexOf('"db", "push"');
   assert.ok(classifyAt > 0 && pushAt > 0 && classifyAt < pushAt, "the destructive push is not gated behind classification");
+});
+
+// ─── DB_URL <-> PROJECT_REF binding (offline; no network) ─────────────────
+const REF = HOSTED_ALLOWED_MIGRATION_VALIDATION_REF;
+
+test("binding: a matching DIRECT db.<ref>.supabase.co URL is positively identified", () => {
+  const r = verifyHostedTargetBinding(`postgresql://postgres:pw@db.${REF}.supabase.co:5432/postgres`, REF);
+  assert.equal(r.ok, true);
+  assert.equal(r.identified, true);
+  assert.equal(r.form, "direct");
+});
+
+test("binding: a MISMATCHED direct URL is refused even though both ref variables agree", () => {
+  const r = verifyHostedTargetBinding("postgresql://postgres:pw@db.aaaaaaaaaaaaaaaaaaaa.supabase.co:5432/postgres", REF);
+  assert.equal(r.ok, false);
+  assert.equal(r.identified, true, "the ref was extractable; it simply names a different project");
+  assert.match(r.reason, /does not match SUPABASE_PROJECT_REF/);
+});
+
+test("binding: a matching POOLER URL (postgres.<ref> username) is identified", () => {
+  const r = verifyHostedTargetBinding(`postgresql://postgres.${REF}:pw@aws-0-us-east-1.pooler.supabase.com:5432/postgres`, REF);
+  assert.equal(r.ok, true);
+  assert.equal(r.form, "pooler");
+});
+
+test("binding: a MISMATCHED pooler URL is refused", () => {
+  const r = verifyHostedTargetBinding("postgresql://postgres.aaaaaaaaaaaaaaaaaaaa:pw@aws-0-us-east-1.pooler.supabase.com:5432/postgres", REF);
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /does not match/);
+});
+
+test("binding: an AMBIGUOUS/unrecognized Supabase URL fails closed rather than guessing", () => {
+  for (const url of [
+    `postgresql://postgres:pw@${REF}.supabase.co:5432/postgres`,          // ref present but not the direct db.<ref> form
+    `postgresql://postgres:pw@aws-0-us-east-1.pooler.supabase.com:5432/postgres`, // pooler without postgres.<ref>
+    `postgresql://postgres:pw@my-${REF}-proxy.example.com:5432/postgres`, // ref as an arbitrary substring
+    "postgresql://postgres:pw@db.internal:5432/postgres",
+    "not-a-url",
+  ]) {
+    const r = verifyHostedTargetBinding(url, REF);
+    assert.equal(r.ok, false, `refusing to guess: ${url}`);
+    assert.equal(r.identified, false, "an unrecognized form must not report a positively identified ref");
+  }
+});
+
+test("binding: ending in a Supabase domain is never sufficient on its own", () => {
+  assert.equal(extractSupabaseProjectRefFromDbUrl("postgresql://postgres:pw@something.supabase.com:5432/postgres").ok, false);
+  assert.equal(extractSupabaseProjectRefFromDbUrl("https://db.abc.supabase.co").ok, false, "a non-postgres protocol must be refused");
+});
+
+test("binding: the ACTIVE project is still denied by the guard regardless of a well-formed URL", () => {
+  const saved = { ...process.env };
+  const savedExit = process.exitCode;
+  try {
+    Object.assign(process.env, {
+      ALLOW_DESTRUCTIVE_FRESH_DB_TEST: "true",
+      SUPABASE_DB_URL: `postgresql://postgres:pw@db.${HOSTED_DENIED_ACTIVE_PMFREAK_REF}.supabase.co:5432/postgres`,
+      SUPABASE_PROJECT_REF: HOSTED_DENIED_ACTIVE_PMFREAK_REF,
+      FRESH_DB_EXPECTED_PROJECT_REF: HOSTED_DENIED_ACTIVE_PMFREAK_REF,
+    });
+    assert.equal(safetyGuard("hosted"), false, "a perfectly-bound URL must not unlock the ACTIVE project");
+  } finally {
+    for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
+    Object.assign(process.env, saved);
+    process.exitCode = savedExit;
+  }
+});
+
+test("binding: an allowlisted ref paired with an UNRELATED database URL is denied", () => {
+  const r = verifyHostedTargetBinding("postgresql://postgres:pw@db.zzzzzzzzzzzzzzzzzzzz.supabase.co:5432/postgres", REF);
+  assert.equal(r.ok, false, "an allowlisted ref must not authorise a probe against a different database");
+});
+
+// ─── All user-defined object classes defeat FRESH ─────────────────────────
+test("emptiness: view / materialised view / sequence / foreign table / function / type only are all NOT pristine", () => {
+  // They arrive through the relation and proc/type counters respectively.
+  for (const key of ["user_relations", "user_functions", "user_types"]) {
+    const v = classifyObjectEmptiness({ ...EMPTY_COUNTS, [key]: 1 });
+    assert.equal(v.empty, false, `${key} must defeat a fresh-apply certification`);
+    assert.equal(v.nonEmpty[0].category, key);
+  }
+});
+
+test("emptiness: the probe counts every material relkind and both proc and type objects", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  const start = source.indexOf("const PLATFORM_SCHEMA_PREDICATE");
+  const fn = source.slice(start, source.indexOf("// Reads the linked project's migration history"));
+  assert.match(fn, /relkind in \('r','p','v','m','S','f'\)/, "the probe omits a material relation kind");
+  assert.match(fn, /pg_proc/, "the probe does not count user functions/procedures");
+  assert.match(fn, /pg_type/, "the probe does not count user-defined types");
+  // Extension-owned objects excluded via dependency metadata, not a hand-maintained list.
+  assert.match(fn, /pg_depend/, "extension-owned objects are not excluded via pg_depend");
+  assert.match(fn, /deptype = 'e'/, "the extension-ownership predicate is missing");
+  assert.doesNotMatch(fn, /\b(insert|update|delete|drop|truncate|alter)\b/i, "the emptiness probe is not read-only");
+});
+
+test("emptiness: platform/extension-only state keeps a genuinely new project FRESH-eligible", () => {
+  assert.equal(classifyObjectEmptiness(EMPTY_COUNTS).empty, true);
+});
+
+// ─── The unrecognized-output reason survives the whole result path ────────
+test("the UNRECOGNIZED_OUTPUT reason survives from the parser out to the harness result", () => {
+  const savedEnv = { ...process.env };
+  const savedExit = process.exitCode;
+  try {
+    Object.assign(process.env, {
+      SUPABASE_PROJECT_REF: REF,
+      FRESH_DB_EXPECTED_PROJECT_REF: REF,
+      SUPABASE_DB_URL: `postgresql://postgres:pw@db.${REF}.supabase.co:5432/postgres`,
+      SUPABASE_ACCESS_TOKEN: "sbp_test_token_not_real",
+    });
+    // Injected runner: `link` succeeds, `migration list` returns unrecognizable output.
+    const runner = (args) => args.includes("link")
+      ? { status: 0, stdout: "", stderr: "" }
+      : { status: 0, stdout: "Connecting to remote database...\n<new unrecognised format>\n", stderr: "" };
+    const result = applyHosted(["20260428120000_a.sql"], runner);
+    assert.equal(result.ok, false, "unrecognized output must not be treated as an empty target");
+    assert.match(String(result.reason), /HOSTED_MIGRATION_LIST_FAILURE=UNRECOGNIZED_OUTPUT/,
+      "the actionable reason was lost between the parser and the harness result");
+    assert.doesNotMatch(String(result.reason), /sbp_test_token_not_real/, "the reason leaked a secret");
+  } finally {
+    for (const k of Object.keys(process.env)) if (!(k in savedEnv)) delete process.env[k];
+    Object.assign(process.env, savedEnv);
+    process.exitCode = savedExit;
+  }
 });

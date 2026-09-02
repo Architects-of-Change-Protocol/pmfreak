@@ -201,9 +201,18 @@ before(async () => {
 });
 
 after(async () => {
+  // Same discipline as J1: asserting the shutdown inline would have thrown out of this
+  // hook and skipped every fixture cleanup below it. Collect, clean up, then raise.
+  const teardownFailures: string[] = [];
   if (server) {
-    const outcome = await shutdownProductionServer(server, { label: "P0-LAUNCH-06 beta server", graceMs: 10_000 });
-    assertShutdownClean(outcome, "P0-LAUNCH-06 beta server");
+    try {
+      assertShutdownClean(
+        await shutdownProductionServer(server, { label: "P0-LAUNCH-06 beta server", graceMs: 10_000 }),
+        "P0-LAUNCH-06 beta server",
+      );
+    } catch (error) {
+      teardownFailures.push(`process cleanup: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   server = null;
   const supabase = admin();
@@ -293,16 +302,19 @@ after(async () => {
   try { fs.rmSync(CONTROL_DIR, { recursive: true, force: true }); } catch { /* best effort */ }
   // No orphan, survivor or unreaped process may coexist with a PASS. shutdownProductionServer
   // appends to this ledger ONLY when a shutdown leaves orphans or unreaped pids, so any
-  // entry at all is residue — assert the whole ledger empty, exactly as P0-LAUNCH-03/04 do.
-  assert.deepEqual(
-    HARNESS_PROCESS_RESIDUE,
-    [],
-    `the rehearsal left process-table residue behind: ${JSON.stringify(HARNESS_PROCESS_RESIDUE)}`,
-  );
-  EVIDENCE.processResidue =
-    "CLEAN — residue ledger empty (it records only shutdowns leaving orphans/unreaped pids), and every shutdown outcome was asserted at its call site";
+  // entry at all is residue — the same ledger P0-LAUNCH-03/04 assert.
+  if (HARNESS_PROCESS_RESIDUE.length > 0) {
+    teardownFailures.push(`process-table residue: ${JSON.stringify(HARNESS_PROCESS_RESIDUE)}`);
+  }
+  EVIDENCE.processResidue = HARNESS_PROCESS_RESIDUE.length === 0
+    ? "CLEAN — residue ledger empty (it records only shutdowns leaving orphans/unreaped pids), and every shutdown outcome was asserted at its call site"
+    : `RESIDUE: ${JSON.stringify(HARNESS_PROCESS_RESIDUE)}`;
 
+  // Evidence is emitted BEFORE the failure is raised, so a teardown failure never costs
+  // the run its diagnostic output.
   console.log(`\nP0_LAUNCH_06_REHEARSAL_EVIDENCE ${JSON.stringify(EVIDENCE, null, 2)}`);
+
+  assert.deepEqual(teardownFailures, [], `the rehearsal teardown did not fully succeed: ${teardownFailures.join(" | ")}`);
 });
 
 // ───────────────── PHASE A — startup boundary (the certified runtime guard) ─────────────────
@@ -881,8 +893,21 @@ test("H3. DATABASE outage/recovery is EXECUTED here, not inherited from a source
     EVIDENCE.databaseOutageBehavior =
       "EXECUTED in P0-LAUNCH-06: readiness 200/database=pass -> 503/database=fail with liveness 200 in the same process -> 200/database=pass after restoration, no restart and no manual repair (dependency-outage shim on /rest/v1)";
   } finally {
-    if (dbOutage.started) assertShutdownClean(await shutdownProductionServer(dbOutage.handle, { label: "database-outage rehearsal server", graceMs: 10_000 }), "database-outage rehearsal server");
+    // Same discipline as J1 and the final hook: the shutdown assertion must not be able
+    // to abort the control-directory cleanup that follows it.
+    const dbCleanupFailures: string[] = [];
+    if (dbOutage.started) {
+      try {
+        assertShutdownClean(
+          await shutdownProductionServer(dbOutage.handle, { label: "database-outage rehearsal server", graceMs: 10_000 }),
+          "database-outage rehearsal server",
+        );
+      } catch (error) {
+        dbCleanupFailures.push(`process cleanup: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
     try { fs.rmSync(dbControlDir, { recursive: true, force: true }); } catch { /* best effort */ }
+    assert.deepEqual(dbCleanupFailures, [], `H3 cleanup did not fully succeed: ${dbCleanupFailures.join(" | ")}`);
   }
 });
 
@@ -1006,13 +1031,28 @@ test("J1. OFFBOARD_AUDIT_FAILURE: the incident is surfaced, and the operator res
       "500 offboarding_audit_write_failed -> inspect effective membership FIRST (already removed) -> " +
       "confirm member_removed absent -> reconcile the audit record as an incident -> do NOT blindly retry the deletion";
   } finally {
-    if (faultServer?.started) assertShutdownClean(await shutdownProductionServer(faultServer.handle, { label: "audit-fault rehearsal server", graceMs: 10_000 }), "audit-fault rehearsal server");
-    // Cleanup results are asserted, not discarded: a silent failure here is exactly how
-    // authority-bearing fixtures accumulate in the shared database.
+    // EVERY cleanup component is attempted even when an earlier one fails. Asserting the
+    // shutdown outcome inline used to throw straight out of the finally block, so the
+    // authority-bearing membership and the identity itself were never cleaned up — a
+    // process-cleanup failure silently became a fixture leak. Failures are collected and
+    // raised together at the end: nothing is swallowed, and a database cleanup failure
+    // still turns the test red.
+    const cleanupFailures: string[] = [];
+    if (faultServer?.started) {
+      try {
+        assertShutdownClean(
+          await shutdownProductionServer(faultServer.handle, { label: "audit-fault rehearsal server", graceMs: 10_000 }),
+          "audit-fault rehearsal server",
+        );
+      } catch (error) {
+        cleanupFailures.push(`process cleanup: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
     const unbound = await supabase.from("workspace_memberships").delete().eq("user_id", incidentUserId);
-    assert.equal(unbound.error, null, `incident membership cleanup failed: ${unbound.error?.message}`);
+    if (unbound.error) cleanupFailures.push(`incident membership cleanup: ${unbound.error.message}`);
     const removed = await supabase.auth.admin.deleteUser(incidentUserId);
-    assert.equal(removed.error, null, `incident identity cleanup failed: ${removed.error?.message}`);
+    if (removed.error) cleanupFailures.push(`incident identity cleanup: ${removed.error.message}`);
+    assert.deepEqual(cleanupFailures, [], `J1 cleanup did not fully succeed: ${cleanupFailures.join(" | ")}`);
   }
 });
 

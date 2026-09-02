@@ -75,6 +75,10 @@ jobs:
             echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
             echo "OPERATIONAL_FLOW_TEST_DATABASE_URL=${DB_URL}"
             echo "NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000"
+            # scripts/p2-13/isolation-guard.mjs requires this to equal EXPECTED_APP_ORIGIN
+            # EXACTLY, and refuses anything else. Loopback-only by construction: a hosted
+            # app origin can never satisfy it, so the guard stays fail-closed.
+            echo "OPERATIONAL_FLOW_TEST_BASE_URL=http://localhost:3000"
             echo "P2_13_FOUNDER_FIXTURE_ENABLED=true"
             echo "P2_13_ALLOW_LOCAL_RESET=true"
             echo "OPERATIONAL_FLOW_TEST_ALLOW_DESTRUCTIVE=true"
@@ -84,8 +88,12 @@ jobs:
           echo "::add-mask::${FIXTURE_PASSWORD}"
           echo "P2_13_FIXTURE_ACTOR_PASSWORD=${FIXTURE_PASSWORD}" >> "$GITHUB_ENV"
 
+      # The scenario harness requires an explicit subcommand
+      # (preflight|seed|verify|reset|reseed); invoking it bare exits with a usage error,
+      # which is exactly how the first real Release Governance run failed. A seed failure
+      # must still fail the job — there is no bypass here.
       - name: Seed the deterministic P2-13 founder fixture
-        run: npm run seed:p2-13-founder
+        run: npm run seed:p2-13-founder -- seed
 
       # Blocking/advisory severity is owned by scripts/check-beta-release.mjs, which exits
       # 1 only on a BLOCKING gate failure — advisory gates report CONDITIONAL/WARN and are
