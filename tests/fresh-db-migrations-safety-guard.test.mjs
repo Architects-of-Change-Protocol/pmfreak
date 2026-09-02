@@ -15,6 +15,7 @@ import {
   determineMode,
   safetyGuard,
   parseHostedMigrationList,
+  classifyHostedTarget,
   redact,
   loadMigrationFiles,
   main,
@@ -498,7 +499,13 @@ test("hosted mode refuses the ACTIVE PMFreak project ref even with matching refs
   assert.doesNotMatch(result.stdout + result.stderr, /sbp_test_token_not_real/);
 });
 
-test("hosted mode refuses an unknown project ref that is neither the allowed validation project nor the live one", () => {
+test("hosted mode admits a ROTATED project ref for classification, but never for a blind apply", () => {
+  // Superseded contract. The old single-ref pin hard-refused every non-designated ref,
+  // which made target rotation impossible AND — worse — still permitted the designated
+  // (now fully-migrated) project to be delta-applied and reported as a fresh apply.
+  // Identity is no longer the gate; the PRE-APPLY emptiness precondition is. A rotated
+  // ref may therefore reach classification, and is refused there unless its PMFreak
+  // migration history is empty.
   const result = run({
     PATH: process.env.PATH,
     ALLOW_DESTRUCTIVE_FRESH_DB_TEST: "true",
@@ -507,8 +514,13 @@ test("hosted mode refuses an unknown project ref that is neither the allowed val
     SUPABASE_PROJECT_REF: "someotherprojectref",
     FRESH_DB_EXPECTED_PROJECT_REF: "someotherprojectref",
   });
-  assert.equal(result.status, 1);
-  assert.match(result.stdout + result.stderr, /not the designated disposable/);
+  const out = result.stdout + result.stderr;
+  assert.match(out, /ROTATED validation project/i, "a rotated ref is not identified as such");
+  assert.match(out, /empty/i, "the emptiness precondition is not stated for a rotated ref");
+  // The run still cannot succeed here: no reachable project, so it fails rather than applying.
+  assert.notEqual(result.status, 0, "a rotated ref must not silently succeed without classification");
+  // And the safety model is intact for this ref.
+  assert.doesNotMatch(out, /sbp_test_token_not_real/, "the access token leaked");
 });
 
 test("hosted mode precheck accepts the designated migration-validation ref (guard only, no apply)", () => {
@@ -718,4 +730,116 @@ test("these regression controls execute no hosted Supabase command", () => {
   // The one supabase-shaped invocation above is the metacharacter refusal
   // control: it is rejected before launch and never reaches the network.
   assert.match(rawTestSource, /ERR_UNSAFE_NPX_ARGUMENT/);
+});
+
+// ─── Hosted target classification (fresh vs repeatability vs fail) ────────
+// The originally designated validation project now holds the full chain. Re-running
+// against it would apply a FUTURE migration as a delta and still report "fresh apply",
+// so emptiness — not project identity — is what a fresh-apply certification rests on.
+const LOCAL_CHAIN = ["20260428120000", "20260501000000", "20260601000000"];
+
+test("classifyHostedTarget: 1. an EMPTY hosted history may enter fresh-apply mode", () => {
+  const c = classifyHostedTarget([], LOCAL_CHAIN);
+  assert.equal(c.mode, "fresh");
+  assert.equal(c.preApplyRemoteMigrationCount, 0, "fresh apply requires PRE_APPLY_REMOTE_MIGRATION_COUNT=0");
+  assert.deepEqual(c.unexpected, []);
+});
+
+test("classifyHostedTarget: 2. a COMPLETE existing history is repeatability, never fresh", () => {
+  const c = classifyHostedTarget([...LOCAL_CHAIN], LOCAL_CHAIN);
+  assert.equal(c.mode, "repeatability", "a fully-migrated target must not be classified as a fresh apply");
+  assert.notEqual(c.mode, "fresh");
+  assert.equal(c.preApplyRemoteMigrationCount, LOCAL_CHAIN.length);
+  // Order must not matter: the CLI does not guarantee sorted output.
+  assert.equal(classifyHostedTarget([...LOCAL_CHAIN].reverse(), LOCAL_CHAIN).mode, "repeatability");
+});
+
+test("classifyHostedTarget: 3. a PARTIAL existing history cannot be certified as fresh", () => {
+  const c = classifyHostedTarget(LOCAL_CHAIN.slice(0, 2), LOCAL_CHAIN);
+  assert.equal(c.mode, "fail", "applying only the delta must never be reported as a fresh apply");
+  assert.deepEqual(c.missing, ["20260601000000"]);
+  assert.match(c.reason, /would NOT be a fresh apply/i);
+});
+
+test("classifyHostedTarget: 4. UNEXPECTED remote migrations fail outright", () => {
+  const c = classifyHostedTarget([...LOCAL_CHAIN, "20260701000000"], LOCAL_CHAIN);
+  assert.equal(c.mode, "fail");
+  assert.deepEqual(c.unexpected, ["20260701000000"]);
+  // Drift must fail even when every local migration is also present.
+  assert.equal(classifyHostedTarget(["20260428120000", "29990101000000"], LOCAL_CHAIN).mode, "fail");
+});
+
+test("classifyHostedTarget: the once-designated validation project is no longer fresh-appliable", () => {
+  // 161/161 applied: exactly the state that made the old single-ref pin unsafe.
+  const chain = Array.from({ length: 161 }, (_, i) => String(20260428120000 + i));
+  const c = classifyHostedTarget(chain, chain);
+  assert.equal(c.mode, "repeatability");
+  assert.notEqual(c.mode, "fresh");
+});
+
+test("classifyHostedTarget: rotation — a brand-new empty project is fresh-appliable", () => {
+  assert.equal(classifyHostedTarget([], LOCAL_CHAIN).mode, "fresh");
+});
+
+// ─── 5-8: the pre-existing safety properties must all survive rotation ────
+test("5. expected-ref mismatch still fails after the rotation change", () => {
+  const r = run({
+    PATH: process.env.PATH,
+    SUPABASE_DB_URL: "postgresql://user:pass@db.abcxyz.supabase.co:5432/postgres",
+    SUPABASE_ACCESS_TOKEN: "sbp_test_token_not_real",
+    ALLOW_DESTRUCTIVE_FRESH_DB_TEST: "true",
+    SUPABASE_PROJECT_REF: "aaaaaaaaaaaaaaaaaaaa",
+    FRESH_DB_EXPECTED_PROJECT_REF: "bbbbbbbbbbbbbbbbbbbb",
+  });
+  assert.match(r.stdout + r.stderr, /does not match/i, "a ref-handshake mismatch must still refuse");
+});
+
+test("6. the ACTIVE PMFreak project is still rejected, even with a matching handshake", () => {
+  const r = run({
+    PATH: process.env.PATH,
+    SUPABASE_DB_URL: "postgresql://user:pass@db.abcxyz.supabase.co:5432/postgres",
+    SUPABASE_ACCESS_TOKEN: "sbp_test_token_not_real",
+    ALLOW_DESTRUCTIVE_FRESH_DB_TEST: "true",
+    SUPABASE_PROJECT_REF: HOSTED_DENIED_ACTIVE_PMFREAK_REF,
+    FRESH_DB_EXPECTED_PROJECT_REF: HOSTED_DENIED_ACTIVE_PMFREAK_REF,
+  });
+  assert.match(r.stdout + r.stderr, /ACTIVE PMFreak project/i, "rotation must not open a path to the live project");
+});
+
+test("7. destructive confirmation is still required after the rotation change", () => {
+  const r = run({
+    PATH: process.env.PATH,
+    SUPABASE_DB_URL: "postgresql://user:pass@db.abcxyz.supabase.co:5432/postgres",
+    SUPABASE_ACCESS_TOKEN: "sbp_test_token_not_real",
+    SUPABASE_PROJECT_REF: HOSTED_ALLOWED_MIGRATION_VALIDATION_REF,
+    FRESH_DB_EXPECTED_PROJECT_REF: HOSTED_ALLOWED_MIGRATION_VALIDATION_REF,
+    // ALLOW_DESTRUCTIVE_FRESH_DB_TEST deliberately unset
+  });
+  assert.match(r.stdout + r.stderr, /ALLOW_DESTRUCTIVE_FRESH_DB_TEST/, "the destructive confirmation gate must still apply");
+});
+
+test("8. secret redaction is preserved across the rotation change", () => {
+  const r = run({
+    PATH: process.env.PATH,
+    SUPABASE_DB_URL: "postgresql://user:pass@db.abcxyz.supabase.co:5432/postgres",
+    SUPABASE_ACCESS_TOKEN: "sbp_test_token_not_real",
+    ALLOW_DESTRUCTIVE_FRESH_DB_TEST: "true",
+    SUPABASE_PROJECT_REF: "cccccccccccccccccccc",
+    FRESH_DB_EXPECTED_PROJECT_REF: "dddddddddddddddddddd",
+  });
+  const out = r.stdout + r.stderr;
+  assert.doesNotMatch(out, /sbp_test_token_not_real/, "the access token leaked into harness output");
+  assert.doesNotMatch(out, /user:pass@/, "the database URL credentials leaked into harness output");
+});
+
+test("a rotated (non-designated) ref is no longer hard-refused by identity alone", () => {
+  // Rotation is the point of the change: identity is not the gate, emptiness is.
+  const source = readFileSync(SCRIPT, "utf8");
+  assert.doesNotMatch(source, /is not the designated disposable/, "the single-ref pin still hard-refuses rotation");
+  assert.match(source, /PRE_APPLY_REMOTE_MIGRATION_COUNT/, "the emptiness precondition is not reported");
+  // The destructive push must be reachable only after classification.
+  const applyHostedSrc = source.slice(source.indexOf("function applyHosted"));
+  const classifyAt = applyHostedSrc.indexOf("classifyHostedTarget(");
+  const pushAt = applyHostedSrc.indexOf('"db", "push"');
+  assert.ok(classifyAt > 0 && pushAt > 0 && classifyAt < pushAt, "the destructive push is not gated behind classification");
 });

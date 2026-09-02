@@ -225,12 +225,23 @@ function safetyGuard(mode) {
       );
     }
 
-    // Positive allowlist: exactly one designated disposable validation project.
+    // Target rotation. The original single-ref pin cannot express a SECOND validation
+    // project, and it had a worse problem: the pinned project now holds the full
+    // migration chain, so re-running against it would apply a future migration as a
+    // DELTA and still report "fresh apply". Emptiness — not identity — is the property
+    // that makes a fresh-apply certification true, so the pin is replaced by a
+    // PRE-APPLY emptiness precondition enforced in classifyHostedTarget(), which every
+    // ref must satisfy including the originally designated one.
+    //
+    // Nothing else is relaxed: the active-project denial above still runs FIRST and is
+    // absolute, the two-variable ref handshake is still mandatory, the production-like
+    // host check still applies, ALLOW_DESTRUCTIVE_FRESH_DB_TEST is still required, and
+    // no target is ever inferred — both refs must be supplied explicitly and match.
     if (actual !== HOSTED_ALLOWED_MIGRATION_VALIDATION_REF) {
-      return fail(
-        `Refusing to run: SUPABASE_PROJECT_REF (${redact(actual)}) is not the designated disposable ` +
-          "migration-validation project. The destructive hosted fresh-apply is pinned to one explicitly " +
-          "designated non-production project; the project ref is the authority, not the project name.",
+      console.log(
+        `[safety] hosted target ${redact(actual)} is a ROTATED validation project (not the originally ` +
+          "designated one). It may be fresh-applied only if its PMFreak migration history is empty; " +
+          "that precondition is enforced before any destructive push.",
       );
     }
   }
@@ -301,7 +312,7 @@ function applyLocal(files) {
   return { ok: true, applied: files.length };
 }
 
-function applyHosted() {
+function applyHosted(files = loadMigrationFiles()) {
   const projectRef = process.env.SUPABASE_PROJECT_REF;
   console.log(`[apply:hosted] project ref: ${redact(projectRef)}`);
 
@@ -310,6 +321,29 @@ function applyHosted() {
   });
   if (link.status !== 0) {
     return { ok: false, failedFile: "(supabase link)", failure: describeSpawnResult(link, "npx supabase link"), stderr: link.stderr };
+  }
+
+  // PRE-APPLY gate. Read the target's existing history and classify BEFORE any
+  // destructive push, so a populated project can never be delta-applied and then
+  // reported as a fresh apply.
+  const localTimestamps = files.map((f) => f.match(/^(\d{14})_/)?.[1]).filter(Boolean);
+  const history = readHostedMigrationVersions(localTimestamps);
+  if (!history.ok) {
+    return { ok: false, failedFile: "(supabase migration list)", failure: history.failure, stderr: history.stderr };
+  }
+  const target = classifyHostedTarget(history.remoteVersions, localTimestamps);
+  console.log(`[apply:hosted] PRE_APPLY_REMOTE_MIGRATION_COUNT=${target.preApplyRemoteMigrationCount}`);
+  console.log(`[apply:hosted] HOSTED_TARGET_CLASSIFICATION=${target.mode.toUpperCase()}`);
+
+  if (target.mode === "fail") {
+    return { ok: false, failedFile: "(hosted target classification)", reason: target.reason };
+  }
+
+  if (target.mode === "repeatability") {
+    // Already fully migrated: prove repeatability, never re-run the destructive push,
+    // and never call this a fresh apply.
+    console.log("[apply:hosted] target already holds the complete local chain — REPEATABILITY only, no push.");
+    return { ok: true, certification: "REPEATABILITY", freshApply: false, preApplyRemoteMigrationCount: target.preApplyRemoteMigrationCount };
   }
 
   const push = runNpx(["-y", "supabase", "db", "push", "--include-roles"], {
@@ -324,7 +358,7 @@ function applyHosted() {
     };
   }
 
-  return { ok: true };
+  return { ok: true, certification: "FRESH_APPLY", freshApply: true, preApplyRemoteMigrationCount: 0 };
 }
 
 // ─── Step 3b: hosted repeatability verification ────────────────────────────
@@ -398,6 +432,68 @@ function parseHostedMigrationList(output, localTimestamps) {
   const matchedRows = rows.filter((r) => r.local && r.remote && r.local === r.remote).length;
 
   return { rows, pendingLocal, unexpectedRemote: remoteOnly, matchedCount: remoteSet.size, matchedRows };
+}
+
+// ─── Hosted target classification (pre-apply) ──────────────────────────────
+//
+// A "fresh apply" certification is only true if the target had NO PMFreak migration
+// history before the apply. Applying to an already-populated project applies a DELTA;
+// calling that a fresh apply would certify something that never happened.
+//
+//   fresh          remote history empty                  -> full chain may be applied
+//   repeatability  remote set === local set exactly      -> already proven; do NOT re-push
+//   fail           partial, or any unexpected remote      -> not certifiable as fresh
+//
+// Pure so it can be unit-tested without network or credentials.
+function classifyHostedTarget(remoteVersions, localVersions) {
+  const remote = [...new Set(remoteVersions)].sort();
+  const local = [...new Set(localVersions)].sort();
+  const unexpected = remote.filter((v) => !local.includes(v));
+  const missing = local.filter((v) => !remote.includes(v));
+
+  if (unexpected.length > 0) {
+    return {
+      mode: "fail",
+      preApplyRemoteMigrationCount: remote.length,
+      unexpected,
+      missing,
+      reason:
+        `hosted target carries ${unexpected.length} migration version(s) with no local file ` +
+        `(${unexpected.slice(0, 5).join(", ")}${unexpected.length > 5 ? ", ..." : ""}). Drifted targets are ` +
+        "never certifiable as a fresh apply.",
+    };
+  }
+
+  if (remote.length === 0) {
+    return { mode: "fresh", preApplyRemoteMigrationCount: 0, unexpected: [], missing: local };
+  }
+
+  if (missing.length === 0) {
+    return { mode: "repeatability", preApplyRemoteMigrationCount: remote.length, unexpected: [], missing: [] };
+  }
+
+  return {
+    mode: "fail",
+    preApplyRemoteMigrationCount: remote.length,
+    unexpected: [],
+    missing,
+    reason:
+      `hosted target already holds ${remote.length} of ${local.length} local migration(s) and is missing ` +
+      `${missing.length}. Applying only the delta would NOT be a fresh apply; use an empty project to certify ` +
+      "a fresh apply, or a fully-migrated one to prove repeatability.",
+  };
+}
+
+// Reads the linked project's migration history WITHOUT mutating it.
+function readHostedMigrationVersions(localTimestamps) {
+  const list = runNpx(["-y", "supabase", "migration", "list", "--linked"], {
+    env: { ...process.env, SUPABASE_ACCESS_TOKEN: process.env.SUPABASE_ACCESS_TOKEN },
+  });
+  if (list.status !== 0) {
+    return { ok: false, failure: describeSpawnResult(list, "npx supabase migration list --linked"), stderr: list.stderr };
+  }
+  const parsed = parseHostedMigrationList(list.stdout ?? "", localTimestamps);
+  return { ok: true, remoteVersions: parsed.rows.map((r) => r.remote).filter(Boolean) };
 }
 
 function verifyHostedRepeatability(files) {
@@ -500,13 +596,17 @@ function main() {
   if (mode === "local") {
     applyResult = applyLocal(files);
   } else {
-    applyResult = applyHosted();
+    applyResult = applyHosted(files);
   }
 
-  results.push(["Fresh apply", applyResult.ok ? "PASS" : "FAIL"]);
+  const label = mode === "hosted" && applyResult.ok && applyResult.certification === "REPEATABILITY"
+    ? "Fresh apply (SKIPPED — target already fully migrated; REPEATABILITY only)"
+    : "Fresh apply";
+  results.push([label, applyResult.ok ? "PASS" : "FAIL"]);
   if (!applyResult.ok) {
     console.error(`  Failed at: ${applyResult.failedFile ?? "(link/push step)"}`);
-    console.error(formatFailure(applyResult.failure));
+    if (applyResult.reason) console.error(`  ${applyResult.reason}`);
+    if (applyResult.failure) console.error(formatFailure(applyResult.failure));
     process.exitCode = 1;
     printAndWriteReport(results.map(([k, v]) => `${k.padEnd(26, ".")} ${v}`));
     return;
@@ -554,6 +654,9 @@ export {
   checkInventoryAndOrdering,
   redact,
   parseHostedMigrationList,
+  classifyHostedTarget,
+  readHostedMigrationVersions,
+  applyHosted,
   verifyHostedRepeatability,
   runNpx,
   scrubSecrets,

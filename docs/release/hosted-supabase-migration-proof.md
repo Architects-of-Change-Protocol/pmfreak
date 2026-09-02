@@ -153,5 +153,9 @@ SECURITY DEFINER review................ Static review done (hosted-grants-report
 Grants.................................. NOT EXECUTED
 Generated types drift................... NOT EXECUTED
 Existing DB compatibility............... NOT EXECUTED
-RR-MIGRATE: OPEN
+
+RR-MIGRATE: RESOLVED  (scoped to hosted fresh-migration execution — the
+                       NOT EXECUTED rows above are NOT covered by it)
+HOSTED_PLATFORM_RESTORE_REHEARSAL: NOT_PERFORMED
+FULL_BETA_DEPLOYMENT_TOPOLOGY_CERTIFIED: NO
 ```
