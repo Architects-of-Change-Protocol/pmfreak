@@ -42,6 +42,9 @@ import {
 } from "./support/runtime-acceptance";
 
 const ROOT = process.cwd();
+/** Finite ceilings for every synchronous child. Sized per operation, never one global value. */
+const BUILD_TIMEOUT_MS = 15 * 60_000;   // the production build; observed ~5 min
+const OPERATOR_TIMEOUT_MS = 90_000;     // an operator command against Auth/PostgREST
 const BETA_PROFILE = "closed-free-beta";
 const OUTAGE_SHIM = path.join(ROOT, "tests/acceptance/support/dependency-outage-shim.cjs");
 const OWNER_A = TENANT_A.actors.find((a: { reference: string }) => a.reference.endsWith(":owner"))!;
@@ -167,7 +170,11 @@ before(async () => {
   CONTROL_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "p0-launch-06-"));
   SUPABASE_HOSTPORT = new URL(process.env.OPERATIONAL_FLOW_TEST_SUPABASE_URL!).host;
 
-  execFileSync("npm", ["run", "build"], { cwd: ROOT, stdio: "pipe", maxBuffer: 64 * 1024 * 1024 });
+  // Bounded. A synchronous child blocks the event loop, so an unbounded one would stall
+  // the whole rehearsal — including its teardown — until the workflow's own kill. The
+  // build is the long pole (observed ~5 min locally), so it gets a generous but FINITE
+  // ceiling; the workflow timeout is never the subprocess control.
+  execFileSync("npm", ["run", "build"], { cwd: ROOT, stdio: "pipe", maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS });
 
   const supabase = admin();
   for (let page = 1; page <= 20 && !ownerUserId; page += 1) {
@@ -201,53 +208,62 @@ before(async () => {
 });
 
 after(async () => {
-  // Same discipline as J1: asserting the shutdown inline would have thrown out of this
-  // hook and skipped every fixture cleanup below it. Collect, clean up, then raise.
+  // ONCE TEARDOWN BEGINS, EVERY INDEPENDENT CLEANUP COMPONENT IS ATTEMPTED. Previously
+  // only the shutdown was wrapped, so the first failing database cleanup threw straight
+  // out of the hook and skipped the foreign identity, invitations, bootstrap workspaces,
+  // participant handling, the control directory, the residue check and the evidence
+  // emission — a transient database blip became a permanent fixture leak. Each component
+  // now records its own failure and the hook raises ONE aggregate at the end. Nothing is
+  // swallowed, and no cleanup failure can turn the rehearsal green.
   const teardownFailures: string[] = [];
-  if (server) {
+  const step = async (label: string, fn: () => Promise<void>): Promise<void> => {
     try {
-      assertShutdownClean(
-        await shutdownProductionServer(server, { label: "P0-LAUNCH-06 beta server", graceMs: 10_000 }),
-        "P0-LAUNCH-06 beta server",
-      );
+      await fn();
     } catch (error) {
-      teardownFailures.push(`process cleanup: ${error instanceof Error ? error.message : String(error)}`);
+      teardownFailures.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
     }
-  }
+  };
+
+  await step("process cleanup", async () => {
+    if (!server) return;
+    assertShutdownClean(
+      await shutdownProductionServer(server, { label: "P0-LAUNCH-06 beta server", graceMs: 10_000 }),
+      "P0-LAUNCH-06 beta server",
+    );
+  });
   server = null;
   const supabase = admin();
 
-  // Teardown asserts every result. Silently ignoring them let a real outcome hide: the
-  // participant's auth user CANNOT be deleted after F1, because
-  // operational_raw_inputs.actor_user_id and operational_normalized_events.actor_user_id
-  // are NOT NULL ... ON DELETE RESTRICT (20260901000000_raw_input_normalized_event_foundation).
-  // That FK is behaving as designed — the operational record is immutable evidence — so the
-  // right teardown is to RETAIN the identity deliberately and say so, never to delete
-  // immutable operational history just to make cleanup green.
+  await step("membership cleanup", async () => {
+    for (const [label, id] of [["participant", participantUserId], ["foreign", foreignUserId]] as const) {
+      if (!id) continue;
+      const removed = await supabase.from("workspace_memberships").delete().eq("user_id", id);
+      assert.equal(removed.error, null, `${label} membership cleanup failed: ${removed.error?.message}`);
+    }
+  });
 
-  // Removable rehearsal state first; each result is checked.
-  for (const [label, id] of [["participant", participantUserId], ["foreign", foreignUserId]] as const) {
-    if (!id) continue;
-    const removed = await supabase.from("workspace_memberships").delete().eq("user_id", id);
-    assert.equal(removed.error, null, `${label} membership cleanup failed: ${removed.error?.message}`);
-  }
-  if (participantEmail) {
+  await step("invitation cleanup", async () => {
+    if (!participantEmail) return;
     const inviteCleanup = await supabase.from("workspace_invitations").delete()
       .eq("workspace_id", TENANT_A.workspaceId).eq("email", participantEmail.toLowerCase());
     assert.equal(inviteCleanup.error, null, `invitation cleanup failed: ${inviteCleanup.error?.message}`);
-  }
+  });
 
   // The foreign identity performs no tenant write, so nothing may block its deletion.
-  if (foreignUserId) {
+  await step("foreign identity cleanup", async () => {
+    if (!foreignUserId) return;
     const foreignDeleted = await supabase.auth.admin.deleteUser(foreignUserId);
     assert.equal(foreignDeleted.error, null, `foreign identity deletion failed: ${foreignDeleted.error?.message}`);
-  }
+  });
 
   // The bootstrap workspace the participant acquired by loading the protected accept
   // route is MUTABLE fixture state and must not accumulate. The accepted retention
   // rationale covers the participant IDENTITY and the immutable operational records in
   // tenant A — it does not cover this empty personal workspace.
-  if (participantUserId) {
+  EVIDENCE.bootstrapWorkspaceTeardown = "NOT_DETERMINED (cleanup step did not complete)";
+  EVIDENCE.bootstrapCleanupRuntimeBranch = "NOT_DETERMINED";
+  await step("bootstrap workspace cleanup", async () => {
+    if (!participantUserId) return;
     const owned = await supabase.from("workspaces").select("id").eq("created_by_user_id", participantUserId);
     assert.equal(owned.error, null, `bootstrap-workspace lookup failed: ${owned.error?.message}`);
     const bootstrapped = (owned.data ?? []).map((w) => w.id as string)
@@ -275,10 +291,17 @@ after(async () => {
     // render concurrently, so whether resolveWriteWorkspace observes the new membership
     // varies per run. Report branch coverage honestly rather than implying it ran.
     EVIDENCE.bootstrapCleanupRuntimeBranch = bootstrapped.length > 0 ? "OBSERVED_AND_EXECUTED" : "NOT_OBSERVED_IN_THIS_RUN";
-  }
+  });
 
-  // The participant: prove WHY it is retained before accepting the retention.
-  if (participantUserId) {
+  // The participant's auth user CANNOT be deleted after F1: operational_raw_inputs and
+  // operational_normalized_events reference actor_user_id under ON DELETE RESTRICT
+  // (20260901000000_raw_input_normalized_event_foundation). That FK behaves as designed —
+  // the operational record is immutable evidence — so the correct teardown RETAINS the
+  // identity deliberately, and never deletes immutable history to make cleanup green.
+  // Retention is only a non-failure when its predicates are positively proven first.
+  EVIDENCE.participantIdentityTeardown = "NOT_DETERMINED (cleanup step did not complete)";
+  await step("participant identity cleanup/retention", async () => {
+    if (!participantUserId) return;
     const [rawInputs, normalizedEvents] = await Promise.all([
       supabase.from("operational_raw_inputs").select("id").eq("actor_user_id", participantUserId),
       supabase.from("operational_normalized_events").select("id").eq("actor_user_id", participantUserId),
@@ -289,23 +312,29 @@ after(async () => {
 
     const deleted = await supabase.auth.admin.deleteUser(participantUserId);
     if (immutableRefs > 0) {
-      // Retention is the ASSERTED consequence of the immutable-evidence FK model.
       assert.notEqual(deleted.error, null, "the participant was deleted despite immutable operational evidence referencing it");
       EVIDENCE.participantIdentityTeardown =
         `RETAINED_BY_DESIGN: ${rawInputs.data?.length ?? 0} operational_raw_inputs + ${normalizedEvents.data?.length ?? 0} operational_normalized_events reference actor_user_id ${participantUserId} under ON DELETE RESTRICT; deletion refused as expected. LOCAL FIXTURE STATE, not a product defect.`;
     } else {
-      // No tenant write happened (a partial run), so nothing may block deletion.
       assert.equal(deleted.error, null, `participant deletion failed with no immutable evidence present: ${deleted.error?.message}`);
       EVIDENCE.participantIdentityTeardown = "DELETED (no immutable operational evidence referenced this participant)";
     }
-  }
-  try { fs.rmSync(CONTROL_DIR, { recursive: true, force: true }); } catch { /* best effort */ }
+  });
+
+  await step("control directory cleanup", async () => {
+    fs.rmSync(CONTROL_DIR, { recursive: true, force: true });
+  });
+
   // No orphan, survivor or unreaped process may coexist with a PASS. shutdownProductionServer
   // appends to this ledger ONLY when a shutdown leaves orphans or unreaped pids, so any
   // entry at all is residue — the same ledger P0-LAUNCH-03/04 assert.
-  if (HARNESS_PROCESS_RESIDUE.length > 0) {
-    teardownFailures.push(`process-table residue: ${JSON.stringify(HARNESS_PROCESS_RESIDUE)}`);
-  }
+  await step("process residue verification", async () => {
+    assert.deepEqual(
+      HARNESS_PROCESS_RESIDUE,
+      [],
+      `the rehearsal left process-table residue behind: ${JSON.stringify(HARNESS_PROCESS_RESIDUE)}`,
+    );
+  });
   EVIDENCE.processResidue = HARNESS_PROCESS_RESIDUE.length === 0
     ? "CLEAN — residue ledger empty (it records only shutdowns leaving orphans/unreaped pids), and every shutdown outcome was asserted at its call site"
     : `RESIDUE: ${JSON.stringify(HARNESS_PROCESS_RESIDUE)}`;
@@ -314,7 +343,11 @@ after(async () => {
   // the run its diagnostic output.
   console.log(`\nP0_LAUNCH_06_REHEARSAL_EVIDENCE ${JSON.stringify(EVIDENCE, null, 2)}`);
 
-  assert.deepEqual(teardownFailures, [], `the rehearsal teardown did not fully succeed: ${teardownFailures.join(" | ")}`);
+  assert.deepEqual(
+    teardownFailures,
+    [],
+    `the rehearsal teardown did not fully succeed (${teardownFailures.length} component(s)): ${teardownFailures.join(" | ")}`,
+  );
 });
 
 // ───────────────── PHASE A — startup boundary (the certified runtime guard) ─────────────────
@@ -456,13 +489,24 @@ test("B3. PRE_ADMISSION_GOVERNED_ACCESS: the governed first-use path is DENIED",
 
 const operator = (args: string[], env: Record<string, string> = {}) => {
   try {
+    // Bounded: this operator command talks to Auth/PostgREST, so a stalled dependency
+    // must surface as a failed control rather than hanging the synchronous test process.
     const out = execFileSync("npm", ["run", "beta:invite-participant", "--", ...args], {
       cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, ...env },
+      timeout: OPERATOR_TIMEOUT_MS,
     });
-    return { exit: 0, text: out };
+    return { exit: 0, text: out, timedOut: false };
   } catch (error) {
-    const shell = error as { status?: number; stdout?: string; stderr?: string };
-    return { exit: shell.status ?? -1, text: `${shell.stdout ?? ""}\n${shell.stderr ?? ""}` };
+    const shell = error as { status?: number | null; signal?: string | null; stdout?: string; stderr?: string };
+    // A TIMEOUT is not a refusal. execFileSync kills the child on timeout, yielding a
+    // null status and a signal — which would otherwise look like a non-zero exit and
+    // could be mistaken for the expected negative-control outcome. Name it explicitly.
+    const timedOut = shell.status === null || shell.status === undefined ? Boolean(shell.signal) : false;
+    return {
+      exit: shell.status ?? -1,
+      text: `${shell.stdout ?? ""}\n${shell.stderr ?? ""}${timedOut ? `\n[operator command timed out after ${OPERATOR_TIMEOUT_MS}ms]` : ""}`,
+      timedOut,
+    };
   }
 };
 const envelopeOf = (text: string) => {
@@ -474,6 +518,7 @@ test("C1. OPERATOR NEGATIVE CONTROLS: isolation, identity, membership, role and 
   const refusals: string[] = [];
   const expectRefused = (label: string, args: string[], env: Record<string, string> = {}, failureClass?: string) => {
     const r = operator(args, env);
+    assert.equal(r.timedOut, false, `${label} TIMED OUT; a stalled dependency must not be read as a refusal`);
     assert.notEqual(r.exit, 0, `${label} was NOT refused`);
     const envelope = envelopeOf(r.text);
     assert.ok(envelope, `${label} emitted no structured envelope: ${r.text.slice(0, 200)}`);
@@ -498,6 +543,7 @@ test("C1. OPERATOR NEGATIVE CONTROLS: isolation, identity, membership, role and 
 
 test("C2. SUPPORTED_OPERATOR_INVITE: the real command creates an inspectable, correctly bound invitation", async () => {
   const result = operator(["--workspace", TENANT_A.workspaceId, "--email", participantEmail, "--role", "pm", "--inviter", OWNER_A.email, "--emit-accept-path"]);
+  assert.equal(result.timedOut, false, "the supported operator invite TIMED OUT against Auth/PostgREST");
   assert.equal(result.exit, 0, `the supported operator invite failed: ${result.text.slice(0, 400)}`);
   const envelope = envelopeOf(result.text) as { ok: boolean; acceptPath?: string } | null;
   assert.ok(envelope?.ok, `the operator boundary did not report success: ${result.text.slice(0, 300)}`);
@@ -559,6 +605,7 @@ test("C2. SUPPORTED_OPERATOR_INVITE: the real command creates an inspectable, co
 
 test("C3. DUPLICATE_INVITE is refused through the shared invitation domain", () => {
   const dup = operator(["--workspace", TENANT_A.workspaceId, "--email", participantEmail, "--role", "pm", "--inviter", OWNER_A.email]);
+  assert.equal(dup.timedOut, false, "the duplicate-invite control TIMED OUT; that is not a refusal");
   assert.notEqual(dup.exit, 0, "a duplicate active invitation was created");
   assert.match(dup.text, /active invitation already exists/i, `duplicate refusal used an unexpected reason: ${dup.text.slice(0, 200)}`);
 });
