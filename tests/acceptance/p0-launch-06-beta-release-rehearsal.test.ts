@@ -22,6 +22,7 @@
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -31,6 +32,7 @@ import { acceptWorkspaceInvite, WorkspaceInviteError } from "../../src/lib/works
 import { getOnboardingRedirect } from "../../src/lib/auth/onboarding-route-map";
 import { TENANT_A, TENANT_B } from "../../scripts/p2-13/founder-scenario-manifest.mjs";
 import {
+  HARNESS_PROCESS_RESIDUE,
   HttpSession,
   boundedFetch,
   freePort,
@@ -85,6 +87,17 @@ const governedFirstUse = (s: HttpSession) =>
 // A failed query must never read as "no membership". Absence is only provable once the
 // query itself is known to have succeeded, so the error is asserted before the null is
 // interpreted — otherwise an outage silently satisfies every negative membership check.
+/**
+ * A rehearsal may not PASS while leaking a process. Every shutdown outcome is inspected
+ * here, and the shared HARNESS_PROCESS_RESIDUE ledger is asserted empty at final
+ * teardown — the stronger pattern P0-LAUNCH-03 and P0-LAUNCH-04 already use, which this
+ * file was the only acceptance gate not to follow.
+ */
+function assertShutdownClean(outcome: { orphans?: number[]; unreaped?: number[] }, label: string): void {
+  assert.deepEqual(outcome.orphans ?? [], [], `${label} left orphan process(es) behind`);
+  assert.deepEqual(outcome.unreaped ?? [], [], `${label} left unreaped process(es) behind`);
+}
+
 const membershipOf = async (userId: string, workspaceId: string) => {
   const r = await admin().from("workspace_memberships").select("role").eq("workspace_id", workspaceId).eq("user_id", userId).maybeSingle();
   assert.equal(r.error, null, `membership lookup failed for ${userId} in ${workspaceId}: ${r.error?.message}`);
@@ -188,7 +201,10 @@ before(async () => {
 });
 
 after(async () => {
-  if (server) await shutdownProductionServer(server, { label: "P0-LAUNCH-06 beta server", graceMs: 10_000 });
+  if (server) {
+    const outcome = await shutdownProductionServer(server, { label: "P0-LAUNCH-06 beta server", graceMs: 10_000 });
+    assertShutdownClean(outcome, "P0-LAUNCH-06 beta server");
+  }
   server = null;
   const supabase = admin();
 
@@ -275,6 +291,17 @@ after(async () => {
     }
   }
   try { fs.rmSync(CONTROL_DIR, { recursive: true, force: true }); } catch { /* best effort */ }
+  // No orphan, survivor or unreaped process may coexist with a PASS. shutdownProductionServer
+  // appends to this ledger ONLY when a shutdown leaves orphans or unreaped pids, so any
+  // entry at all is residue — assert the whole ledger empty, exactly as P0-LAUNCH-03/04 do.
+  assert.deepEqual(
+    HARNESS_PROCESS_RESIDUE,
+    [],
+    `the rehearsal left process-table residue behind: ${JSON.stringify(HARNESS_PROCESS_RESIDUE)}`,
+  );
+  EVIDENCE.processResidue =
+    "CLEAN — residue ledger empty (it records only shutdowns leaving orphans/unreaped pids), and every shutdown outcome was asserted at its call site";
+
   console.log(`\nP0_LAUNCH_06_REHEARSAL_EVIDENCE ${JSON.stringify(EVIDENCE, null, 2)}`);
 });
 
@@ -321,12 +348,40 @@ test("A1. STARTUP BOUNDARY: an invalid closed-beta environment leaves NO applica
     EVIDENCE.invalidEnvSurfaces = `${shape}; ${surfaces.map(([p, s]) => `${p}=${s}`).join(" ")}`;
     EVIDENCE.invalidEnvApplicationSurfacesOperational = "NO";
   } finally {
-    if (outcome.started) await shutdownProductionServer(outcome.handle, { label: "A1 invalid-env server", graceMs: 8_000 });
+    if (outcome.started) assertShutdownClean(await shutdownProductionServer(outcome.handle, { label: "A1 invalid-env server", graceMs: 8_000 }), "A1 invalid-env server");
   }
 });
 
-test("A2. STARTUP BOUNDARY: the guard names offending VARIABLES and never their values", () => {
-  // The refusal text an operator will read must be actionable without leaking secrets.
+test("A2. STARTUP BOUNDARY: the guard names offending VARIABLES and never their values", async () => {
+  // BEHAVIOURAL first. Source inspection cannot prove a redaction contract: a regression
+  // that interpolated an environment VALUE into the diagnostic would leave a
+  // source-only check green. So invoke the real guard with a synthetic environment
+  // carrying a unique sentinel and inspect what it actually throws.
+  const { assertClosedFreeBetaEnvSafety } = await import("../../src/lib/security/environment");
+  const sentinel = `p0l06-sentinel-${randomUUID()}`;
+  let thrown: unknown = null;
+  try {
+    assertClosedFreeBetaEnvSafety({
+      PMFREAK_OPERATING_PROFILE: BETA_PROFILE,
+      NEXT_PUBLIC_SUPABASE_URL: sentinel,
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sentinel,
+      SUPABASE_SERVICE_ROLE_KEY: sentinel,
+      // The violation under test: present but not an http(s) URL.
+      NEXT_PUBLIC_APP_URL: sentinel,
+    } as unknown as NodeJS.ProcessEnv);
+  } catch (error) {
+    thrown = error;
+  }
+  assert.ok(thrown instanceof Error, "an invalid closed-beta environment did not refuse");
+  const diagnostic = `${(thrown as Error).message}\n${(thrown as Error).stack ?? ""}`;
+  // The operator must be able to act on it: the offending VARIABLE and code are named...
+  assert.match(diagnostic, /NEXT_PUBLIC_APP_URL/, "the diagnostic does not name the offending variable");
+  assert.match(diagnostic, /invalid_app_url/, "the diagnostic does not carry the machine-readable violation code");
+  // ...and the VALUE never appears. Compared, never printed.
+  assert.ok(!diagnostic.includes(sentinel), "the guard leaked an environment VALUE into its diagnostic");
+  EVIDENCE.guardDiagnosticRedaction = "BEHAVIOURAL: names NEXT_PUBLIC_APP_URL and code invalid_app_url; synthetic sentinel value absent from message and stack";
+
+  // Supplemental source evidence: the wiring the runtime hook must keep.
   const source = readFileSync("src/instrumentation.ts", "utf8");
   // Comments are stripped first: the docblock deliberately NAMES
   // `assertProductionEnvSafety` to explain why it is not wired, and a naive
@@ -644,7 +699,15 @@ test("E2. GOVERNED_FIRST_USE_FRONTERA_REACHED: the allow is produced by runtime 
   assert.match(route, /server-authorization/, "the governed path no longer resolves through server-authorization");
 
   const guard = readFileSync("src/lib/security/server-authorization.ts", "utf8");
-  const fn = guard.slice(guard.indexOf("export async function evaluateCapability"));
+  // Bounded to evaluateCapability's own body. The previous open-ended slice ran to EOF,
+  // so a later function referencing authorizeRuntimeAction would have satisfied these
+  // assertions even if evaluateCapability had stopped calling it. Latent, not yet
+  // exploitable — fixed here because it is the same class as the teardown slice above.
+  const fnStart = guard.indexOf("export async function evaluateCapability");
+  assert.ok(fnStart > 0, "evaluateCapability could not be located");
+  const afterStart = guard.slice(fnStart + 1);
+  const nextExport = afterStart.search(/\nexport (async )?(function|const) /);
+  const fn = nextExport === -1 ? guard.slice(fnStart) : guard.slice(fnStart, fnStart + 1 + nextExport);
   assert.match(fn, /authorizeRuntimeAction/, "evaluateCapability no longer reaches runtime authorization");
   assert.match(fn, /buildEnterpriseRuntimeRequest/, "evaluateCapability no longer builds a runtime authorization request");
 
@@ -764,17 +827,63 @@ test("H2. AUTH_RECOVERY: readiness returns to READY without a restart or manual 
   EVIDENCE.authRecovery = "readiness 200 after dependency restoration; same process, no manual repair";
 });
 
-test("H3. DATABASE outage/recovery is INHERITED, and the inheritance is justified mechanically", () => {
-  // Not re-injected here: P0-LAUNCH-04 owns the database failure matrix, and this
-  // increment changed nothing on that path. The justification is mechanical rather
-  // than asserted — the only executable change in P0-LAUNCH-06 is the
-  // instrumentation hook, which is profile-scoped, nodejs-only, and touches no
-  // database code.
-  const instrumentation = readFileSync("src/instrumentation.ts", "utf8");
-  assert.doesNotMatch(instrumentation, /supabase|createClient|from\(|database/i, "the instrumentation hook touches database code, so inherited DB evidence would need re-proving");
-  const prior = readFileSync("tests/acceptance/p0-launch-04-failure-recovery-observability.test.ts", "utf8");
-  assert.match(prior, /database/i, "the predecessor does not actually cover the database failure path");
-  EVIDENCE.databaseOutageBehavior = "INHERITED from P0-LAUNCH-04 (28/28); instrumentation touches no database code";
+test("H3. DATABASE outage/recovery is EXECUTED here, not inherited from a source grep", async () => {
+  // Previously this claimed "INHERITED from P0-LAUNCH-04 (28/28)" on the strength of the
+  // predecessor's source containing the word "database" — satisfiable by a comment, and
+  // it would keep reporting database recovery evidence after those controls were deleted.
+  // P0-LAUNCH-06 now executes its own control instead, using the same dependency-outage
+  // shim H1/H2 use, pointed at the readiness DATABASE probe's path (/rest/v1). The whole
+  // P0-LAUNCH-04 battery is deliberately NOT re-run.
+  const dbPort = await freePort();
+  const dbControlDir = fs.mkdtempSync(path.join(os.tmpdir(), "p0-launch-06-db-"));
+  const dbOutage = await startProductionServer({
+    port: dbPort,
+    env: betaEnv({ P0_LAUNCH_04_OUTAGE_DIR: dbControlDir, P0_LAUNCH_04_OUTAGE_PATH_PREFIXES: "/rest/v1" }),
+    timeoutMs: 240_000,
+  });
+  try {
+    assert.ok(dbOutage.started, "the database-outage rehearsal server did not start");
+    const s = new HttpSession(`http://127.0.0.1:${dbPort}`);
+    const readiness = async () => {
+      const r = await s.request("/api/ready");
+      let parsed: { status?: string; checks?: Array<{ name: string; status: string }> } = {};
+      try { parsed = JSON.parse(r.text) as typeof parsed; } catch { /* raw status is the evidence */ }
+      return { httpStatus: r.status, checks: parsed.checks ?? [] };
+    };
+    const settle = async (want: number) => {
+      let last = await readiness();
+      for (let i = 0; i < 60 && last.httpStatus !== want; i += 1) {
+        await new Promise((r) => setTimeout(r, 500));
+        last = await readiness();
+      }
+      return last;
+    };
+
+    // 1. healthy before the outage
+    const before = await settle(200);
+    assert.equal(before.httpStatus, 200, `readiness was not healthy before the database outage: ${before.httpStatus}`);
+    assert.equal(before.checks.find((c) => c.name === "database")?.status, "pass", "the database dependency was not passing before the outage");
+
+    // 2. the database dependency fails, and liveness stays truthful
+    fs.writeFileSync(path.join(dbControlDir, "path-outage"), "");
+    const during = await settle(503);
+    assert.equal(during.httpStatus, 503, "readiness did not report NOT READY during the database outage");
+    assert.equal(during.checks.find((c) => c.name === "database")?.status, "fail", "the database dependency did not report fail during the outage");
+    const liveness = await s.request("/api/health");
+    assert.equal(liveness.status, 200, "liveness stopped answering during a dependency outage");
+
+    // 3. recovery, same process, no manual repair
+    fs.rmSync(path.join(dbControlDir, "path-outage"), { force: true });
+    const after = await settle(200);
+    assert.equal(after.httpStatus, 200, "readiness did not recover after the database dependency returned");
+    assert.equal(after.checks.find((c) => c.name === "database")?.status, "pass", "the database dependency did not recover");
+
+    EVIDENCE.databaseOutageBehavior =
+      "EXECUTED in P0-LAUNCH-06: readiness 200/database=pass -> 503/database=fail with liveness 200 in the same process -> 200/database=pass after restoration, no restart and no manual repair (dependency-outage shim on /rest/v1)";
+  } finally {
+    if (dbOutage.started) assertShutdownClean(await shutdownProductionServer(dbOutage.handle, { label: "database-outage rehearsal server", graceMs: 10_000 }), "database-outage rehearsal server");
+    try { fs.rmSync(dbControlDir, { recursive: true, force: true }); } catch { /* best effort */ }
+  }
 });
 
 // ───────────────── PHASE I — offboarding and authority removal ─────────────────
@@ -843,15 +952,16 @@ test("J1. OFFBOARD_AUDIT_FAILURE: the incident is surfaced, and the operator res
   const made = await supabase.auth.admin.createUser({ email: incidentEmail, password: process.env.P2_13_FIXTURE_ACTOR_PASSWORD!, email_confirm: true });
   assert.ok(!made.error && made.data.user, `could not create the incident target: ${made.error?.message}`);
   const incidentUserId = made.data.user.id;
-  const bound = await supabase.from("workspace_memberships").insert({ workspace_id: TENANT_A.workspaceId, user_id: incidentUserId, role: "pm" });
-  assert.ok(!bound.error, `could not bind the incident target: ${bound.error?.message}`);
 
-  // The fixture above already holds real authority in tenant A. Everything from here
-  // must therefore run inside the cleanup-protected region: if the fault server refuses
-  // to start, times out, or the startup assertion fails, the incident identity and its
-  // membership would otherwise leak into the shared fixture database.
+  // Cleanup protection begins the INSTANT the identity exists. Binding authority, its
+  // assertion, the fault-server startup and its assertion are all inside: a failure at
+  // any of those points must not leave an identity — still less one holding tenant
+  // authority — behind in the shared fixture database.
   let faultServer: Awaited<ReturnType<typeof startProductionServer>> | null = null;
   try {
+    const bound = await supabase.from("workspace_memberships").insert({ workspace_id: TENANT_A.workspaceId, user_id: incidentUserId, role: "pm" });
+    assert.ok(!bound.error, `could not bind the incident target: ${bound.error?.message}`);
+
     const faultPort = await freePort();
     faultServer = await startProductionServer({
       port: faultPort,
@@ -896,7 +1006,7 @@ test("J1. OFFBOARD_AUDIT_FAILURE: the incident is surfaced, and the operator res
       "500 offboarding_audit_write_failed -> inspect effective membership FIRST (already removed) -> " +
       "confirm member_removed absent -> reconcile the audit record as an incident -> do NOT blindly retry the deletion";
   } finally {
-    if (faultServer?.started) await shutdownProductionServer(faultServer.handle, { label: "audit-fault rehearsal server", graceMs: 10_000 });
+    if (faultServer?.started) assertShutdownClean(await shutdownProductionServer(faultServer.handle, { label: "audit-fault rehearsal server", graceMs: 10_000 }), "audit-fault rehearsal server");
     // Cleanup results are asserted, not discarded: a silent failure here is exactly how
     // authority-bearing fixtures accumulate in the shared database.
     const unbound = await supabase.from("workspace_memberships").delete().eq("user_id", incidentUserId);
@@ -984,9 +1094,15 @@ test("K2. ACCEPTED RESIDUAL BOUNDARIES still hold and are not silently upgraded"
     "RR-INVITE-ACCEPTANCE-NONATOMIC",
     "RR-BETA-PLATFORM-SIGNUP-OPEN",
   ]) {
-    const row = register.slice(register.indexOf(`| ${rr} |`));
+    // Bounded to the row's OWN line. An open-ended slice plus a fixed 400-character
+    // window could spill into the NEXT register row, letting a neighbour's
+    // ACCEPTED_FOR_CLOSED_BETA satisfy a residual that had lost its own disposition.
+    const at = register.indexOf(`| ${rr} |`);
+    assert.notEqual(at, -1, `${rr} is missing from the register`);
+    const lineEnd = register.indexOf("\n", at);
+    const row = register.slice(at, lineEnd === -1 ? undefined : lineEnd);
     assert.ok(row.startsWith(`| ${rr} |`), `${rr} is missing from the register`);
-    assert.match(row.slice(0, 400), /ACCEPTED_FOR_CLOSED_BETA/, `${rr} no longer carries ACCEPTED_FOR_CLOSED_BETA`);
+    assert.match(row, /ACCEPTED_FOR_CLOSED_BETA/, `${rr} no longer carries ACCEPTED_FOR_CLOSED_BETA`);
   }
 
   // The broken guard must remain absent from every certified beta path.
@@ -1005,7 +1121,17 @@ test("K2. ACCEPTED RESIDUAL BOUNDARIES still hold and are not silently upgraded"
   // assertions therefore pin the teardown's shape rather than claiming it executed;
   // EVIDENCE.bootstrapCleanupRuntimeBranch reports whether it actually ran.
   const self = readFileSync("tests/acceptance/p0-launch-06-beta-release-rehearsal.test.ts", "utf8");
-  const teardown = self.slice(self.indexOf("after(async () => {"));
+  // BOUNDED on both ends. An open-ended slice ran to EOF and therefore contained these
+  // very assertions and their regex literals, so every positive check could match itself
+  // even after the cleanup it describes was deleted. The hook body ends at its own
+  // terminator, which is the first line that closes the `after(` call at column 0.
+  const hookStart = self.indexOf("after(async () => {");
+  const hookEnd = self.indexOf("\n});", hookStart);
+  assert.ok(hookStart > 0 && hookEnd > hookStart, "the teardown hook body could not be located");
+  const teardown = self.slice(hookStart, hookEnd);
+  // Self-check: the bounded body must NOT contain this control's own assertion text.
+  assert.ok(!teardown.includes("teardown does not identify participant-created workspaces"),
+    "the teardown slice still contains this control's own assertions and can satisfy itself");
   assert.match(teardown, /created_by_user_id", participantUserId/, "teardown does not identify participant-created workspaces");
   assert.match(teardown, /id !== TENANT_A\.workspaceId && id !== TENANT_B\.workspaceId/, "teardown does not exclude the seeded tenants from selection");
   assert.match(teardown, /refusing to delete the seeded tenant A/, "teardown lacks an explicit seeded-tenant guard");

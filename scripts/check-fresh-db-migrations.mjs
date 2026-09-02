@@ -51,6 +51,13 @@ const KNOWN_PRODUCTION_HOST_FRAGMENTS = ["prod", "production", "pilot"];
 // cannot be relied on here. The destructive hosted fresh-apply is therefore pinned
 // to ONE explicitly designated disposable project and denied against the live one.
 const HOSTED_ALLOWED_MIGRATION_VALIDATION_REF = "ecwkldflddnmdwusatuh"; // pmfreak-migration-validation
+
+// Version-controlled allowlist of disposable validation projects. Rotation happens by
+// adding a ref HERE, through reviewed code — never by setting an environment variable.
+// Two matching env vars are two copies of the same typo, so a matching handshake is
+// NECESSARY BUT NOT SUFFICIENT. Being allowlisted is likewise not sufficient for a fresh
+// apply: the target must additionally prove application-object emptiness.
+const HOSTED_ALLOWED_VALIDATION_REFS = Object.freeze([HOSTED_ALLOWED_MIGRATION_VALIDATION_REF]);
 const HOSTED_DENIED_ACTIVE_PMFREAK_REF = "refvllnadfzjkxlpidrr"; // PMFreak (ACTIVE_HEALTHY) — never a target
 
 function redact(value) {
@@ -225,7 +232,16 @@ function safetyGuard(mode) {
       );
     }
 
-    // Target rotation. The original single-ref pin cannot express a SECOND validation
+    if (!HOSTED_ALLOWED_VALIDATION_REFS.includes(actual)) {
+      return fail(
+        `Refusing to run: SUPABASE_PROJECT_REF (${redact(actual)}) is not in HOSTED_ALLOWED_VALIDATION_REFS. ` +
+          "Matching SUPABASE_PROJECT_REF and FRESH_DB_EXPECTED_PROJECT_REF is necessary but NOT sufficient: a " +
+          "rotated validation project must first be added to the version-controlled allowlist through reviewed " +
+          "source. An empty migration ledger is not proof that a project is disposable.",
+      );
+    }
+
+    // Historical note. The original single-ref pin cannot express a SECOND validation
     // project, and it had a worse problem: the pinned project now holds the full
     // migration chain, so re-running against it would apply a future migration as a
     // DELTA and still report "fresh apply". Emptiness — not identity — is the property
@@ -239,9 +255,9 @@ function safetyGuard(mode) {
     // no target is ever inferred — both refs must be supplied explicitly and match.
     if (actual !== HOSTED_ALLOWED_MIGRATION_VALIDATION_REF) {
       console.log(
-        `[safety] hosted target ${redact(actual)} is a ROTATED validation project (not the originally ` +
-          "designated one). It may be fresh-applied only if its PMFreak migration history is empty; " +
-          "that precondition is enforced before any destructive push.",
+        `[safety] hosted target ${redact(actual)} is an ALLOWLISTED ROTATED validation project. It may be ` +
+          "fresh-applied only after proving BOTH an empty PMFreak migration ledger and an empty application " +
+          "object/data state; both preconditions are enforced before any destructive push.",
       );
     }
   }
@@ -337,6 +353,21 @@ function applyHosted(files = loadMigrationFiles()) {
 
   if (target.mode === "fail") {
     return { ok: false, failedFile: "(hosted target classification)", reason: target.reason };
+  }
+
+  if (target.mode === "fresh") {
+    // Allowlisted + empty ledger is still not enough. Prove the database carries no
+    // application workload before anything destructive runs.
+    const probe = probeHostedApplicationState(process.env.SUPABASE_DB_URL);
+    if (!probe.ok) {
+      return { ok: false, failedFile: "(hosted application-emptiness probe)", reason: probe.reason, failure: probe.failure, stderr: probe.stderr };
+    }
+    console.log(`[apply:hosted] APPLICATION_EMPTINESS=${probe.verdict.empty ? "EMPTY" : "NOT_EMPTY"}`);
+    if (!probe.verdict.empty) {
+      // Explicitly NOT repeatability and NOT a delta apply — a populated project with an
+      // empty ledger is simply not certifiable here.
+      return { ok: false, failedFile: "(hosted application-emptiness probe)", reason: probe.verdict.reason };
+    }
   }
 
   if (target.mode === "repeatability") {
@@ -484,16 +515,123 @@ function classifyHostedTarget(remoteVersions, localVersions) {
   };
 }
 
+// An empty MIGRATION LEDGER is not an empty DATABASE. A project can carry a real
+// application workload with no PMFreak migration history at all, and pushing into it
+// would be destructive. This classifier turns raw counts into a structured verdict that
+// NAMES the non-empty category, so a refusal is diagnosable instead of a bare boolean.
+//
+// Normal Supabase platform schemas and system objects must NOT make a genuinely new
+// project look non-fresh, so the probe below counts only non-platform state.
+function classifyObjectEmptiness(counts) {
+  const categories = [
+    ["user_schemas", "user-created schemas outside the Supabase platform set"],
+    ["user_relations", "application relations outside the platform schemas"],
+    ["public_relations", "relations in the public schema"],
+    ["public_rows", "rows in public application tables"],
+    ["migration_rows", "PMFreak migration-history rows"],
+    ["auth_users", "auth.users identities"],
+    ["storage_buckets", "storage buckets"],
+    ["storage_objects", "storage objects"],
+  ];
+  const nonEmpty = categories
+    .filter(([key]) => Number(counts[key] ?? 0) > 0)
+    .map(([key, description]) => ({ category: key, count: Number(counts[key] ?? 0), description }));
+  return {
+    empty: nonEmpty.length === 0,
+    nonEmpty,
+    reason: nonEmpty.length === 0
+      ? null
+      : `hosted target is NOT application-empty: ${nonEmpty.map((n) => `${n.category}=${n.count}`).join(", ")}. ` +
+        "A fresh-apply certification requires a genuinely new project; this one already carries application state.",
+  };
+}
+
+const PLATFORM_SCHEMA_PREDICATE =
+  "n.nspname NOT LIKE 'pg\\_%' AND n.nspname NOT IN ('information_schema','public','auth','storage','realtime'," +
+  "'extensions','graphql','graphql_public','pgbouncer','pgsodium','pgsodium_masks','pgtle','vault','cron','net'," +
+  "'dbdev','pgmq','repack','tiger','tiger_data','topology','supabase_functions','supabase_migrations','etl'," +
+  "'_analytics','_realtime','_supavisor','_timescaledb_cache','_timescaledb_catalog','_timescaledb_config'," +
+  "'_timescaledb_internal','timescaledb_experimental','timescaledb_information')";
+
+// Read-only probe over the already-required SUPABASE_DB_URL, through the existing psql
+// runner. Never mutates; used only to decide whether a fresh apply may proceed.
+function probeHostedApplicationState(dbUrl, runner = sh) {
+  const query = `
+    select
+      (select count(*) from pg_namespace n where ${PLATFORM_SCHEMA_PREDICATE}) as user_schemas,
+      (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
+         where c.relkind in ('r','p') and ${PLATFORM_SCHEMA_PREDICATE}) as user_relations,
+      (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
+         where c.relkind in ('r','p') and n.nspname = 'public') as public_relations,
+      (select coalesce(sum(n_live_tup), 0) from pg_stat_user_tables where schemaname = 'public') as public_rows,
+      (select case when to_regclass('supabase_migrations.schema_migrations') is null then 0
+                   else (select count(*) from supabase_migrations.schema_migrations) end) as migration_rows,
+      (select case when to_regclass('auth.users') is null then 0
+                   else (select count(*) from auth.users) end) as auth_users,
+      (select case when to_regclass('storage.buckets') is null then 0
+                   else (select count(*) from storage.buckets) end) as storage_buckets,
+      (select case when to_regclass('storage.objects') is null then 0
+                   else (select count(*) from storage.objects) end) as storage_objects;
+  `;
+  const result = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", ",", dbUrl, "-c", query]);
+  if (result.status !== 0) {
+    // Fail closed: an unprovable target is never a fresh target.
+    return { ok: false, failure: describeSpawnResult(result, "psql (hosted application-emptiness probe)"), stderr: result.stderr };
+  }
+  const fields = (result.stdout ?? "").trim().split(/\r?\n/).pop()?.split(",") ?? [];
+  const keys = ["user_schemas", "user_relations", "public_relations", "public_rows", "migration_rows", "auth_users", "storage_buckets", "storage_objects"];
+  if (fields.length !== keys.length || fields.some((f) => !/^\d+$/.test(f.trim()))) {
+    return { ok: false, reason: `the application-emptiness probe returned unrecognized output (${fields.length} field(s)); refusing to infer emptiness.` };
+  }
+  const counts = Object.fromEntries(keys.map((k, i) => [k, Number(fields[i].trim())]));
+  return { ok: true, counts, verdict: classifyObjectEmptiness(counts) };
+}
+
 // Reads the linked project's migration history WITHOUT mutating it.
-function readHostedMigrationVersions(localTimestamps) {
-  const list = runNpx(["-y", "supabase", "migration", "list", "--linked"], {
+//
+// FAIL-CLOSED RECOGNITION. A zero exit does not prove the output was understood. The CLI
+// prints one row per LOCAL migration even when the remote is empty, so with local
+// migrations present, "zero recognized rows" can never legitimately mean "empty remote" —
+// it means the format was not recognized. That is exactly how the earlier backtick
+// regression behaved, and it must never be readable as TARGET_IS_FRESH.
+function readHostedMigrationVersions(localTimestamps, runner = runNpx) {
+  const list = runner(["-y", "supabase", "migration", "list", "--linked"], {
     env: { ...process.env, SUPABASE_ACCESS_TOKEN: process.env.SUPABASE_ACCESS_TOKEN },
   });
   if (list.status !== 0) {
     return { ok: false, failure: describeSpawnResult(list, "npx supabase migration list --linked"), stderr: list.stderr };
   }
   const parsed = parseHostedMigrationList(list.stdout ?? "", localTimestamps);
+  const recognition = recognizeMigrationListRows(parsed.rows, localTimestamps);
+  if (!recognition.ok) return { ok: false, reason: recognition.reason };
   return { ok: true, remoteVersions: parsed.rows.map((r) => r.remote).filter(Boolean) };
+}
+
+// Pure, so the invariant is unit-testable without a CLI.
+function recognizeMigrationListRows(rows, localTimestamps) {
+  const locals = [...new Set(localTimestamps)];
+  if (locals.length === 0) return { ok: true };
+  if (rows.length === 0) {
+    return {
+      ok: false,
+      reason:
+        `UNRECOGNIZED_OUTPUT: 'supabase migration list --linked' exited 0 but no migration rows were recognized, ` +
+        `while ${locals.length} local migration(s) exist. The CLI lists every LOCAL migration even against an empty ` +
+        "remote, so zero recognized rows means the output format was not understood — not that the target is fresh.",
+    };
+  }
+  const seenLocal = new Set(rows.map((r) => r.local).filter(Boolean));
+  const unaccounted = locals.filter((v) => !seenLocal.has(v));
+  if (unaccounted.length > 0) {
+    return {
+      ok: false,
+      reason:
+        `UNRECOGNIZED_OUTPUT: the parsed migration table does not account for ${unaccounted.length} local ` +
+        `migration(s) (${unaccounted.slice(0, 5).join(", ")}${unaccounted.length > 5 ? ", ..." : ""}). Refusing to ` +
+        "classify the target from partially-understood output.",
+    };
+  }
+  return { ok: true };
 }
 
 function verifyHostedRepeatability(files) {
@@ -655,7 +793,11 @@ export {
   redact,
   parseHostedMigrationList,
   classifyHostedTarget,
+  classifyObjectEmptiness,
+  probeHostedApplicationState,
+  recognizeMigrationListRows,
   readHostedMigrationVersions,
+  HOSTED_ALLOWED_VALIDATION_REFS,
   applyHosted,
   verifyHostedRepeatability,
   runNpx,

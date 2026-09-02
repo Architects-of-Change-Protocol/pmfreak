@@ -46,6 +46,14 @@ const GATES = [
   { name: "Launch Smoke", command: "npm run test:launch-smoke", severity: "blocking" },
   { name: "Auth Bypass Scan", command: "npm run check:no-local-auth-bypass", severity: "blocking" },
   { name: "Enterprise UX", command: "npm run check:enterprise-ux", severity: "advisory" },
+  // P0-LAUNCH-06 is the CURRENT closed-beta end-to-end release rehearsal, and it is
+  // BLOCKING: the release decision must be incapable of GO / CONDITIONAL GO if the
+  // rehearsal fails. It needs an isolated Supabase fixture, which Release Governance
+  // provisions before invoking this orchestrator (see release-governance.yml). A missing
+  // fixture therefore FAILS this gate — there is deliberately no skip, no advisory
+  // downgrade and no environment-conditional execution, because a gate that can be
+  // skipped cannot block anything.
+  { name: "P0-LAUNCH-06 Beta Release Rehearsal", command: "npm run check:beta-release-rehearsal", severity: "blocking" },
   { name: "Dependency Security", command: "node scripts/check-dependency-security.mjs", severity: "advisory" },
 ];
 

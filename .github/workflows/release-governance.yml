@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     # The orchestrator runs the governance ownership boundary, typecheck, lint, tests, the Next.js build,
     # governance, runtime/production/database/security gates and launch smoke in sequence.
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
     steps:
@@ -41,6 +41,52 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
+
+      # ── Ephemeral, fully isolated P0-LAUNCH-06 rehearsal fixture ──────────────
+      # The rehearsal is a BLOCKING gate inside check-beta-release.mjs, so this job must
+      # provision the environment that makes the canonical orchestrator capable of running
+      # it. Everything below is local to the runner and destroyed afterwards:
+      #
+      #   * loopback-only Supabase stack — scripts/p2-13/isolation-guard.mjs refuses any
+      #     non-loopback host, so this fixture physically cannot address a hosted project
+      #   * keys are read from the started stack, never from a GitHub secret
+      #   * the fixture actor password is generated per run and never persisted
+      #
+      # NO long-lived secret is required, so fork PRs remain safe. Hosted Supabase, the
+      # ACTIVE PMFreak project, the hosted migration-validation project and any shared
+      # staging environment are all out of reach by construction.
+      - name: Start isolated local Supabase fixture
+        run: npx -y supabase start
+
+      - name: Export ephemeral fixture environment
+        run: |
+          set -euo pipefail
+          # `supabase status -o env` emits the started stack's own values.
+          eval "$(npx -y supabase status -o env)"
+          # Mask BEFORE the values are used anywhere, so a later failure cannot echo them.
+          echo "::add-mask::${SERVICE_ROLE_KEY}"
+          echo "::add-mask::${ANON_KEY}"
+          {
+            echo "OPERATIONAL_FLOW_TEST_SUPABASE_URL=${API_URL}"
+            echo "OPERATIONAL_FLOW_TEST_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            echo "OPERATIONAL_FLOW_TEST_ANON_KEY=${ANON_KEY}"
+            echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            echo "OPERATIONAL_FLOW_TEST_DATABASE_URL=${DB_URL}"
+            echo "NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000"
+            echo "P2_13_FOUNDER_FIXTURE_ENABLED=true"
+            echo "P2_13_ALLOW_LOCAL_RESET=true"
+            echo "OPERATIONAL_FLOW_TEST_ALLOW_DESTRUCTIVE=true"
+          } >> "$GITHUB_ENV"
+          # Ephemeral, per-run, never persisted and never echoed.
+          FIXTURE_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::${FIXTURE_PASSWORD}"
+          echo "P2_13_FIXTURE_ACTOR_PASSWORD=${FIXTURE_PASSWORD}" >> "$GITHUB_ENV"
+
+      - name: Seed the deterministic P2-13 founder fixture
+        run: npm run seed:p2-13-founder
+
       # Blocking/advisory severity is owned by scripts/check-beta-release.mjs, which exits
       # 1 only on a BLOCKING gate failure — advisory gates report CONDITIONAL/WARN and are
       # tracked in docs/release/residual-risk-register.md. That classification is NOT
@@ -48,6 +94,11 @@ jobs:
       # The job's success is exactly the orchestrator's own GO / CONDITIONAL GO decision.
       - name: Beta release gate
         run: npm run check:beta-release
+      # Destruction always runs, including on gate failure, timeout and cancellation.
+      - name: Stop isolated local Supabase fixture
+        if: always()
+        run: npx -y supabase stop --no-backup
+
       - name: Upload beta release gate logs
         if: always()
         uses: actions/upload-artifact@v4

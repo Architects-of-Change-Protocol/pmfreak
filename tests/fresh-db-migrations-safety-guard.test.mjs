@@ -16,6 +16,10 @@ import {
   safetyGuard,
   parseHostedMigrationList,
   classifyHostedTarget,
+  classifyObjectEmptiness,
+  recognizeMigrationListRows,
+  readHostedMigrationVersions,
+  HOSTED_ALLOWED_VALIDATION_REFS,
   redact,
   loadMigrationFiles,
   main,
@@ -499,29 +503,117 @@ test("hosted mode refuses the ACTIVE PMFreak project ref even with matching refs
   assert.doesNotMatch(result.stdout + result.stderr, /sbp_test_token_not_real/);
 });
 
-test("hosted mode admits a ROTATED project ref for classification, but never for a blind apply", () => {
-  // Superseded contract. The old single-ref pin hard-refused every non-designated ref,
-  // which made target rotation impossible AND — worse — still permitted the designated
-  // (now fully-migrated) project to be delta-applied and reported as a fresh apply.
-  // Identity is no longer the gate; the PRE-APPLY emptiness precondition is. A rotated
-  // ref may therefore reach classification, and is refused there unless its PMFreak
-  // migration history is empty.
-  const result = run({
-    PATH: process.env.PATH,
-    ALLOW_DESTRUCTIVE_FRESH_DB_TEST: "true",
-    SUPABASE_DB_URL: "postgresql://postgres:pw@db.someotherprojectref.supabase.co:5432/postgres",
-    SUPABASE_ACCESS_TOKEN: "sbp_test_token_not_real",
-    SUPABASE_PROJECT_REF: "someotherprojectref",
-    FRESH_DB_EXPECTED_PROJECT_REF: "someotherprojectref",
-  });
-  const out = result.stdout + result.stderr;
-  assert.match(out, /ROTATED validation project/i, "a rotated ref is not identified as such");
-  assert.match(out, /empty/i, "the emptiness precondition is not stated for a rotated ref");
-  // The run still cannot succeed here: no reachable project, so it fails rather than applying.
-  assert.notEqual(result.status, 0, "a rotated ref must not silently succeed without classification");
-  // And the safety model is intact for this ref.
-  assert.doesNotMatch(out, /sbp_test_token_not_real/, "the access token leaked");
+test("hosted mode REFUSES a matching-but-unallowlisted ref, in-process and offline", () => {
+  // Deliberately in-process. The previous version of this control supplied a complete
+  // hosted environment that PASSED safetyGuard, so the child immediately ran
+  // `npx -y supabase link` — a credential-free suite that could hang on an npx download
+  // or make a real hosted request. safetyGuard is a pure exported function; call it.
+  const saved = { ...process.env };
+  const savedExit = process.exitCode;
+  try {
+    Object.assign(process.env, {
+      ALLOW_DESTRUCTIVE_FRESH_DB_TEST: "true",
+      SUPABASE_DB_URL: "postgresql://user:pass@db.someotherprojectref.supabase.co:5432/postgres",
+      SUPABASE_ACCESS_TOKEN: "sbp_test_token_not_real",
+      SUPABASE_PROJECT_REF: "someotherprojectref",
+      FRESH_DB_EXPECTED_PROJECT_REF: "someotherprojectref",
+    });
+    assert.equal(safetyGuard("hosted"), false, "a matching handshake alone must not authorise a destructive target");
+  } finally {
+    for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
+    Object.assign(process.env, saved);
+    process.exitCode = savedExit;
+  }
 });
+
+test("the allowlist is version-controlled source, and the active project is never in it", () => {
+  assert.ok(Array.isArray(HOSTED_ALLOWED_VALIDATION_REFS) && HOSTED_ALLOWED_VALIDATION_REFS.length > 0);
+  assert.ok(HOSTED_ALLOWED_VALIDATION_REFS.includes(HOSTED_ALLOWED_MIGRATION_VALIDATION_REF));
+  assert.ok(!HOSTED_ALLOWED_VALIDATION_REFS.includes(HOSTED_DENIED_ACTIVE_PMFREAK_REF), "the ACTIVE project must never be allowlisted");
+});
+
+// ─── Parser fail-closed: a regression must never read as "fresh" ──────────
+test("recognizeMigrationListRows: zero recognized rows with local migrations FAILS CLOSED", () => {
+  const r = recognizeMigrationListRows([], ["20260428120000", "20260501000000"]);
+  assert.equal(r.ok, false, "an unrecognized table must never be treated as an empty remote");
+  assert.match(r.reason, /UNRECOGNIZED_OUTPUT/);
+});
+
+test("recognizeMigrationListRows: rows that do not account for every local migration FAIL CLOSED", () => {
+  const rows = [{ local: "20260428120000", remote: null }];
+  const r = recognizeMigrationListRows(rows, ["20260428120000", "20260501000000"]);
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /does not account for 1 local migration/);
+});
+
+test("recognizeMigrationListRows: a legitimately EMPTY remote is recognized (local rows, empty Remote)", () => {
+  const locals = ["20260428120000", "20260501000000"];
+  const rows = locals.map((v) => ({ local: v, remote: null }));
+  assert.equal(recognizeMigrationListRows(rows, locals).ok, true);
+  // ...and only then may it classify as fresh.
+  assert.equal(classifyHostedTarget(rows.map((r) => r.remote).filter(Boolean), locals).mode, "fresh");
+});
+
+test("readHostedMigrationVersions: an unparseable-but-successful CLI run cannot yield remoteVersions=[]", () => {
+  // Injected runner seam: no npx, no network, no CLI.
+  const stubbed = () => ({ status: 0, stdout: "Connecting to remote database...\n<unrecognised new format>\n", stderr: "" });
+  const out = readHostedMigrationVersions(["20260428120000"], stubbed);
+  assert.equal(out.ok, false, "a zero exit with unrecognized output must fail closed");
+  assert.match(out.reason, /UNRECOGNIZED_OUTPUT/);
+});
+
+test("readHostedMigrationVersions: the real backtick format parses through the injected runner", () => {
+  const stubbed = () => ({ status: 0, stdout: "  Local | Remote | Time\n----|----|----\n  `20260428120000` | `20260428120000` | x\n", stderr: "" });
+  const out = readHostedMigrationVersions(["20260428120000"], stubbed);
+  assert.equal(out.ok, true);
+  assert.deepEqual(out.remoteVersions, ["20260428120000"]);
+});
+
+// ─── Object emptiness: an empty LEDGER is not an empty DATABASE ───────────
+const EMPTY_COUNTS = { user_schemas: 0, user_relations: 0, public_relations: 0, public_rows: 0, migration_rows: 0, auth_users: 0, storage_buckets: 0, storage_objects: 0 };
+
+test("classifyObjectEmptiness: a genuinely new project is empty", () => {
+  const v = classifyObjectEmptiness(EMPTY_COUNTS);
+  assert.equal(v.empty, true);
+  assert.deepEqual(v.nonEmpty, []);
+});
+
+test("classifyObjectEmptiness: an empty ledger with application state is NOT fresh, and names the category", () => {
+  for (const key of ["public_relations", "public_rows", "auth_users", "storage_buckets", "storage_objects", "user_schemas", "user_relations"]) {
+    const v = classifyObjectEmptiness({ ...EMPTY_COUNTS, [key]: 3 });
+    assert.equal(v.empty, false, `${key} must defeat a fresh-apply certification`);
+    assert.equal(v.nonEmpty[0].category, key, "the refusal must name the non-empty category");
+    assert.match(v.reason, /NOT application-empty/);
+  }
+});
+
+test("classifyObjectEmptiness: normal Supabase platform state alone does not make a new project non-fresh", () => {
+  // The probe counts only non-platform schemas, so a stock project reports all zeros.
+  assert.equal(classifyObjectEmptiness(EMPTY_COUNTS).empty, true);
+});
+
+test("the emptiness probe SQL excludes platform schemas and never mutates", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  // Bounded on BOTH ends, and it slices the harness (a different file), so it cannot
+  // match its own assertions. The predicate constant sits just above the probe function.
+  const start = source.indexOf("const PLATFORM_SCHEMA_PREDICATE");
+  const end = source.indexOf("// Reads the linked project's migration history");
+  assert.ok(start > 0 && end > start, "the emptiness probe region could not be located");
+  const fn = source.slice(start, end);
+  for (const schema of ["auth", "storage", "realtime", "extensions", "graphql", "vault", "supabase_migrations"]) {
+    assert.ok(fn.includes(`'${schema}'`), `the platform predicate does not exclude ${schema}`);
+  }
+  assert.doesNotMatch(fn, /\b(insert|update|delete|drop|truncate|alter)\b/i, "the emptiness probe is not read-only");
+});
+
+test("SUPERSEDED shape check: the rotated-ref control no longer spawns a child process", () => {
+  const suite = readFileSync(new URL(import.meta.url), "utf8");
+  const control = suite.slice(suite.indexOf('test("hosted mode REFUSES a matching-but-unallowlisted ref'));
+  const body = control.slice(0, control.indexOf("\n});"));
+  assert.doesNotMatch(body, /\brun\(/, "the offline control must not spawn the harness as a child process");
+});
+
+
 
 test("hosted mode precheck accepts the designated migration-validation ref (guard only, no apply)", () => {
   // Deliberately in-process: calling safetyGuard directly proves the precheck
