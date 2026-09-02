@@ -27,7 +27,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
-import { acceptWorkspaceInvite } from "../../src/lib/workspace-team";
+import { acceptWorkspaceInvite, WorkspaceInviteError } from "../../src/lib/workspace-team";
 import { TENANT_A, TENANT_B } from "../../scripts/p2-13/founder-scenario-manifest.mjs";
 import {
   HttpSession,
@@ -80,8 +80,36 @@ function betaEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
 const governedFirstUse = (s: HttpSession) =>
   s.request(`/api/execution-tasks?projectId=${encodeURIComponent(TENANT_A.projectId)}`);
 
-const membershipOf = async (userId: string, workspaceId: string) =>
-  (await admin().from("workspace_memberships").select("role").eq("workspace_id", workspaceId).eq("user_id", userId).maybeSingle()).data;
+// A failed query must never read as "no membership". Absence is only provable once the
+// query itself is known to have succeeded, so the error is asserted before the null is
+// interpreted — otherwise an outage silently satisfies every negative membership check.
+const membershipOf = async (userId: string, workspaceId: string) => {
+  const r = await admin().from("workspace_memberships").select("role").eq("workspace_id", workspaceId).eq("user_id", userId).maybeSingle();
+  assert.equal(r.error, null, `membership lookup failed for ${userId} in ${workspaceId}: ${r.error?.message}`);
+  return r.data;
+};
+
+/**
+ * Logs in and returns the raw Cookie header. HttpSession deliberately hides response
+ * headers, but D1 has to inspect the accept route's `Location` — a redirect to /login or
+ * an error page would otherwise be indistinguishable from a successful acceptance — so
+ * that one flow uses fetch directly rather than widening the shared helper.
+ */
+async function rawLoginCookie(email: string): Promise<string> {
+  const res = await fetch(`http://127.0.0.1:${PORT}/api/login`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ email, password: process.env.P2_13_FIXTURE_ACTOR_PASSWORD! }).toString(),
+    redirect: "manual",
+  });
+  assert.ok([200, 302, 303, 307].includes(res.status), `${email} could not authenticate: ${res.status}`);
+  const cookie = res.headers.getSetCookie()
+    .map((c) => c.split(";")[0]!)
+    .filter((c) => c.slice(c.indexOf("=") + 1) !== "")
+    .join("; ");
+  assert.ok(cookie.length > 0, `${email} authenticated but received no session cookie`);
+  return cookie;
+}
 
 async function sessionFor(email: string): Promise<HttpSession> {
   const s = new HttpSession(`http://127.0.0.1:${PORT}`);
@@ -183,6 +211,36 @@ after(async () => {
   if (foreignUserId) {
     const foreignDeleted = await supabase.auth.admin.deleteUser(foreignUserId);
     assert.equal(foreignDeleted.error, null, `foreign identity deletion failed: ${foreignDeleted.error?.message}`);
+  }
+
+  // The bootstrap workspace the participant acquired by loading the protected accept
+  // route is MUTABLE fixture state and must not accumulate. The accepted retention
+  // rationale covers the participant IDENTITY and the immutable operational records in
+  // tenant A — it does not cover this empty personal workspace.
+  if (participantUserId) {
+    const owned = await supabase.from("workspaces").select("id").eq("created_by_user_id", participantUserId);
+    assert.equal(owned.error, null, `bootstrap-workspace lookup failed: ${owned.error?.message}`);
+    const bootstrapped = (owned.data ?? []).map((w) => w.id as string)
+      .filter((id) => id !== TENANT_A.workspaceId && id !== TENANT_B.workspaceId);
+    for (const id of bootstrapped) {
+      // Belt and braces: a seeded tenant must never be reachable by this delete.
+      assert.notEqual(id, TENANT_A.workspaceId, "refusing to delete the seeded tenant A");
+      assert.notEqual(id, TENANT_B.workspaceId, "refusing to delete the seeded tenant B");
+      const mships = await supabase.from("workspace_memberships").delete().eq("workspace_id", id);
+      assert.equal(mships.error, null, `bootstrap workspace membership cleanup failed for ${id}: ${mships.error?.message}`);
+      const dropped = await supabase.from("workspaces").delete().eq("id", id);
+      assert.equal(dropped.error, null, `bootstrap workspace cleanup failed for ${id}: ${dropped.error?.message}`);
+    }
+    const left = await supabase.from("workspaces").select("id").eq("created_by_user_id", participantUserId);
+    assert.equal(left.error, null, `bootstrap-workspace verification failed: ${left.error?.message}`);
+    assert.deepEqual(
+      (left.data ?? []).map((w) => w.id as string).filter((id) => id !== TENANT_A.workspaceId && id !== TENANT_B.workspaceId),
+      [],
+      "a rehearsal-created bootstrap workspace leaked into the fixture database",
+    );
+    EVIDENCE.bootstrapWorkspaceTeardown = bootstrapped.length > 0
+      ? `REMOVED ${bootstrapped.length} rehearsal-created bootstrap workspace(s); no immutable operational record was deleted`
+      : "NONE CREATED";
   }
 
   // The participant: prove WHY it is retained before accepting the retention.
@@ -418,7 +476,7 @@ test("C2. SUPPORTED_OPERATOR_INVITE: the real command creates an inspectable, co
   assert.equal(auditRows[0]!.actor_user_id, ownerUserId, "the audit event attributes a different inviter");
 
   EVIDENCE.supportedOperatorInvite = `workspace ${TENANT_A.workspaceId} role pm pending, token hashed at rest, invitation_sent audited (bound to this run: ${auditEmail}, role pm, expiry matches the invitation row, inviter ${ownerUserId})`;
-  EVIDENCE.inviteAuditAtomicity = "RR-INVITE-AUDIT-NONATOMIC ACCEPTED_FOR_CLOSED_BETA (createWorkspaceInvitationRecord does not inspect the audit insert error; product code deliberately unchanged in this increment)";
+  EVIDENCE.inviteAuditAtomicity = "RR-INVITE-AUDIT-NONATOMIC ACCEPTED_FOR_CLOSED_BETA — registered in docs/release/residual-risk-register.md and verified by K2 (createWorkspaceInvitationRecord does not inspect the audit insert error; product code deliberately unchanged)";
   EVIDENCE.operatorInviteFronteraGoverned = "NO";
   EVIDENCE.operatorInviteSubscriptionSeatGated = "NO";
 });
@@ -441,14 +499,22 @@ test("D1. TENANT_BINDING and ROLE_BINDING come from the invitation record, serve
   // on the certified path — a regression in any of them would otherwise leave real
   // participants unable to accept while this rehearsal still granted membership.
   const supabase = admin();
-  const participant = await sessionFor(participantEmail);
+  const base = `http://127.0.0.1:${PORT}`;
+  const cookie = await rawLoginCookie(participantEmail);
   assert.ok(inviteAcceptPath.startsWith("/accept-invite/"), `the operator emitted no usable accept path: ${inviteAcceptPath}`);
 
-  const accepted = await participant.request(inviteAcceptPath);
+  const accepted = await fetch(`${base}${inviteAcceptPath}`, { headers: { cookie }, redirect: "manual" });
   assert.ok(
     [302, 303, 307, 308].includes(accepted.status),
-    `the participant-facing accept route did not redirect on success: ${accepted.status} ${accepted.text.slice(0, 250)}`,
+    `the participant-facing accept route did not redirect on success: ${accepted.status}`,
   );
+  // WHERE it redirects is the actual contract. Accepting any 3xx would let a regression
+  // that bounces the participant to /login, to an error destination, or to a failed invite
+  // route pass as a successful acceptance. The shipped route ends in redirect("/team").
+  const location = accepted.headers.get("location");
+  assert.ok(location, "the accept route redirected without a Location header");
+  const destination = new URL(location!, base).pathname;
+  assert.equal(destination, "/team", `the accept route redirected to an unexpected destination: ${destination}`);
 
   // Scope the claim to the INVITED tenant. Going through the shipped route surfaces real
   // behaviour the direct-domain call never did: `(protected)/layout.tsx` resolves a write
@@ -483,13 +549,13 @@ test("D1. TENANT_BINDING and ROLE_BINDING come from the invitation record, serve
   // `(protected)/layout.tsx` legitimately redirects into onboarding. Asserting 200 would
   // encode an onboarding-state assumption rather than an authority fact, so the assertion
   // is that the admitted identity is neither refused nor met with a server error.
-  const landing = await participant.request("/team");
+  const landing = await fetch(`${base}/team`, { headers: { cookie }, redirect: "manual" });
   assert.ok(![401, 403].includes(landing.status), `the accepted participant was denied the post-acceptance destination: ${landing.status}`);
-  assert.ok(landing.status < 500, `the post-acceptance destination errored: ${landing.status} ${landing.text.slice(0, 200)}`);
+  assert.ok(landing.status < 500, `the post-acceptance destination errored: ${landing.status}`);
 
   EVIDENCE.tenantBinding = `workspace ${TENANT_A.workspaceId}`;
   EVIDENCE.roleBinding = "pm (from the invitation record, not the caller)";
-  EVIDENCE.inviteAcceptanceSurface = `PARTICIPANT_FACING_ROUTE GET ${inviteAcceptPath.replace(/\/[^/]+$/, "/<token>")} -> ${accepted.status}; /team -> ${landing.status} (not denied)`;
+  EVIDENCE.inviteAcceptanceSurface = `PARTICIPANT_FACING_ROUTE GET ${inviteAcceptPath.replace(/\/[^/]+$/, "/<token>")} -> ${accepted.status} Location ${destination}; /team -> ${landing.status} (not denied)`;
   EVIDENCE.inviteAcceptanceIdentitySource = "SESSION_DERIVED (requireAuthUser on the shipped route), not caller-supplied";
 });
 
@@ -499,12 +565,23 @@ test("D2. INVITE_REPLAY_REFUSED: the same token cannot mint a second authority g
   // by the abuse limiter rather than by invitation semantics, making the case
   // nondeterministic and testing the wrong boundary. D1 already certifies the route.
   const supabase = admin();
+  // Treating ANY throw as proof of refusal would let a PostgREST outage, a query
+  // regression or a programmer error satisfy the replay control without the
+  // `already_used` decision ever being reached. Only that specific denial counts;
+  // everything else is rethrown and fails the case.
   let replayed = false;
+  let refusal: WorkspaceInviteError | null = null;
   try {
     await acceptWorkspaceInvite({ token: inviteToken, userId: participantUserId, userEmail: participantEmail }, async () => supabase as never);
     replayed = true;
-  } catch { /* refusal is the expected outcome */ }
+  } catch (error) {
+    if (!(error instanceof WorkspaceInviteError)) throw error;
+    if (error.reason !== "already_used") throw error;
+    refusal = error;
+  }
   assert.equal(replayed, false, "a used invitation token was accepted a second time");
+  assert.ok(refusal, "the replay did not reach the already_used decision");
+  assert.equal(refusal!.reason, "already_used", "the replay was refused for an unrelated reason");
 
   const memberships = await supabase.from("workspace_memberships").select("workspace_id").eq("user_id", participantUserId);
   assert.equal(memberships.error, null, `membership lookup failed: ${memberships.error?.message}`);
@@ -512,7 +589,7 @@ test("D2. INVITE_REPLAY_REFUSED: the same token cannot mint a second authority g
   // its own bootstrapped workspace once acceptance runs through the shipped route.
   const inTenantA = (memberships.data ?? []).filter((m) => m.workspace_id === TENANT_A.workspaceId);
   assert.equal(inTenantA.length, 1, "token replay created a second authority grant in the invited tenant");
-  EVIDENCE.inviteReplayRefused = "PASS (still exactly one invited-tenant membership after replay attempt)";
+  EVIDENCE.inviteReplayRefused = "PASS (WorkspaceInviteError reason=already_used; still exactly one invited-tenant membership after replay)";
 });
 
 // ───────────────── PHASE E — governed first use (the load-bearing claim) ─────────────────
@@ -596,7 +673,8 @@ test("F1. REAL_TENANT_OPERATION: the admitted participant COMPLETES a real tenan
     .from("operational_normalized_events")
     .select("id")
     .eq("correlation_id", foreignCorrelation);
-  assert.deepEqual(foreignEffect.data ?? [], [], "a refused cross-tenant write still produced a persisted effect");
+  assert.equal(foreignEffect.error, null, `the side-effect verification query failed, so absence is unproven: ${foreignEffect.error?.message}`);
+  assert.deepEqual(foreignEffect.data, [], "a refused cross-tenant write still produced a persisted effect");
 
   EVIDENCE.realTenantOperationPath = "POST /api/operational-flow";
   EVIDENCE.realTenantOperationKind = "capture_input";
@@ -767,6 +845,7 @@ test("J1. OFFBOARD_AUDIT_FAILURE: the incident is surfaced, and the operator res
     const events = await supabase.from("workspace_audit_events").select("payload")
       .eq("workspace_id", TENANT_A.workspaceId).eq("event_type", "member_removed")
       .order("created_at", { ascending: false }).limit(30);
+    assert.equal(events.error, null, `the audit lookup failed, so a suppressed audit write is unproven: ${events.error?.message}`);
     const recorded = (events.data ?? []).some((e: { payload?: { targetUserId?: string } }) => e.payload?.targetUserId === incidentUserId);
     assert.equal(recorded, false, "the fault seam did not suppress the audit write, so this proves nothing");
 
@@ -800,6 +879,7 @@ test("K1. CERTIFIED BOUNDARY: the runtime boundary is certified; the hosted data
     generatedByThisGate: "NO",
     verifiedByThisGate: "NO",
     source: "RR-MIGRATE (hosted validation project, 161/161 applied, 0 pending, 0 unexpected, no manual repair) and RR-BACKUP (authoritative single-pass isolated local logical restore, exit 0)",
+    canonicalRecords: "docs/release/hosted-supabase-migration-proof.md, docs/release/backup-restore-drill.md, docs/release/residual-risk-register.md",
     scope: "FRESH_MIGRATION_AND_LOGICAL_BACKUP_RECOVERABILITY_ONLY",
     hostedPlatformRestoreRehearsal: "NOT_PERFORMED",
     fullBetaDeploymentTopologyCertified: "NO",
@@ -808,6 +888,16 @@ test("K1. CERTIFIED BOUNDARY: the runtime boundary is certified; the hosted data
   assert.equal(hostedDataTier.provenance, "EXTERNAL_AUTHORITATIVE_SNAPSHOT_METADATA", "the hosted certification lost its external attribution");
   assert.equal(hostedDataTier.generatedByThisGate, "NO", "the battery claims to have generated the hosted certification");
   assert.equal(hostedDataTier.verifiedByThisGate, "NO", "the battery claims to have verified the hosted certification");
+  // The external snapshot must be traceable to repository records that agree with it. The
+  // previous head cited RR-MIGRATE/RR-BACKUP while those documents still said NOT EXECUTED
+  // and OPEN, so the gate emitted a PASS its own evidence base denied.
+  const hostedProof = readFileSync("docs/release/hosted-supabase-migration-proof.md", "utf8");
+  assert.match(hostedProof, /HOSTED_MIGRATIONS_APPLIED=161\/161/, "the hosted proof does not record the executed migration count");
+  assert.match(hostedProof, /RR_MIGRATE=RESOLVED/, "the hosted proof does not record RR-MIGRATE as resolved");
+  assert.doesNotMatch(hostedProof.split("## Historical context")[0]!, /^## Status: NOT EXECUTED/m, "the hosted proof still declares the execution NOT EXECUTED");
+  const drill = readFileSync("docs/release/backup-restore-drill.md", "utf8");
+  assert.match(drill, /RR_BACKUP=RESOLVED/, "the restore drill does not record RR-BACKUP as resolved");
+  assert.match(drill, /HOSTED_PLATFORM_RESTORE_REHEARSAL=NOT_PERFORMED/, "the restore drill does not preserve the hosted-restore scope limit");
   EVIDENCE.hostedDataTierCertification = hostedDataTier;
   EVIDENCE.fullBetaDeploymentTopologyCertified = "NO";
   EVIDENCE.invalidEnvProcessExits = "NO (Next.js 16.3.2 may keep listening; surfaces still fail closed)";
@@ -823,6 +913,7 @@ test("K2. ACCEPTED RESIDUAL BOUNDARIES still hold and are not silently upgraded"
     "RR-BETA-OPERATOR-FRONTERA-BOUNDARY",
     "RR-NORMAL-INVITE-SEAT-MODEL",
     "RR-OFFBOARD-AUDIT-NONATOMIC",
+    "RR-INVITE-AUDIT-NONATOMIC",
     "RR-BETA-PLATFORM-SIGNUP-OPEN",
   ]) {
     const row = register.slice(register.indexOf(`| ${rr} |`));
@@ -838,5 +929,5 @@ test("K2. ACCEPTED RESIDUAL BOUNDARIES still hold and are not silently upgraded"
   ]) {
     assert.doesNotMatch(readFileSync(f, "utf8"), /await requireGovernancePermission\(/, `${f} now reaches the broken governance guard`);
   }
-  EVIDENCE.acceptedResidualsUnchanged = "RR-GOVERNANCE-PERMISSION-GUARD-BROKEN, RR-BETA-OPERATOR-FRONTERA-BOUNDARY, RR-NORMAL-INVITE-SEAT-MODEL, RR-OFFBOARD-AUDIT-NONATOMIC, RR-BETA-PLATFORM-SIGNUP-OPEN all ACCEPTED_FOR_CLOSED_BETA";
+  EVIDENCE.acceptedResidualsUnchanged = "RR-GOVERNANCE-PERMISSION-GUARD-BROKEN, RR-BETA-OPERATOR-FRONTERA-BOUNDARY, RR-NORMAL-INVITE-SEAT-MODEL, RR-OFFBOARD-AUDIT-NONATOMIC, RR-INVITE-AUDIT-NONATOMIC, RR-BETA-PLATFORM-SIGNUP-OPEN all ACCEPTED_FOR_CLOSED_BETA";
 });
