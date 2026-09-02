@@ -397,6 +397,54 @@ test("A1. STARTUP BOUNDARY: an invalid closed-beta environment leaves NO applica
   }
 });
 
+test("A1b. PROFILE SELECTION fails closed: missing, blank and unknown profiles refuse startup", async () => {
+  // A1 proves an invalid VALUE is refused, but it cannot prove profile SELECTION is
+  // enforced, because betaEnv() always supplies a valid profile. The bypass this closes
+  // is structural: the hook used to `return` when the profile was absent or misspelled,
+  // disabling the only in-process guard precisely when the deployment was least
+  // trustworthy. Every environment below is otherwise VALID, so the profile is the sole
+  // discriminating defect.
+  const outcomes: Array<[string, string]> = [];
+  for (const [label, override] of [
+    ["MISSING_PROFILE", undefined],
+    ["BLANK_PROFILE", ""],
+    ["UNKNOWN_PROFILE", "closed-free-beta-typo"],
+  ] as const) {
+    const port = await freePort();
+    const env = betaEnv();
+    if (override === undefined) delete env.PMFREAK_OPERATING_PROFILE;
+    else env.PMFREAK_OPERATING_PROFILE = override;
+
+    const outcome = await startProductionServer({ port, env, timeoutMs: 90_000 });
+    if (outcome.started) {
+      // Refusal is the required outcome; clean up before failing so nothing leaks.
+      await shutdownProductionServer(outcome.handle, { label: `${label} server`, graceMs: 8_000 });
+      assert.fail(`${label}: the production server became healthy without a recognized operating profile`);
+    }
+    // Narrowed to FailedStart. No application surface may be operational either.
+    const probe = new HttpSession(`http://127.0.0.1:${port}`);
+    const surfaces: number[] = [];
+    for (const path of ["/api/ready", `/api/execution-tasks?projectId=${encodeURIComponent(TENANT_A.projectId)}`]) {
+      const r = await probe.request(path).catch(() => ({ status: 0, text: "" }) as never);
+      surfaces.push(r.status);
+      assert.notEqual(r.status, 200, `${label}: an unprofiled production server served ${path} with 200`);
+    }
+    // The refusal must be attributable to the PROFILE guard, not to some unrelated
+    // readiness failure: the startup log must carry the guard's own stable code.
+    assert.match(outcome.log, /beta_profile_not_selected/, `${label}: refusal is not attributable to the profile guard`);
+    // Sanitised: the offending value itself must never be echoed.
+    if (typeof override === "string" && override !== "") {
+      assert.ok(!outcome.log.includes(override), `${label}: the guard echoed the offending profile VALUE`);
+    }
+    assert.deepEqual(outcome.survivors, [], `${label}: the refused start left surviving processes`);
+    outcomes.push([label, `started=false surfaces=${surfaces.join(",")}`]);
+  }
+  EVIDENCE.profileSelectionFailsClosed =
+    `SERVER_BECOMES_OPERATIONAL=NO for ${outcomes.map(([l, d]) => `${l} (${d})`).join("; ")}; ` +
+    "each refusal carries code beta_profile_not_selected and never echoes the offending value";
+  EVIDENCE.bareNextStartProfileBypass = "NO";
+});
+
 test("A2. STARTUP BOUNDARY: the guard names offending VARIABLES and never their values", async () => {
   // BEHAVIOURAL first. Source inspection cannot prove a redaction contract: a regression
   // that interpolated an environment VALUE into the diagnostic would leave a
@@ -435,7 +483,18 @@ test("A2. STARTUP BOUNDARY: the guard names offending VARIABLES and never their 
   assert.match(code, /assertClosedFreeBetaEnvSafety\(\)/, "the runtime guard does not INVOKE the canonical beta contract");
   assert.doesNotMatch(code, /assertProductionEnvSafety\s*\(/, "the beta runtime must not INVOKE the full-production contract");
   assert.match(code, /NEXT_RUNTIME !== "nodejs"/, "the guard must not run on the edge runtime");
-  assert.match(code, /PMFREAK_OPERATING_PROFILE !== "closed-free-beta"/, "the guard must be profile-scoped");
+  // SUPERSEDED ASSERTION. This used to require `PMFREAK_OPERATING_PROFILE !== "closed-free-beta"`
+  // as an early RETURN — which is exactly the bypass A1b now closes: a missing or misspelled
+  // profile disabled the only in-process guard. The runtime selector must be independent of the
+  // value under test, and a profile mismatch must THROW rather than skip validation.
+  assert.match(code, /NODE_ENV !== "production"/, "the guard must select the runtime independently of the profile");
+  assert.match(code, /CLOSED_FREE_BETA_PROFILE/, "the guard must compare against the canonical profile constant, not a literal");
+  assert.match(code, /beta_profile_not_selected/, "a mismatched profile must fail closed with the canonical code");
+  assert.doesNotMatch(
+    code,
+    /PMFREAK_OPERATING_PROFILE\s*!==\s*[^)]*\)\s*return/,
+    "a profile mismatch must never take an early return; that is the bypass this guard closes",
+  );
   // The scope limit must still be stated somewhere in the file, comments included.
   assert.match(source, /RUNTIME boundary, not a deployment-time one/i, "the guard does not state its scope limit");
 });

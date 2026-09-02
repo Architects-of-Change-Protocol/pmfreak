@@ -17,6 +17,8 @@ import {
   parseHostedMigrationList,
   classifyHostedTarget,
   classifyObjectEmptiness,
+  classifyObservedTriggers,
+  STOCK_PLATFORM_TRIGGER_BASELINE,
   extractSupabaseProjectRefFromDbUrl,
   verifyHostedTargetBinding,
   applyHosted,
@@ -582,7 +584,7 @@ test("readHostedMigrationVersions: the real backtick format parses through the i
 });
 
 // ─── Object emptiness: an empty LEDGER is not an empty DATABASE ───────────
-const EMPTY_COUNTS = { user_schemas: 0, user_relations: 0, public_rows: 0, user_functions: 0, user_types: 0, migration_rows: 0, auth_users: 0, storage_buckets: 0, storage_objects: 0 };
+const EMPTY_COUNTS = { user_schemas: 0, user_relations: 0, public_rows: 0, user_functions: 0, user_types: 0, user_policies: 0, user_triggers: 0, migration_rows: 0, auth_users: 0, storage_buckets: 0, storage_objects: 0 };
 
 test("classifyObjectEmptiness: a genuinely new project is empty", () => {
   const v = classifyObjectEmptiness(EMPTY_COUNTS);
@@ -591,7 +593,7 @@ test("classifyObjectEmptiness: a genuinely new project is empty", () => {
 });
 
 test("classifyObjectEmptiness: an empty ledger with application state is NOT fresh, and names the category", () => {
-  for (const key of ["user_relations", "public_rows", "user_functions", "user_types", "auth_users", "storage_buckets", "storage_objects", "user_schemas"]) {
+  for (const key of ["user_relations", "public_rows", "user_functions", "user_types", "user_policies", "user_triggers", "auth_users", "storage_buckets", "storage_objects", "user_schemas"]) {
     const v = classifyObjectEmptiness({ ...EMPTY_COUNTS, [key]: 3 });
     assert.equal(v.empty, false, `${key} must defeat a fresh-apply certification`);
     assert.equal(v.nonEmpty[0].category, key, "the refusal must name the non-empty category");
@@ -1071,4 +1073,117 @@ test("the UNRECOGNIZED_OUTPUT reason survives from the parser out to the harness
     Object.assign(process.env, savedEnv);
     process.exitCode = savedExit;
   }
+});
+
+// ─── Policies and the STRICT stock trigger baseline (offline) ─────────────
+// Measured on a genuinely stock isolated Supabase project: ZERO non-extension-owned
+// policies, and exactly FOUR non-internal, non-extension-owned platform triggers.
+const stock = () => STOCK_PLATFORM_TRIGGER_BASELINE.map((b) => ({ ...b, is_internal: false, extension_owned: false }));
+
+test("policy: a custom policy anywhere — including on storage.objects — blocks FRESH", () => {
+  for (const key of ["user_policies"]) {
+    const v = classifyObjectEmptiness({ ...EMPTY_COUNTS, [key]: 1 });
+    assert.equal(v.empty, false, "a custom RLS policy must defeat a fresh-apply certification");
+    assert.equal(v.nonEmpty[0].category, "user_policies");
+    // The category text must not pretend managed schemas are exempt.
+    assert.match(v.nonEmpty[0].description, /storage\.objects/, "the policy category does not state that managed relations count");
+  }
+});
+
+test("trigger baseline: the exact four measured stock fingerprints do NOT make a target non-fresh", () => {
+  const r = classifyObservedTriggers(stock());
+  assert.equal(r.nonStockCount, 0, "the certified stock baseline must not defeat fresh classification");
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_triggers: r.nonStockCount }).empty, true);
+});
+
+test("trigger baseline: an ARBITRARY extra trigger is NON_EMPTY", () => {
+  const r = classifyObservedTriggers([...stock(), {
+    relation_schema: "public", relation_name: "projects", trigger_name: "audit_projects",
+    function_schema: "public", function_name: "audit_fn", function_owner: "postgres",
+    definition: "CREATE TRIGGER audit_projects AFTER INSERT ON public.projects FOR EACH ROW EXECUTE FUNCTION public.audit_fn()",
+    is_internal: false, extension_owned: false,
+  }]);
+  assert.equal(r.nonStockCount, 1);
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_triggers: r.nonStockCount }).empty, false);
+});
+
+test("trigger baseline: a custom trigger INVOKING A PLATFORM-OWNED FUNCTION is still NON_EMPTY", () => {
+  // Function ownership alone must never launder provenance: a user can point their own
+  // trigger at storage.protect_delete, owned by supabase_storage_admin.
+  const r = classifyObservedTriggers([...stock(), {
+    relation_schema: "storage", relation_name: "objects", trigger_name: "sneaky_user_trigger",
+    function_schema: "storage", function_name: "protect_delete", function_owner: "supabase_storage_admin",
+    definition: "CREATE TRIGGER sneaky_user_trigger BEFORE DELETE ON storage.objects FOR EACH STATEMENT EXECUTE FUNCTION storage.protect_delete()",
+    is_internal: false, extension_owned: false,
+  }]);
+  assert.equal(r.nonStockCount, 1, "a platform-owned trigger FUNCTION must not make a user trigger stock");
+  assert.match(r.nonStock[0], /sneaky_user_trigger/);
+});
+
+test("trigger baseline: a stock NAME with a changed DEFINITION is NON_EMPTY", () => {
+  const tampered = stock();
+  tampered[3] = { ...tampered[3], definition: tampered[3].definition.replace("BEFORE UPDATE", "AFTER UPDATE") };
+  assert.equal(classifyObservedTriggers(tampered).nonStockCount, 1, "a redefined stock trigger must not pass as stock");
+});
+
+test("trigger baseline: a stock NAME pointing at a DIFFERENT FUNCTION is NON_EMPTY", () => {
+  const tampered = stock();
+  tampered[2] = { ...tampered[2], function_name: "exfiltrate", function_schema: "public", function_owner: "postgres" };
+  assert.equal(classifyObservedTriggers(tampered).nonStockCount, 1);
+});
+
+test("trigger baseline: a stock NAME on a DIFFERENT TARGET relation is NON_EMPTY", () => {
+  const tampered = stock();
+  tampered[1] = { ...tampered[1], relation_schema: "public", relation_name: "workspaces" };
+  assert.equal(classifyObservedTriggers(tampered).nonStockCount, 1);
+});
+
+test("trigger baseline: a DUPLICATED stock fingerprint counts as an extra", () => {
+  assert.equal(classifyObservedTriggers([...stock(), stock()[0]]).nonStockCount, 1, "each baseline entry is consumed once");
+});
+
+test("trigger baseline: internal and positively extension-owned triggers are ignored", () => {
+  const r = classifyObservedTriggers([
+    ...stock(),
+    { relation_schema: "public", relation_name: "t", trigger_name: "RI_ConstraintTrigger", function_schema: "pg_catalog", function_name: "RI_FKey_check_ins", function_owner: "postgres", definition: "internal", is_internal: true, extension_owned: false },
+    { relation_schema: "cron", relation_name: "job", trigger_name: "ext_trigger", function_schema: "cron", function_name: "fn", function_owner: "postgres", definition: "CREATE TRIGGER ext_trigger ...", is_internal: false, extension_owned: true },
+  ]);
+  assert.equal(r.nonStockCount, 0, "internal and extension-owned triggers are not application customizations");
+});
+
+test("trigger baseline: an UNKNOWN trigger under a managed schema fails closed", () => {
+  const r = classifyObservedTriggers([...stock(), {
+    relation_schema: "auth", relation_name: "users", trigger_name: "on_auth_user_created",
+    function_schema: "public", function_name: "handle_new_user", function_owner: "postgres",
+    definition: "CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user()",
+    is_internal: false, extension_owned: false,
+  }]);
+  assert.equal(r.nonStockCount, 1, "a managed-schema attachment must not exempt a user trigger");
+});
+
+test("trigger baseline: it is versioned SOURCE, never learned from the target under test", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  assert.equal(STOCK_PLATFORM_TRIGGER_BASELINE.length, 4, "the certified baseline is the four measured stock triggers");
+  assert.ok(Object.isFrozen(STOCK_PLATFORM_TRIGGER_BASELINE), "the baseline must be immutable");
+  for (const b of STOCK_PLATFORM_TRIGGER_BASELINE) {
+    for (const field of ["relation_schema", "relation_name", "trigger_name", "function_schema", "function_name", "function_owner", "definition"]) {
+      assert.ok(b[field], `baseline entry is missing the ${field} fingerprint field`);
+    }
+  }
+  // Never derived from the inspected database: declared exactly once as a frozen const,
+  // and never appended to or reassigned. (The const declaration itself is the one
+  // legitimate assignment, so it is matched explicitly rather than banned.)
+  const declarations = source.match(/const STOCK_PLATFORM_TRIGGER_BASELINE = Object\.freeze\(/g) ?? [];
+  assert.equal(declarations.length, 1, "the baseline must be declared exactly once as a frozen constant");
+  assert.doesNotMatch(source, /STOCK_PLATFORM_TRIGGER_BASELINE\s*\.\s*(push|splice|unshift|pop)/, "the baseline must not be mutated at runtime");
+  // Count assignments rather than using a lookahead: `\s*` backtracks to zero-width and
+  // makes a negative lookahead match the declaration itself.
+  const assignments = source.match(/STOCK_PLATFORM_TRIGGER_BASELINE\s*=[^=]/g) ?? [];
+  assert.equal(assignments.length, 1, "the baseline is assigned more than once, so it can be replaced at runtime");
+});
+
+test("the trigger-fingerprint probe fails closed on an unrecognized row", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  assert.match(source, /unrecognized row/, "the trigger probe does not fail closed on malformed output");
+  assert.match(source, /trigger-fingerprint probe/, "the trigger probe failure is not attributable");
 });

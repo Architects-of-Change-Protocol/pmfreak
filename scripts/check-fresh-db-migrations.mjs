@@ -611,6 +611,8 @@ function classifyObjectEmptiness(counts) {
     ["public_rows", "rows in public application tables"],
     ["user_functions", "user-defined functions/procedures"],
     ["user_types", "user-defined types (composite, domain, enum)"],
+    ["user_policies", "RLS policies that are not platform/extension-owned (including on managed relations such as storage.objects)"],
+    ["user_triggers", "triggers that do not exactly match the certified stock platform baseline"],
     ["migration_rows", "PMFreak migration-history rows"],
     ["auth_users", "auth.users identities"],
     ["storage_buckets", "storage buckets"],
@@ -627,6 +629,90 @@ function classifyObjectEmptiness(counts) {
       : `hosted target is NOT application-empty: ${nonEmpty.map((n) => `${n.category}=${n.count}`).join(", ")}. ` +
         "A fresh-apply certification requires a genuinely new project; this one already carries application state.",
   };
+}
+
+/**
+ * CERTIFIED STOCK PLATFORM TRIGGER BASELINE.
+ *
+ * Measured on a genuinely stock, isolated Supabase project (no migrations, no seed):
+ * a fresh instance carries ZERO non-extension-owned policies but FOUR non-internal,
+ * non-extension-owned triggers. Those four are shipped by the storage service's own
+ * migrations, so neither `tgisinternal` nor `pg_depend deptype='e'` excludes them —
+ * counting them naively would make EVERY project non-fresh and disable fresh-apply.
+ *
+ * This is a STRICT STRUCTURAL baseline, deliberately NOT a names-only allowlist and
+ * NOT an owner-based exemption: a user-created trigger can invoke a platform-owned
+ * function, so function ownership alone proves nothing about the trigger's provenance.
+ * A trigger is treated as platform stock ONLY when every fingerprint field matches,
+ * including the normalised `pg_get_triggerdef()` text. A stock NAME with a changed
+ * definition, a different function, or a different target relation is NOT stock.
+ *
+ * Drift is deliberately biased toward refusal: if a future Supabase version changes
+ * its stock triggers, this baseline stops matching and the target is reported NON-empty
+ * until the baseline is re-certified by hand. A false NON_EMPTY is always preferable to
+ * a false EMPTY followed by a destructive push. The baseline is versioned source and is
+ * NEVER learned from the target under inspection.
+ */
+const STOCK_PLATFORM_TRIGGER_BASELINE = Object.freeze([
+  {
+    relation_schema: "storage", relation_name: "buckets", trigger_name: "enforce_bucket_name_length_trigger",
+    function_schema: "storage", function_name: "enforce_bucket_name_length", function_owner: "supabase_storage_admin",
+    definition: 'CREATE TRIGGER enforce_bucket_name_length_trigger BEFORE INSERT OR UPDATE OF name ON storage.buckets FOR EACH ROW EXECUTE FUNCTION storage.enforce_bucket_name_length()',
+  },
+  {
+    relation_schema: "storage", relation_name: "buckets", trigger_name: "protect_buckets_delete",
+    function_schema: "storage", function_name: "protect_delete", function_owner: "supabase_storage_admin",
+    definition: 'CREATE TRIGGER protect_buckets_delete BEFORE DELETE ON storage.buckets FOR EACH STATEMENT EXECUTE FUNCTION storage.protect_delete()',
+  },
+  {
+    relation_schema: "storage", relation_name: "objects", trigger_name: "protect_objects_delete",
+    function_schema: "storage", function_name: "protect_delete", function_owner: "supabase_storage_admin",
+    definition: 'CREATE TRIGGER protect_objects_delete BEFORE DELETE ON storage.objects FOR EACH STATEMENT EXECUTE FUNCTION storage.protect_delete()',
+  },
+  {
+    relation_schema: "storage", relation_name: "objects", trigger_name: "update_objects_updated_at",
+    function_schema: "storage", function_name: "update_updated_at_column", function_owner: "supabase_storage_admin",
+    definition: 'CREATE TRIGGER update_objects_updated_at BEFORE UPDATE ON storage.objects FOR EACH ROW EXECUTE FUNCTION storage.update_updated_at_column()',
+  },
+]);
+
+/** Whitespace-normalised so formatting differences are not mistaken for drift. */
+function normalizeTriggerDefinition(text) {
+  return String(text ?? "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Classifies observed triggers against the certified baseline. Every field must match
+ * for a trigger to be treated as stock; anything unmatched — extra, altered, retargeted,
+ * or simply unrecognised — counts as an application customization. Ambiguity never
+ * resolves to "empty".
+ */
+function classifyObservedTriggers(observed) {
+  const remaining = STOCK_PLATFORM_TRIGGER_BASELINE.map((b) => ({ ...b, definition: normalizeTriggerDefinition(b.definition) }));
+  const nonStock = [];
+  for (const t of observed ?? []) {
+    if (t.is_internal) continue;              // PostgreSQL internal (FK enforcement) triggers
+    if (t.extension_owned) continue;          // positively proven extension-owned
+    const fingerprint = {
+      relation_schema: t.relation_schema, relation_name: t.relation_name, trigger_name: t.trigger_name,
+      function_schema: t.function_schema, function_name: t.function_name, function_owner: t.function_owner,
+      definition: normalizeTriggerDefinition(t.definition),
+    };
+    const idx = remaining.findIndex((b) =>
+      b.relation_schema === fingerprint.relation_schema &&
+      b.relation_name === fingerprint.relation_name &&
+      b.trigger_name === fingerprint.trigger_name &&
+      b.function_schema === fingerprint.function_schema &&
+      b.function_name === fingerprint.function_name &&
+      b.function_owner === fingerprint.function_owner &&
+      b.definition === fingerprint.definition);
+    if (idx === -1) {
+      nonStock.push(`${fingerprint.relation_schema}.${fingerprint.relation_name}:${fingerprint.trigger_name}`);
+      continue;
+    }
+    remaining.splice(idx, 1); // consume: a duplicated stock fingerprint is still an extra
+  }
+  return { nonStockCount: nonStock.length, nonStock };
 }
 
 const PLATFORM_SCHEMA_PREDICATE =
@@ -661,6 +747,13 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
            -- composite types implicitly created for a relation are already counted above
            and (t.typtype <> 'c' or not exists (
                  select 1 from pg_class rc where rc.oid = t.typrelid and rc.relkind <> 'c'))) as user_types,
+      -- Policies are counted across EVERY schema, managed ones included: Supabase
+      -- explicitly supports application RLS policies on storage.objects, so a managed
+      -- schema does not make a policy platform state. A genuinely stock project was
+      -- measured at ZERO non-extension-owned policies, so this needs no baseline.
+      (select count(*) from pg_policy pol
+         where not exists (select 1 from pg_depend d
+                             where d.classid = 'pg_policy'::regclass and d.objid = pol.oid and d.deptype = 'e')) as user_policies,
       (select case when to_regclass('supabase_migrations.schema_migrations') is null then 0
                    else (select count(*) from supabase_migrations.schema_migrations) end) as migration_rows,
       (select case when to_regclass('auth.users') is null then 0
@@ -676,12 +769,53 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     return { ok: false, failure: describeSpawnResult(result, "psql (hosted application-emptiness probe)"), stderr: result.stderr };
   }
   const fields = (result.stdout ?? "").trim().split(/\r?\n/).pop()?.split(",") ?? [];
-  const keys = ["user_schemas", "user_relations", "public_rows", "user_functions", "user_types", "migration_rows", "auth_users", "storage_buckets", "storage_objects"];
+  const keys = ["user_schemas", "user_relations", "public_rows", "user_functions", "user_types", "user_policies", "migration_rows", "auth_users", "storage_buckets", "storage_objects"];
   if (fields.length !== keys.length || fields.some((f) => !/^\d+$/.test(f.trim()))) {
     return { ok: false, reason: `the application-emptiness probe returned unrecognized output (${fields.length} field(s)); refusing to infer emptiness.` };
   }
   const counts = Object.fromEntries(keys.map((k, i) => [k, Number(fields[i].trim())]));
-  return { ok: true, counts, verdict: classifyObjectEmptiness(counts) };
+
+  // Triggers need per-object FINGERPRINTS, not a count, because the stock platform
+  // baseline is matched structurally. A separate read-only query returns one row per
+  // non-internal trigger; `~|~` is used as the field separator because a trigger
+  // definition can legitimately contain almost anything else.
+  const triggerQuery = `
+    select n.nspname || '~|~' || c.relname || '~|~' || t.tgname || '~|~' || fn.nspname || '~|~' ||
+           pr.proname || '~|~' || pg_get_userbyid(pr.proowner) || '~|~' ||
+           replace(replace(pg_get_triggerdef(t.oid), chr(10), ' '), chr(13), ' ') || '~|~' ||
+           case when exists (select 1 from pg_depend d
+                               where d.classid = 'pg_trigger'::regclass and d.objid = t.oid and d.deptype = 'e')
+                then 'ext' else 'user' end
+      from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      join pg_proc pr on pr.oid = t.tgfoid
+      join pg_namespace fn on fn.oid = pr.pronamespace
+     where not t.tgisinternal;
+  `;
+  const trig = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c", triggerQuery]);
+  if (trig.status !== 0) {
+    // Fail closed: an unprovable trigger surface is never an empty one.
+    return { ok: false, failure: describeSpawnResult(trig, "psql (hosted trigger-fingerprint probe)"), stderr: trig.stderr };
+  }
+  const observed = [];
+  for (const line of (trig.stdout ?? "").split(/\r?\n/)) {
+    if (line.trim() === "") continue;
+    const f = line.split("~|~");
+    if (f.length !== 8) {
+      return { ok: false, reason: `the trigger-fingerprint probe returned an unrecognized row (${f.length} field(s)); refusing to infer emptiness.` };
+    }
+    observed.push({
+      relation_schema: f[0], relation_name: f[1], trigger_name: f[2],
+      function_schema: f[3], function_name: f[4], function_owner: f[5],
+      definition: f[6], is_internal: false, extension_owned: f[7] === "ext",
+    });
+  }
+  const triggers = classifyObservedTriggers(observed);
+  counts.user_triggers = triggers.nonStockCount;
+
+  const verdict = classifyObjectEmptiness(counts);
+  return { ok: true, counts, observedTriggers: observed, nonStockTriggers: triggers.nonStock, verdict };
 }
 
 // Reads the linked project's migration history WITHOUT mutating it.
@@ -891,6 +1025,9 @@ export {
   parseHostedMigrationList,
   classifyHostedTarget,
   classifyObjectEmptiness,
+  classifyObservedTriggers,
+  normalizeTriggerDefinition,
+  STOCK_PLATFORM_TRIGGER_BASELINE,
   probeHostedApplicationState,
   extractSupabaseProjectRefFromDbUrl,
   verifyHostedTargetBinding,

@@ -19,8 +19,9 @@
  * that a deployment is rejected before deploy, nor that every conceivable
  * topology is covered — only the runtime that loads this file.
  *
- * PROFILE-SCOPED ON PURPOSE. It runs `assertClosedFreeBetaEnvSafety` and only
- * under `PMFREAK_OPERATING_PROFILE=closed-free-beta`. It deliberately does NOT
+ * PROFILE SELECTION FAILS CLOSED. In a certified production server runtime the
+ * profile must be explicitly `closed-free-beta`; missing, blank or unknown refuses
+ * startup rather than skipping validation. It deliberately does NOT
  * invoke `assertProductionEnvSafety()`: that helper requires Stripe secrets the
  * closed free beta intentionally does not have, so wiring it here would refuse to
  * start the very posture P0-LAUNCH-05 accepted. The full-production runtime guard
@@ -31,10 +32,43 @@ export async function register() {
   // runtime, where that configuration is not present. Next.js calls `register`
   // in every environment, so the runtime is checked explicitly.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
-  if (process.env.PMFREAK_OPERATING_PROFILE !== "closed-free-beta") return;
+
+  // Belt and braces. Next already returns before calling `register` during
+  // `phase-production-build` (see registerInstrumentation in
+  // next/dist/server/lib/router-utils/instrumentation-globals.external.js), so a
+  // build can never be refused by this guard; the check states that intent locally.
+  if (process.env.NEXT_PHASE === "phase-production-build") return;
+
+  // THE RUNTIME SELECTOR IS NODE_ENV, NOT THE PROFILE. Deciding whether to validate
+  // PMFREAK_OPERATING_PROFILE by reading PMFREAK_OPERATING_PROFILE is exactly the
+  // bypass this guard exists to close: a missing, blank or misspelled profile used to
+  // take the early return and disable the only in-process check. `next start` sets
+  // NODE_ENV=production and `next dev` does not, so the certified production server
+  // runtime is identified independently of the value under test. Development, test
+  // and build behaviour are deliberately unchanged.
+  if (process.env.NODE_ENV !== "production") return;
 
   // Imported dynamically so the edge bundle never pulls in server-only code.
-  const { assertClosedFreeBetaEnvSafety } = await import("@/lib/security/environment");
+  const { assertClosedFreeBetaEnvSafety, CLOSED_FREE_BETA_PROFILE } = await import("@/lib/security/environment");
+
+  // FAIL CLOSED ON PROFILE SELECTION. The repository defines exactly one recognized
+  // operating profile; no other is invented here. A certified production server must
+  // declare it explicitly, so missing / blank / unknown all refuse startup rather than
+  // silently becoming an unvalidated production mode. `evaluateClosedFreeBetaEnvSafety`
+  // already classifies this state as `beta_profile_not_selected`; previously the hook
+  // returned before ever asking it.
+  if (process.env.PMFREAK_OPERATING_PROFILE !== CLOSED_FREE_BETA_PROFILE) {
+    // Names the VARIABLE and a stable code. The offending value is never echoed —
+    // a misspelled profile can carry anything, including pasted secret material.
+    const failure: Error & { guard?: string; code?: string } = new Error(
+      `PMFreak refused to start: PMFREAK_OPERATING_PROFILE must be explicitly set to ` +
+        `"${CLOSED_FREE_BETA_PROFILE}" for a certified production server runtime. ` +
+        `[beta_profile_not_selected]`,
+    );
+    failure.guard = "instrumentationProfileSelection";
+    failure.code = "beta_profile_not_selected";
+    throw failure;
+  }
 
   // Deliberately NOT wrapped: an invalid beta environment must fail closed and
   // stop the server from becoming ready. The thrown message names offending

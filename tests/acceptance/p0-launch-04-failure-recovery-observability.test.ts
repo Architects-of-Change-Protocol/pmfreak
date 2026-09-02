@@ -362,7 +362,18 @@ const SECRET_MARKER = `P0_LAUNCH_04_SECRET_MARKER_${createHash("sha256").update(
  * everywhere the product checks it.
  */
 function productionEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
-  return { ...process.env, [FRONTERA_STORE_ENV]: STORE_PATH, ...overrides };
+  // P0-LAUNCH-06 tightened the certified runtime contract: a Next.js PRODUCTION SERVER
+  // must declare an explicit recognized PMFREAK_OPERATING_PROFILE, and a missing, blank
+  // or unknown profile now refuses startup (src/instrumentation.ts). These harnesses
+  // start real production servers, so they must declare the profile like any other
+  // certified start. This adds ONLY that declaration — no assertion, lifecycle,
+  // evidence claim or fixture semantic changes.
+  return {
+    ...process.env,
+    PMFREAK_OPERATING_PROFILE: "closed-free-beta",
+    [FRONTERA_STORE_ENV]: STORE_PATH,
+    ...overrides,
+  };
 }
 
 /**
