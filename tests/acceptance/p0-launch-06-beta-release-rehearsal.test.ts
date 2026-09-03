@@ -386,6 +386,14 @@ test("A1. STARTUP BOUNDARY: an invalid closed-beta environment leaves NO applica
     const shape = outcome.started
       ? "server listening, no application surface operational"
       : "runtime never became healthy (health probe never succeeded)";
+    // A REFUSED START MUST NOT LEAVE A PROCESS ALIVE. Failed starts never enter the
+    // normal shutdown ledger, so HARNESS_PROCESS_RESIDUE cannot speak for them — this
+    // uses the same failed-start semantics A1b already proves rather than inventing a
+    // parallel definition of "clean".
+    if (!outcome.started) {
+      assert.deepEqual(outcome.survivors, [], "the refused start left surviving processes");
+      assert.equal(outcome.reaped, true, "the refused start was not reaped");
+    }
     assert.ok(
       !outcome.started || surfaces.every(([, s]) => s !== 200),
       "an invalid beta environment produced an operational surface",
@@ -765,13 +773,38 @@ test("D1. TENANT_BINDING and ROLE_BINDING come from the invitation record, serve
   // `(protected)/layout.tsx` legitimately redirects into onboarding. Asserting 200 would
   // encode an onboarding-state assumption rather than an authority fact, so the assertion
   // is that the admitted identity is neither refused nor met with a server error.
-  const landing = await boundedFetch(`${base}/team`, { headers: { cookie }, redirect: "manual" });
-  assert.ok(![401, 403].includes(landing.status), `the accepted participant was denied the post-acceptance destination: ${landing.status}`);
-  assert.ok(landing.status < 500, `the post-acceptance destination errored: ${landing.status}`);
+  // Exercise the destination the participant was ACTUALLY sent to. Validating Location and
+  // then requesting a hard-coded /team proved nothing about where acceptance really led —
+  // on this race-dependent path the two are frequently different. `destination` is already
+  // validated above as same-origin and a member of the approved set, and it is derived with
+  // a URL parser rather than string concatenation, so it cannot become an external fetch.
+  const landingUrl = new URL(location!, base);
+  assert.equal(landingUrl.origin, new URL(base).origin, "the accept redirect left the server origin");
+  const landing = await boundedFetch(landingUrl.toString(), { headers: { cookie }, redirect: "manual" });
+  assert.ok(![401, 403].includes(landing.status), `the accepted participant was DENIED the destination acceptance returned (${destination}): ${landing.status}`);
+  assert.ok(landing.status < 500, `the destination acceptance returned (${destination}) errored: ${landing.status}`);
+
+  // A bounded, single documented continuation: the product may legitimately route a freshly
+  // bootstrapped participant on once more. Exactly one hop, same-origin, and it must not
+  // land on /login — which would mean the newly accepted session was lost.
+  let finalDestination = destination;
+  let finalStatus = landing.status;
+  if ([301, 302, 303, 307, 308].includes(landing.status)) {
+    const next = landing.headers.get("location");
+    assert.ok(next, "the destination redirected without a Location header");
+    const nextUrl = new URL(next!, base);
+    assert.equal(nextUrl.origin, new URL(base).origin, "the destination redirected off-origin");
+    const followed = await boundedFetch(nextUrl.toString(), { headers: { cookie }, redirect: "manual" });
+    finalDestination = nextUrl.pathname;
+    finalStatus = followed.status;
+    assert.ok(![401, 403].includes(followed.status), `the continuation destination denied the accepted participant: ${followed.status}`);
+    assert.ok(followed.status < 500, `the continuation destination errored: ${followed.status}`);
+  }
+  assert.notEqual(finalDestination, "/login", "the accepted participant lost its session and was bounced to login");
 
   EVIDENCE.tenantBinding = `workspace ${TENANT_A.workspaceId}`;
   EVIDENCE.roleBinding = "pm (from the invitation record, not the caller)";
-  EVIDENCE.inviteAcceptanceSurface = `PARTICIPANT_FACING_ROUTE GET ${inviteAcceptPath.replace(/\/[^/]+$/, "/<token>")} -> ${accepted.status} Location ${destination} (a successful post-acceptance landing; /team and the onboarding destinations are both legitimate and race-dependent); /team -> ${landing.status} (not denied)`;
+  EVIDENCE.inviteAcceptanceSurface = `PARTICIPANT_FACING_ROUTE GET ${inviteAcceptPath.replace(/\/[^/]+$/, "/<token>")} -> ${accepted.status} Location ${destination} (a successful post-acceptance landing; /team and the onboarding destinations are both legitimate and race-dependent). THE RETURNED DESTINATION WAS THEN EXERCISED with the same participant session: ${destination} -> ${landing.status}${finalDestination !== destination ? ` -> ${finalDestination} -> ${finalStatus}` : ""} (same-origin, not denied, not /login)`;
   EVIDENCE.inviteAcceptanceIdentitySource = "SESSION_DERIVED (requireAuthUser on the shipped route), not caller-supplied";
 });
 
@@ -824,8 +857,21 @@ test("E2. GOVERNED_FIRST_USE_FRONTERA_REACHED: the allow is produced by runtime 
   // so a future refactor that quietly stopped consulting the runtime would fail here
   // rather than silently downgrading the strongest claim this beta makes.
   const route = readFileSync("src/app/api/execution-tasks/route.ts", "utf8");
-  assert.match(route, /requireProjectAccess/, "the governed path no longer calls the project access guard");
-  assert.match(route, /server-authorization/, "the governed path no longer resolves through server-authorization");
+  // SUPPLEMENTARY ONLY — this file-wide match is satisfiable by the import declaration and
+  // therefore proves nothing on its own. The load-bearing control is the GET-bounded
+  // invocation assertion below.
+  assert.match(route, /server-authorization/, "the governed route no longer references server-authorization at all");
+  // BOUNDED TO THE GET HANDLER. A file-wide match was satisfiable by the import statement
+  // alone, or by a call inside POST — neither proves the GET path this case certifies
+  // actually consults the guard. Slice GET's own body and require the INVOCATION there,
+  // so removing the call while leaving the import in place fails this control.
+  const getStart = route.indexOf("export async function GET(");
+  assert.notEqual(getStart, -1, "the GET handler could not be located in the governed route");
+  const afterGet = route.slice(getStart + 1);
+  const nextRouteExport = afterGet.search(/\nexport (async )?(function|const) /);
+  const getBody = nextRouteExport === -1 ? route.slice(getStart) : route.slice(getStart, getStart + 1 + nextRouteExport);
+  assert.doesNotMatch(getBody, /^import /m, "the GET slice leaked import declarations, which must not satisfy this control");
+  assert.match(getBody, /await requireProjectAccess\(/, "the GET handler does not INVOKE the project access guard");
 
   const guard = readFileSync("src/lib/security/server-authorization.ts", "utf8");
   // Bounded to evaluateCapability's own body. The previous open-ended slice ran to EOF,

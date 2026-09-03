@@ -1307,7 +1307,8 @@ test("H: a production process given broken production-required configuration fai
   // boundary and must be proven separately:
   //
   //   PHASE 1  missing required secret        -> BOOT REFUSED (stronger than NOT READY)
-  //   PHASE 2  unconfigured authority backing -> STARTS_BUT_NOT_READY, fails closed
+  //   PHASE 2  unconfigured authority backing -> STARTS AND REACHES READY; the GOVERNED
+  //            PATH fails closed (the authority backing is not a readiness dependency)
   //
   // Phase 2 keeps every original running-process claim: liveness truthful, anonymous
   // refused, and the unusable authority reported as an OUTAGE rather than degrading to
@@ -1333,7 +1334,7 @@ test("H: a production process given broken production-required configuration fai
     port,
     env: productionEnv({ [FRONTERA_STORE_ENV]: "" }),
   });
-  if (!outcome.started) assert.fail(`the contract for an unconfigured authority backing is STARTS_BUT_NOT_READY, but the process did not start: ${outcome.reason}\n${outcome.log.slice(-2000)}`);
+  if (!outcome.started) assert.fail(`an unconfigured authority backing must still allow the server to START (the governed path is what fails closed), but it did not: ${outcome.reason}\n${outcome.log.slice(-2000)}`);
   try {
     // BOUNDED and DETERMINISTIC: it reached a settled state inside the deadline
     // rather than hanging, and liveness is truthful about what it can answer for.
@@ -1363,19 +1364,28 @@ test("H: a production process given broken production-required configuration fai
       "an unconfigured authority backing must fail closed as an outage, never degrade to an in-memory substitute",
     );
 
+    // The strings below must state what the assertions above actually observed. An
+    // earlier revision still described this authority-only scenario as
+    // STARTS_BUT_NOT_READY / 503, which the reconciled phase 2 disproves: with a valid
+    // secret the process reaches READY, because the Frontera authority backing is NOT a
+    // declared readiness dependency. Only the governed path fails closed.
     EVIDENCE.startupFailureBehavior =
-      "SPLIT BY CONTRACT: missing required secret -> BOOT_REFUSED; unconfigured authority backing -> STARTS_BUT_NOT_READY";
+      "SPLIT BY CONTRACT: missing required secret -> BOOT_REFUSED; " +
+      "AUTHORITY_BACKING_UNAVAILABLE -> SERVER_READY_GOVERNED_PATH_FAILS_CLOSED";
     EVIDENCE.startupFailureReadiness =
-      "missing required secret -> refused at boot (never reaches readiness); unconfigured authority backing -> " +
-      "readiness stays READY because the authority backing is not a declared readiness dependency, while the " +
-      "governed path still fails closed as an OUTAGE";
+      "missing required secret -> refused at boot, never reaches readiness; authority backing unavailable -> " +
+      "READINESS=200_READY with database=pass, because the Frontera authority backing is deliberately NOT a " +
+      "declared readiness dependency — the failure surfaces on the GOVERNED PATH instead of being hidden in, " +
+      "or laundered into, a readiness failure";
     EVIDENCE.startupFailureGovernedOperation = "frontera_unavailable — fail closed, no in-memory substitution";
     OPERATOR_SIGNALS.STARTUP_CONFIGURATION_FAILURE = {
       sources: ["PRODUCT_HTTP"],
       signal:
-        "a missing required server secret is now refused at BOOT: the startup diagnostic carries " +
+        "a missing required server secret is refused at BOOT: the startup diagnostic carries " +
         "missing_beta_environment and names SUPABASE_SERVICE_ROLE_KEY, never its value. An unconfigured " +
-        "authority backing still yields readiness 503 not_ready while liveness stays 200.",
+        "authority backing is a DIFFERENT signal: the server reaches readiness 200 READY with database=pass, " +
+        "and the governed operation fails closed as frontera_unavailable rather than degrading to an " +
+        "in-memory substitute.",
     };
   } finally {
     await shutdownProductionServer(outcome.handle, { label: "H: broken production configuration", graceMs: 10_000 });
