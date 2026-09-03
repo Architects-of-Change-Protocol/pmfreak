@@ -83,6 +83,72 @@ function betaEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
   };
 }
 
+/** Redirect statuses the participant chain may legitimately emit. */
+const REDIRECT_STATUSES = [301, 302, 303, 307, 308];
+/**
+ * Destinations that mean the accepted participant LOST authority rather than landed.
+ * Deliberately narrow: only the login route and the trial denial already represented in
+ * D1's route contract — not an invented URL blacklist.
+ */
+const AUTHENTICATION_LOSS_DESTINATIONS = new Set(["/login", "/trial-inactive"]);
+
+/**
+ * Walks the participant destination chain to a TERMINAL response.
+ *
+ * A redirect is not a landing. An earlier revision requested the destination invite
+ * acceptance returned and then recorded it as final WITHOUT inspecting whether that
+ * response was itself a redirect, so `accept -> /projects/new -> 302 /login` could report
+ * `/projects/new` as the final destination while the participant had actually been
+ * bounced to login.
+ *
+ * Every hop is validated (Location present, same origin, not an authentication-loss
+ * destination), the chain is bounded to ONE continuation after the acceptance
+ * destination, and nothing is reported until a non-redirect terminal response is
+ * observed. `fetchImpl` is injectable purely so this contract can be proven against
+ * synthetic chains; production callers use the bounded fetch.
+ */
+async function followParticipantDestination(
+  input: { base: string; cookie: string; location: string },
+  fetchImpl: (url: string, init: RequestInit) => Promise<Response> = boundedFetch,
+): Promise<{ firstDestination: string; finalDestination: string; finalStatus: number; hops: number }> {
+  const origin = new URL(input.base).origin;
+  const validate = (raw: string | null, label: string): URL => {
+    assert.ok(raw, `${label}: a redirect carried no Location header`);
+    const resolved = new URL(raw!, input.base);
+    assert.equal(resolved.origin, origin, `${label}: the participant was redirected off-origin to ${resolved.origin}`);
+    assert.ok(
+      !AUTHENTICATION_LOSS_DESTINATIONS.has(resolved.pathname),
+      `${label}: the participant was routed to ${resolved.pathname}, so the newly accepted session was lost or denied`,
+    );
+    return resolved;
+  };
+
+  let current = validate(input.location, "invite acceptance");
+  const firstDestination = current.pathname;
+  let response = await fetchImpl(current.toString(), { headers: { cookie: input.cookie }, redirect: "manual" });
+  let hops = 0;
+
+  while (REDIRECT_STATUSES.includes(response.status)) {
+    hops += 1;
+    // Validate BEFORE the depth bound so the diagnostic names the real problem: a second
+    // hop to /login is an authentication loss, not merely a chain that ran too long.
+    current = validate(response.headers.get("location"), `continuation ${hops}`);
+    assert.ok(
+      hops <= 1,
+      `INVITE_DESTINATION_REDIRECT_DEPTH_EXCEEDED: the participant chain did not terminate within one continuation after ${firstDestination} (reached ${current.pathname})`,
+    );
+    response = await fetchImpl(current.toString(), { headers: { cookie: input.cookie }, redirect: "manual" });
+  }
+
+  // TERMINAL ONLY. A non-redirect response that still denies or errors is not a landing.
+  assert.ok(![401, 403].includes(response.status), `the accepted participant was DENIED ${current.pathname}: ${response.status}`);
+  assert.ok(
+    response.status >= 200 && response.status < 300,
+    `the participant destination ${current.pathname} did not terminate successfully: ${response.status}`,
+  );
+  return { firstDestination, finalDestination: current.pathname, finalStatus: response.status, hops };
+}
+
 /** The certified governed first-use path: project.read, reached through Frontera. */
 const governedFirstUse = (s: HttpSession) =>
   s.request(`/api/execution-tasks?projectId=${encodeURIComponent(TENANT_A.projectId)}`);
@@ -773,38 +839,25 @@ test("D1. TENANT_BINDING and ROLE_BINDING come from the invitation record, serve
   // `(protected)/layout.tsx` legitimately redirects into onboarding. Asserting 200 would
   // encode an onboarding-state assumption rather than an authority fact, so the assertion
   // is that the admitted identity is neither refused nor met with a server error.
-  // Exercise the destination the participant was ACTUALLY sent to. Validating Location and
-  // then requesting a hard-coded /team proved nothing about where acceptance really led —
-  // on this race-dependent path the two are frequently different. `destination` is already
-  // validated above as same-origin and a member of the approved set, and it is derived with
-  // a URL parser rather than string concatenation, so it cannot become an external fetch.
-  const landingUrl = new URL(location!, base);
-  assert.equal(landingUrl.origin, new URL(base).origin, "the accept redirect left the server origin");
-  const landing = await boundedFetch(landingUrl.toString(), { headers: { cookie }, redirect: "manual" });
-  assert.ok(![401, 403].includes(landing.status), `the accepted participant was DENIED the destination acceptance returned (${destination}): ${landing.status}`);
-  assert.ok(landing.status < 500, `the destination acceptance returned (${destination}) errored: ${landing.status}`);
-
-  // A bounded, single documented continuation: the product may legitimately route a freshly
-  // bootstrapped participant on once more. Exactly one hop, same-origin, and it must not
-  // land on /login — which would mean the newly accepted session was lost.
-  let finalDestination = destination;
-  let finalStatus = landing.status;
-  if ([301, 302, 303, 307, 308].includes(landing.status)) {
-    const next = landing.headers.get("location");
-    assert.ok(next, "the destination redirected without a Location header");
-    const nextUrl = new URL(next!, base);
-    assert.equal(nextUrl.origin, new URL(base).origin, "the destination redirected off-origin");
-    const followed = await boundedFetch(nextUrl.toString(), { headers: { cookie }, redirect: "manual" });
-    finalDestination = nextUrl.pathname;
-    finalStatus = followed.status;
-    assert.ok(![401, 403].includes(followed.status), `the continuation destination denied the accepted participant: ${followed.status}`);
-    assert.ok(followed.status < 500, `the continuation destination errored: ${followed.status}`);
-  }
-  assert.notEqual(finalDestination, "/login", "the accepted participant lost its session and was bounced to login");
+  // Exercise the destination the participant was ACTUALLY sent to, all the way to a
+  // TERMINAL response. `destination` is already validated above as same-origin and a
+  // member of the approved set; the walk below re-validates every further hop, bounds the
+  // chain to one continuation, and refuses to call any redirecting path "final". The same
+  // authenticated participant cookie is used for every request — a fresh session would
+  // prove someone could reach the page, not that THIS participant can.
+  const chain = await followParticipantDestination({ base, cookie, location: location! });
+  const finalDestination = chain.finalDestination;
+  const finalStatus = chain.finalStatus;
 
   EVIDENCE.tenantBinding = `workspace ${TENANT_A.workspaceId}`;
   EVIDENCE.roleBinding = "pm (from the invitation record, not the caller)";
-  EVIDENCE.inviteAcceptanceSurface = `PARTICIPANT_FACING_ROUTE GET ${inviteAcceptPath.replace(/\/[^/]+$/, "/<token>")} -> ${accepted.status} Location ${destination} (a successful post-acceptance landing; /team and the onboarding destinations are both legitimate and race-dependent). THE RETURNED DESTINATION WAS THEN EXERCISED with the same participant session: ${destination} -> ${landing.status}${finalDestination !== destination ? ` -> ${finalDestination} -> ${finalStatus}` : ""} (same-origin, not denied, not /login)`;
+  // Emitted only after a TERMINAL response was observed; pathnames only, never query
+  // strings, tokens or session material.
+  EVIDENCE.inviteAcceptDestination = chain.firstDestination;
+  EVIDENCE.inviteDestinationRedirectHops = String(chain.hops);
+  EVIDENCE.inviteFinalDestination = finalDestination;
+  EVIDENCE.inviteFinalDestinationStatus = String(finalStatus);
+  EVIDENCE.inviteAcceptanceSurface = `PARTICIPANT_FACING_ROUTE GET ${inviteAcceptPath.replace(/\/[^/]+$/, "/<token>")} -> ${accepted.status} Location ${chain.firstDestination} (a successful post-acceptance landing; /team and the onboarding destinations are both legitimate and race-dependent). THE RETURNED DESTINATION WAS THEN WALKED TO A TERMINAL RESPONSE with the same participant session: ${chain.firstDestination}${chain.hops > 0 ? ` -> ${finalDestination}` : ""} -> ${finalStatus} (every hop same-origin, bounded to ${chain.hops} continuation(s), never an authentication-loss destination)`;
   EVIDENCE.inviteAcceptanceIdentitySource = "SESSION_DERIVED (requireAuthUser on the shipped route), not caller-supplied";
 });
 
