@@ -25,7 +25,6 @@ import fs from "node:fs";
 import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { acceptWorkspaceInvite, WorkspaceInviteError } from "../../src/lib/workspace-team";
@@ -36,7 +35,9 @@ import {
   HttpSession,
   boundedFetch,
   freePort,
+  nextBuildHelpProof,
   npmCliPath,
+  runBoundedChild,
   shutdownProductionServer,
   startProductionServer,
   type ServerHandle,
@@ -253,8 +254,31 @@ before(async () => {
   // ceiling; the workflow timeout is never the subprocess control.
   // Launched through THIS Node runtime (`node <npm-cli> run build`) rather than by the
   // bare name `npm`, which does not exist as an executable on Windows; see `npmCliPath`.
-  // cwd, stdio, maxBuffer and the ceiling below are the ones this build was accepted with.
-  execFileSync(process.execPath, [NPM_CLI, "run", "build"], { cwd: ROOT, stdio: "pipe", maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS });
+  // cwd, the ceiling and the 64 MiB output cap are the ones this build was accepted with.
+  //
+  // The child is TRACKED, not merely timed. A synchronous timeout signals only the
+  // direct child, so npm's shell and the `next build` under it could outlive the
+  // deadline and keep compiling — unrecorded — while the rehearsal proceeded. This
+  // form accounts for the whole process group and records anything it cannot reap.
+  const build = await runBoundedChild({
+    label: "before(): production build",
+    command: process.execPath,
+    args: [NPM_CLI, "run", "build"],
+    cwd: ROOT,
+    timeoutMs: BUILD_TIMEOUT_MS,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  assert.equal(build.launchError, null, `the production build could not be launched: ${build.launchError}`);
+  assert.equal(
+    build.timedOut,
+    false,
+    `the production build exceeded ${BUILD_TIMEOUT_MS}ms (survivors=${build.survivors.length}, unreaped=${build.unreaped.length})`,
+  );
+  assert.equal(
+    build.exit,
+    0,
+    `the production build failed (exit ${build.exit}, signal ${build.signal}): ${build.stderr.slice(-2000) || build.stdout.slice(-2000)}`,
+  );
 
   const supabase = admin();
   for (let page = 1; page <= 20 && !ownerUserId; page += 1) {
@@ -441,48 +465,78 @@ after(async () => {
  * ran. Linux and WSL never showed it, because there npm is a shebang script.
  *
  * This control is deliberately cheap and structural. It proves the launch SHAPE is
- * portable and that the build child reaches the build binary, without performing a
- * build and without depending on the authoritative battery having run.
+ * portable and that the build child reaches Next's own build binary, without performing
+ * a build and without depending on the authoritative battery having run.
  */
-test("X1. CROSS_PLATFORM_CHILD_LAUNCH: package-manager children run through this Node runtime, not a PATH lookup", () => {
+test("X1. CROSS_PLATFORM_CHILD_LAUNCH: package-manager children run through this Node runtime, not a PATH lookup", async () => {
   // 1. The launcher is the Node binary already running this gate, and the program it is
-  //    handed is a JavaScript file. Those two properties are what make the launch
-  //    shell-free — and therefore portable to Windows, where the bare name is a `.cmd`.
+  //    handed is npm's own CLI — established by package ownership, not by a path guess.
+  //    Those properties are what make the launch shell-free, and therefore portable to
+  //    Windows, where the bare name is a `.cmd`.
   assert.ok(fs.existsSync(process.execPath), `the Node runtime is not at ${process.execPath}`);
   assert.equal(path.isAbsolute(NPM_CLI), true, `the npm CLI path is not absolute: ${NPM_CLI}`);
   assert.match(NPM_CLI, /\.[cm]?js$/, `the npm CLI is not a JavaScript file this runtime can execute: ${NPM_CLI}`);
   assert.ok(fs.existsSync(NPM_CLI), `the npm CLI does not exist at ${NPM_CLI}`);
 
-  // 2. The BUILD child actually reaches `next build`. `--help` is forwarded through the
-  //    `build` script to the build binary, which prints its usage and exits 0 without
-  //    building, so this exercises the whole chain
+  // 2. NEGATIVE CONTROL FIRST, so the proof below cannot be satisfied by the thing it is
+  //    supposed to exclude. npm's banner alone — the exact bytes npm emits before the
+  //    script runs — must NOT count as having reached Next.
+  const bannerOnly = ["", "> pmfreak@0.1.0 build", "> next build --help", ""].join("\n");
+  const bannerVerdict = nextBuildHelpProof(bannerOnly);
+  assert.equal(bannerVerdict.ok, false, "npm's lifecycle banner alone satisfies the Next-help proof");
+  assert.equal(bannerVerdict.body, "", "the banner filter left npm's own output in the body");
+
+  // 3. The BUILD child reaches NEXT'S OWN help implementation. `--help` is forwarded
+  //    through the `build` script to the build binary, which prints its usage and exits
+  //    0 without building, so this exercises the whole chain
   //      node -> npm-cli.js -> the `build` script -> next build
   //    that `before()` depends on, at a cost that does not require a build and cannot be
-  //    mistaken for one. A launcher defect fails here as a spawn error, not as a build.
-  const reached = execFileSync(process.execPath, [NPM_CLI, "run", "build", "--", "--help"], {
-    cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: LAUNCH_PROOF_TIMEOUT_MS,
+  //    mistaken for one. npm is NOT bypassed: the point is the chain, not the binary.
+  const proofRun = await runBoundedChild({
+    label: "X1: build-chain launch proof",
+    command: process.execPath,
+    args: [NPM_CLI, "run", "build", "--", "--help"],
+    cwd: ROOT,
+    timeoutMs: LAUNCH_PROOF_TIMEOUT_MS,
   });
-  assert.match(reached, /next build/, `the build child did not reach the build binary: ${reached.slice(0, 300)}`);
+  assert.equal(proofRun.launchError, null, `the build chain could not be launched: ${proofRun.launchError}`);
+  assert.equal(proofRun.timedOut, false, `the build-chain launch proof exceeded ${LAUNCH_PROOF_TIMEOUT_MS}ms`);
+  assert.equal(proofRun.exit, 0, `the build chain exited ${proofRun.exit}: ${proofRun.stderr.slice(0, 300)}`);
+  const verdict = nextBuildHelpProof(`${proofRun.stdout}\n${proofRun.stderr}`);
+  assert.ok(verdict.ok, `the build child did not reach Next's own help output: ${verdict.reason}; body=${verdict.body.slice(0, 300)}`);
+  assert.equal(proofRun.survivors.length, 0, `the launch proof left ${proofRun.survivors.length} process(es) running`);
+  assert.equal(proofRun.unreaped.length, 0, `the launch proof left ${proofRun.unreaped.length} uncollected process(es)`);
 
-  // 3. No bare package-manager launch remains anywhere on this rehearsal's execution
+  // 4. No bare package-manager launch remains anywhere on this rehearsal's execution
   //    path. Searched for by SHAPE rather than trusted to have been removed once, so a
   //    later edit that reintroduces the defect in a different helper is caught here.
   const BARE_LAUNCH = /(?:execFile|execFileSync|spawn|spawnSync|exec|execSync)\(\s*(["'`])(?:npm|npx|pnpm|yarn)(?:\.cmd|\.exe|\.bat)?\1/;
   // Self-check. The pattern is built from a defect assembled at RUNTIME, never written
   // as a literal, because these files scan themselves: a literal example would be found
   // by the scan below and would fail this control for describing the bug it fixed.
-  const DEFECT = `execFileSync(${JSON.stringify("npm")}, [${JSON.stringify("run")}])`;
-  assert.match(DEFECT, BARE_LAUNCH, "the scan pattern can no longer detect the defect it exists for");
+  // Both defect fixtures are assembled at RUNTIME from fragments, never written as
+  // literals: this file is one of the files scanned, so a literal example would be
+  // found by the scan below and would fail this control for describing the bugs it fixed.
+  const SYNC = `${"execFileSync"}`;
+  const BARE_DEFECT = `${SYNC}(${JSON.stringify("npm")}, [${JSON.stringify("run")}])`;
+  assert.match(BARE_DEFECT, BARE_LAUNCH, "the bare-launch pattern can no longer detect the defect it exists for");
+  // No synchronous unbounded-tree child either: a `timeout` option bounds the direct
+  // child only, which is what let a build or operator descendant outlive its deadline.
+  const SYNC_TREE_UNAWARE = /\b(?:execFileSync|execSync|spawnSync)\s*\(/;
+  assert.match(`${SYNC}(x)`, SYNC_TREE_UNAWARE, "the tree-unaware pattern can no longer detect the defect it exists for");
   const scanned = [
     "tests/acceptance/p0-launch-06-beta-release-rehearsal.test.ts",
     "tests/acceptance/support/runtime-acceptance.ts",
   ];
   for (const f of scanned) {
-    assert.doesNotMatch(readFileSync(f, "utf8"), BARE_LAUNCH, `${f} still launches a package manager by bare name`);
+    const source = readFileSync(f, "utf8");
+    assert.doesNotMatch(source, BARE_LAUNCH, `${f} still launches a package manager by bare name`);
+    assert.doesNotMatch(source, SYNC_TREE_UNAWARE, `${f} still starts a synchronous child whose descendants are unaccounted for`);
   }
 
   EVIDENCE.crossPlatformChildLaunch =
-    `node <npm_execpath> for every package-manager child; reached \`next build\` without building; ${scanned.length} execution-path files carry no bare package-manager launch`;
+    `node <npm_execpath> (ownership-verified npm) for every package-manager child; reached Next's own \`next build\` help through the npm chain, ` +
+    `with npm's lifecycle banner proven insufficient; process tree reaped clean; ${scanned.length} execution-path files carry no bare or tree-unaware launch`;
 });
 
 // ───────────────── PHASE A — startup boundary (the certified runtime guard) ─────────────────
@@ -700,38 +754,43 @@ test("B3. PRE_ADMISSION_GOVERNED_ACCESS: the governed first-use path is DENIED",
 
 // ───────────────── PHASE C — supported operator admission ─────────────────
 
-const operator = (args: string[], env: Record<string, string> = {}) => {
-  try {
-    // Bounded: this operator command talks to Auth/PostgREST, so a stalled dependency
-    // must surface as a failed control rather than hanging the synchronous test process.
-    // Same Node-runtime launch as the build; the bare name `npm` is not executable on Windows.
-    const out = execFileSync(process.execPath, [NPM_CLI, "run", "beta:invite-participant", "--", ...args], {
-      cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, ...env },
-      timeout: OPERATOR_TIMEOUT_MS,
-    });
-    return { exit: 0, text: out, timedOut: false };
-  } catch (error) {
-    const shell = error as { status?: number | null; signal?: string | null; stdout?: string; stderr?: string };
-    // A TIMEOUT is not a refusal. execFileSync kills the child on timeout, yielding a
-    // null status and a signal — which would otherwise look like a non-zero exit and
-    // could be mistaken for the expected negative-control outcome. Name it explicitly.
-    const timedOut = shell.status === null || shell.status === undefined ? Boolean(shell.signal) : false;
-    return {
-      exit: shell.status ?? -1,
-      text: `${shell.stdout ?? ""}\n${shell.stderr ?? ""}${timedOut ? `\n[operator command timed out after ${OPERATOR_TIMEOUT_MS}ms]` : ""}`,
-      timedOut,
-    };
-  }
+const operator = async (args: string[], env: Record<string, string> = {}) => {
+  // Bounded AND tracked: this operator command talks to Auth/PostgREST, so a stalled
+  // dependency must surface as a failed control rather than hanging the rehearsal —
+  // and, because the child is `node <npm-cli> run` and the real work happens in a `tsx`
+  // grandchild, killing only the direct child would leave that grandchild free to keep
+  // WRITING to the fixture the next case reads. The whole process group is reaped, and
+  // anything that survives is recorded in the residue ledger the final control asserts.
+  // Same Node-runtime launch as the build; the bare name `npm` is not executable on Windows.
+  const run = await runBoundedChild({
+    label: `operator: beta:invite-participant ${args.join(" ")}`,
+    command: process.execPath,
+    args: [NPM_CLI, "run", "beta:invite-participant", "--", ...args],
+    cwd: ROOT,
+    env: { ...process.env, ...env },
+    timeoutMs: OPERATOR_TIMEOUT_MS,
+  });
+  // A TIMEOUT is not a refusal. It is reported as its own fact, never as a non-zero
+  // exit, so a stalled dependency can never satisfy a negative control. By the time it
+  // is reported the tree has been reaped, or the survivors are in the residue ledger.
+  const timeoutNote = run.timedOut
+    ? `\n[operator command timed out after ${OPERATOR_TIMEOUT_MS}ms; tree reaped: survivors=${run.survivors.length}, unreaped=${run.unreaped.length}, verified=${run.treeVerified}]`
+    : "";
+  return {
+    exit: run.exit ?? -1,
+    text: `${run.stdout}\n${run.stderr}${timeoutNote}`,
+    timedOut: run.timedOut,
+  };
 };
 const envelopeOf = (text: string) => {
   const line = text.split("\n").filter((v) => v.trim().startsWith("{")).pop();
   return line ? (JSON.parse(line) as { ok: boolean; failureClass?: string; message?: string }) : null;
 };
 
-test("C1. OPERATOR NEGATIVE CONTROLS: isolation, identity, membership, role and duplication are all refused", () => {
+test("C1. OPERATOR NEGATIVE CONTROLS: isolation, identity, membership, role and duplication are all refused", async () => {
   const refusals: string[] = [];
-  const expectRefused = (label: string, args: string[], env: Record<string, string> = {}, failureClass?: string) => {
-    const r = operator(args, env);
+  const expectRefused = async (label: string, args: string[], env: Record<string, string> = {}, failureClass?: string) => {
+    const r = await operator(args, env);
     assert.equal(r.timedOut, false, `${label} TIMED OUT; a stalled dependency must not be read as a refusal`);
     assert.notEqual(r.exit, 0, `${label} was NOT refused`);
     const envelope = envelopeOf(r.text);
@@ -745,18 +804,18 @@ test("C1. OPERATOR NEGATIVE CONTROLS: isolation, identity, membership, role and 
   const base = ["--workspace", TENANT_A.workspaceId, "--email", `neg-${Date.now()}@example.test`, "--role", "pm", "--inviter", OWNER_A.email];
 
   // The isolation guard must refuse a non-local target BEFORE any privileged client.
-  expectRefused("NON_LOCAL_TARGET", base, { NEXT_PUBLIC_SUPABASE_URL: "https://prod.supabase.co", OPERATIONAL_FLOW_TEST_SUPABASE_URL: "https://prod.supabase.co" }, "non_isolated_target");
-  expectRefused("MISSING_ISOLATION_PREREQUISITE", base, { P2_13_FOUNDER_FIXTURE_ENABLED: "false" }, "non_isolated_target");
-  expectRefused("INVITER_NOT_FOUND", ["--workspace", TENANT_A.workspaceId, "--email", `x-${Date.now()}@example.test`, "--role", "pm", "--inviter", "nobody-a1b2c3@example.test"]);
-  expectRefused("INVITER_NOT_MEMBER_OF_TARGET", ["--workspace", TENANT_B.workspaceId, "--email", `y-${Date.now()}@example.test`, "--role", "pm", "--inviter", OWNER_A.email]);
-  expectRefused("INVALID_ROLE", ["--workspace", TENANT_A.workspaceId, "--email", `z-${Date.now()}@example.test`, "--role", "superuser", "--inviter", OWNER_A.email]);
-  expectRefused("OWNER_ROLE_NEVER_INVITABLE", ["--workspace", TENANT_A.workspaceId, "--email", `w-${Date.now()}@example.test`, "--role", "owner", "--inviter", OWNER_A.email]);
+  await expectRefused("NON_LOCAL_TARGET", base, { NEXT_PUBLIC_SUPABASE_URL: "https://prod.supabase.co", OPERATIONAL_FLOW_TEST_SUPABASE_URL: "https://prod.supabase.co" }, "non_isolated_target");
+  await expectRefused("MISSING_ISOLATION_PREREQUISITE", base, { P2_13_FOUNDER_FIXTURE_ENABLED: "false" }, "non_isolated_target");
+  await expectRefused("INVITER_NOT_FOUND", ["--workspace", TENANT_A.workspaceId, "--email", `x-${Date.now()}@example.test`, "--role", "pm", "--inviter", "nobody-a1b2c3@example.test"]);
+  await expectRefused("INVITER_NOT_MEMBER_OF_TARGET", ["--workspace", TENANT_B.workspaceId, "--email", `y-${Date.now()}@example.test`, "--role", "pm", "--inviter", OWNER_A.email]);
+  await expectRefused("INVALID_ROLE", ["--workspace", TENANT_A.workspaceId, "--email", `z-${Date.now()}@example.test`, "--role", "superuser", "--inviter", OWNER_A.email]);
+  await expectRefused("OWNER_ROLE_NEVER_INVITABLE", ["--workspace", TENANT_A.workspaceId, "--email", `w-${Date.now()}@example.test`, "--role", "owner", "--inviter", OWNER_A.email]);
 
   EVIDENCE.operatorNegativeControls = refusals.join(" ");
 });
 
 test("C2. SUPPORTED_OPERATOR_INVITE: the real command creates an inspectable, correctly bound invitation", async () => {
-  const result = operator(["--workspace", TENANT_A.workspaceId, "--email", participantEmail, "--role", "pm", "--inviter", OWNER_A.email, "--emit-accept-path"]);
+  const result = await operator(["--workspace", TENANT_A.workspaceId, "--email", participantEmail, "--role", "pm", "--inviter", OWNER_A.email, "--emit-accept-path"]);
   assert.equal(result.timedOut, false, "the supported operator invite TIMED OUT against Auth/PostgREST");
   assert.equal(result.exit, 0, `the supported operator invite failed: ${result.text.slice(0, 400)}`);
   const envelope = envelopeOf(result.text) as { ok: boolean; acceptPath?: string } | null;
@@ -817,8 +876,8 @@ test("C2. SUPPORTED_OPERATOR_INVITE: the real command creates an inspectable, co
   EVIDENCE.operatorInviteSubscriptionSeatGated = "NO";
 });
 
-test("C3. DUPLICATE_INVITE is refused through the shared invitation domain", () => {
-  const dup = operator(["--workspace", TENANT_A.workspaceId, "--email", participantEmail, "--role", "pm", "--inviter", OWNER_A.email]);
+test("C3. DUPLICATE_INVITE is refused through the shared invitation domain", async () => {
+  const dup = await operator(["--workspace", TENANT_A.workspaceId, "--email", participantEmail, "--role", "pm", "--inviter", OWNER_A.email]);
   assert.equal(dup.timedOut, false, "the duplicate-invite control TIMED OUT; that is not a refusal");
   assert.notEqual(dup.exit, 0, "a duplicate active invitation was created");
   assert.match(dup.text, /active invitation already exists/i, `duplicate refusal used an unexpected reason: ${dup.text.slice(0, 200)}`);

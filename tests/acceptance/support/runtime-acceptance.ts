@@ -26,10 +26,48 @@ import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
+import path from "node:path";
 
 const ROOT = process.cwd();
 
 // ───────── package-manager children: launched through THIS Node runtime ─────────
+
+/**
+ * The package.json that OWNS a file, found by walking up from it.
+ *
+ * Ownership is what makes the npm check below an identity check rather than a
+ * guess: a path substring can be forged by any directory named `npm`, but the
+ * nearest enclosing manifest is the package the file actually ships in.
+ */
+function owningPackage(file: string): { dir: string; manifest: Record<string, unknown> } | null {
+  let dir = path.dirname(file);
+  // Bounded by the filesystem root; `path.dirname("/") === "/"` terminates the walk.
+  for (let depth = 0; depth < 64; depth += 1) {
+    const manifestPath = path.join(dir, "package.json");
+    if (fs.existsSync(manifestPath)) {
+      try {
+        return { dir, manifest: JSON.parse(fs.readFileSync(manifestPath, "utf8")) as Record<string, unknown> };
+      } catch {
+        return null;
+      }
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
+}
+
+/** The path a manifest declares for one of its bin entries, in either bin form. */
+function declaredBin(manifest: Record<string, unknown>, binName: string): string | null {
+  const bin = manifest.bin;
+  if (typeof bin === "string") return manifest.name === binName ? bin : null;
+  if (bin && typeof bin === "object") {
+    const entry = (bin as Record<string, unknown>)[binName];
+    return typeof entry === "string" ? entry : null;
+  }
+  return null;
+}
 
 /**
  * The npm CLI, as a path THIS Node runtime can execute directly.
@@ -47,32 +85,97 @@ const ROOT = process.cwd();
  * therefore has no quoting surface at all: the path travels as one argv element, so
  * a directory with spaces in it is not a special case.
  *
- * FAIL CLOSED. If `npm_execpath` is absent, is not a JavaScript file, or does not
- * exist, this throws with a named diagnostic rather than guessing at some other npm
- * on the machine. These gates are only ever entered through an npm script, so an
- * unset value means the harness was launched in a way its evidence has never been
- * produced under, and silently substituting a different npm would make the build and
- * the operator commands unattributable.
+ * WHY EXISTENCE AND A `.js` SUFFIX ARE NOT ENOUGH. `npm_execpath` is not npm's
+ * private variable: pnpm and yarn populate it with THEIR own JavaScript CLI. A
+ * pnpm `.cjs` therefore satisfies "present, JavaScript, exists" while this helper
+ * — and every piece of evidence that cites it — claims execution is bound to npm.
+ * So the identity is established POSITIVELY: resolve the real path, find the
+ * package.json that owns it, require that package to be named `npm`, and require
+ * the file to be the very entry that package declares as its `npm` bin. A
+ * directory merely named `npm`, or an unrelated JavaScript CLI, satisfies none of
+ * those.
+ *
+ * FAIL CLOSED. Every failure below throws with a named diagnostic. There is no
+ * PATH fallback, no search for another installation, and no hard-coded install
+ * directory: these gates are only ever entered through an npm script, so a value
+ * that cannot be proven to be npm means the harness was launched in a way its
+ * evidence has never been produced under.
  */
 export function npmCliPath(): string {
   const execpath = process.env.npm_execpath;
+  const refuse = (why: string) => {
+    throw new Error(`${why} Refusing to guess at another npm installation.`);
+  };
   if (!execpath) {
-    throw new Error(
+    refuse(
       "npm_execpath is not set, so the npm CLI cannot be launched through this Node runtime. " +
-        "This gate must be started through an npm lifecycle script (for example `npm run check:beta-release-rehearsal`). " +
-        "Refusing to guess at another npm installation.",
+        "This gate must be started through an npm lifecycle script (for example `npm run check:beta-release-rehearsal`).",
     );
   }
-  if (!/\.[cm]?js$/.test(execpath)) {
-    throw new Error(
-      `npm_execpath (${execpath}) is not a JavaScript file, so this Node runtime cannot execute it directly. ` +
-        "Refusing to guess at another npm installation.",
+  if (!/\.[cm]?js$/.test(execpath!)) {
+    refuse(`npm_execpath (${execpath}) is not a JavaScript file, so this Node runtime cannot execute it directly.`);
+  }
+  if (!fs.existsSync(execpath!)) {
+    refuse(`npm_execpath (${execpath}) does not exist.`);
+  }
+
+  const resolved = fs.realpathSync(execpath!);
+  const owner = owningPackage(resolved);
+  if (!owner) {
+    refuse(`npm_execpath (${execpath}) has no owning package.json, so its identity as the npm CLI cannot be established.`);
+  }
+  if (owner!.manifest.name !== "npm") {
+    refuse(
+      `npm_execpath (${execpath}) belongs to package "${String(owner!.manifest.name)}", not npm. ` +
+        "npm_execpath is also set by pnpm and yarn, and this harness binds its children to npm specifically.",
     );
   }
-  if (!fs.existsSync(execpath)) {
-    throw new Error(`npm_execpath (${execpath}) does not exist. Refusing to guess at another npm installation.`);
+  const declared = declaredBin(owner!.manifest, "npm");
+  if (!declared) {
+    refuse(`the package owning npm_execpath (${execpath}) declares no \`npm\` bin entry, so the CLI entry cannot be identified.`);
   }
-  return execpath;
+  const declaredPath = path.resolve(owner!.dir, declared!);
+  if (!fs.existsSync(declaredPath) || fs.realpathSync(declaredPath) !== resolved) {
+    refuse(
+      `npm_execpath (${execpath}) is not the CLI entry its own package declares (${declaredPath}), ` +
+        "so it cannot be attributed to npm.",
+    );
+  }
+  return execpath!;
+}
+
+/**
+ * npm prints a two-line LIFECYCLE BANNER before it runs a script:
+ *
+ *   > pmfreak@0.1.0 build
+ *   > next build --help
+ *
+ * The second line is npm echoing the script's command STRING. It is emitted before
+ * the script executable has proved anything at all, so any wrapper — or a no-op that
+ * exits zero — produces it. An earlier revision of X1 accepted `/next build/` against
+ * the raw output and could therefore be satisfied by that banner alone, which is the
+ * opposite of what the control claims to prove.
+ *
+ * So the banner is REMOVED first, and what remains must carry a marker only Next's own
+ * help implementation emits: its usage signature and a real options listing.
+ */
+export const NPM_BANNER_LINE = /^\s*>\s.*$/;
+export const NEXT_BUILD_USAGE = /^Usage: next build \[directory\] \[options\]/m;
+export const NEXT_HELP_OPTION_LINE = /^\s+-{1,2}[A-Za-z][\w-]*(?:,\s*--[\w-]+)?\s{2,}\S/m;
+
+export function nextBuildHelpProof(raw: string): { ok: boolean; reason: string; body: string } {
+  const body = raw
+    .split("\n")
+    .filter((line) => !NPM_BANNER_LINE.test(line))
+    .join("\n")
+    .trim();
+  if (!NEXT_BUILD_USAGE.test(body)) {
+    return { ok: false, reason: "no `next build` usage signature outside npm's lifecycle banner", body };
+  }
+  if (!NEXT_HELP_OPTION_LINE.test(body)) {
+    return { ok: false, reason: "no options listing, so Next's help implementation did not run", body };
+  }
+  return { ok: true, reason: "Next's own `next build` help output was observed", body };
 }
 
 export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -226,6 +329,32 @@ export function descendantPids(root: number): number[] {
   return out;
 }
 
+/**
+ * Every process currently in process GROUP `pgid`.
+ *
+ * WHY GROUP MEMBERSHIP AND NOT DESCENT. `descendantPids` walks DOWN the parent
+ * links, so the moment a root exits its children are re-parented to init and
+ * become invisible to it — which is precisely the window a leaked build or
+ * operator descendant lives in. A child started `detached` is a group LEADER
+ * (pgid === pid), and everything it spawns inherits that group unless it calls
+ * setsid, so the group still names the tree after the root is gone.
+ *
+ * Field 5 of /proc/<pid>/stat is pgrp; `comm` may contain spaces and
+ * parentheses, so the fields are read after the LAST ')' exactly as
+ * `descendantPids` does.
+ */
+export function processGroupPids(pgid: number): number[] {
+  const out: number[] = [];
+  for (const entry of fs.readdirSync("/proc")) {
+    if (!/^\d+$/.test(entry)) continue;
+    const pid = Number(entry);
+    const stat = readProc(pid, "stat");
+    if (stat === "") continue;
+    if (Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[2]) === pgid) out.push(pid);
+  }
+  return out;
+}
+
 export const readProc = (pid: number, file: string): string => {
   try {
     return fs.readFileSync(`/proc/${pid}/${file}`, "utf8");
@@ -330,6 +459,191 @@ export async function reapProcessGroup(
 
   const survivors = runningPids(recorded);
   return { reaped: hasExited() && survivors.length === 0, survivors, unreaped: unreapedPids(recorded) };
+}
+
+/**
+ * The same reaping ladder as `reapProcessGroup`, keyed on the process GROUP id
+ * rather than on a launcher this process still owns a handle to.
+ *
+ * `reapProcessGroup` records the tree by walking DOWN from a live launcher, which
+ * is the right model for the server lifecycle, where the handle outlives the
+ * shutdown. It cannot serve a bounded child that has already exited and left a
+ * descendant behind: the descendant has been re-parented and is no longer
+ * reachable by descent. The ladder itself is unchanged — record, signal the
+ * group, signal each recorded pid individually because one that left the group
+ * cannot be reached by the group signal, await, then REPORT running and
+ * terminated-but-uncollected separately.
+ */
+export async function reapProcessGroupMembers(
+  pgid: number,
+  timeoutMs = 10_000,
+): Promise<{ survivors: number[]; unreaped: number[] }> {
+  const recorded = processGroupPids(pgid).filter((pid) => pid !== process.pid);
+  try {
+    process.kill(-pgid, "SIGKILL");
+  } catch {
+    /* the group is already gone */
+  }
+  for (const pid of recorded) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      /* already gone */
+    }
+  }
+  await waitUntil(() => runningPids(recorded).length === 0, timeoutMs);
+  await waitUntil(() => unreapedPids(recorded).length === 0, 2_000);
+  return { survivors: runningPids(recorded), unreaped: unreapedPids(recorded) };
+}
+
+export type BoundedChildOutcome = {
+  readonly label: string;
+  readonly rootPid: number | null;
+  readonly exit: number | null;
+  readonly signal: NodeJS.Signals | null;
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly truncated: boolean;
+  readonly timedOut: boolean;
+  readonly launchError: string | null;
+  readonly durationMs: number;
+  /** Whether the process TREE could be inspected (requires /proc). Never assumed. */
+  readonly treeVerified: boolean;
+  readonly survivors: number[];
+  readonly unreaped: number[];
+};
+
+/**
+ * Runs one child to a deadline and accounts for its whole process TREE.
+ *
+ * WHY THIS EXISTS. The synchronous form this replaces —
+ * a synchronous `execFileSync` call with a `timeout` option — bounds only the direct child.
+ * On timeout Node signals THAT process and returns, so npm's `sh -c`, and the
+ * `next` or `tsx` process under it, can outlive the call. The caller then sees a
+ * tidy non-zero result while a build is still compiling, or while an operator
+ * command is still mutating the fixture the very next case reads. Worse, nothing
+ * recorded it: those survivors appear in no ledger, so the gate's "zero residue"
+ * claim covered a tree it had never looked at.
+ *
+ * So the child is started `detached`, making it a process-group LEADER, and the
+ * GROUP is what gets accounted for — on the timeout path AND on the normal-exit
+ * path, because a child can exit zero and still leave a descendant running.
+ * Anything still alive after reaping is recorded in `HARNESS_PROCESS_RESIDUE`
+ * under this child's label, so it is asserted by the same control that already
+ * asserts the server lifecycle left nothing behind.
+ *
+ * The invocation model is unchanged and stays shell-free: `command` is executed
+ * directly, never through a shell, so the Windows `.cmd` dependency this launch
+ * path was introduced to remove is not reintroduced here.
+ *
+ * WHERE /proc IS UNAVAILABLE the tree cannot be inspected. This does not silently
+ * pass: `treeVerified` is false, and a caller that needs tree evidence must say so
+ * with `requireProc` rather than read absence of survivors as proof of none.
+ */
+export async function runBoundedChild(options: {
+  label: string;
+  command: string;
+  args: readonly string[];
+  cwd: string;
+  env?: NodeJS.ProcessEnv;
+  timeoutMs: number;
+  maxBuffer?: number;
+}): Promise<BoundedChildOutcome> {
+  const { label, command, args, cwd, timeoutMs } = options;
+  const maxBuffer = options.maxBuffer ?? 16 * 1024 * 1024;
+  const startedAt = Date.now();
+
+  const child = spawn(command, [...args], {
+    cwd,
+    env: options.env ?? process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+    detached: true,
+  });
+  const rootPid = child.pid ?? null;
+
+  const state: {
+    exit: { code: number | null; signal: NodeJS.Signals | null } | null;
+    closed: boolean;
+    error: Error | null;
+    stdout: string;
+    stderr: string;
+    truncated: boolean;
+  } = { exit: null, closed: false, error: null, stdout: "", stderr: "", truncated: false };
+
+  // Bounded accumulation. `execFileSync`'s maxBuffer KILLS the child on overflow;
+  // capping and flagging instead keeps the diagnostic that explains the overflow.
+  const collect = (stream: "stdout" | "stderr") => (chunk: unknown) => {
+    const text = String(chunk);
+    const room = maxBuffer - state[stream].length;
+    if (text.length > room) {
+      state.truncated = true;
+      state[stream] += text.slice(0, Math.max(0, room));
+      return;
+    }
+    state[stream] += text;
+  };
+  child.stdout?.on("data", collect("stdout"));
+  child.stderr?.on("data", collect("stderr"));
+  child.on("exit", (code, signal) => {
+    state.exit = { code, signal };
+  });
+  child.on("close", () => {
+    state.closed = true;
+  });
+  // A launch failure (ENOENT, EACCES) must end the wait immediately rather than
+  // burn the whole deadline on a child that never existed.
+  child.on("error", (error) => {
+    state.error = error;
+  });
+
+  await waitUntil(() => state.exit !== null || state.error !== null, timeoutMs, 25);
+  const timedOut = state.exit === null && state.error === null;
+  // Give the pipes a moment to flush AFTER exit. If `close` never arrives, a
+  // descendant is still holding the inherited stdio open — which the group check
+  // below is exactly what catches.
+  if (!timedOut) await waitUntil(() => state.closed, 2_000, 25);
+
+  let treeVerified = false;
+  let survivors: number[] = [];
+  let unreaped: number[] = [];
+
+  if (rootPid !== null && PROC_AVAILABLE) {
+    treeVerified = true;
+    const members = () => processGroupPids(rootPid).filter((pid) => pid !== process.pid);
+    // Reap on BOTH paths: a timeout leaves the tree running by definition, and a
+    // clean exit can still leave a descendant that outlived its parent.
+    if (timedOut || members().length > 0) {
+      const reaping = await reapProcessGroupMembers(rootPid);
+      survivors = reaping.survivors;
+      unreaped = reaping.unreaped;
+    }
+    if (survivors.length > 0 || unreaped.length > 0) {
+      HARNESS_PROCESS_RESIDUE.push({ control: label, orphans: survivors, unreaped });
+    }
+  } else if (timedOut) {
+    // No /proc to verify with, but the child must still not be left running.
+    try {
+      child.kill("SIGKILL");
+    } catch {
+      /* already gone */
+    }
+  }
+
+  return {
+    label,
+    rootPid,
+    exit: state.exit?.code ?? null,
+    signal: state.exit?.signal ?? null,
+    stdout: state.stdout,
+    stderr: state.stderr,
+    truncated: state.truncated,
+    timedOut,
+    launchError: state.error === null ? null : String(state.error),
+    durationMs: Date.now() - startedAt,
+    treeVerified,
+    survivors,
+    unreaped,
+  };
 }
 
 // ───────────────────────────── server lifecycle ─────────────────────────────
