@@ -407,6 +407,25 @@ export const pidAlive = (pid: number) => {
   return state !== null && state !== "Z";
 };
 export const pidUnreaped = (pid: number) => processState(pid) === "Z";
+/**
+ * Existence of a pid via signal 0, for platforms with no /proc.
+ *
+ * DELIBERATELY NOT A SUBSTITUTE FOR THE /proc CHECKS ABOVE. Signal 0 succeeds on a
+ * ZOMBIE, so on Linux this cannot tell a terminated-but-uncollected process from a
+ * running one — which is the whole distinction the residue ledger exists to make.
+ * It is used only on Windows, where that distinction does not exist and where the
+ * only question is whether the process is still in the table at all.
+ */
+export function pidExistsBySignal(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM means it EXISTS but belongs to someone else; ESRCH means it is gone.
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
 export const runningPids = (pids: readonly number[]) => pids.filter(pidAlive);
 export const unreapedPids = (pids: readonly number[]) => pids.filter(pidUnreaped);
 
@@ -478,7 +497,14 @@ export async function reapProcessGroupMembers(
   pgid: number,
   timeoutMs = 10_000,
 ): Promise<{ survivors: number[]; unreaped: number[] }> {
-  const recorded = processGroupPids(pgid).filter((pid) => pid !== process.pid);
+  // The union of BOTH relations, because neither alone is sufficient. Group membership
+  // survives the root's death, which descent does not — but a descendant spawned
+  // `detached` becomes its own group leader and LEAVES the group, so it is invisible to
+  // the group query while it is still very much alive. Descent finds exactly that one,
+  // provided the root has not been reaped yet, which on the timeout path it has not.
+  const recorded = [...processGroupPids(pgid), ...descendantPids(pgid)]
+    .filter((pid) => pid !== process.pid)
+    .filter((pid, index, all) => all.indexOf(pid) === index);
   try {
     process.kill(-pgid, "SIGKILL");
   } catch {
@@ -496,6 +522,84 @@ export async function reapProcessGroupMembers(
   return { survivors: runningPids(recorded), unreaped: unreapedPids(recorded) };
 }
 
+/**
+ * Terminates a process AND ITS DESCENDANTS on Windows.
+ *
+ * WHY THIS EXISTS. There is no process group to signal on Windows and no /proc to
+ * enumerate, so the POSIX path below cannot run there. Killing only the direct
+ * ChildProcess handle would leave exactly the tree the original finding was about:
+ *
+ *   node <npm-cli>  ->  npm  ->  the script launcher  ->  next / tsx
+ *
+ * `taskkill /T` is the documented native mechanism: it terminates the named process
+ * and the child processes started by it. `/F` forces it.
+ *
+ * NO SHELL. taskkill is executed directly, with the pid as its own argv element —
+ * never through `cmd.exe /c`, never through PowerShell, never string-concatenated.
+ * That is the same shell-free invariant the npm launch path was introduced to
+ * establish, and it must not be given back on the cleanup path.
+ *
+ * NOT RECURSIVE. This deliberately does not go through `runBoundedChild`: cleanup
+ * for a bounded child cannot itself depend on the bounded-child machinery. It gets
+ * its own small deadline instead.
+ *
+ * `executable` exists so the failure paths can be exercised by a regression; it is
+ * not used by production callers.
+ */
+export async function windowsTreeKill(
+  pid: number,
+  options: { timeoutMs?: number; executable?: string } = {},
+): Promise<{ ok: boolean; reason: string; exit: number | null; output: string }> {
+  const timeoutMs = options.timeoutMs ?? 20_000;
+  const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT;
+  const fallback = systemRoot ? path.join(systemRoot, "System32", "taskkill.exe") : "taskkill.exe";
+  const executable = options.executable ?? (systemRoot && fs.existsSync(fallback) ? fallback : "taskkill.exe");
+
+  return await new Promise((resolve) => {
+    let settled = false;
+    let output = "";
+    const finish = (result: { ok: boolean; reason: string; exit: number | null }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ ...result, output });
+    };
+
+    let child: ChildProcess;
+    try {
+      child = spawn(executable, ["/PID", String(pid), "/T", "/F"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    } catch (error) {
+      resolve({ ok: false, reason: `taskkill could not be started: ${String(error)}`, exit: null, output: "" });
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        /* already gone */
+      }
+      finish({ ok: false, reason: `taskkill did not complete within ${timeoutMs}ms`, exit: null });
+    }, timeoutMs);
+
+    child.stdout?.on("data", (chunk) => {
+      output += String(chunk);
+    });
+    child.stderr?.on("data", (chunk) => {
+      output += String(chunk);
+    });
+    // A launch failure is a CLEANUP FAILURE, never a silent success.
+    child.on("error", (error) => finish({ ok: false, reason: `taskkill could not be started: ${String(error)}`, exit: null }));
+    child.on("close", (code) =>
+      finish(
+        code === 0
+          ? { ok: true, reason: "taskkill /T /F reported success", exit: code }
+          : { ok: false, reason: `taskkill exited ${code}: ${output.trim().slice(0, 200)}`, exit: code },
+      ),
+    );
+  });
+}
+
 export type BoundedChildOutcome = {
   readonly label: string;
   readonly rootPid: number | null;
@@ -507,8 +611,19 @@ export type BoundedChildOutcome = {
   readonly timedOut: boolean;
   readonly launchError: string | null;
   readonly durationMs: number;
-  /** Whether the process TREE could be inspected (requires /proc). Never assumed. */
+  /**
+   * Whether the process TREE could be ENUMERATED and inspected. That requires
+   * /proc, so it is true on Linux only. A successful Windows cleanup does NOT set
+   * it: `taskkill` terminating a tree is not the same claim as having observed the
+   * tree, and authoritative process evidence stays Linux-only.
+   */
   readonly treeVerified: boolean;
+  /** Which mechanism actually cleaned the tree up, named rather than inferred. */
+  readonly treeCleanup: "none" | "linux-proc-group" | "windows-taskkill" | "unverified";
+  /** Windows only: whether `taskkill /T /F` succeeded AND the root is verifiably gone. */
+  readonly windowsTreeKill: "SUCCESS" | "FAILED" | null;
+  /** Non-null when cleanup itself failed. A caller must fail closed on this. */
+  readonly cleanupError: string | null;
   readonly survivors: number[];
   readonly unreaped: number[];
 };
@@ -536,9 +651,19 @@ export type BoundedChildOutcome = {
  * directly, never through a shell, so the Windows `.cmd` dependency this launch
  * path was introduced to remove is not reintroduced here.
  *
- * WHERE /proc IS UNAVAILABLE the tree cannot be inspected. This does not silently
- * pass: `treeVerified` is false, and a caller that needs tree evidence must say so
- * with `requireProc` rather than read absence of survivors as proof of none.
+ * WHERE /proc IS UNAVAILABLE the tree cannot be enumerated. On Windows the tree is
+ * still TERMINATED, by `taskkill /T /F`, and the root is then verified gone — but
+ * `treeVerified` stays false, because terminating a tree is not the same claim as
+ * having observed one. Authoritative process evidence remains Linux-only. On any
+ * other platform without /proc the outcome reports `cleanupError` rather than
+ * pretending the tree was handled.
+ *
+ * KNOWN LIMIT, stated rather than implied: a descendant that both detaches into its
+ * own process group AND outlives a root that exited CLEANLY is reachable by neither
+ * relation — the group no longer contains it and the parent link is gone. The
+ * timeout path does not have that gap, because the root is still alive when the tree
+ * is recorded. Closing the clean-exit case would need a supervising job object or
+ * cgroup, which is a subsystem this gate does not have.
  */
 export async function runBoundedChild(options: {
   label: string;
@@ -548,6 +673,8 @@ export async function runBoundedChild(options: {
   env?: NodeJS.ProcessEnv;
   timeoutMs: number;
   maxBuffer?: number;
+  /** Test-only: exercise the Windows cleanup failure paths. Unused in production. */
+  taskkillExecutable?: string;
 }): Promise<BoundedChildOutcome> {
   const { label, command, args, cwd, timeoutMs } = options;
   const maxBuffer = options.maxBuffer ?? 16 * 1024 * 1024;
@@ -604,15 +731,23 @@ export async function runBoundedChild(options: {
   if (!timedOut) await waitUntil(() => state.closed, 2_000, 25);
 
   let treeVerified = false;
+  let treeCleanup: BoundedChildOutcome["treeCleanup"] = "none";
+  let windowsTreeKillResult: BoundedChildOutcome["windowsTreeKill"] = null;
+  let cleanupError: string | null = null;
   let survivors: number[] = [];
   let unreaped: number[] = [];
 
   if (rootPid !== null && PROC_AVAILABLE) {
+    // ── Linux: the authoritative model. Enumerate the group, reap it, account for it. ──
     treeVerified = true;
-    const members = () => processGroupPids(rootPid).filter((pid) => pid !== process.pid);
+    const members = () =>
+      [...processGroupPids(rootPid), ...descendantPids(rootPid)]
+        .filter((pid) => pid !== process.pid)
+        .filter((pid, index, all) => all.indexOf(pid) === index);
     // Reap on BOTH paths: a timeout leaves the tree running by definition, and a
     // clean exit can still leave a descendant that outlived its parent.
     if (timedOut || members().length > 0) {
+      treeCleanup = "linux-proc-group";
       const reaping = await reapProcessGroupMembers(rootPid);
       survivors = reaping.survivors;
       unreaped = reaping.unreaped;
@@ -620,13 +755,36 @@ export async function runBoundedChild(options: {
     if (survivors.length > 0 || unreaped.length > 0) {
       HARNESS_PROCESS_RESIDUE.push({ control: label, orphans: survivors, unreaped });
     }
+  } else if (rootPid !== null && timedOut && process.platform === "win32") {
+    // ── Windows: no group to signal and no /proc to enumerate, so terminate the
+    //    tree with the documented native mechanism and then VERIFY the root is gone.
+    //    Cleanup is never called clean on taskkill's own say-so.
+    treeCleanup = "windows-taskkill";
+    const killed = await windowsTreeKill(rootPid, { executable: options.taskkillExecutable });
+    const rootGone = !pidExistsBySignal(rootPid);
+    if (killed.ok && rootGone) {
+      windowsTreeKillResult = "SUCCESS";
+    } else {
+      windowsTreeKillResult = "FAILED";
+      cleanupError = killed.ok
+        ? `taskkill reported success but the root process ${rootPid} is still present`
+        : killed.reason;
+      survivors = rootGone ? [] : [rootPid];
+      // Recorded in the SAME ledger the rehearsal's final control asserts empty, so a
+      // Windows cleanup failure cannot coexist with a passing battery.
+      HARNESS_PROCESS_RESIDUE.push({ control: `${label} [windows tree cleanup: ${cleanupError}]`, orphans: survivors, unreaped: [] });
+    }
   } else if (timedOut) {
-    // No /proc to verify with, but the child must still not be left running.
+    // Neither /proc nor Windows: the child must still not be left running, but the
+    // tree cannot be accounted for, and that is reported rather than assumed away.
+    treeCleanup = "unverified";
+    cleanupError = `no process-tree cleanup mechanism is available on ${process.platform}; only the direct child was signalled`;
     try {
       child.kill("SIGKILL");
     } catch {
       /* already gone */
     }
+    HARNESS_PROCESS_RESIDUE.push({ control: `${label} [${cleanupError}]`, orphans: [], unreaped: [] });
   }
 
   return {
@@ -641,6 +799,9 @@ export async function runBoundedChild(options: {
     launchError: state.error === null ? null : String(state.error),
     durationMs: Date.now() - startedAt,
     treeVerified,
+    treeCleanup,
+    windowsTreeKill: windowsTreeKillResult,
+    cleanupError,
     survivors,
     unreaped,
   };

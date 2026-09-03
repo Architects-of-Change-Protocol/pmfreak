@@ -269,6 +269,9 @@ before(async () => {
     maxBuffer: 64 * 1024 * 1024,
   });
   assert.equal(build.launchError, null, `the production build could not be launched: ${build.launchError}`);
+  // A cleanup failure is never absorbed: on Windows a failed `taskkill /T /F` would
+  // otherwise leave a compiling descendant behind while this hook carried on.
+  assert.equal(build.cleanupError, null, `the production build's process tree could not be cleaned up: ${build.cleanupError}`);
   assert.equal(
     build.timedOut,
     false,
@@ -504,6 +507,7 @@ test("X1. CROSS_PLATFORM_CHILD_LAUNCH: package-manager children run through this
   assert.equal(proofRun.exit, 0, `the build chain exited ${proofRun.exit}: ${proofRun.stderr.slice(0, 300)}`);
   const verdict = nextBuildHelpProof(`${proofRun.stdout}\n${proofRun.stderr}`);
   assert.ok(verdict.ok, `the build child did not reach Next's own help output: ${verdict.reason}; body=${verdict.body.slice(0, 300)}`);
+  assert.equal(proofRun.cleanupError, null, `the launch proof left a process tree uncleaned: ${proofRun.cleanupError}`);
   assert.equal(proofRun.survivors.length, 0, `the launch proof left ${proofRun.survivors.length} process(es) running`);
   assert.equal(proofRun.unreaped.length, 0, `the launch proof left ${proofRun.unreaped.length} uncollected process(es)`);
 
@@ -774,12 +778,16 @@ const operator = async (args: string[], env: Record<string, string> = {}) => {
   // exit, so a stalled dependency can never satisfy a negative control. By the time it
   // is reported the tree has been reaped, or the survivors are in the residue ledger.
   const timeoutNote = run.timedOut
-    ? `\n[operator command timed out after ${OPERATOR_TIMEOUT_MS}ms; tree reaped: survivors=${run.survivors.length}, unreaped=${run.unreaped.length}, verified=${run.treeVerified}]`
+    ? `\n[operator command timed out after ${OPERATOR_TIMEOUT_MS}ms; cleanup=${run.treeCleanup}, survivors=${run.survivors.length}, ` +
+      `unreaped=${run.unreaped.length}, treeVerified=${run.treeVerified}, windowsTreeKill=${run.windowsTreeKill ?? "n/a"}]`
     : "";
   return {
     exit: run.exit ?? -1,
     text: `${run.stdout}\n${run.stderr}${timeoutNote}`,
     timedOut: run.timedOut,
+    // Surfaced separately so a control can fail closed on it. A tsx grandchild that
+    // outlived its deadline is still free to write to the fixture the next case reads.
+    cleanupError: run.cleanupError,
   };
 };
 const envelopeOf = (text: string) => {
@@ -792,6 +800,7 @@ test("C1. OPERATOR NEGATIVE CONTROLS: isolation, identity, membership, role and 
   const expectRefused = async (label: string, args: string[], env: Record<string, string> = {}, failureClass?: string) => {
     const r = await operator(args, env);
     assert.equal(r.timedOut, false, `${label} TIMED OUT; a stalled dependency must not be read as a refusal`);
+    assert.equal(r.cleanupError, null, `${label} left a process tree uncleaned: ${r.cleanupError}`);
     assert.notEqual(r.exit, 0, `${label} was NOT refused`);
     const envelope = envelopeOf(r.text);
     assert.ok(envelope, `${label} emitted no structured envelope: ${r.text.slice(0, 200)}`);
@@ -817,6 +826,7 @@ test("C1. OPERATOR NEGATIVE CONTROLS: isolation, identity, membership, role and 
 test("C2. SUPPORTED_OPERATOR_INVITE: the real command creates an inspectable, correctly bound invitation", async () => {
   const result = await operator(["--workspace", TENANT_A.workspaceId, "--email", participantEmail, "--role", "pm", "--inviter", OWNER_A.email, "--emit-accept-path"]);
   assert.equal(result.timedOut, false, "the supported operator invite TIMED OUT against Auth/PostgREST");
+  assert.equal(result.cleanupError, null, `the supported operator invite left a process tree uncleaned: ${result.cleanupError}`);
   assert.equal(result.exit, 0, `the supported operator invite failed: ${result.text.slice(0, 400)}`);
   const envelope = envelopeOf(result.text) as { ok: boolean; acceptPath?: string } | null;
   assert.ok(envelope?.ok, `the operator boundary did not report success: ${result.text.slice(0, 300)}`);
@@ -879,6 +889,7 @@ test("C2. SUPPORTED_OPERATOR_INVITE: the real command creates an inspectable, co
 test("C3. DUPLICATE_INVITE is refused through the shared invitation domain", async () => {
   const dup = await operator(["--workspace", TENANT_A.workspaceId, "--email", participantEmail, "--role", "pm", "--inviter", OWNER_A.email]);
   assert.equal(dup.timedOut, false, "the duplicate-invite control TIMED OUT; that is not a refusal");
+  assert.equal(dup.cleanupError, null, `the duplicate-invite control left a process tree uncleaned: ${dup.cleanupError}`);
   assert.notEqual(dup.exit, 0, "a duplicate active invitation was created");
   assert.match(dup.text, /active invitation already exists/i, `duplicate refusal used an unexpected reason: ${dup.text.slice(0, 200)}`);
 });

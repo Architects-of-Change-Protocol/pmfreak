@@ -25,8 +25,10 @@ import {
   nextBuildHelpProof,
   npmCliPath,
   pidAlive,
+  pidExistsBySignal,
   processGroupPids,
   runBoundedChild,
+  windowsTreeKill,
 } from "./acceptance/support/runtime-acceptance";
 
 const scratch = () => fs.mkdtempSync(path.join(os.tmpdir(), "harness-child-lifecycle-"));
@@ -174,9 +176,9 @@ test("F3. npmCliPath REFUSES every non-npm shape, and never falls back to PATH",
 
 // ───────────── F2 — a timed-out child must not leave descendants alive ─────────────
 
-test("F2. a timed-out child's DESCENDANT is reaped, and residue is never silently omitted", async (t) => {
+test("F2 (linux). a timed-out child's DESCENDANT is reaped, and residue is never silently omitted", async (t) => {
   if (!PROC_AVAILABLE) {
-    t.skip("process-tree evidence requires /proc; the authoritative platform is Linux");
+    t.skip("the /proc group model is Linux-only; the Windows path is covered by its own case");
     return;
   }
   const dir = scratch();
@@ -193,7 +195,14 @@ test("F2. a timed-out child's DESCENDANT is reaped, and residue is never silentl
         'import { spawn } from "node:child_process";',
         'import fs from "node:fs";',
         // The descendant sleeps far past any deadline this test uses.
-        'const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 600000)"], { stdio: "ignore" });',
+        // `detached` is what makes this regression load-bearing. A plain descendant is
+        // killed as a side effect of the root dying on both platforms (libuv places it
+        // in the parent's job object on Windows; it stays in the root's process group on
+        // Linux), so a plain child would pass even against direct-child-only cleanup.
+        // A detached one escapes BOTH of those, and is exactly the shape a shell
+        // launcher or a server process takes.
+        'const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 600000)"], { stdio: "ignore", detached: true });',
+        "child.unref();",
         `fs.writeFileSync(${JSON.stringify(marker)}, String(child.pid));`,
         "setTimeout(() => {}, 600000);",
       ].join("\n"),
@@ -209,6 +218,8 @@ test("F2. a timed-out child's DESCENDANT is reaped, and residue is never silentl
 
     assert.equal(run.timedOut, true, "the controlled child did not exceed its deadline");
     assert.equal(run.treeVerified, true, "the process tree was not verified on a /proc platform");
+    assert.equal(run.treeCleanup, "linux-proc-group", `the Linux path did not use the group model: ${run.treeCleanup}`);
+    assert.equal(run.cleanupError, null, `cleanup reported a failure: ${run.cleanupError}`);
     assert.ok(run.rootPid, "no root pid was recorded for the bounded child");
 
     const descendantPid = Number(fs.readFileSync(marker, "utf8").trim());
@@ -237,9 +248,9 @@ test("F2. a timed-out child's DESCENDANT is reaped, and residue is never silentl
   }
 });
 
-test("F2. a child that exits cleanly still reports a verified, empty process tree", async (t) => {
+test("F2 (linux). a child that exits cleanly still reports a verified, empty process tree", async (t) => {
   if (!PROC_AVAILABLE) {
-    t.skip("process-tree evidence requires /proc; the authoritative platform is Linux");
+    t.skip("whole-tree observation of a clean exit requires /proc; authoritative evidence is Linux-only");
     return;
   }
   const residueBefore = HARNESS_PROCESS_RESIDUE.length;
@@ -256,6 +267,146 @@ test("F2. a child that exits cleanly still reports a verified, empty process tre
   assert.equal(run.treeVerified, true, "the tree was not verified on a /proc platform");
   assert.deepEqual(run.survivors, [], "a clean exit reported survivors");
   assert.equal(HARNESS_PROCESS_RESIDUE.length, residueBefore, "a clean exit recorded residue");
+});
+
+
+// ───── F2 (windows) — a timeout must not leave the npm/next/tsx descendant alive ─────
+//
+// There is no process group to signal and no /proc to enumerate on Windows, so the
+// Linux model above cannot run there and its absence must not degrade to killing the
+// direct child only — which is the exact tree the original finding was about.
+//
+// These cases run ONLY under native Windows Node (`process.platform === "win32"`).
+// They are not emulated from WSL: WSL reports "linux" and takes the branch above.
+
+const onWindows = process.platform === "win32";
+
+test("F2 (windows). a timed-out child's DESCENDANT is terminated by taskkill /T /F", async (t) => {
+  if (!onWindows) {
+    t.skip("native Windows only; the Linux /proc path is covered above");
+    return;
+  }
+  const dir = scratch();
+  const residueBefore = HARNESS_PROCESS_RESIDUE.length;
+  try {
+    // The controlled shape under test: a parent that spawns a long-lived DESCENDANT
+    // and then outlives the deadline itself. The descendant's pid is persisted so this
+    // test can check it directly — never inferred from taskkill's stdout.
+    const marker = path.join(dir, "descendant.pid");
+    const parent = path.join(dir, "parent.mjs");
+    fs.writeFileSync(
+      parent,
+      [
+        'import { spawn } from "node:child_process";',
+        'import fs from "node:fs";',
+        // `detached` is what makes this regression load-bearing. A plain descendant is
+        // killed as a side effect of the root dying on both platforms (libuv places it
+        // in the parent's job object on Windows; it stays in the root's process group on
+        // Linux), so a plain child would pass even against direct-child-only cleanup.
+        // A detached one escapes BOTH of those, and is exactly the shape a shell
+        // launcher or a server process takes.
+        'const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 600000)"], { stdio: "ignore", detached: true });',
+        "child.unref();",
+        `fs.writeFileSync(${JSON.stringify(marker)}, String(child.pid));`,
+        "setTimeout(() => {}, 600000);",
+      ].join("\n"),
+    );
+
+    const run = await runBoundedChild({
+      label: "F2 windows regression: parent with a long-lived descendant",
+      command: process.execPath,
+      args: [parent],
+      cwd: dir,
+      timeoutMs: 4_000,
+    });
+
+    assert.equal(run.timedOut, true, "the controlled child did not exceed its deadline");
+    assert.equal(run.treeCleanup, "windows-taskkill", `the Windows cleanup path did not run: ${run.treeCleanup}`);
+    assert.equal(run.windowsTreeKill, "SUCCESS", `the Windows tree kill failed: ${run.cleanupError}`);
+    assert.equal(run.cleanupError, null, `cleanup reported a failure: ${run.cleanupError}`);
+    // Honest boundary: terminating a tree is not observing one. /proc remains the only
+    // authoritative process-evidence platform, so this must NOT claim verification.
+    assert.equal(run.treeVerified, false, "Windows must not claim /proc-grade tree verification");
+    assert.ok(run.rootPid, "no root pid was recorded");
+
+    const descendantPid = Number(fs.readFileSync(marker, "utf8").trim());
+    assert.ok(Number.isFinite(descendantPid) && descendantPid > 0, "the controlled descendant never started");
+
+    // THE FINDING, checked directly against the process table on both pids.
+    assert.equal(pidExistsBySignal(run.rootPid!), false, `the root (${run.rootPid}) survived the timeout`);
+    assert.equal(
+      pidExistsBySignal(descendantPid),
+      false,
+      `the descendant (${descendantPid}) survived the timeout; /T did not reach the tree`,
+    );
+    assert.equal(HARNESS_PROCESS_RESIDUE.length, residueBefore, "clean Windows cleanup still recorded residue");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("F2 (windows). taskkill that CANNOT LAUNCH fails closed and is recorded", async (t) => {
+  if (!onWindows) {
+    t.skip("native Windows only");
+    return;
+  }
+  const dir = scratch();
+  const residueBefore = HARNESS_PROCESS_RESIDUE.length;
+  try {
+    const parent = path.join(dir, "parent.mjs");
+    fs.writeFileSync(parent, "setTimeout(() => {}, 600000);\n");
+    const run = await runBoundedChild({
+      label: "F2 windows regression: taskkill cannot launch",
+      command: process.execPath,
+      args: [parent],
+      cwd: dir,
+      timeoutMs: 3_000,
+      taskkillExecutable: path.join(dir, "no-such-taskkill.exe"),
+    });
+    assert.equal(run.timedOut, true, "the controlled child did not exceed its deadline");
+    assert.equal(run.windowsTreeKill, "FAILED", "a taskkill that could not launch was reported as successful cleanup");
+    assert.ok(run.cleanupError, "a cleanup failure produced no cleanupError");
+    assert.equal(
+      HARNESS_PROCESS_RESIDUE.length,
+      residueBefore + 1,
+      "a Windows cleanup failure was not recorded in the residue ledger",
+    );
+    assert.match(
+      HARNESS_PROCESS_RESIDUE[HARNESS_PROCESS_RESIDUE.length - 1]!.control,
+      /windows tree cleanup/,
+      "the residue entry does not identify the Windows cleanup failure",
+    );
+    // Do not leave the deliberately-unkilled child behind.
+    if (run.rootPid && pidExistsBySignal(run.rootPid)) await windowsTreeKill(run.rootPid);
+    HARNESS_PROCESS_RESIDUE.length = residueBefore;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("F2 (windows). taskkill that exits NON-ZERO is a cleanup failure, not success", async (t) => {
+  if (!onWindows) {
+    t.skip("native Windows only");
+    return;
+  }
+  // A pid that cannot exist: real taskkill runs and refuses it, exiting non-zero.
+  const result = await windowsTreeKill(0x7ffffffe);
+  assert.equal(result.ok, false, "taskkill's non-zero exit was read as successful cleanup");
+  assert.notEqual(result.exit, 0, `expected a non-zero exit, got ${result.exit}`);
+  assert.match(result.reason, /taskkill exited/, `unexpected reason: ${result.reason}`);
+});
+
+test("F2 (windows). the cleanup path never reaches a shell", async (t) => {
+  if (!onWindows) {
+    t.skip("native Windows only");
+    return;
+  }
+  // taskkill is invoked directly with the pid as its own argv element. If a shell were
+  // involved, this obviously-invalid pid string would be re-parsed rather than rejected
+  // by taskkill itself, so a taskkill-shaped refusal is evidence there was no shell.
+  const result = await windowsTreeKill(Number.NaN);
+  assert.equal(result.ok, false, "an invalid pid was reported as successful cleanup");
+  assert.match(result.reason, /taskkill (exited|could not be started|did not complete)/, `unexpected reason: ${result.reason}`);
 });
 
 test("F2. a child that cannot be launched fails fast rather than burning the deadline", async () => {
