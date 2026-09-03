@@ -507,9 +507,25 @@ test("X1. CROSS_PLATFORM_CHILD_LAUNCH: package-manager children run through this
   assert.equal(proofRun.exit, 0, `the build chain exited ${proofRun.exit}: ${proofRun.stderr.slice(0, 300)}`);
   const verdict = nextBuildHelpProof(`${proofRun.stdout}\n${proofRun.stderr}`);
   assert.ok(verdict.ok, `the build child did not reach Next's own help output: ${verdict.reason}; body=${verdict.body.slice(0, 300)}`);
-  assert.equal(proofRun.cleanupError, null, `the launch proof left a process tree uncleaned: ${proofRun.cleanupError}`);
-  assert.equal(proofRun.survivors.length, 0, `the launch proof left ${proofRun.survivors.length} process(es) running`);
-  assert.equal(proofRun.unreaped.length, 0, `the launch proof left ${proofRun.unreaped.length} uncollected process(es)`);
+  // CLAIM PRECISION. This command exits NORMALLY, so no whole-tree observation is
+  // possible: after the root is gone a descendant that had detached is reachable by no
+  // relation this gate has. The narrow, true claim is that the mechanism which DID run
+  // reported no failure — never that the tree was observed clean. An earlier revision
+  // read these empty arrays as "process tree reaped clean", which is exactly what an
+  // undiscovered process also looks like.
+  assert.equal(proofRun.cleanupError, null, `the launch proof reported a cleanup failure: ${proofRun.cleanupError}`);
+  assert.match(
+    proofRun.treeEvidence,
+    /^clean-exit-/,
+    `a normally exiting launch proof reported ${proofRun.treeEvidence}, which is not a clean-exit classification`,
+  );
+  assert.equal(
+    proofRun.wholeTreeVerified,
+    false,
+    "X1 must not claim whole-tree verification for a normal exit; that evidence is produced only by the stabilized timeout path",
+  );
+  assert.equal(proofRun.survivors.length, 0, `the launch proof left ${proofRun.survivors.length} KNOWN process(es) running`);
+  assert.equal(proofRun.unreaped.length, 0, `the launch proof left ${proofRun.unreaped.length} KNOWN uncollected process(es)`);
 
   // 4. No bare package-manager launch remains anywhere on this rehearsal's execution
   //    path. Searched for by SHAPE rather than trusted to have been removed once, so a
@@ -538,9 +554,13 @@ test("X1. CROSS_PLATFORM_CHILD_LAUNCH: package-manager children run through this
     assert.doesNotMatch(source, SYNC_TREE_UNAWARE, `${f} still starts a synchronous child whose descendants are unaccounted for`);
   }
 
+  // Deliberately narrow. Every clause below was established by this control; the
+  // timeout-cleanup semantics are proven by dedicated regressions, not claimed here.
   EVIDENCE.crossPlatformChildLaunch =
-    `node <npm_execpath> (ownership-verified npm) for every package-manager child; reached Next's own \`next build\` help through the npm chain, ` +
-    `with npm's lifecycle banner proven insufficient; process tree reaped clean; ${scanned.length} execution-path files carry no bare or tree-unaware launch`;
+    `this Node runtime launched the ownership-verified npm CLI; npm executed the package build script; Next's own \`next build\` help output was ` +
+    `observed after npm's lifecycle banner was removed (banner alone proven insufficient); the command exited normally (exit 0) with no KNOWN ` +
+    `process-group cleanup failure (treeEvidence=${proofRun.treeEvidence}); WHOLE_TREE_VERIFIED=NO for this normal exit — timeout tree cleanup is ` +
+    `proven separately; ${scanned.length} execution-path files carry no bare or tree-unaware launch`;
 });
 
 // ───────────────── PHASE A — startup boundary (the certified runtime guard) ─────────────────
@@ -778,8 +798,9 @@ const operator = async (args: string[], env: Record<string, string> = {}) => {
   // exit, so a stalled dependency can never satisfy a negative control. By the time it
   // is reported the tree has been reaped, or the survivors are in the residue ledger.
   const timeoutNote = run.timedOut
-    ? `\n[operator command timed out after ${OPERATOR_TIMEOUT_MS}ms; cleanup=${run.treeCleanup}, survivors=${run.survivors.length}, ` +
-      `unreaped=${run.unreaped.length}, treeVerified=${run.treeVerified}, windowsTreeKill=${run.windowsTreeKill ?? "n/a"}]`
+    ? `\n[operator command timed out after ${OPERATOR_TIMEOUT_MS}ms; treeEvidence=${run.treeEvidence}, ` +
+      `stabilized=${run.timeoutTreeStabilized}, reaped=${run.timeoutTreeReaped}, survivors=${run.survivors.length}, ` +
+      `unreaped=${run.unreaped.length}, windowsTreeKill=${run.windowsTreeKill ?? "n/a"}]`
     : "";
   return {
     exit: run.exit ?? -1,

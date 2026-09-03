@@ -523,6 +523,190 @@ export async function reapProcessGroupMembers(
 }
 
 /**
+ * A process IDENTITY, not merely a pid.
+ *
+ * Stabilization takes several /proc passes, and a pid freed between passes can be
+ * handed to an unrelated new process. Field 22 of /proc/<pid>/stat is `starttime`,
+ * the boot-relative instant the process began, so the pair (pid, starttime) does not
+ * survive pid reuse: the recycled process has a different start time and is therefore
+ * a different identity. Every decision below — "is this still the process I recorded",
+ * "did the root survive the freeze", "is the tree gone" — is made on identity.
+ */
+export type ProcIdentity = { readonly pid: number; readonly starttime: string };
+
+export function processIdentity(pid: number): ProcIdentity | null {
+  const stat = readProc(pid, "stat");
+  if (stat === "") return null;
+  // `comm` may contain spaces and parentheses, so fields are read after the LAST ')'.
+  // Index 19 there is stat field 22, `starttime`.
+  const starttime = stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19];
+  return starttime === undefined ? null : { pid, starttime };
+}
+
+export const identityKey = (id: ProcIdentity): string => `${id.pid}:${id.starttime}`;
+
+/** Whether the SAME process is still present — not merely something holding that pid. */
+export function identityPresent(id: ProcIdentity): boolean {
+  const now = processIdentity(id.pid);
+  return now !== null && now.starttime === id.starttime;
+}
+
+const isStopped = (pid: number): boolean => {
+  const state = processState(pid);
+  return state === "T" || state === "t";
+};
+
+export type TreeStabilization = {
+  readonly stabilized: boolean;
+  readonly reaped: boolean;
+  readonly reason: string;
+  readonly recorded: ProcIdentity[];
+  readonly survivors: number[];
+  readonly unreaped: number[];
+  readonly passes: number;
+};
+
+/**
+ * FREEZE -> DISCOVER -> FREEZE -> FIXED POINT -> KILL -> VERIFY, for a timed-out tree.
+ *
+ * WHY A SNAPSHOT IS NOT ENOUGH. The previous implementation read group membership and
+ * descendants in two separate /proc walks and killed what it found. Two races defeat
+ * that, and both end in the worst possible way — a live process with `survivors` empty,
+ * `unreaped` empty and no residue recorded, i.e. a false PASS:
+ *
+ *   A. the root exits BETWEEN the two walks (it can complete right on the deadline,
+ *      before Node has delivered `exit`), so a detached child is missing from the group
+ *      walk and already re-parented away from the descendant walk;
+ *   B. a child detaches AFTER both walks but before the kill, leaving the group and the
+ *      recorded set while still running.
+ *
+ * Neither is fixed by scanning harder. They are fixed by removing the ability to change:
+ * SIGSTOP cannot be caught, blocked or ignored, so a stopped process cannot fork, exit
+ * or call setsid. Freezing the group and the root first creates a boundary; discovery
+ * then runs against a tree that cannot move underneath it. A process that forked in the
+ * instant before its parent stopped is simply found on the next pass, and the loop only
+ * exits when two consecutive passes agree on the same IDENTITY set with everything
+ * stopped and the root still present and stopped.
+ *
+ * FAIL CLOSED. If the root is already gone before the freeze, or a fixed point cannot be
+ * proven within the deadline, this returns `stabilized: false` with a named reason. It
+ * does NOT kill and then describe the tree as having been known.
+ */
+export async function stabilizeAndReapProcessTree(
+  rootPid: number,
+  options: { deadlineMs?: number; maxPasses?: number; verifyMs?: number } = {},
+): Promise<TreeStabilization> {
+  const deadline = Date.now() + (options.deadlineMs ?? 15_000);
+  const maxPasses = options.maxPasses ?? 25;
+  const verifyMs = options.verifyMs ?? 10_000;
+
+  const failed = (reason: string, recorded: ProcIdentity[], passes: number): TreeStabilization => ({
+    stabilized: false,
+    reaped: false,
+    reason,
+    recorded,
+    survivors: recorded.filter((id) => identityPresent(id) && pidAlive(id.pid)).map((id) => id.pid),
+    unreaped: recorded.filter((id) => identityPresent(id) && pidUnreaped(id.pid)).map((id) => id.pid),
+    passes,
+  });
+
+  // Freezing our own process group would freeze this gate. A detached child is its own
+  // group leader, so this can only be reached by misuse — refuse it explicitly.
+  if (rootPid <= 1 || rootPid === process.pid || processGroupPids(rootPid).includes(process.pid)) {
+    return failed(`refusing to stabilize process group ${rootPid}: it would include this gate`, [], 0);
+  }
+
+  // 1/2. The root must be provably present BEFORE anything is frozen. `state.exit`
+  //      being null is not proof: Node may simply not have delivered the event yet.
+  const rootIdentity = processIdentity(rootPid);
+  if (rootIdentity === null || !pidAlive(rootPid)) {
+    return failed("timeout_root_disappeared_before_tree_stabilization", [], 0);
+  }
+
+  const signal = (pid: number, sig: NodeJS.Signals) => {
+    try {
+      process.kill(pid, sig);
+    } catch {
+      /* already gone, or not ours */
+    }
+  };
+
+  // 3. Freeze the group, then the root itself.
+  signal(-rootPid, "SIGSTOP");
+  signal(rootPid, "SIGSTOP");
+
+  // 4/5/6. Discover -> stop -> repeat, until two consecutive passes agree.
+  let previousKeys: string | null = null;
+  let recorded: ProcIdentity[] = [];
+  let passes = 0;
+  let stabilized = false;
+  while (passes < maxPasses && Date.now() < deadline) {
+    passes += 1;
+    const discovered = [rootPid, ...processGroupPids(rootPid), ...descendantPids(rootPid)]
+      .filter((pid) => pid > 1 && pid !== process.pid)
+      .filter((pid, index, all) => all.indexOf(pid) === index);
+    const identities = discovered
+      .map((pid) => processIdentity(pid))
+      .filter((id): id is ProcIdentity => id !== null);
+
+    // 5. Anything not already stopped is stopped — including a descendant that has
+    //    detached into its own process group, which the group signal cannot reach.
+    for (const id of identities) {
+      if (!isStopped(id.pid) && !pidUnreaped(id.pid)) signal(id.pid, "SIGSTOP");
+    }
+    await sleep(25); // let the stops land before re-reading /proc
+
+    const present = identities.filter(identityPresent);
+    const keys = present.map(identityKey).sort().join(",");
+    const everythingStopped = present.every((id) => isStopped(id.pid) || pidUnreaped(id.pid));
+    const rootHeld = identityPresent(rootIdentity) && isStopped(rootPid);
+    recorded = present;
+
+    if (!rootHeld) {
+      return failed("timeout_root_disappeared_before_tree_stabilization", recorded, passes);
+    }
+    if (keys === previousKeys && everythingStopped) {
+      stabilized = true;
+      break;
+    }
+    previousKeys = keys;
+  }
+  if (!stabilized) {
+    return failed(`the process tree did not reach a stable fixed point in ${passes} pass(es)`, recorded, passes);
+  }
+
+  // 7/8. Only now destroy it. Descendants first, so the stabilized identity set is
+  //      still intact while every target is signalled; the group and root go last.
+  //      SIGKILL cannot be caught or ignored and reaches a stopped process.
+  for (const id of recorded) if (id.pid !== rootPid) signal(id.pid, "SIGKILL");
+  signal(-rootPid, "SIGKILL");
+  signal(rootPid, "SIGKILL");
+
+  // 9. Verify by IDENTITY, not by pid.
+  await waitUntil(() => recorded.every((id) => !identityPresent(id) || !pidAlive(id.pid)), verifyMs, 25);
+  await waitUntil(() => recorded.every((id) => !identityPresent(id) || !pidUnreaped(id.pid)), 2_000, 25);
+
+  const survivors = recorded.filter((id) => identityPresent(id) && pidAlive(id.pid)).map((id) => id.pid);
+  const unreaped = recorded.filter((id) => identityPresent(id) && pidUnreaped(id.pid)).map((id) => id.pid);
+  const groupRemnant = processGroupPids(rootPid).filter((pid) => pid !== process.pid && pidAlive(pid));
+  const rootGone = !identityPresent(rootIdentity) || !pidAlive(rootPid);
+  const reaped = survivors.length === 0 && unreaped.length === 0 && groupRemnant.length === 0 && rootGone;
+
+  return {
+    stabilized: true,
+    reaped,
+    reason: reaped
+      ? `stabilized in ${passes} pass(es) over ${recorded.length} process(es); every recorded identity is gone`
+      : `stabilized in ${passes} pass(es) but ${survivors.length} survivor(s), ${unreaped.length} uncollected, ` +
+        `${groupRemnant.length} group remnant(s), root ${rootGone ? "gone" : "still present"}`,
+    recorded,
+    survivors: [...new Set([...survivors, ...groupRemnant])],
+    unreaped,
+    passes,
+  };
+}
+
+/**
  * Terminates a process AND ITS DESCENDANTS on Windows.
  *
  * WHY THIS EXISTS. There is no process group to signal on Windows and no /proc to
@@ -612,18 +796,52 @@ export type BoundedChildOutcome = {
   readonly launchError: string | null;
   readonly durationMs: number;
   /**
-   * Whether the process TREE could be ENUMERATED and inspected. That requires
-   * /proc, so it is true on Linux only. A successful Windows cleanup does NOT set
-   * it: `taskkill` terminating a tree is not the same claim as having observed the
-   * tree, and authoritative process evidence stays Linux-only.
+   * WHAT WAS ACTUALLY ESTABLISHED about this child's process tree — named, never
+   * inferred from empty arrays.
+   *
+   * The distinction exists because a TIMEOUT and a CLEAN EXIT can support very
+   * different claims, and conflating them is how empty `survivors`/`unreaped`
+   * defaults came to be read as "tree reaped clean":
+   *
+   *   timeout-stabilized-linux-proc  the tree was frozen, discovered to a fixed
+   *                                  point, killed and verified gone by identity.
+   *                                  This is the only whole-tree claim.
+   *   timeout-verified-windows-taskkill
+   *                                  the tree was TERMINATED by `taskkill /T /F`
+   *                                  and the root verified gone. Termination is
+   *                                  not observation: no enumeration happened.
+   *   clean-exit-process-group-only  the root exited normally; the remaining
+   *                                  members of its original process group were
+   *                                  inspected and cleaned. A descendant that had
+   *                                  already detached is OUTSIDE this claim.
+   *   clean-exit-unsupervised        the root exited normally on a platform with
+   *                                  no tree observation at all. Nothing is claimed.
+   *   launch-failed                  no child existed.
+   *   cleanup-failed                 cleanup was attempted and did not succeed.
    */
-  readonly treeVerified: boolean;
-  /** Which mechanism actually cleaned the tree up, named rather than inferred. */
-  readonly treeCleanup: "none" | "linux-proc-group" | "windows-taskkill" | "unverified";
+  readonly treeEvidence:
+    | "timeout-stabilized-linux-proc"
+    | "timeout-verified-windows-taskkill"
+    | "clean-exit-process-group-only"
+    | "clean-exit-unsupervised"
+    | "launch-failed"
+    | "cleanup-failed";
+  /**
+   * TRUE ONLY when the whole tree was frozen, enumerated to a fixed point, killed
+   * and verified — which today means a Linux timeout and nothing else. A clean exit
+   * never sets it, because after the root is gone a detached descendant is not
+   * reachable by any relation this gate has.
+   */
+  readonly wholeTreeVerified: boolean;
+  /** Timeout path only: whether the tree reached a proven fixed point before the kill. */
+  readonly timeoutTreeStabilized: boolean | null;
+  /** Timeout path only: whether every recorded identity was then verified gone. */
+  readonly timeoutTreeReaped: boolean | null;
   /** Windows only: whether `taskkill /T /F` succeeded AND the root is verifiably gone. */
   readonly windowsTreeKill: "SUCCESS" | "FAILED" | null;
   /** Non-null when cleanup itself failed. A caller must fail closed on this. */
   readonly cleanupError: string | null;
+  /** Processes KNOWN to have survived. Emptiness is not proof; read `treeEvidence`. */
   readonly survivors: number[];
   readonly unreaped: number[];
 };
@@ -651,19 +869,24 @@ export type BoundedChildOutcome = {
  * directly, never through a shell, so the Windows `.cmd` dependency this launch
  * path was introduced to remove is not reintroduced here.
  *
- * WHERE /proc IS UNAVAILABLE the tree cannot be enumerated. On Windows the tree is
- * still TERMINATED, by `taskkill /T /F`, and the root is then verified gone — but
- * `treeVerified` stays false, because terminating a tree is not the same claim as
- * having observed one. Authoritative process evidence remains Linux-only. On any
- * other platform without /proc the outcome reports `cleanupError` rather than
- * pretending the tree was handled.
+ * WHAT IS CLAIMED IS NAMED. `treeEvidence` says which mechanism ran and therefore
+ * what was established; `wholeTreeVerified` is true for exactly one of them, the
+ * stabilized Linux timeout. Emptiness of `survivors`/`unreaped` is NEVER evidence on
+ * its own — an undiscovered process produces exactly the same empty arrays, which is
+ * how a clean exit came to be described as "tree reaped clean".
+ *
+ * WHERE /proc IS UNAVAILABLE the tree cannot be enumerated. On a Windows TIMEOUT it
+ * is still TERMINATED, by `taskkill /T /F`, and the root verified gone — but that is
+ * `timeout-verified-windows-taskkill`, not whole-tree verification, because nothing
+ * was enumerated. Authoritative process evidence remains Linux-only.
  *
  * KNOWN LIMIT, stated rather than implied: a descendant that both detaches into its
  * own process group AND outlives a root that exited CLEANLY is reachable by neither
- * relation — the group no longer contains it and the parent link is gone. The
- * timeout path does not have that gap, because the root is still alive when the tree
- * is recorded. Closing the clean-exit case would need a supervising job object or
- * cgroup, which is a subsystem this gate does not have.
+ * relation — the group no longer contains it and the parent link is gone. That case
+ * is reported as `clean-exit-process-group-only`, which does not claim to cover it.
+ * The TIMEOUT path has no such gap: the root is frozen alive, so it stays
+ * parent-reachable while the tree is discovered. Closing the clean-exit case would
+ * need a supervising job object or cgroup, a subsystem this gate does not have.
  */
 export async function runBoundedChild(options: {
   label: string;
@@ -730,42 +953,60 @@ export async function runBoundedChild(options: {
   // below is exactly what catches.
   if (!timedOut) await waitUntil(() => state.closed, 2_000, 25);
 
-  let treeVerified = false;
-  let treeCleanup: BoundedChildOutcome["treeCleanup"] = "none";
+  let treeEvidence: BoundedChildOutcome["treeEvidence"] = "clean-exit-unsupervised";
+  let timeoutTreeStabilized: boolean | null = null;
+  let timeoutTreeReaped: boolean | null = null;
   let windowsTreeKillResult: BoundedChildOutcome["windowsTreeKill"] = null;
   let cleanupError: string | null = null;
   let survivors: number[] = [];
   let unreaped: number[] = [];
 
-  if (rootPid !== null && PROC_AVAILABLE) {
-    // ── Linux: the authoritative model. Enumerate the group, reap it, account for it. ──
-    treeVerified = true;
-    const members = () =>
-      [...processGroupPids(rootPid), ...descendantPids(rootPid)]
-        .filter((pid) => pid !== process.pid)
-        .filter((pid, index, all) => all.indexOf(pid) === index);
-    // Reap on BOTH paths: a timeout leaves the tree running by definition, and a
-    // clean exit can still leave a descendant that outlived its parent.
-    if (timedOut || members().length > 0) {
-      treeCleanup = "linux-proc-group";
+  if (rootPid === null || state.error !== null) {
+    treeEvidence = "launch-failed";
+  } else if (timedOut && PROC_AVAILABLE) {
+    // ── Linux TIMEOUT: the authoritative model. Freeze, discover to a fixed point,
+    //    kill, verify by identity. Nothing here is inferred from an empty array.
+    const stabilization = await stabilizeAndReapProcessTree(rootPid);
+    timeoutTreeStabilized = stabilization.stabilized;
+    timeoutTreeReaped = stabilization.reaped;
+    survivors = stabilization.survivors;
+    unreaped = stabilization.unreaped;
+    if (stabilization.stabilized && stabilization.reaped) {
+      treeEvidence = "timeout-stabilized-linux-proc";
+    } else {
+      treeEvidence = "cleanup-failed";
+      cleanupError = stabilization.reason;
+      HARNESS_PROCESS_RESIDUE.push({ control: `${label} [timeout tree cleanup: ${cleanupError}]`, orphans: survivors, unreaped });
+    }
+  } else if (!timedOut && PROC_AVAILABLE) {
+    // ── Linux CLEAN EXIT. The root is gone, so descent reaches nothing and this
+    //    CANNOT be a whole-tree claim. What remains observable is the original
+    //    process GROUP, so leftovers there are cleaned up and reported — and a
+    //    descendant that detached before the root exited is outside the claim.
+    treeEvidence = "clean-exit-process-group-only";
+    const leftovers = processGroupPids(rootPid).filter((pid) => pid !== process.pid);
+    if (leftovers.length > 0) {
       const reaping = await reapProcessGroupMembers(rootPid);
       survivors = reaping.survivors;
       unreaped = reaping.unreaped;
+      if (survivors.length > 0 || unreaped.length > 0) {
+        treeEvidence = "cleanup-failed";
+        cleanupError = `a clean exit left ${survivors.length} running and ${unreaped.length} uncollected process-group member(s)`;
+        HARNESS_PROCESS_RESIDUE.push({ control: `${label} [${cleanupError}]`, orphans: survivors, unreaped });
+      }
     }
-    if (survivors.length > 0 || unreaped.length > 0) {
-      HARNESS_PROCESS_RESIDUE.push({ control: label, orphans: survivors, unreaped });
-    }
-  } else if (rootPid !== null && timedOut && process.platform === "win32") {
+  } else if (timedOut && process.platform === "win32") {
     // ── Windows: no group to signal and no /proc to enumerate, so terminate the
     //    tree with the documented native mechanism and then VERIFY the root is gone.
     //    Cleanup is never called clean on taskkill's own say-so.
-    treeCleanup = "windows-taskkill";
+    treeEvidence = "timeout-verified-windows-taskkill";
     const killed = await windowsTreeKill(rootPid, { executable: options.taskkillExecutable });
     const rootGone = !pidExistsBySignal(rootPid);
     if (killed.ok && rootGone) {
       windowsTreeKillResult = "SUCCESS";
     } else {
       windowsTreeKillResult = "FAILED";
+      treeEvidence = "cleanup-failed";
       cleanupError = killed.ok
         ? `taskkill reported success but the root process ${rootPid} is still present`
         : killed.reason;
@@ -777,7 +1018,7 @@ export async function runBoundedChild(options: {
   } else if (timedOut) {
     // Neither /proc nor Windows: the child must still not be left running, but the
     // tree cannot be accounted for, and that is reported rather than assumed away.
-    treeCleanup = "unverified";
+    treeEvidence = "cleanup-failed";
     cleanupError = `no process-tree cleanup mechanism is available on ${process.platform}; only the direct child was signalled`;
     try {
       child.kill("SIGKILL");
@@ -798,8 +1039,12 @@ export async function runBoundedChild(options: {
     timedOut,
     launchError: state.error === null ? null : String(state.error),
     durationMs: Date.now() - startedAt,
-    treeVerified,
-    treeCleanup,
+    treeEvidence,
+    // The ONLY whole-tree claim this gate makes. Deliberately not a function of the
+    // survivor arrays: empty arrays are what a missed process looks like.
+    wholeTreeVerified: treeEvidence === "timeout-stabilized-linux-proc",
+    timeoutTreeStabilized,
+    timeoutTreeReaped,
     windowsTreeKill: windowsTreeKillResult,
     cleanupError,
     survivors,

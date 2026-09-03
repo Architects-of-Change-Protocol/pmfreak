@@ -16,6 +16,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -28,6 +29,7 @@ import {
   pidExistsBySignal,
   processGroupPids,
   runBoundedChild,
+  stabilizeAndReapProcessTree,
   windowsTreeKill,
 } from "./acceptance/support/runtime-acceptance";
 
@@ -217,8 +219,10 @@ test("F2 (linux). a timed-out child's DESCENDANT is reaped, and residue is never
     });
 
     assert.equal(run.timedOut, true, "the controlled child did not exceed its deadline");
-    assert.equal(run.treeVerified, true, "the process tree was not verified on a /proc platform");
-    assert.equal(run.treeCleanup, "linux-proc-group", `the Linux path did not use the group model: ${run.treeCleanup}`);
+    assert.equal(run.treeEvidence, "timeout-stabilized-linux-proc", `the stabilized path did not run: ${run.treeEvidence}`);
+    assert.equal(run.timeoutTreeStabilized, true, "the tree did not reach a proven fixed point before the kill");
+    assert.equal(run.timeoutTreeReaped, true, "the stabilized tree was not verified gone");
+    assert.equal(run.wholeTreeVerified, true, "a stabilized Linux timeout must carry the whole-tree claim");
     assert.equal(run.cleanupError, null, `cleanup reported a failure: ${run.cleanupError}`);
     assert.ok(run.rootPid, "no root pid was recorded for the bounded child");
 
@@ -248,9 +252,9 @@ test("F2 (linux). a timed-out child's DESCENDANT is reaped, and residue is never
   }
 });
 
-test("F2 (linux). a child that exits cleanly still reports a verified, empty process tree", async (t) => {
+test("F2 (linux). a clean exit reports PROCESS-GROUP-ONLY evidence, never a whole-tree claim", async (t) => {
   if (!PROC_AVAILABLE) {
-    t.skip("whole-tree observation of a clean exit requires /proc; authoritative evidence is Linux-only");
+    t.skip("process-group inspection of a clean exit requires /proc");
     return;
   }
   const residueBefore = HARNESS_PROCESS_RESIDUE.length;
@@ -264,8 +268,10 @@ test("F2 (linux). a child that exits cleanly still reports a verified, empty pro
   assert.equal(run.timedOut, false, "a fast child was reported as timed out");
   assert.equal(run.exit, 3, `the child's real exit code was not preserved: ${run.exit}`);
   assert.equal(run.stdout, "done", `stdout was not captured: ${JSON.stringify(run.stdout)}`);
-  assert.equal(run.treeVerified, true, "the tree was not verified on a /proc platform");
-  assert.deepEqual(run.survivors, [], "a clean exit reported survivors");
+  assert.equal(run.treeEvidence, "clean-exit-process-group-only", `unexpected clean-exit classification: ${run.treeEvidence}`);
+  assert.equal(run.wholeTreeVerified, false, "a clean exit must not claim whole-tree verification");
+  assert.equal(run.timeoutTreeStabilized, null, "a clean exit must not report timeout stabilization");
+  assert.deepEqual(run.survivors, [], "a clean exit reported KNOWN survivors");
   assert.equal(HARNESS_PROCESS_RESIDUE.length, residueBefore, "a clean exit recorded residue");
 });
 
@@ -280,6 +286,115 @@ test("F2 (linux). a child that exits cleanly still reports a verified, empty pro
 // They are not emulated from WSL: WSL reports "linux" and takes the branch above.
 
 const onWindows = process.platform === "win32";
+
+test("F2 (linux). a root that DISAPPEARS before stabilization fails closed, never clean", async (t) => {
+  if (!PROC_AVAILABLE) {
+    t.skip("Linux-only");
+    return;
+  }
+  // A pid that is not ours and is not alive: stabilization cannot begin, and the only
+  // honest outcome is the named refusal — never an inferred empty tree.
+  const gone = await stabilizeAndReapProcessTree(0x7ffffffe);
+  assert.equal(gone.stabilized, false, "stabilization claimed success against an absent root");
+  assert.equal(gone.reaped, false, "an unstabilized tree was reported as reaped");
+  assert.equal(
+    gone.reason,
+    "timeout_root_disappeared_before_tree_stabilization",
+    `unexpected refusal reason: ${gone.reason}`,
+  );
+});
+
+test("F2 (linux). stabilization that cannot reach a fixed point fails closed", async (t) => {
+  if (!PROC_AVAILABLE) {
+    t.skip("Linux-only");
+    return;
+  }
+  const dir = scratch();
+  try {
+    // A live, well-behaved child — but zero passes are allowed, so a fixed point cannot
+    // be PROVEN. The tree must not be described as known merely because it was killed.
+    const parent = path.join(dir, "parent.mjs");
+    fs.writeFileSync(parent, "setTimeout(() => {}, 600000);\n");
+    const child = spawn(process.execPath, [parent], { cwd: dir, stdio: "ignore", detached: true });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const rootPid = child.pid!;
+    const result = await stabilizeAndReapProcessTree(rootPid, { maxPasses: 0 });
+    assert.equal(result.stabilized, false, "a fixed point was claimed without a single discovery pass");
+    assert.equal(result.reaped, false, "an unstabilized tree was reported as reaped");
+    assert.match(result.reason, /stable fixed point/, `unexpected reason: ${result.reason}`);
+    // The refusal must not leave the frozen child behind: SIGSTOP was delivered, so it
+    // has to be released and killed explicitly here.
+    try { process.kill(rootPid, "SIGCONT"); } catch { /* gone */ }
+    try { process.kill(rootPid, "SIGKILL"); } catch { /* gone */ }
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert.equal(pidAlive(rootPid), false, "the probe leaked its controlled child");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("F2 (linux). a CLEAN EXIT that leaks a detached descendant does NOT claim whole-tree evidence", async (t) => {
+  if (!PROC_AVAILABLE) {
+    t.skip("Linux-only");
+    return;
+  }
+  const dir = scratch();
+  let descendantPid = 0;
+  try {
+    // The documented blind spot, reproduced deliberately: the root exits NORMALLY and
+    // leaves behind a descendant that had already detached into its own process group.
+    // Nothing this gate has can see it afterwards — which is precisely why the outcome
+    // must not describe the tree as clean.
+    const marker = path.join(dir, "descendant.pid");
+    const parent = path.join(dir, "parent.mjs");
+    fs.writeFileSync(
+      parent,
+      [
+        'import { spawn } from "node:child_process";',
+        'import fs from "node:fs";',
+        'const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 600000)"], { stdio: "ignore", detached: true });',
+        "child.unref();",
+        `fs.writeFileSync(${JSON.stringify(marker)}, String(child.pid));`,
+        "process.exit(0);",
+      ].join("\n"),
+    );
+
+    const run = await runBoundedChild({
+      label: "F2 linux regression: clean exit leaking a detached descendant",
+      command: process.execPath,
+      args: [parent],
+      cwd: dir,
+      timeoutMs: 30_000,
+    });
+
+    assert.equal(run.timedOut, false, "the controlled parent did not exit normally");
+    assert.equal(run.exit, 0, `the controlled parent exited ${run.exit}`);
+    descendantPid = Number(fs.readFileSync(marker, "utf8").trim());
+    assert.ok(Number.isFinite(descendantPid) && descendantPid > 0, "the controlled descendant never started");
+
+    // THE POINT OF THIS CASE. The descendant really is still alive, and the outcome
+    // must not imply otherwise anywhere.
+    assert.equal(pidAlive(descendantPid), true, "the controlled descendant did not outlive its parent, so nothing is being tested");
+    assert.equal(run.wholeTreeVerified, false, "a clean exit claimed whole-tree verification while a descendant was still running");
+    assert.equal(
+      run.treeEvidence,
+      "clean-exit-process-group-only",
+      `a leaked clean exit was classified as ${run.treeEvidence}`,
+    );
+    assert.notEqual(run.treeEvidence, "timeout-stabilized-linux-proc", "a clean exit reused the stabilized-timeout classification");
+    // The arrays ARE empty here — which is exactly why they may never be read as proof.
+    assert.deepEqual(run.survivors, [], "precondition: the undiscovered descendant is not in survivors");
+    assert.deepEqual(run.unreaped, [], "precondition: the undiscovered descendant is not in unreaped");
+  } finally {
+    // This regression deliberately leaks; it must not leave residue behind.
+    if (descendantPid > 0) {
+      try { process.kill(descendantPid, "SIGKILL"); } catch { /* gone */ }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      assert.equal(pidAlive(descendantPid), false, "the regression failed to clean up its deliberately leaked descendant");
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test("F2 (windows). a timed-out child's DESCENDANT is terminated by taskkill /T /F", async (t) => {
   if (!onWindows) {
@@ -321,12 +436,12 @@ test("F2 (windows). a timed-out child's DESCENDANT is terminated by taskkill /T 
     });
 
     assert.equal(run.timedOut, true, "the controlled child did not exceed its deadline");
-    assert.equal(run.treeCleanup, "windows-taskkill", `the Windows cleanup path did not run: ${run.treeCleanup}`);
+    assert.equal(run.treeEvidence, "timeout-verified-windows-taskkill", `the Windows cleanup path did not run: ${run.treeEvidence}`);
     assert.equal(run.windowsTreeKill, "SUCCESS", `the Windows tree kill failed: ${run.cleanupError}`);
     assert.equal(run.cleanupError, null, `cleanup reported a failure: ${run.cleanupError}`);
     // Honest boundary: terminating a tree is not observing one. /proc remains the only
     // authoritative process-evidence platform, so this must NOT claim verification.
-    assert.equal(run.treeVerified, false, "Windows must not claim /proc-grade tree verification");
+    assert.equal(run.wholeTreeVerified, false, "Windows must not claim /proc-grade whole-tree verification");
     assert.ok(run.rootPid, "no root pid was recorded");
 
     const descendantPid = Number(fs.readFileSync(marker, "utf8").trim());
@@ -343,6 +458,27 @@ test("F2 (windows). a timed-out child's DESCENDANT is terminated by taskkill /T 
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("F2 (windows). a NORMAL exit does not claim /proc-grade evidence", async (t) => {
+  if (!onWindows) {
+    t.skip("native Windows only");
+    return;
+  }
+  const run = await runBoundedChild({
+    label: "F2 windows regression: clean exit",
+    command: process.execPath,
+    args: ["-e", "process.stdout.write('done'); process.exit(4);"],
+    cwd: process.cwd(),
+    timeoutMs: 30_000,
+  });
+  assert.equal(run.timedOut, false, "a fast child was reported as timed out");
+  assert.equal(run.exit, 4, `the child's real exit code was not preserved: ${run.exit}`);
+  assert.equal(run.stdout, "done", `stdout was not captured: ${JSON.stringify(run.stdout)}`);
+  // Windows has no tree observation on the clean-exit path, and must say so.
+  assert.equal(run.treeEvidence, "clean-exit-unsupervised", `unexpected Windows clean-exit classification: ${run.treeEvidence}`);
+  assert.equal(run.wholeTreeVerified, false, "Windows claimed whole-tree verification for a normal exit");
+  assert.equal(run.timeoutTreeStabilized, null, "a clean exit reported timeout stabilization");
 });
 
 test("F2 (windows). taskkill that CANNOT LAUNCH fails closed and is recorded", async (t) => {
