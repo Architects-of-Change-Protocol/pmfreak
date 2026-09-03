@@ -890,11 +890,20 @@ test("C: restoring the database returns the SAME process to READY", async () => 
 test("D: an ISOLATED authentication outage grants nothing and is not mistaken for policy", async () => {
   installOutage(PATH_OUTAGE_FLAG());
   try {
-    // The database is deliberately still UP. This is an authentication outage,
-    // not a stack outage, and every claim below depends on that separation.
-    const ready = await observeReadiness(server!.baseUrl, "ready");
-    assert.ok(ready.reached, `the database was not held up during the authentication outage: ${ready.raw.slice(0, 400)}`);
-    assert.equal(readinessCheck(ready, "database")?.status, "pass");
+    // CONTRACT CHANGE. Under PMFREAK_OPERATING_PROFILE=closed-free-beta the product
+    // declares AUTHENTICATION as a readiness dependency (api/ready adds checkAuth() for
+    // this profile), so this suite's historical claim that readiness stays 200 during an
+    // auth outage is superseded: readiness now correctly reports NOT READY. The
+    // separation this case exists to prove is unchanged and in fact sharper — the
+    // database stays UP and LIVENESS stays truthful while only the auth dependency fails.
+    const notReady = await observeReadiness(server!.baseUrl, "not_ready");
+    assert.ok(notReady.reached, `readiness did not report NOT READY during the authentication outage: ${notReady.raw.slice(0, 400)}`);
+    assert.equal(readinessCheck(notReady, "database")?.status, "pass", "the database was not held up during the authentication outage");
+    assert.equal(readinessCheck(notReady, "auth")?.status, "fail", "the auth dependency did not report fail during its own outage");
+    // A stable, non-secret classification of WHY auth is unavailable.
+    const authDetail = String(readinessCheck(notReady, "auth")?.detail ?? "");
+    assert.ok(authDetail.length > 0, "the auth readiness failure carries no diagnosable detail");
+    assert.doesNotMatch(authDetail, /eyJ[A-Za-z0-9_-]{10,}/, "the auth readiness detail leaked a credential-shaped value");
     const health = await session.request("/api/health");
     assert.equal(health.status, 200, "liveness must stay truthful during an authentication outage");
 
@@ -997,7 +1006,7 @@ test("D: an ISOLATED authentication outage grants nothing and is not mistaken fo
     EVIDENCE.authFailureProductClassification = `PRODUCT_LOG ${AUTH_DEPENDENCY_EVENT} error_code=AuthRetryableFetchError`;
     OPERATOR_SIGNALS.AUTH_UNAVAILABLE = {
       sources: ["PRODUCT_LOG"],
-      signal: `the product logs ${AUTH_DEPENDENCY_EVENT} with error_code=AuthRetryableFetchError from getAuthUser, while HTTP stays a bare 401 and readiness stays 200 with database=pass`,
+      signal: `the product logs ${AUTH_DEPENDENCY_EVENT} with error_code=AuthRetryableFetchError from getAuthUser, while HTTP stays a bare 401, liveness stays 200, and readiness reports NOT READY with auth=fail and database=pass (auth is a declared readiness dependency under the closed-free-beta profile)`,
     };
   } finally {
     clearOutage(PATH_OUTAGE_FLAG());
@@ -1116,6 +1125,13 @@ test("D: restoring authentication restores authentication, tenancy and governanc
   const dispatched = await dispatchGovernedAction(restored);
   const decisionId = asGovernedAllow(dispatched, "governance must work again once authentication is restored");
   session = restored;
+
+  // The SAME process must return to READY — no restart, no redeploy — with both declared
+  // dependencies passing. Under the closed-free-beta profile that includes auth.
+  const recoveredReadiness = await observeReadiness(server!.baseUrl, "ready");
+  assert.ok(recoveredReadiness.reached, `readiness did not recover after authentication was restored: ${recoveredReadiness.raw.slice(0, 400)}`);
+  assert.equal(readinessCheck(recoveredReadiness, "auth")?.status, "pass", "the auth dependency did not recover");
+  assert.equal(readinessCheck(recoveredReadiness, "database")?.status, "pass", "the database dependency regressed during auth recovery");
   EVIDENCE.authRecovery = `re-authenticated, tenant read 200, governed ALLOW (fronteraDecisionId ${decisionId})`;
 });
 
@@ -1281,17 +1297,43 @@ test("G: a HARD-KILLED production process is replaced, and governs with the stat
 test("H: a production process given broken production-required configuration fails CLOSED, boundedly and legibly", async () => {
   const port = await freePort();
   const startedAt = Date.now();
-  // Two independent production-critical defects in ONE process: a
-  // production-required server secret is absent, and the authority backing is
-  // unconfigured. The Phase-2 contract for this repository is
-  // STARTS_BUT_NOT_READY — `/api/ready` is the runtime fail-closed guard for the
-  // pilot path — so the process is expected to start, report itself unfit, and
-  // refuse work rather than to reject its own boot.
+  // CONTRACT CHANGE, split into two phases so NO original claim is lost.
+  //
+  // This case previously bundled two production-critical defects into ONE process — an
+  // absent required server secret AND an unconfigured authority backing — and asserted
+  // STARTS_BUT_NOT_READY for both. Under the closed-beta runtime contract certified by
+  // P0-LAUNCH-06, a missing required secret is now caught by the in-process guard BEFORE
+  // the server becomes operational, so those two defects no longer share an observable
+  // boundary and must be proven separately:
+  //
+  //   PHASE 1  missing required secret        -> BOOT REFUSED (stronger than NOT READY)
+  //   PHASE 2  unconfigured authority backing -> STARTS_BUT_NOT_READY, fails closed
+  //
+  // Phase 2 keeps every original running-process claim: liveness truthful, anonymous
+  // refused, and the unusable authority reported as an OUTAGE rather than degrading to
+  // an in-memory substitute.
+  const refusedPort = await freePort();
+  const refused = await startProductionServer({
+    port: refusedPort,
+    env: productionEnv({ SUPABASE_SERVICE_ROLE_KEY: "" }),
+    timeoutMs: 90_000,
+  });
+  if (refused.started) {
+    await shutdownProductionServer(refused.handle, { label: "H: missing required secret", graceMs: 10_000 });
+    assert.fail("a production server became operational without a required server secret");
+  }
+  assert.match(refused.log, /missing_beta_environment/, "the boot refusal is not attributable to the missing beta environment requirement");
+  assert.match(refused.log, /SUPABASE_SERVICE_ROLE_KEY/, "the boot refusal does not name the missing variable");
+  assert.doesNotMatch(refused.log, /eyJ[A-Za-z0-9_-]{10,}/, "the boot refusal leaked a credential-shaped value");
+  assert.deepEqual(refused.survivors, [], "the refused start left surviving processes");
+  EVIDENCE.missingRequiredSecretBehavior = "BOOT_REFUSED (missing_beta_environment names SUPABASE_SERVICE_ROLE_KEY; no value emitted)";
+
+  // PHASE 2 — the authority backing alone, on a process that is allowed to boot.
   const outcome = await startProductionServer({
     port,
-    env: productionEnv({ SUPABASE_SERVICE_ROLE_KEY: "", [FRONTERA_STORE_ENV]: "" }),
+    env: productionEnv({ [FRONTERA_STORE_ENV]: "" }),
   });
-  if (!outcome.started) assert.fail(`the contract is STARTS_BUT_NOT_READY, but the process did not start: ${outcome.reason}\n${outcome.log.slice(-2000)}`);
+  if (!outcome.started) assert.fail(`the contract for an unconfigured authority backing is STARTS_BUT_NOT_READY, but the process did not start: ${outcome.reason}\n${outcome.log.slice(-2000)}`);
   try {
     // BOUNDED and DETERMINISTIC: it reached a settled state inside the deadline
     // rather than hanging, and liveness is truthful about what it can answer for.
@@ -1300,14 +1342,15 @@ test("H: a production process given broken production-required configuration fai
     const health = await isolated.request("/api/health");
     assert.equal(health.status, 200, `liveness must remain independent of configuration readiness, got ${health.status}`);
 
-    // LEGIBLE, and about the NAME rather than any value.
-    const notReady = await observeReadiness(outcome.handle.baseUrl, "not_ready");
-    assert.ok(notReady.reached, `broken production configuration did not yield NOT READY: ${notReady.raw.slice(0, 400)}`);
-    assert.equal(notReady.status, 503);
-    const configuration = readinessCheck(notReady, "configuration");
-    assert.equal(configuration?.status, "fail", `the configuration check did not fail: ${notReady.raw.slice(0, 400)}`);
-    assert.match(String(configuration?.detail), /SUPABASE_SERVICE_ROLE_KEY/, "the failure does not name the missing variable, so it is not actionable");
-    assert.doesNotMatch(notReady.raw, /eyJ[A-Za-z0-9_-]{10,}/, "the readiness failure leaked a credential-shaped value");
+    // MEASURED, not assumed. The original 503 in this case came from the MISSING SECRET,
+    // which is now refused at boot in phase 1 — the authority backing is not a declared
+    // readiness dependency, so with a valid secret this process is correctly READY. That
+    // separation is the point: an unusable authority backing must fail the governed path
+    // closed WITHOUT being laundered into, or hidden by, a readiness failure.
+    const readyNow = await observeReadiness(outcome.handle.baseUrl, "ready");
+    assert.ok(readyNow.reached, `a process with a valid secret did not become READY: ${readyNow.raw.slice(0, 400)}`);
+    assert.equal(readinessCheck(readyNow, "database")?.status, "pass", "the database dependency did not pass");
+    assert.doesNotMatch(readyNow.raw, /eyJ[A-Za-z0-9_-]{10,}/, "the readiness payload leaked a credential-shaped value");
 
     // FAILS CLOSED, with no silent substitution: an unauthenticated caller gets
     // nothing, and the governed path reports the unusable authority as an OUTAGE
@@ -1320,12 +1363,19 @@ test("H: a production process given broken production-required configuration fai
       "an unconfigured authority backing must fail closed as an outage, never degrade to an in-memory substitute",
     );
 
-    EVIDENCE.startupFailureBehavior = "STARTS_BUT_NOT_READY";
-    EVIDENCE.startupFailureReadiness = `503 not_ready (configuration: ${String(configuration?.detail)})`;
+    EVIDENCE.startupFailureBehavior =
+      "SPLIT BY CONTRACT: missing required secret -> BOOT_REFUSED; unconfigured authority backing -> STARTS_BUT_NOT_READY";
+    EVIDENCE.startupFailureReadiness =
+      "missing required secret -> refused at boot (never reaches readiness); unconfigured authority backing -> " +
+      "readiness stays READY because the authority backing is not a declared readiness dependency, while the " +
+      "governed path still fails closed as an OUTAGE";
     EVIDENCE.startupFailureGovernedOperation = "frontera_unavailable — fail closed, no in-memory substitution";
     OPERATOR_SIGNALS.STARTUP_CONFIGURATION_FAILURE = {
       sources: ["PRODUCT_HTTP"],
-      signal: `readiness 503 not_ready with checks.configuration.status=fail naming the missing VARIABLE ("${String(configuration?.detail)}") and never its value, while liveness stays 200`,
+      signal:
+        "a missing required server secret is now refused at BOOT: the startup diagnostic carries " +
+        "missing_beta_environment and names SUPABASE_SERVICE_ROLE_KEY, never its value. An unconfigured " +
+        "authority backing still yields readiness 503 not_ready while liveness stays 200.",
     };
   } finally {
     await shutdownProductionServer(outcome.handle, { label: "H: broken production configuration", graceMs: 10_000 });

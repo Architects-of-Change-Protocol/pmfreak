@@ -397,7 +397,7 @@ test("A1. STARTUP BOUNDARY: an invalid closed-beta environment leaves NO applica
   }
 });
 
-test("A1b. PROFILE SELECTION fails closed: missing, blank and unknown profiles refuse startup", async () => {
+test("A1b. PROFILE SELECTION fails closed: missing, blank, unknown and spoofed-build-phase refuse startup", async () => {
   // A1 proves an invalid VALUE is refused, but it cannot prove profile SELECTION is
   // enforced, because betaEnv() always supplies a valid profile. The bypass this closes
   // is structural: the hook used to `return` when the profile was absent or misspelled,
@@ -405,15 +405,20 @@ test("A1b. PROFILE SELECTION fails closed: missing, blank and unknown profiles r
   // trustworthy. Every environment below is otherwise VALID, so the profile is the sole
   // discriminating defect.
   const outcomes: Array<[string, string]> = [];
-  for (const [label, override] of [
-    ["MISSING_PROFILE", undefined],
-    ["BLANK_PROFILE", ""],
-    ["UNKNOWN_PROFILE", "closed-free-beta-typo"],
+  for (const [label, override, extra] of [
+    ["MISSING_PROFILE", undefined, undefined],
+    ["BLANK_PROFILE", "", undefined],
+    ["UNKNOWN_PROFILE", "closed-free-beta-typo", undefined],
+    // NEXT_PHASE is externally supplied, so a stale or spoofed build phase on a real
+    // `next start` must NOT authorize the runtime out of validation. This is the real
+    // production-server negative case, not a simulated build.
+    ["SPOOFED_BUILD_PHASE", undefined, { NEXT_PHASE: "phase-production-build" }],
   ] as const) {
     const port = await freePort();
     const env = betaEnv();
     if (override === undefined) delete env.PMFREAK_OPERATING_PROFILE;
     else env.PMFREAK_OPERATING_PROFILE = override;
+    if (extra) Object.assign(env, extra);
 
     const outcome = await startProductionServer({ port, env, timeoutMs: 90_000 });
     if (outcome.started) {
@@ -443,6 +448,12 @@ test("A1b. PROFILE SELECTION fails closed: missing, blank and unknown profiles r
     `SERVER_BECOMES_OPERATIONAL=NO for ${outcomes.map(([l, d]) => `${l} (${d})`).join("; ")}; ` +
     "each refusal carries code beta_profile_not_selected and never echoes the offending value";
   EVIDENCE.bareNextStartProfileBypass = "NO";
+  EVIDENCE.spoofedBuildPhaseBypass =
+    "NO — a stale/spoofed NEXT_PHASE=phase-production-build on a real production server does not authorize " +
+    "startup. The closure is architectural: the production-server STARTUP boundary is next.config.ts, which " +
+    "Next.js hands its own `phase` argument, so the environment cannot make a running server look like a build. " +
+    "src/instrumentation.ts remains an in-process defense-in-depth guard behind it (Next.js can skip the " +
+    "instrumentation hook entirely when NEXT_PHASE is spoofed, which is why it cannot be the sole authority).";
 });
 
 test("A2. STARTUP BOUNDARY: the guard names offending VARIABLES and never their values", async () => {

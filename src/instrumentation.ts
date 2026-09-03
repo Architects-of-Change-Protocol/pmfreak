@@ -13,6 +13,14 @@
  * inside the runtime makes enforcement independent of which command launched
  * Next.js. See RR-BETA-PREFLIGHT-BYPASSABLE.
  *
+ * NOT THE SOLE STARTUP AUTHORITY — DEFENSE IN DEPTH. Next.js skips
+ * `registerInstrumentation()` entirely when `NEXT_PHASE=phase-production-build`, and that
+ * variable is externally supplied, so this hook alone could be skipped on a real
+ * `next start`. The production-server STARTUP boundary therefore lives in
+ * `next.config.ts`, which is handed its `phase` by the framework itself and cannot be
+ * spoofed through the environment. This file remains the in-process runtime guard behind
+ * it — a second boundary, not the only one.
+ *
  * WHAT IT DOES NOT CLAIM. This is a RUNTIME boundary, not a deployment-time one.
  * It proves that a certified Next.js server runtime carrying this hook cannot
  * serve the beta surface under an invalid beta environment. It does NOT claim
@@ -33,11 +41,14 @@ export async function register() {
   // in every environment, so the runtime is checked explicitly.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  // Belt and braces. Next already returns before calling `register` during
-  // `phase-production-build` (see registerInstrumentation in
-  // next/dist/server/lib/router-utils/instrumentation-globals.external.js), so a
-  // build can never be refused by this guard; the check states that intent locally.
-  if (process.env.NEXT_PHASE === "phase-production-build") return;
+  // NO NEXT_PHASE ESCAPE HATCH. A previous revision returned early on
+  // NEXT_PHASE=phase-production-build as "belt and braces". That was a mistake: the
+  // variable is externally supplied, so a stale or spoofed value on a real `next start`
+  // re-opened the very bypass this guard exists to close. Worse, the framework applies
+  // that same check to decide whether to call this hook AT ALL — which is precisely why
+  // the authoritative startup boundary is `next.config.ts`, where the phase comes from
+  // Next.js rather than from the environment. Nothing here may re-introduce an
+  // environment-variable authorization path.
 
   // THE RUNTIME SELECTOR IS NODE_ENV, NOT THE PROFILE. Deciding whether to validate
   // PMFREAK_OPERATING_PROFILE by reading PMFREAK_OPERATING_PROFILE is exactly the

@@ -612,7 +612,8 @@ function classifyObjectEmptiness(counts) {
     ["user_functions", "user-defined functions/procedures"],
     ["user_types", "user-defined types (composite, domain, enum)"],
     ["user_policies", "RLS policies that are not platform/extension-owned (including on managed relations such as storage.objects)"],
-    ["user_triggers", "triggers that do not exactly match the certified stock platform baseline"],
+    ["user_triggers", "triggers that do not exactly match the certified stock platform baseline (extra, altered, or MISSING)"],
+    ["user_event_triggers", "database-level event triggers that are not platform/extension-owned"],
     ["migration_rows", "PMFreak migration-history rows"],
     ["auth_users", "auth.users identities"],
     ["storage_buckets", "storage buckets"],
@@ -712,7 +713,19 @@ function classifyObservedTriggers(observed) {
     }
     remaining.splice(idx, 1); // consume: a duplicated stock fingerprint is still an extra
   }
-  return { nonStockCount: nonStock.length, nonStock };
+  // BOTH DRIFT DIRECTIONS. Checking only for extras meant an empty or partially
+  // initialised target — one MISSING certified platform triggers — scored zero and
+  // sailed through to the destructive push; `classifyObservedTriggers([])` literally
+  // returned nonStockCount 0. A fresh target must present EXACTLY the certified stock
+  // set: anything extra, altered, or absent is drift and refuses FRESH.
+  const missingStock = remaining.map((b) => `${b.relation_schema}.${b.relation_name}:${b.trigger_name}`);
+  return {
+    nonStockCount: nonStock.length,
+    nonStock,
+    missingStockCount: missingStock.length,
+    missingStock,
+    baselineSatisfied: nonStock.length === 0 && missingStock.length === 0,
+  };
 }
 
 const PLATFORM_SCHEMA_PREDICATE =
@@ -811,11 +824,49 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
       definition: f[6], is_internal: false, extension_owned: f[7] === "ext",
     });
   }
+  // EVENT TRIGGERS are database-level and live in pg_event_trigger, entirely outside
+  // pg_trigger — so every counter above can read zero while a user event trigger sits
+  // ready to fire during the migration DDL itself and rewrite or block the push. The
+  // measured stock project carries ZERO of them, so no structural baseline is needed and
+  // no schema exemption applies: anything not positively extension-owned refuses FRESH.
+  const eventQuery = `
+    select evt.evtname || '~|~' || evt.evtevent || '~|~' || evt.evtenabled || '~|~' ||
+           fn.nspname || '~|~' || pr.proname || '~|~' ||
+           case when exists (select 1 from pg_depend d
+                               where d.classid = 'pg_event_trigger'::regclass and d.objid = evt.oid and d.deptype = 'e')
+                then 'ext' else 'user' end
+      from pg_event_trigger evt
+      join pg_proc pr on pr.oid = evt.evtfoid
+      join pg_namespace fn on fn.oid = pr.pronamespace;
+  `;
+  const evt = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c", eventQuery]);
+  if (evt.status !== 0) {
+    return { ok: false, failure: describeSpawnResult(evt, "psql (hosted event-trigger probe)"), stderr: evt.stderr };
+  }
+  const eventTriggers = [];
+  for (const line of (evt.stdout ?? "").split(/\r?\n/)) {
+    if (line.trim() === "") continue;
+    const f = line.split("~|~");
+    if (f.length !== 6) {
+      return { ok: false, reason: `the event-trigger probe returned an unrecognized row (${f.length} field(s)); refusing to infer emptiness.` };
+    }
+    // Extension ownership is the ONLY exemption, and only when pg_depend proves it. A
+    // platform-owned trigger FUNCTION never launders the event trigger's own provenance.
+    if (f[5] === "ext") continue;
+    eventTriggers.push({ name: f[0], event: f[1], enabled: f[2], function_schema: f[3], function_name: f[4] });
+  }
+  counts.user_event_triggers = eventTriggers.length;
+
   const triggers = classifyObservedTriggers(observed);
-  counts.user_triggers = triggers.nonStockCount;
+  // Drift in EITHER direction defeats fresh certification.
+  counts.user_triggers = triggers.nonStockCount + triggers.missingStockCount;
 
   const verdict = classifyObjectEmptiness(counts);
-  return { ok: true, counts, observedTriggers: observed, nonStockTriggers: triggers.nonStock, verdict };
+  return {
+    ok: true, counts, observedTriggers: observed,
+    nonStockTriggers: triggers.nonStock, missingStockTriggers: triggers.missingStock,
+    eventTriggers, verdict,
+  };
 }
 
 // Reads the linked project's migration history WITHOUT mutating it.

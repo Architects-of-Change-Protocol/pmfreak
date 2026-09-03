@@ -584,7 +584,7 @@ test("readHostedMigrationVersions: the real backtick format parses through the i
 });
 
 // ─── Object emptiness: an empty LEDGER is not an empty DATABASE ───────────
-const EMPTY_COUNTS = { user_schemas: 0, user_relations: 0, public_rows: 0, user_functions: 0, user_types: 0, user_policies: 0, user_triggers: 0, migration_rows: 0, auth_users: 0, storage_buckets: 0, storage_objects: 0 };
+const EMPTY_COUNTS = { user_schemas: 0, user_relations: 0, public_rows: 0, user_functions: 0, user_types: 0, user_policies: 0, user_triggers: 0, user_event_triggers: 0, migration_rows: 0, auth_users: 0, storage_buckets: 0, storage_objects: 0 };
 
 test("classifyObjectEmptiness: a genuinely new project is empty", () => {
   const v = classifyObjectEmptiness(EMPTY_COUNTS);
@@ -593,7 +593,7 @@ test("classifyObjectEmptiness: a genuinely new project is empty", () => {
 });
 
 test("classifyObjectEmptiness: an empty ledger with application state is NOT fresh, and names the category", () => {
-  for (const key of ["user_relations", "public_rows", "user_functions", "user_types", "user_policies", "user_triggers", "auth_users", "storage_buckets", "storage_objects", "user_schemas"]) {
+  for (const key of ["user_relations", "public_rows", "user_functions", "user_types", "user_policies", "user_triggers", "user_event_triggers", "auth_users", "storage_buckets", "storage_objects", "user_schemas"]) {
     const v = classifyObjectEmptiness({ ...EMPTY_COUNTS, [key]: 3 });
     assert.equal(v.empty, false, `${key} must defeat a fresh-apply certification`);
     assert.equal(v.nonEmpty[0].category, key, "the refusal must name the non-empty category");
@@ -1186,4 +1186,69 @@ test("the trigger-fingerprint probe fails closed on an unrecognized row", () => 
   const source = readFileSync(SCRIPT, "utf8");
   assert.match(source, /unrecognized row/, "the trigger probe does not fail closed on malformed output");
   assert.match(source, /trigger-fingerprint probe/, "the trigger probe failure is not attributable");
+});
+
+// ─── Baseline drift in BOTH directions ────────────────────────────────────
+test("trigger baseline: ZERO observed triggers is DRIFT, not emptiness", () => {
+  // The original classifier reported nonStockCount 0 here, so a wiped or partially
+  // initialised project read as pristine and could reach the destructive push.
+  const r = classifyObservedTriggers([]);
+  assert.equal(r.missingStockCount, 4, "every certified stock trigger must be reported missing");
+  assert.equal(r.baselineSatisfied, false);
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_triggers: r.nonStockCount + r.missingStockCount }).empty, false);
+});
+
+test("trigger baseline: THREE of four stock triggers is DRIFT", () => {
+  const r = classifyObservedTriggers(stock().slice(0, 3));
+  assert.equal(r.missingStockCount, 1);
+  assert.equal(r.baselineSatisfied, false);
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_triggers: r.nonStockCount + r.missingStockCount }).empty, false);
+});
+
+test("trigger baseline: the exact four in ANY ORDER satisfy the baseline", () => {
+  const shuffled = [stock()[2], stock()[0], stock()[3], stock()[1]];
+  const r = classifyObservedTriggers(shuffled);
+  assert.equal(r.baselineSatisfied, true, "ordering alone must not be treated as drift");
+  assert.equal(r.nonStockCount + r.missingStockCount, 0);
+});
+
+test("trigger baseline: an ALTERED stock trigger is both an extra AND a missing entry", () => {
+  const tampered = stock();
+  tampered[0] = { ...tampered[0], definition: tampered[0].definition.replace("BEFORE INSERT", "AFTER INSERT") };
+  const r = classifyObservedTriggers(tampered);
+  assert.equal(r.nonStockCount, 1);
+  assert.equal(r.missingStockCount, 1, "the certified entry it impersonates is still absent");
+  assert.equal(r.baselineSatisfied, false);
+});
+
+// ─── Event triggers (pg_event_trigger) ────────────────────────────────────
+test("event triggers: none observed raises no objection", () => {
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_event_triggers: 0 }).empty, true);
+});
+
+test("event triggers: a single user event trigger refuses FRESH", () => {
+  const v = classifyObjectEmptiness({ ...EMPTY_COUNTS, user_event_triggers: 1 });
+  assert.equal(v.empty, false);
+  assert.equal(v.nonEmpty[0].category, "user_event_triggers");
+  assert.match(v.nonEmpty[0].description, /event triggers/i);
+});
+
+test("event triggers: the probe is read-only, database-level, and exempts ONLY proven extension ownership", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  const region = source.slice(source.indexOf("const PLATFORM_SCHEMA_PREDICATE"), source.indexOf("// Reads the linked project's migration history"));
+  assert.match(region, /pg_event_trigger/, "event triggers are not probed at all");
+  // No schema exemption may apply: event triggers are database-level, so a function in
+  // storage/auth must NOT launder them, and a platform-owned FUNCTION is not provenance.
+  const evtRegion = region.slice(region.indexOf("const eventQuery"));
+  assert.doesNotMatch(evtRegion, /nspname NOT IN|PLATFORM_SCHEMA_PREDICATE/, "the event-trigger probe must not carry a schema exemption");
+  assert.match(evtRegion, /classid = 'pg_event_trigger'::regclass[\s\S]{0,120}deptype = 'e'/, "extension ownership must be proven via pg_depend on the event trigger itself");
+  assert.match(evtRegion, /unrecognized row/, "the event-trigger probe must fail closed on malformed output");
+  assert.match(evtRegion, /event-trigger probe/, "an event-trigger probe failure must be attributable");
+  assert.doesNotMatch(evtRegion, /\b(insert|update|delete|drop|truncate|alter)\b/i, "the event-trigger probe is not read-only");
+});
+
+test("fresh composition: every objection category independently refuses FRESH", () => {
+  for (const key of Object.keys(EMPTY_COUNTS)) {
+    assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, [key]: 1 }).empty, false, `${key} must be able to refuse a fresh apply`);
+  }
 });
