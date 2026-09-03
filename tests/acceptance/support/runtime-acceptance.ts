@@ -29,6 +29,52 @@ import net from "node:net";
 
 const ROOT = process.cwd();
 
+// ───────── package-manager children: launched through THIS Node runtime ─────────
+
+/**
+ * The npm CLI, as a path THIS Node runtime can execute directly.
+ *
+ * WHY NOT A BARE `"npm"`. On Windows npm is exposed as `npm.cmd`, a shell
+ * launcher. Node's `spawn`/`execFile` family resolves the executable itself and
+ * will not run a `.cmd` without a shell, so a bare package-manager name dies as
+ * `spawnSync npm ENOENT` before any child exists. That is not a hypothesis: it is
+ * how P0-LAUNCH-06 failed 27/27 in its `before()` hook, while Linux and WSL —
+ * where `npm` is a shebang script Node can exec directly — never exposed it.
+ *
+ * The fix is to stop asking the OS to find "npm" at all. npm tells every lifecycle
+ * script where its own CLI lives, in `npm_execpath`, and that CLI is a JavaScript
+ * file. `node <npm-cli>` is the same program on every platform, needs no shell, and
+ * therefore has no quoting surface at all: the path travels as one argv element, so
+ * a directory with spaces in it is not a special case.
+ *
+ * FAIL CLOSED. If `npm_execpath` is absent, is not a JavaScript file, or does not
+ * exist, this throws with a named diagnostic rather than guessing at some other npm
+ * on the machine. These gates are only ever entered through an npm script, so an
+ * unset value means the harness was launched in a way its evidence has never been
+ * produced under, and silently substituting a different npm would make the build and
+ * the operator commands unattributable.
+ */
+export function npmCliPath(): string {
+  const execpath = process.env.npm_execpath;
+  if (!execpath) {
+    throw new Error(
+      "npm_execpath is not set, so the npm CLI cannot be launched through this Node runtime. " +
+        "This gate must be started through an npm lifecycle script (for example `npm run check:beta-release-rehearsal`). " +
+        "Refusing to guess at another npm installation.",
+    );
+  }
+  if (!/\.[cm]?js$/.test(execpath)) {
+    throw new Error(
+      `npm_execpath (${execpath}) is not a JavaScript file, so this Node runtime cannot execute it directly. ` +
+        "Refusing to guess at another npm installation.",
+    );
+  }
+  if (!fs.existsSync(execpath)) {
+    throw new Error(`npm_execpath (${execpath}) does not exist. Refusing to guess at another npm installation.`);
+  }
+  return execpath;
+}
+
 export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** Polls a condition to a deadline. Returns whether it came true in time. */
@@ -342,7 +388,11 @@ export async function startProductionServer(options: {
   const timeoutMs = options.timeoutMs ?? 180_000;
   const baseUrl = `http://127.0.0.1:${port}`;
 
-  const child = spawn("npm", ["run", script, "--", "--port", String(port)], {
+  // Launched as `node <npm-cli> run <script>` rather than by the bare name `npm`,
+  // so the child exists on Windows too; see `npmCliPath`. On POSIX this is the same
+  // process the bare name already resolved to — npm's own shebang script — so the
+  // process tree, the group, the pids and every piece of evidence below are unchanged.
+  const child = spawn(process.execPath, [npmCliPath(), "run", script, "--", "--port", String(port)], {
     cwd: ROOT,
     env,
     stdio: ["ignore", "pipe", "pipe"],
@@ -412,7 +462,7 @@ export async function startProductionServer(options: {
 
   const launcherPid = child.pid!;
   // The supported command is an npm script, so the process tree is
-  //   npm  ->  sh -c "[preflight &&] next start --port N"  ->  next-server (vX.Y.Z)
+  //   node <npm-cli>  ->  sh -c "[preflight &&] next start --port N"  ->  next-server (vX.Y.Z)
   // For `start:closed-free-beta` the preflight has already exited by the time
   // this runs — it is awaited by the `&&` before `next start` is reached, and
   // this line is only reached once /api/health has answered.

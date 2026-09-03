@@ -36,6 +36,7 @@ import {
   HttpSession,
   boundedFetch,
   freePort,
+  npmCliPath,
   shutdownProductionServer,
   startProductionServer,
   type ServerHandle,
@@ -45,9 +46,19 @@ const ROOT = process.cwd();
 /** Finite ceilings for every synchronous child. Sized per operation, never one global value. */
 const BUILD_TIMEOUT_MS = 15 * 60_000;   // the production build; observed ~5 min
 const OPERATOR_TIMEOUT_MS = 90_000;     // an operator command against Auth/PostgREST
+const LAUNCH_PROOF_TIMEOUT_MS = 60_000; // the X1 launch proof, which reaches the build binary but never builds
 const BETA_PROFILE = "closed-free-beta";
 const OUTAGE_SHIM = path.join(ROOT, "tests/acceptance/support/dependency-outage-shim.cjs");
 const OWNER_A = TENANT_A.actors.find((a: { reference: string }) => a.reference.endsWith(":owner"))!;
+/**
+ * The npm CLI this gate launches its children with, resolved ONCE at load.
+ *
+ * Resolved here, at module scope, rather than at each call site, so a harness that
+ * cannot launch npm at all fails loudly on load. Resolving it inside `operator()`
+ * would put the fail-closed throw inside that helper's own try/catch, where a launch
+ * failure is indistinguishable from the refusal its negative controls assert.
+ */
+const NPM_CLI = npmCliPath();
 
 const EVIDENCE: Record<string, unknown> = {};
 
@@ -240,7 +251,10 @@ before(async () => {
   // the whole rehearsal — including its teardown — until the workflow's own kill. The
   // build is the long pole (observed ~5 min locally), so it gets a generous but FINITE
   // ceiling; the workflow timeout is never the subprocess control.
-  execFileSync("npm", ["run", "build"], { cwd: ROOT, stdio: "pipe", maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS });
+  // Launched through THIS Node runtime (`node <npm-cli> run build`) rather than by the
+  // bare name `npm`, which does not exist as an executable on Windows; see `npmCliPath`.
+  // cwd, stdio, maxBuffer and the ceiling below are the ones this build was accepted with.
+  execFileSync(process.execPath, [NPM_CLI, "run", "build"], { cwd: ROOT, stdio: "pipe", maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS });
 
   const supabase = admin();
   for (let page = 1; page <= 20 && !ownerUserId; page += 1) {
@@ -414,6 +428,61 @@ after(async () => {
     [],
     `the rehearsal teardown did not fully succeed (${teardownFailures.length} component(s)): ${teardownFailures.join(" | ")}`,
   );
+});
+
+// ───────────────── PHASE X — harness integrity (the child-process launch) ─────────────────
+
+/**
+ * TRACKED REGRESSION. Every child this rehearsal starts is an npm script, and each one
+ * used to name the package manager by its bare name. Node resolves such a name against
+ * PATH and execs it itself, with no shell — and on Windows npm exists only as a `.cmd`
+ * launcher, which Node will not exec. The whole battery therefore died in `before()`
+ * with `spawnSync npm ENOENT`: 27 of 27 cases failed at the build, and not one scenario
+ * ran. Linux and WSL never showed it, because there npm is a shebang script.
+ *
+ * This control is deliberately cheap and structural. It proves the launch SHAPE is
+ * portable and that the build child reaches the build binary, without performing a
+ * build and without depending on the authoritative battery having run.
+ */
+test("X1. CROSS_PLATFORM_CHILD_LAUNCH: package-manager children run through this Node runtime, not a PATH lookup", () => {
+  // 1. The launcher is the Node binary already running this gate, and the program it is
+  //    handed is a JavaScript file. Those two properties are what make the launch
+  //    shell-free — and therefore portable to Windows, where the bare name is a `.cmd`.
+  assert.ok(fs.existsSync(process.execPath), `the Node runtime is not at ${process.execPath}`);
+  assert.equal(path.isAbsolute(NPM_CLI), true, `the npm CLI path is not absolute: ${NPM_CLI}`);
+  assert.match(NPM_CLI, /\.[cm]?js$/, `the npm CLI is not a JavaScript file this runtime can execute: ${NPM_CLI}`);
+  assert.ok(fs.existsSync(NPM_CLI), `the npm CLI does not exist at ${NPM_CLI}`);
+
+  // 2. The BUILD child actually reaches `next build`. `--help` is forwarded through the
+  //    `build` script to the build binary, which prints its usage and exits 0 without
+  //    building, so this exercises the whole chain
+  //      node -> npm-cli.js -> the `build` script -> next build
+  //    that `before()` depends on, at a cost that does not require a build and cannot be
+  //    mistaken for one. A launcher defect fails here as a spawn error, not as a build.
+  const reached = execFileSync(process.execPath, [NPM_CLI, "run", "build", "--", "--help"], {
+    cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: LAUNCH_PROOF_TIMEOUT_MS,
+  });
+  assert.match(reached, /next build/, `the build child did not reach the build binary: ${reached.slice(0, 300)}`);
+
+  // 3. No bare package-manager launch remains anywhere on this rehearsal's execution
+  //    path. Searched for by SHAPE rather than trusted to have been removed once, so a
+  //    later edit that reintroduces the defect in a different helper is caught here.
+  const BARE_LAUNCH = /(?:execFile|execFileSync|spawn|spawnSync|exec|execSync)\(\s*(["'`])(?:npm|npx|pnpm|yarn)(?:\.cmd|\.exe|\.bat)?\1/;
+  // Self-check. The pattern is built from a defect assembled at RUNTIME, never written
+  // as a literal, because these files scan themselves: a literal example would be found
+  // by the scan below and would fail this control for describing the bug it fixed.
+  const DEFECT = `execFileSync(${JSON.stringify("npm")}, [${JSON.stringify("run")}])`;
+  assert.match(DEFECT, BARE_LAUNCH, "the scan pattern can no longer detect the defect it exists for");
+  const scanned = [
+    "tests/acceptance/p0-launch-06-beta-release-rehearsal.test.ts",
+    "tests/acceptance/support/runtime-acceptance.ts",
+  ];
+  for (const f of scanned) {
+    assert.doesNotMatch(readFileSync(f, "utf8"), BARE_LAUNCH, `${f} still launches a package manager by bare name`);
+  }
+
+  EVIDENCE.crossPlatformChildLaunch =
+    `node <npm_execpath> for every package-manager child; reached \`next build\` without building; ${scanned.length} execution-path files carry no bare package-manager launch`;
 });
 
 // ───────────────── PHASE A — startup boundary (the certified runtime guard) ─────────────────
@@ -635,7 +704,8 @@ const operator = (args: string[], env: Record<string, string> = {}) => {
   try {
     // Bounded: this operator command talks to Auth/PostgREST, so a stalled dependency
     // must surface as a failed control rather than hanging the synchronous test process.
-    const out = execFileSync("npm", ["run", "beta:invite-participant", "--", ...args], {
+    // Same Node-runtime launch as the build; the bare name `npm` is not executable on Windows.
+    const out = execFileSync(process.execPath, [NPM_CLI, "run", "beta:invite-participant", "--", ...args], {
       cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, ...env },
       timeout: OPERATOR_TIMEOUT_MS,
     });
