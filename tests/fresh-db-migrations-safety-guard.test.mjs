@@ -1833,7 +1833,7 @@ test("J: all THREE realtime daily shapes are dynamic stock, and belong to no sta
   // The third shape's definition is the attached broadcast index, not the primary key.
   assert.equal(
     realtimePartitionDefinition({ schema: "realtime", kind: "index", owner: "supabase_realtime_admin", name: `messages_${date}_inserted_at_topic_idx` }),
-    `indexdef=CREATE INDEX messages_${date}_inserted_at_topic_idx ON realtime.messages_${date} USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))`,
+    `indexdef=CREATE INDEX messages_${date}_inserted_at_topic_idx ON realtime.messages_${date} USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))|indexparent=realtime.messages_inserted_at_topic_index`,
     "the broadcast partition index definition drifted",
   );
   assert.match(realtimePartitionDefinition({ schema: "realtime", kind: "relation", owner: "supabase_realtime_admin", name: `messages_${date}` }),
@@ -1878,6 +1878,156 @@ test("J: the six dated broadcast indexes are no longer frozen into the local pro
   assert.deepEqual(dated, [], `the local profile still freezes dated broadcast indexes: ${dated.map((o) => o.name).join(", ")}`);
   // The PARENT index is not date-derived and remains certified static evidence.
   assert.ok(findIn(LOCAL(), "realtime", "messages_inserted_at_topic_index"), "the certified parent index was dropped");
+});
+
+// ─── R30: dynamic partition indexes must PROVE parent attachment ──────────
+//
+// The gap: a daily index was certified on schema, kind, name, owner and an exact
+// pg_get_indexdef. That does not prove it is the service's index. PostgreSQL supports
+//
+//   CREATE INDEX look_alike ON realtime.messages_2026_09_02 USING btree (...);
+//   ALTER INDEX realtime.messages_inserted_at_topic_index ATTACH PARTITION look_alike;
+//
+// and the ATTACH requires an EQUIVALENT definition — so an unattached standalone index
+// on the right partition can carry a byte-identical definition and was accepted as
+// dynamic stock. The probe now transports the pg_inherits parent, and both index shapes
+// require their certified parent. The suffix is emitted only when a parent exists, so no
+// unattached index's fingerprint moves and neither static profile changes.
+
+const DAILY = "2026_09_02";
+const dailyIndex = (suffix, parent) => ({
+  schema: "realtime",
+  kind: "index",
+  owner: "supabase_realtime_admin",
+  name: `messages_${DAILY}${suffix}`,
+  parent,
+});
+/** The certified definition of a daily index shape, as the probe now transports it. */
+const dailyIndexDefinition = (suffix) => {
+  const definition = realtimePartitionDefinition(dailyIndex(suffix));
+  assert.ok(definition, `the ${suffix} shape is not a recognised daily index`);
+  return definition;
+};
+
+test("R30: the probe transports an index parent ONLY when one exists", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  const region = source.slice(source.indexOf("const managedQuery"), source.indexOf("const managed = runner"));
+  // Positive parent evidence, read from pg_inherits — never inferred from the child name.
+  assert.match(region, /'\|indexparent=' \|\| pn\.nspname \|\| '\.' \|\| pc\.relname/, "the index parent is not transported");
+  assert.match(region, /from pg_inherits ii[\s\S]{0,200}where ii\.inhrelid = c\.oid/, "the parent is not read from pg_inherits on the index itself");
+  // Conditional: coalesce(..., '') keeps an unattached index's definition byte-identical,
+  // which is why the certified static profiles do not move.
+  const branch = region.slice(region.indexOf("then 'indexdef='"));
+  assert.match(branch.slice(0, 400), /coalesce\(\(select '\|indexparent='/, "the parent suffix is not conditional");
+  assert.doesNotMatch(region, /indexparent=' \|\| coalesce\(\(select pn\.nspname/, "the suffix is emitted unconditionally");
+  // The parent is not derived from the child's name anywhere.
+  assert.doesNotMatch(branch.slice(0, 400), /replace\(c\.relname|substring\(c\.relname/, "the parent is inferred from the child name");
+});
+
+test("R30: both certified parents are themselves certified STATIC objects in both profiles", () => {
+  // The attachment chain must terminate in certified evidence, or it proves nothing.
+  for (const parent of ["messages_pkey", "messages_inserted_at_topic_index"]) {
+    for (const profile of STOCK_MANAGED_OBJECT_PROFILES) {
+      const entry = profile.objects.find((o) => o.schema === "realtime" && o.name === parent && o.kind === "index");
+      assert.ok(entry, `${profile.id} does not certify the parent index realtime.${parent}`);
+      assert.equal(entry.owner, "supabase_realtime_admin", `realtime.${parent} is certified under the wrong owner`);
+    }
+  }
+});
+
+// ── REGRESSION A / B: the three-way attachment proof, for BOTH index shapes ──
+
+test("A+B: each daily index shape requires its OWN certified parent attachment", () => {
+  const shapes = [
+    ["_inserted_at_topic_idx", "realtime.messages_inserted_at_topic_index", "realtime.messages_pkey"],
+    ["_pkey", "realtime.messages_pkey", "realtime.messages_inserted_at_topic_index"],
+  ];
+  for (const [suffix, correctParent, otherParent] of shapes) {
+    const object = dailyIndex(suffix);
+    const certified = dailyIndexDefinition(suffix);
+    assert.ok(certified.endsWith(`|indexparent=${correctParent}`), `the ${suffix} template does not require ${correctParent}`);
+    const bare = certified.slice(0, certified.indexOf("|indexparent="));
+
+    // CORRECT parent -> accepted as dynamic stock.
+    assert.equal(isRealtimeDailyPartition({ ...object, definition: certified }), true,
+      `a correctly attached ${suffix} index was refused`);
+
+    // MISSING attachment -> refused. This is the exact object the pre-R30 matcher accepted:
+    // right schema, kind, name, owner and a byte-identical pg_get_indexdef.
+    assert.equal(isRealtimeDailyPartition({ ...object, definition: bare }), false,
+      `an UNATTACHED ${suffix} index was accepted as dynamic stock`);
+
+    // WRONG parent -> refused, including the other shape's genuine certified parent.
+    for (const wrong of [otherParent, "realtime.some_other_index", "public.messages_pkey", "realtime.messages"]) {
+      assert.equal(isRealtimeDailyPartition({ ...object, definition: `${bare}|indexparent=${wrong}` }), false,
+        `a ${suffix} index attached to ${wrong} was accepted`);
+    }
+
+    // And at the classifier level: an unattached look-alike is not laundered into a
+    // complete profile match either.
+    const withBare = classifyManagedSchemaObjects([...observationOf(LOCAL()), { ...object, definition: bare }]);
+    assert.equal(withBare.baselineSatisfied, false, `an unattached ${suffix} index still satisfied a complete profile`);
+    const withCertified = classifyManagedSchemaObjects([...observationOf(LOCAL()), { ...object, definition: certified }]);
+    assert.equal(withCertified.matchedProfile, "local-cli-stock", `an attached ${suffix} index defeated the profile match`);
+  }
+});
+
+// ── REGRESSION C: parent evidence never substitutes for the exact definition ──
+
+test("C: with the CORRECT parent, the exact index definition is still required", () => {
+  for (const suffix of ["_inserted_at_topic_idx", "_pkey"]) {
+    const object = dailyIndex(suffix);
+    const certified = dailyIndexDefinition(suffix);
+    const parent = `|indexparent=${certified.split("|indexparent=")[1]}`;
+    const bare = certified.slice(0, certified.indexOf("|indexparent="));
+    const mutations = {
+      "a changed indexed column": bare.replace("inserted_at", "updated_at"),
+      "a dropped DESC": bare.replace(" DESC", ""),
+      "a reversed order": bare.replace("USING btree (inserted_at DESC, topic)", "USING btree (topic, inserted_at DESC)")
+        .replace("USING btree (id, inserted_at)", "USING btree (inserted_at, id)"),
+      "a changed predicate": bare.replace("'broadcast'::text", "'postgres_changes'::text"),
+      "a dropped UNIQUE": bare.replace("CREATE UNIQUE INDEX", "CREATE INDEX"),
+      "a doubled space": bare.replace("USING btree", "USING  btree"),
+      "a wrong relation": bare.replace(`realtime.messages_${DAILY} `, "realtime.messages_2026_09_09 "),
+    };
+    for (const [label, mutated] of Object.entries(mutations)) {
+      if (mutated === bare) continue; // not applicable to this shape
+      assert.equal(isRealtimeDailyPartition({ ...object, definition: `${mutated}${parent}` }), false,
+        `a ${suffix} index with ${label} was accepted because its parent was right`);
+    }
+  }
+});
+
+// ── REGRESSION D: the daily RELATION rule is unchanged and independent ──────
+
+test("D: an attached daily index does not vouch for its partition", () => {
+  const relation = { schema: "realtime", kind: "relation", owner: "supabase_realtime_admin", name: `messages_${DAILY}` };
+  const relationDefinition = realtimePartitionDefinition(relation);
+  assert.ok(relationDefinition, "the daily relation shape was lost");
+  // The relation still proves its own structure: parent, exact bound, columns,
+  // constraints, ACL, RLS and replica identity.
+  for (const fragment of ["parent=realtime.messages", "bound=FOR VALUES FROM ('2026-09-02 00:00:00') TO ('2026-09-03 00:00:00')",
+    "cols=", "cons=", "acl=", "rls=false/false", "replident=d"]) {
+    assert.ok(relationDefinition.includes(fragment), `the daily relation rule no longer proves ${fragment}`);
+  }
+  // A partition whose structure drifted is refused even when both of its indexes are
+  // perfectly attached — the index attachment says nothing about the table.
+  const indexes = ["_pkey", "_inserted_at_topic_idx"].map((s) => ({ ...dailyIndex(s), definition: dailyIndexDefinition(s) }));
+  for (const [label, broken] of [
+    ["a changed bound", relationDefinition.replace("TO ('2026-09-03", "TO ('2026-09-04")],
+    ["RLS forced on", relationDefinition.replace("rls=false/false", "rls=true/true")],
+    ["a dropped column", relationDefinition.replace(",binary_payload:bytea:NULL:", "")],
+    ["a changed replica identity", relationDefinition.replace("replident=d", "replident=f")],
+  ]) {
+    assert.notEqual(broken, relationDefinition, `the ${label} control did not mutate the relation`);
+    assert.equal(isRealtimeDailyPartition({ ...relation, definition: broken }), false, `a daily partition with ${label} was accepted`);
+    const verdict = classifyManagedSchemaObjects([...observationOf(LOCAL()), { ...relation, definition: broken }, ...indexes]);
+    assert.equal(verdict.baselineSatisfied, false, `a daily partition with ${label} was certified stock alongside attached indexes`);
+  }
+  // A daily index for a date whose partition is absent is still just a dynamic object:
+  // it is skipped, and the profile is unaffected. It cannot ADD certification.
+  const orphan = classifyManagedSchemaObjects([...observationOf(LOCAL()), ...indexes]);
+  assert.equal(orphan.matchedProfile, "local-cli-stock", "valid dynamic indexes disturbed the profile match");
 });
 
 // ─── Constraint, sequence and ACL layers of the relation fingerprint ──────

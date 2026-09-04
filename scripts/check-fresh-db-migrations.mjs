@@ -1238,14 +1238,17 @@ const STOCK_MANAGED_OBJECT_BASELINE = LOCAL_STOCK_PROFILE.objects;
  * different bound, a standalone table or a rebuilt index all fail.
  */
 // The THREE shapes the realtime service creates per day: the partition itself, its primary
-// key, and the broadcast index attached to realtime.messages_inserted_at_topic_index. All
-// three are date-derived, so none of them can be frozen into a static profile — a profile
-// captured today would refuse every project on any other day.
+// key, and the broadcast index. All three are date-derived, so none of them can be frozen
+// into a static profile — a profile captured today would refuse every project on any other
+// day. Both index shapes must prove ATTACHMENT to their certified partitioned parent index
+// (realtime.messages_pkey and realtime.messages_inserted_at_topic_index respectively, both
+// themselves certified static objects); a look-alike index that merely shares the
+// definition is not the service's index and is refused.
 const REALTIME_PARTITION_NAME = /^messages_(20\d{2})_(\d{2})_(\d{2})(_pkey|_inserted_at_topic_idx)?$/;
 const REALTIME_PARTITION_TEMPLATES = Object.freeze({
   relation: "relkind=r|parent=realtime.messages|bound=FOR VALUES FROM ('<DATE> 00:00:00') TO ('<NEXT> 00:00:00')|cols=topic:text:NN:,extension:text:NN:,payload:jsonb:NULL:,event:text:NULL:,private:boolean:NULL:false,updated_at:timestamp without time zone:NN:now(),inserted_at:timestamp without time zone:NN:now(),id:uuid:NN:gen_random_uuid(),binary_payload:bytea:NULL:|cons=p:messages_<DATE_US>_pkey:PRIMARY KEY (id, inserted_at):NOTDEFERRABLE:INITIMMEDIATE:VALIDATED:,c:messages_payload_exclusive:CHECK (payload IS NULL OR binary_payload IS NULL):NOTDEFERRABLE:INITIMMEDIATE:VALIDATED:|acl=dashboard_user=arwdDxtm/supabase_realtime_admin,postgres=arwdDxtm/supabase_realtime_admin,supabase_realtime_admin=arwdDxtm/supabase_realtime_admin|rls=false/false|replident=d",
-  index: "indexdef=CREATE UNIQUE INDEX messages_<DATE_US>_pkey ON realtime.messages_<DATE_US> USING btree (id, inserted_at)",
-  topicIndex: "indexdef=CREATE INDEX messages_<DATE_US>_inserted_at_topic_idx ON realtime.messages_<DATE_US> USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))",
+  index: "indexdef=CREATE UNIQUE INDEX messages_<DATE_US>_pkey ON realtime.messages_<DATE_US> USING btree (id, inserted_at)|indexparent=realtime.messages_pkey",
+  topicIndex: "indexdef=CREATE INDEX messages_<DATE_US>_inserted_at_topic_idx ON realtime.messages_<DATE_US> USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))|indexparent=realtime.messages_inserted_at_topic_index",
 });
 
 /** The certified definition for a partition of a given date, or null if it is not one. */
@@ -1528,7 +1531,18 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     select n.nspname || '~|~' || (case when c.relkind in ('i','I') then 'index' else 'relation' end) || '~|~' ||
            c.relname || '~|~' || pg_get_userbyid(c.relowner) || '~|~' ||
            translate(encode(convert_to((case
+              -- An attached partition index carries its PARENT identity. An exact
+              -- pg_get_indexdef does not prove attachment: a standalone index on the same
+              -- partition may carry an equivalent definition, and equivalence is exactly
+              -- what attaching one requires -- so the definition alone cannot distinguish
+              -- a certified service index from a look-alike. The suffix is emitted ONLY
+              -- when a parent exists, so no unattached index's fingerprint changes.
               when c.relkind in ('i','I') then 'indexdef=' || coalesce(pg_get_indexdef(c.oid), '')
+                   || coalesce((select '|indexparent=' || pn.nspname || '.' || pc.relname
+                                  from pg_inherits ii
+                                  join pg_class pc on pc.oid = ii.inhparent
+                                  join pg_namespace pn on pn.oid = pc.relnamespace
+                                 where ii.inhrelid = c.oid), '')
               when c.relkind = 'v' then 'viewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
               when c.relkind = 'm' then 'matviewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
               when c.relkind = 'S' then 'sequence'
