@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -2197,4 +2197,92 @@ test("verifyHostedRepeatability refuses an unknown Local version independently",
   const verifySrc = source.slice(source.indexOf("function verifyHostedRepeatability"));
   assert.match(verifySrc.slice(0, verifySrc.indexOf("return { ok: true")), /parsed\.unexpectedLocal\.length > 0/,
     "verifyHostedRepeatability does not refuse unknown Local versions");
+});
+
+// ─── Invalid inventory must abort BEFORE any database action (remediation 24) ──
+//
+// The gate used to record "Migration inventory FAIL", set exitCode 1, and then carry on
+// into applyLocal/applyHosted anyway — so a source tree it had already judged invalid
+// still reached psql, `supabase link`, target classification and potentially `db push`.
+// These cases run the REAL script entrypoint in an isolated cwd, because the defect was
+// in orchestration after checkInventoryAndOrdering had already detected the problem.
+
+/**
+ * Runs the real script in a throwaway cwd.
+ *
+ * PATH is emptied so `psql` and `npx` cannot resolve AT ALL. That is what turns "we
+ * believe the abort happened" into proof: if execution ever reached an apply function,
+ * the run would die with a spawn failure naming that command instead of stopping at the
+ * inventory phase. Node itself is invoked by absolute path, so it is unaffected.
+ */
+function runGateInIsolatedTree(migrationFiles, env = {}) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "fresh-db-inventory-"));
+  try {
+    mkdirSync(path.join(dir, "supabase", "migrations"), { recursive: true });
+    writeFileSync(path.join(dir, "supabase", "roles.sql"), "-- roles\n");
+    for (const name of migrationFiles) writeFileSync(path.join(dir, "supabase", "migrations", name), "select 1;\n");
+    const run = spawnSync(process.execPath, [SCRIPT], {
+      cwd: dir,
+      encoding: "utf8",
+      env: {
+        PATH: "", Path: "", SystemRoot: process.env.SystemRoot ?? "", HOME: dir,
+        ALLOW_DESTRUCTIVE_FRESH_DB_TEST: "true",
+        // A loopback URL with nothing listening; with PATH empty no client exists anyway.
+        FRESH_DB_URL: "postgresql://postgres:pw@127.0.0.1:5/postgres",
+        ...env,
+      },
+    });
+    return { ...run, output: `${run.stdout ?? ""}${run.stderr ?? ""}` };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("invalid migration inventory ABORTS before any database action (local mode)", () => {
+  // Duplicate timestamp, different filenames — a defect the inventory check already found.
+  const run = runGateInIsolatedTree(["20260904120000_alpha.sql", "20260904120000_beta.sql"]);
+
+  assert.notEqual(run.status, 0, "EXIT_NONZERO=NO — an invalid inventory exited successfully");
+  assert.match(run.output, /Migration inventory\.+ FAIL/, "MIGRATION_INVENTORY_FAIL_REPORTED=NO");
+  assert.match(run.output, /Migration ordering\.+ FAIL/, "MIGRATION_ORDERING_FAIL_REPORTED=NO");
+  assert.match(run.output, /aborting before any database action/, "the abort was not reported");
+
+  // The load-bearing assertions: no database-facing step was reached. With PATH empty,
+  // reaching one would surface as a spawn failure naming it.
+  assert.doesNotMatch(run.output, /Fresh apply/, "APPLY_REACHED=YES — execution continued past the inventory gate");
+  assert.doesNotMatch(run.output, /\bpsql\b/i, "DATABASE_COMMAND_REACHED=YES (psql)");
+  assert.doesNotMatch(run.output, /supabase link|migration list|db push|npx/i, "DATABASE_COMMAND_REACHED=YES (supabase CLI)");
+  assert.doesNotMatch(run.output, /ENOENT|spawnSync/i, "a spawn was attempted, so an apply function was entered");
+});
+
+test("invalid migration inventory ABORTS before any database action (hosted mode)", () => {
+  // The abort sits ABOVE the mode branch, so one gate covers both. This proves it rather
+  // than asserting it from code shape: hosted mode needs all three hosted variables, and
+  // the run must still stop at the inventory phase without a link or a migration list.
+  // The ALLOWLISTED validation ref, so the run gets past the environment safety guard and
+  // actually reaches the inventory phase. (A non-allowlisted ref is refused even earlier,
+  // which is correct but would not exercise this remediation.) PATH is still empty, so no
+  // Supabase CLI exists and nothing destructive is reachable regardless.
+  const run = runGateInIsolatedTree(["20260904120000_alpha.sql", "20260904120000_beta.sql"], {
+    FRESH_DB_URL: "",
+    SUPABASE_DB_URL: `postgresql://postgres:pw@db.${HOSTED_ALLOWED_VALIDATION_REFS[0]}.supabase.co:5432/postgres`,
+    SUPABASE_ACCESS_TOKEN: "sbp_not_a_real_token",
+    SUPABASE_PROJECT_REF: HOSTED_ALLOWED_VALIDATION_REFS[0],
+    FRESH_DB_EXPECTED_PROJECT_REF: HOSTED_ALLOWED_VALIDATION_REFS[0],
+  });
+  assert.notEqual(run.status, 0, "EXIT_NONZERO=NO in hosted mode");
+  assert.match(run.output, /Migration inventory\.+ FAIL/, "the inventory failure was not reported in hosted mode");
+  assert.match(run.output, /aborting before any database action/, "the hosted run did not abort at the inventory gate");
+  assert.doesNotMatch(run.output, /supabase link|migration list|db push/i, "APPLY_HOSTED_REACHED=YES");
+  assert.doesNotMatch(run.output, /Fresh apply/, "execution continued past the inventory gate in hosted mode");
+});
+
+test("a VALID migration inventory still proceeds past the inventory phase", () => {
+  // Non-regression, proven at an observable boundary: with PATH empty the apply step must
+  // be REACHED and fail there — which is exactly what the invalid case must never do.
+  const run = runGateInIsolatedTree(["20260904120000_alpha.sql", "20260905120000_beta.sql"]);
+  assert.match(run.output, /Migration inventory\.+ PASS/, "a valid inventory was reported as failing");
+  assert.match(run.output, /Migration ordering\.+ PASS/, "a valid ordering was reported as failing");
+  assert.doesNotMatch(run.output, /aborting before any database action/, "a valid inventory was aborted at the gate");
+  assert.match(run.output, /Fresh apply/, "a valid inventory did not reach the apply phase");
 });

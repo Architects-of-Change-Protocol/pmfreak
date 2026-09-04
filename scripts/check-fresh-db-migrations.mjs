@@ -2068,6 +2068,19 @@ function main() {
   if (inventoryErrors.length > 0) {
     inventoryErrors.forEach((e) => console.error(`  - ${e}`));
     process.exitCode = 1;
+    // HARD PRECONDITION, not merely a failed exit code. This used to fall through: the
+    // gate recorded "Migration inventory FAIL", set exitCode 1, and then carried on into
+    // applyLocal/applyHosted anyway — so a source tree it had already judged invalid
+    // (duplicate timestamps, malformed filenames, ordering defects) still reached
+    // `psql`, `supabase link`, target classification and potentially `db push`. Exit
+    // status is not side-effect prevention.
+    //
+    // The abort sits ABOVE the mode branch on purpose: one gate covers verify-only,
+    // local and hosted, so no future mode can be added below it and quietly bypass it.
+    results.push(["Decision", "FAIL — invalid migration inventory; NO database action attempted"]);
+    console.error("  aborting before any database action: the migration source is invalid");
+    printAndWriteReport(results.map(([k, v]) => `${k.padEnd(26, ".")} ${v}`));
+    return;
   }
 
   if (mode === "verify-only") {
