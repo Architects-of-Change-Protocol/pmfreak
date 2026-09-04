@@ -507,6 +507,13 @@ function parseHostedMigrationList(output, localTimestamps) {
   // paired. The table is still malformed, and it deduplicated into a remote set equal to
   // local history and certified as REPEATABILITY.
   const localOnly = [...new Set(rows.filter((r) => r.local && !r.remote).map((r) => r.local))];
+  // PROVENANCE, which row shape alone cannot express. `localOnly` is the canonical shape
+  // of a fresh target, so it can never be an anomaly by itself — but a Local cell naming a
+  // migration this repository does not have is unexplainable in EITHER direction. It made
+  // `A|A`, `B|B`, `X|` read as repeatability (the remote set still equalled local history)
+  // and `A|`, `B|`, `X|` read as fresh (every row was legitimately local-only).
+  const expectedLocal = new Set(localTimestamps);
+  const unexpectedLocal = [...new Set(rows.map((r) => r.local).filter((v) => v && !expectedLocal.has(v)))];
   const localSeen = new Map();
   for (const r of rows) if (r.local) localSeen.set(r.local, (localSeen.get(r.local) ?? 0) + 1);
   const duplicateLocal = [...localSeen.entries()].filter(([, n]) => n > 1).map(([v, n]) => `${v}x${n}`);
@@ -524,6 +531,7 @@ function parseHostedMigrationList(output, localTimestamps) {
     mismatchedPairs,
     duplicateRemote,
     localOnly,
+    unexpectedLocal,
     duplicateLocal,
     matchedCount: remoteSet.size,
     matchedRows,
@@ -569,6 +577,7 @@ function classifyHostedTarget(remoteVersions, localVersions, pairing = null) {
       ...(pairing.unexpectedRemote ?? []).map((v) => `remote-only ${v}`),
       ...(pairing.duplicateRemote ?? []).map((v) => `duplicate remote ${v}`),
       ...(pairing.duplicateLocal ?? []).map((v) => `duplicate local ${v}`),
+      ...(pairing.unexpectedLocal ?? []).map((v) => `unknown local ${v}`),
     ];
     if (oneSided.length > 0) {
       return {
@@ -1911,6 +1920,22 @@ function recognizeMigrationListRows(rows, localTimestamps) {
         "migration; a shifted or misparsed table is never classifiable as history.",
     };
   }
+  // Refused HERE, at recognition, and not only at classification. A Local version the
+  // repository cannot explain means the table is not understood, and recognition failure
+  // aborts before any classification — which is what protects the FRESH path, where the
+  // classifier never sees a remote version to object to. `classifyHostedTarget` repeats
+  // the refusal for callers that reach it directly.
+  const unknownLocal = [...new Set(rows.map((r) => r.local).filter((v) => v && !locals.includes(v)))];
+  if (unknownLocal.length > 0) {
+    return {
+      ok: false,
+      reason:
+        `UNRECOGNIZED_OUTPUT: the parsed migration table names ${unknownLocal.length} Local migration ` +
+        `version(s) that this repository does not contain (${unknownLocal.slice(0, 5).join(", ")}` +
+        `${unknownLocal.length > 5 ? ", ..." : ""}). A Local cell naming an unknown migration is not ` +
+        "classifiable as either a fresh target or a matching history.",
+    };
+  }
   const seenLocal = new Set(rows.map((r) => r.local).filter(Boolean));
   const unaccounted = locals.filter((v) => !seenLocal.has(v));
   if (unaccounted.length > 0) {
@@ -1948,6 +1973,12 @@ function verifyHostedRepeatability(files) {
         `${parsed.mismatchedPairs.length} migration row(s) pair a Local version with a DIFFERENT Remote version ` +
         `(${parsed.mismatchedPairs.slice(0, 5).join(", ")}${parsed.mismatchedPairs.length > 5 ? ", ..." : ""}). ` +
         "A shifted or misparsed table is never repeatability.",
+    };
+  }
+  if (parsed.unexpectedLocal.length > 0) {
+    return {
+      ok: false,
+      reason: `${parsed.unexpectedLocal.length} Local migration version(s) in the hosted table are not present in this repository (${parsed.unexpectedLocal.slice(0, 5).join(", ")}); an unexplainable Local cell is never repeatability`,
     };
   }
   if (parsed.duplicateLocal.length > 0) {

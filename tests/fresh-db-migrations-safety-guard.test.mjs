@@ -2094,3 +2094,107 @@ test("readHostedMigrationVersions: the pairing record is DERIVED from the parser
   assert.doesNotMatch(pairing, /matchedRows:|unexpectedRemote:|duplicateRemote:|localOnly:|duplicateLocal:/,
     "the pairing record went back to naming parser fields by hand, which is how a field gets dropped");
 });
+
+// ─── Unexpected Local migration provenance (remediation 23) ───────────────
+//
+// Row SHAPE cannot express provenance. `localOnly` is the canonical shape of a fresh
+// target, so it is never an anomaly by itself — but a Local cell naming a migration this
+// repository does not contain is unexplainable in either direction. It made
+//   A|A  B|B  X|   read as REPEATABILITY (the remote set still equalled local history)
+//   A|   B|   X|   read as FRESH        (every row was legitimately local-only)
+
+const LOCALS = ["20260428120000", "20260501000000"];
+const UNKNOWN_LOCAL = "20260601000000";
+const migrationTable = (rows) =>
+  ["   Local      | Remote     | Time", "  -----------|------------|------", ...rows].join("\n");
+const migrationRow = (local, remote) => `   ${local ?? ""}   |   ${remote ?? ""}   | x`;
+
+const MALFORMED_REPEATABILITY = migrationTable([
+  migrationRow(LOCALS[0], LOCALS[0]),
+  migrationRow(LOCALS[1], LOCALS[1]),
+  migrationRow(UNKNOWN_LOCAL, null),
+]);
+const MALFORMED_FRESH = migrationTable([
+  migrationRow(LOCALS[0], null),
+  migrationRow(LOCALS[1], null),
+  migrationRow(UNKNOWN_LOCAL, null),
+]);
+
+test("parseHostedMigrationList: an UNKNOWN Local version is recorded as unexpectedLocal", () => {
+  const parsed = parseHostedMigrationList(MALFORMED_REPEATABILITY, LOCALS);
+  assert.deepEqual(parsed.unexpectedLocal, [UNKNOWN_LOCAL], `the unknown Local version was not recorded: ${JSON.stringify(parsed.unexpectedLocal)}`);
+  // The facts that let it through are all still true, which is why a new one was needed.
+  assert.deepEqual(parsed.mismatchedPairs, []);
+  assert.deepEqual(parsed.duplicateLocal, []);
+  assert.deepEqual(parsed.duplicateRemote, []);
+  assert.deepEqual(parsed.unexpectedRemote, []);
+  assert.deepEqual(parsed.pendingLocal, [], "both expected locals are paired, so none is pending");
+  assert.equal(parsed.matchedRows, 2);
+  // localOnly keeps its ROW-SHAPE meaning and is not redefined.
+  assert.deepEqual(parsed.localOnly, [UNKNOWN_LOCAL], "localOnly must still mean Local populated / Remote blank");
+});
+
+test("CASE A — malformed repeatability is REFUSED, and never reaches a push", () => {
+  const parsed = parseHostedMigrationList(MALFORMED_REPEATABILITY, LOCALS);
+  // UNEXPECTED_LOCAL_DETECTED=YES
+  assert.equal(parsed.unexpectedLocal.length, 1);
+  // Refused at recognition, the earliest point...
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS).ok, false, "recognition accepted an unknown Local version");
+  // ...and again at classification, for callers that reach it directly.
+  const remote = [...new Set(parsed.rows.map((r) => r.remote).filter(Boolean))];
+  const { rows: _r, ...evidence } = parsed;
+  const classified = classifyHostedTarget(remote, LOCALS, { ...evidence, localMigrationCount: 2 });
+  assert.equal(classified.mode, "fail", `REPEATABILITY=NO expected, got ${classified.mode}`);
+  assert.match(String(classified.reason), /unknown local/, `the anomaly was not named: ${classified.reason}`);
+
+  // LIVE PATH: through the real applyHosted runner seam.
+  const { result, calls } = applyHostedWithMigrationList(MALFORMED_REPEATABILITY, ["20260428120000_a.sql", "20260501000000_b.sql"]);
+  assert.equal(result.ok, false, "the live apply path accepted an unknown Local version");
+  assert.match(String(result.reason), /does not contain|unknown local/i, `the actionable reason was lost: ${result.reason}`);
+  assert.equal(calls.some((c) => c.includes("push")), false, `DB_PUSH_REACHED: ${calls.join(" | ")}`);
+});
+
+test("CASE B — malformed FRESH is REFUSED, and never reaches a push", () => {
+  const parsed = parseHostedMigrationList(MALFORMED_FRESH, LOCALS);
+  assert.equal(parsed.unexpectedLocal.length, 1, "UNEXPECTED_LOCAL_DETECTED=NO");
+  // The fresh path is why recognition, not classification alone, has to refuse: with an
+  // empty remote history the classifier has no remote version to object to.
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS).ok, false, "recognition accepted an unknown Local version on a fresh target");
+  const { rows: _r, ...evidence } = parsed;
+  const classified = classifyHostedTarget([], LOCALS, { ...evidence, localMigrationCount: 2 });
+  assert.equal(classified.mode, "fail", `FRESH=NO expected, got ${classified.mode}`);
+
+  const { result, calls } = applyHostedWithMigrationList(MALFORMED_FRESH, ["20260428120000_a.sql", "20260501000000_b.sql"]);
+  assert.equal(result.ok, false, "the live apply path accepted a malformed fresh target");
+  assert.equal(calls.some((c) => c.includes("push")), false, `DB_PUSH_REACHED: ${calls.join(" | ")}`);
+});
+
+test("CASE C — a legitimate FRESH target is still accepted", () => {
+  const clean = migrationTable([migrationRow(LOCALS[0], null), migrationRow(LOCALS[1], null)]);
+  const parsed = parseHostedMigrationList(clean, LOCALS);
+  assert.deepEqual(parsed.unexpectedLocal, [], "a legitimate fresh target reported an unknown Local version");
+  assert.equal(parsed.localOnly.length, 2, "every row on a fresh target is local-only");
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS).ok, true, "a legitimate fresh table was not recognized");
+  const { rows: _r, ...evidence } = parsed;
+  assert.equal(classifyHostedTarget([], LOCALS, { ...evidence, localMigrationCount: 2 }).mode, "fresh",
+    "a legitimate fresh target was refused");
+});
+
+test("CASE D — legitimate REPEATABILITY is still accepted", () => {
+  const clean = migrationTable([migrationRow(LOCALS[0], LOCALS[0]), migrationRow(LOCALS[1], LOCALS[1])]);
+  const parsed = parseHostedMigrationList(clean, LOCALS);
+  assert.deepEqual(parsed.unexpectedLocal, [], "a legitimate history reported an unknown Local version");
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS).ok, true, "a legitimate history was not recognized");
+  const { rows: _r, ...evidence } = parsed;
+  assert.equal(classifyHostedTarget(LOCALS, LOCALS, { ...evidence, localMigrationCount: 2 }).mode, "repeatability",
+    "a legitimate matching history was refused");
+});
+
+test("verifyHostedRepeatability refuses an unknown Local version independently", () => {
+  // It consumes parser output directly, so it carries its own refusal rather than relying
+  // on a caller having gone through recognition first.
+  const source = readFileSync(SCRIPT, "utf8");
+  const verifySrc = source.slice(source.indexOf("function verifyHostedRepeatability"));
+  assert.match(verifySrc.slice(0, verifySrc.indexOf("return { ok: true")), /parsed\.unexpectedLocal\.length > 0/,
+    "verifyHostedRepeatability does not refuse unknown Local versions");
+});
