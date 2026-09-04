@@ -471,11 +471,24 @@ function parseHostedMigrationList(output, localTimestamps) {
   // CLI chatter out of the row set while still accepting both cell forms.
   const linePattern = /^([^|\n]*)\|([^|\n]*)\|/gm;
   const rows = [];
+  const malformedMigrationRows = [];
   let match;
   while ((match = linePattern.exec(output)) !== null) {
     const local = parseMigrationCell(match[1]);
     const remote = parseMigrationCell(match[2]);
-    if (local === undefined || remote === undefined) continue; // not a row
+    if (local === undefined || remote === undefined) {
+      // PARTIALLY PARSEABLE, which is not the same as chatter. Skipping a row whenever
+      // EITHER cell failed to parse threw away rows whose OTHER cell held a perfectly
+      // valid migration version: `garbage | 20260601000000` vanished, and what remained
+      // read as a complete matching history (REPEATABILITY) or as an untouched target
+      // (FRESH). A header or separator has NO valid timestamp on either side and is still
+      // ignored; a row with one real version and one cell we could not understand is a
+      // migration row this parser did not understand, and it fails closed.
+      const carriesAVersion =
+        (local !== undefined && local !== null) || (remote !== undefined && remote !== null);
+      if (carriesAVersion) malformedMigrationRows.push(`${match[1].trim()}|${match[2].trim()}`);
+      continue;
+    }
     if (local === null && remote === null) continue; // blank filler line
     rows.push({ local, remote });
   }
@@ -530,6 +543,7 @@ function parseHostedMigrationList(output, localTimestamps) {
     unexpectedRemote: remoteOnly,
     mismatchedPairs,
     duplicateRemote,
+    malformedMigrationRows,
     localOnly,
     unexpectedLocal,
     duplicateLocal,
@@ -578,6 +592,7 @@ function classifyHostedTarget(remoteVersions, localVersions, pairing = null) {
       ...(pairing.duplicateRemote ?? []).map((v) => `duplicate remote ${v}`),
       ...(pairing.duplicateLocal ?? []).map((v) => `duplicate local ${v}`),
       ...(pairing.unexpectedLocal ?? []).map((v) => `unknown local ${v}`),
+      ...(pairing.malformedMigrationRows ?? []).map((v) => `unreadable row ${v}`),
     ];
     if (oneSided.length > 0) {
       return {
@@ -1855,7 +1870,7 @@ function readHostedMigrationVersions(localTimestamps, runner = runNpx) {
     return { ok: false, failure: describeSpawnResult(list, "npx supabase migration list --linked"), stderr: list.stderr };
   }
   const parsed = parseHostedMigrationList(list.stdout ?? "", localTimestamps);
-  const recognition = recognizeMigrationListRows(parsed.rows, localTimestamps);
+  const recognition = recognizeMigrationListRows(parsed.rows, localTimestamps, parsed.malformedMigrationRows);
   if (!recognition.ok) return { ok: false, reason: recognition.reason };
   // ONE evidence object, DERIVED rather than re-listed.
   //
@@ -1894,8 +1909,20 @@ function readHostedMigrationVersions(localTimestamps, runner = runNpx) {
 }
 
 // Pure, so the invariant is unit-testable without a CLI.
-function recognizeMigrationListRows(rows, localTimestamps) {
+function recognizeMigrationListRows(rows, localTimestamps, malformedRows = []) {
   const locals = [...new Set(localTimestamps)];
+  // Refused FIRST, and refused here rather than only at classification: on the fresh
+  // shape the dropped row was the only remote version in the output, so the classifier
+  // would have had nothing to object to.
+  if (malformedRows.length > 0) {
+    return {
+      ok: false,
+      reason:
+        `UNRECOGNIZED_OUTPUT: ${malformedRows.length} migration row(s) carry a valid migration version ` +
+        `alongside a cell this parser could not read (${malformedRows.slice(0, 5).join(", ")}` +
+        `${malformedRows.length > 5 ? ", ..." : ""}). A partially understood row is never dropped as chatter.`,
+    };
+  }
   if (locals.length === 0) return { ok: true };
   if (rows.length === 0) {
     return {
@@ -1973,6 +2000,12 @@ function verifyHostedRepeatability(files) {
         `${parsed.mismatchedPairs.length} migration row(s) pair a Local version with a DIFFERENT Remote version ` +
         `(${parsed.mismatchedPairs.slice(0, 5).join(", ")}${parsed.mismatchedPairs.length > 5 ? ", ..." : ""}). ` +
         "A shifted or misparsed table is never repeatability.",
+    };
+  }
+  if (parsed.malformedMigrationRows.length > 0) {
+    return {
+      ok: false,
+      reason: `${parsed.malformedMigrationRows.length} migration row(s) could not be fully read (${parsed.malformedMigrationRows.slice(0, 5).join(", ")}); a partially parseable row is never repeatability`,
     };
   }
   if (parsed.unexpectedLocal.length > 0) {

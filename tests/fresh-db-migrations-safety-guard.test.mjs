@@ -2286,3 +2286,134 @@ test("a VALID migration inventory still proceeds past the inventory phase", () =
   assert.doesNotMatch(run.output, /aborting before any database action/, "a valid inventory was aborted at the gate");
   assert.match(run.output, /Fresh apply/, "a valid inventory did not reach the apply phase");
 });
+
+// ─── Partially-parseable migration rows (remediation 25) ──────────────────
+//
+// The parser skipped a row whenever EITHER cell failed to parse, which threw away rows
+// whose OTHER cell held a perfectly valid migration version. `garbage | X` vanished, and
+// what remained read as a complete matching history (REPEATABILITY) or as an untouched
+// target (FRESH). Headers and separators carry no valid version on either side and must
+// stay ignorable.
+
+const GARBAGE_REMOTE = migrationTable([
+  migrationRow(LOCALS[0], LOCALS[0]),
+  migrationRow(LOCALS[1], LOCALS[1]),
+  migrationRow("garbage", UNKNOWN_LOCAL),
+]);
+const GARBAGE_REMOTE_FRESH = migrationTable([
+  migrationRow(LOCALS[0], null),
+  migrationRow(LOCALS[1], null),
+  migrationRow("garbage", UNKNOWN_LOCAL),
+]);
+const GARBAGE_LOCAL_SIDE = migrationTable([
+  migrationRow(LOCALS[0], "garbage"),
+  migrationRow(LOCALS[1], LOCALS[1]),
+]);
+
+test("parseHostedMigrationList: a partially-parseable row is recorded, not dropped", () => {
+  const parsed = parseHostedMigrationList(GARBAGE_REMOTE, LOCALS);
+  assert.equal(parsed.malformedMigrationRows.length, 1, "the partially-parseable row was dropped as chatter");
+  assert.match(parsed.malformedMigrationRows[0], /garbage\|20260601000000/, `unexpected evidence: ${parsed.malformedMigrationRows[0]}`);
+  // Everything else still looks clean, which is exactly why the row had to be recorded.
+  assert.equal(parsed.matchedRows, 2);
+  assert.deepEqual(parsed.mismatchedPairs, []);
+  assert.deepEqual(parsed.unexpectedRemote, []);
+  assert.deepEqual(parsed.unexpectedLocal, []);
+});
+
+test("CASE A — a dropped row must not yield REPEATABILITY, and never reaches a push", () => {
+  const parsed = parseHostedMigrationList(GARBAGE_REMOTE, LOCALS);
+  assert.equal(parsed.malformedMigrationRows.length, 1, "MALFORMED_ROW_DETECTED=NO");
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS, parsed.malformedMigrationRows).ok, false,
+    "recognition accepted a partially-parseable row");
+  const { rows: _r, ...evidence } = parsed;
+  const remote = [...new Set(parsed.rows.map((r) => r.remote).filter(Boolean))];
+  const classified = classifyHostedTarget(remote, LOCALS, { ...evidence, localMigrationCount: 2 });
+  assert.equal(classified.mode, "fail", `REPEATABILITY=NO expected, got ${classified.mode}`);
+  assert.match(String(classified.reason), /unreadable row/, `the anomaly was not named: ${classified.reason}`);
+
+  const { result, calls } = applyHostedWithMigrationList(GARBAGE_REMOTE, ["20260428120000_a.sql", "20260501000000_b.sql"]);
+  assert.equal(result.ok, false, "the live apply path accepted a partially-parseable row");
+  assert.match(String(result.reason), /could not read|unreadable row/i, `the actionable reason was lost: ${result.reason}`);
+  assert.equal(calls.some((c) => c.includes("push")), false, `DB_PUSH_REACHED: ${calls.join(" | ")}`);
+});
+
+test("CASE B — a dropped row must not yield FRESH, and never reaches a push", () => {
+  const parsed = parseHostedMigrationList(GARBAGE_REMOTE_FRESH, LOCALS);
+  assert.equal(parsed.malformedMigrationRows.length, 1, "MALFORMED_ROW_DETECTED=NO");
+  // The fresh shape is why recognition carries the refusal: the dropped row held the ONLY
+  // remote version, so the classifier's set logic would have had nothing to object to.
+  const remote = [...new Set(parsed.rows.map((r) => r.remote).filter(Boolean))];
+  assert.deepEqual(remote, [], "precondition: the surviving rows leave the remote history empty");
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS, parsed.malformedMigrationRows).ok, false,
+    "recognition accepted a partially-parseable row on a fresh target");
+  const { rows: _r, ...evidence } = parsed;
+  assert.equal(classifyHostedTarget(remote, LOCALS, { ...evidence, localMigrationCount: 2 }).mode, "fail",
+    "FRESH=NO expected");
+
+  const { result, calls } = applyHostedWithMigrationList(GARBAGE_REMOTE_FRESH, ["20260428120000_a.sql", "20260501000000_b.sql"]);
+  assert.equal(result.ok, false, "the live apply path accepted a malformed fresh target");
+  assert.equal(calls.some((c) => c.includes("push")), false, `DB_PUSH_REACHED: ${calls.join(" | ")}`);
+});
+
+test("CASE C — the OPPOSITE malformed side is refused too", () => {
+  const parsed = parseHostedMigrationList(GARBAGE_LOCAL_SIDE, LOCALS);
+  assert.equal(parsed.malformedMigrationRows.length, 1, "a valid Local with an unreadable Remote was dropped");
+  assert.match(parsed.malformedMigrationRows[0], /20260428120000\|garbage/, `unexpected evidence: ${parsed.malformedMigrationRows[0]}`);
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS, parsed.malformedMigrationRows).ok, false, "recognition accepted it");
+  const { rows: _r, ...evidence } = parsed;
+  const remote = [...new Set(parsed.rows.map((r) => r.remote).filter(Boolean))];
+  assert.equal(classifyHostedTarget(remote, LOCALS, { ...evidence, localMigrationCount: 2 }).mode, "fail", "classification accepted it");
+});
+
+test("CASE D — headers and separators remain ignorable chatter", () => {
+  // Neither side carries a valid version, so nothing is flagged.
+  const parsed = parseHostedMigrationList(migrationTable([]), LOCALS);
+  assert.deepEqual(parsed.malformedMigrationRows, [], "a header or separator was treated as migration corruption");
+  const noisy = [
+    "Connecting to remote database...",
+    "   Local      | Remote     | Time",
+    "  -----------|------------|------",
+    "   20260428120000 | 20260428120000 | 2026-04-28",
+    "   20260501000000 | 20260501000000 | 2026-05-01",
+    "Finished supabase migration list.",
+  ].join("\n");
+  const parsedNoisy = parseHostedMigrationList(noisy, LOCALS);
+  assert.deepEqual(parsedNoisy.malformedMigrationRows, [], "ordinary CLI chatter was treated as migration corruption");
+  assert.equal(parsedNoisy.matchedRows, 2, "the genuine rows were lost");
+});
+
+test("CASE E — a legitimate FRESH target is unaffected", () => {
+  const clean = migrationTable([migrationRow(LOCALS[0], null), migrationRow(LOCALS[1], null)]);
+  const parsed = parseHostedMigrationList(clean, LOCALS);
+  assert.deepEqual(parsed.malformedMigrationRows, [], "MALFORMED_ROW_DETECTED=YES on a clean fresh table");
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS, parsed.malformedMigrationRows).ok, true, "a clean fresh table was refused");
+  const { rows: _r, ...evidence } = parsed;
+  assert.equal(classifyHostedTarget([], LOCALS, { ...evidence, localMigrationCount: 2 }).mode, "fresh", "FRESH was lost");
+});
+
+test("CASE F — legitimate REPEATABILITY is unaffected", () => {
+  const clean = migrationTable([migrationRow(LOCALS[0], LOCALS[0]), migrationRow(LOCALS[1], LOCALS[1])]);
+  const parsed = parseHostedMigrationList(clean, LOCALS);
+  assert.deepEqual(parsed.malformedMigrationRows, [], "MALFORMED_ROW_DETECTED=YES on a clean history");
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS, parsed.malformedMigrationRows).ok, true, "a clean history was refused");
+  const { rows: _r, ...evidence } = parsed;
+  assert.equal(classifyHostedTarget(LOCALS, LOCALS, { ...evidence, localMigrationCount: 2 }).mode, "repeatability", "REPEATABILITY was lost");
+});
+
+test("blank-cell row shapes still parse normally", () => {
+  // timestamp|blank, blank|timestamp and blank|blank keep their existing meanings.
+  const shapes = migrationTable([migrationRow(LOCALS[0], null), migrationRow(null, LOCALS[1]), migrationRow(null, null)]);
+  const parsed = parseHostedMigrationList(shapes, LOCALS);
+  assert.deepEqual(parsed.malformedMigrationRows, [], "a blank cell was treated as unreadable");
+  assert.equal(parsed.rows.length, 2, "blank|blank was not ignored, or a valid shape was lost");
+  assert.deepEqual(parsed.localOnly, [LOCALS[0]], "timestamp|blank lost its local-only meaning");
+  assert.deepEqual(parsed.unexpectedRemote, [LOCALS[1]], "blank|timestamp lost its remote-only meaning");
+});
+
+test("verifyHostedRepeatability refuses partially-parseable rows independently", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  const verifySrc = source.slice(source.indexOf("function verifyHostedRepeatability"));
+  assert.match(verifySrc.slice(0, verifySrc.indexOf("return { ok: true")), /parsed\.malformedMigrationRows\.length > 0/,
+    "verifyHostedRepeatability does not refuse partially-parseable rows");
+});
