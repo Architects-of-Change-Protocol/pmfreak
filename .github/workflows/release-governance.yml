@@ -107,12 +107,20 @@ jobs:
         if: always()
         run: npx -y supabase stop --no-backup
 
+      # `.beta-release-logs/` is a DOTFILE path, and upload-artifact@v4 excludes hidden
+      # files by default — so the gate's per-test TAP output existed on the runner and was
+      # never uploaded. With `if-no-files-found: warn` the step also went green, which is
+      # how run 33884190936 failed one test and left no way to learn which: the job log
+      # keeps only the tail after the failure. `warn` is kept deliberately (a cancelled run
+      # before the gate writes anything must not fail the job); the hidden-file inclusion is
+      # what makes the logs actually arrive.
       - name: Upload beta release gate logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: beta-release-logs-${{ github.run_id }}
           path: .beta-release-logs/
+          include-hidden-files: true
           if-no-files-found: warn
 
   release:
