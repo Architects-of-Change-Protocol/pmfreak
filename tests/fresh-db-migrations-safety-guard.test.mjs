@@ -1957,15 +1957,140 @@ test("applyHosted: a genuinely clean history still classifies (the fix refuses n
 });
 
 test("readHostedMigrationVersions: the pairing record carries EVERY parser anomaly field", () => {
-  // Structural: the handoff object is what applyHosted forwards wholesale, so a field the
-  // parser produces must appear here or it can be dropped again.
-  const source = readFileSync(SCRIPT, "utf8");
-  const pairing = source.slice(source.indexOf("const pairing = {"), source.indexOf("localMigrationCount:", source.indexOf("const pairing = {")));
-  for (const field of ["matchedRows", "mismatchedPairs", "unexpectedRemote", "duplicateRemote", "pendingLocal"]) {
-    assert.match(pairing, new RegExp(`${field}:`), `the pairing record omits ${field}`);
+  // Behavioural, not textual. Remediation 21 asserted this by grepping for field NAMES in
+  // the hand-written record — which could only ever prove the fields someone remembered to
+  // name. The record is now spread from the parser, so the property is checked the only way
+  // that actually proves it: every key the parser produces (except the raw rows) must
+  // appear in what classification receives.
+  const parsed = parseHostedMigrationList(LOCAL_ONLY_TABLE, ["20260428120000", "20260501000000"]);
+  const expected = Object.keys(parsed).filter((k) => k !== "rows").sort();
+  let seen = null;
+  const savedEnv = { ...process.env };
+  const savedExit = process.exitCode;
+  try {
+    Object.assign(process.env, {
+      SUPABASE_PROJECT_REF: REF,
+      FRESH_DB_EXPECTED_PROJECT_REF: REF,
+      SUPABASE_DB_URL: `postgresql://postgres:pw@db.${REF}.supabase.co:5432/postgres`,
+      SUPABASE_ACCESS_TOKEN: "sbp_test_token_not_real",
+    });
+    const runner = (args) => args.includes("link")
+      ? { status: 0, stdout: "", stderr: "" }
+      : { status: 0, stdout: LOCAL_ONLY_TABLE, stderr: "" };
+    const history = readHostedMigrationVersions(["20260428120000", "20260501000000"], runner);
+    assert.equal(history.ok, true, `the migration list was not recognized: ${history.reason ?? ""}`);
+    seen = Object.keys(history.pairing).sort();
+  } finally {
+    for (const k of Object.keys(process.env)) if (!(k in savedEnv)) delete process.env[k];
+    Object.assign(process.env, savedEnv);
+    process.exitCode = savedExit;
   }
-  // And applyHosted must forward it wholesale rather than re-listing fields.
+  for (const key of expected) {
+    assert.ok(seen.includes(key), `the pairing record drops the parser field ${key}`);
+  }
+  assert.ok(seen.includes("localMigrationCount"), "the pairing record lost localMigrationCount");
+
+  // ...and applyHosted must forward it wholesale rather than re-listing fields.
+  const source = readFileSync(SCRIPT, "utf8");
   const applySrc = source.slice(source.indexOf("function applyHosted"));
   assert.match(applySrc.slice(0, applySrc.indexOf("db push")), /classifyHostedTarget\(history\.remoteVersions, localTimestamps, history\.pairing\)/,
     "applyHosted no longer forwards the whole pairing record");
+});
+
+// ─── Local-side one-sided row anomalies (remediation 22) ──────────────────
+//
+// `pendingLocal` answers "does this version have a correctly paired row ANYWHERE", so a
+// stray local-only row for a version that IS paired elsewhere vanishes from it. The table
+//
+//     A | A
+//     B | B
+//     A |
+//
+// therefore produced every anomaly field empty, deduplicated to a remote set equal to
+// local history, and certified as REPEATABILITY.
+
+const LOCAL_ONLY_TABLE = [
+  "   Local      | Remote     | Time",
+  "  -----------|------------|------",
+  "   20260428120000 | 20260428120000 | 2026-04-28",
+  "   20260501000000 | 20260501000000 | 2026-05-01",
+  "   20260428120000 |                | 2026-04-28",
+].join("\n");
+
+test("parseHostedMigrationList: a stray LOCAL-ONLY row is preserved as explicit evidence", () => {
+  const parsed = parseHostedMigrationList(LOCAL_ONLY_TABLE, ["20260428120000", "20260501000000"]);
+  // The facts that made this invisible are all still true...
+  assert.equal(parsed.matchedRows, 2, "both genuine pairs must still match");
+  assert.deepEqual(parsed.mismatchedPairs, [], "no row has two disagreeing cells");
+  assert.deepEqual(parsed.duplicateRemote, [], "the remote column carries no duplicate");
+  assert.deepEqual(parsed.unexpectedRemote, [], "there is no remote-only row");
+  assert.deepEqual(parsed.pendingLocal, [], "A is paired elsewhere, so it is not pending — this is the blind spot");
+  // ...and the anomaly is now recorded on the local side.
+  assert.deepEqual(parsed.localOnly, ["20260428120000"], `the local-only row was not recorded: ${JSON.stringify(parsed.localOnly)}`);
+  assert.equal(parsed.duplicateLocal.length, 1, "the duplicated local version was not recorded");
+  assert.match(parsed.duplicateLocal[0], /^20260428120000x2$/, `unexpected duplicate-local evidence: ${parsed.duplicateLocal[0]}`);
+});
+
+test("parseHostedMigrationList: a DUPLICATE matched local row is recorded on both sides", () => {
+  const dup = [
+    "   Local      | Remote     | Time",
+    "  -----------|------------|------",
+    "   20260428120000 | 20260428120000 | 2026-04-28",
+    "   20260428120000 | 20260428120000 | 2026-04-28",
+    "   20260501000000 | 20260501000000 | 2026-05-01",
+  ].join("\n");
+  const parsed = parseHostedMigrationList(dup, ["20260428120000", "20260501000000"]);
+  // duplicateRemote already caught this shape; duplicateLocal is asserted deliberately
+  // rather than assumed to be covered by it.
+  assert.equal(parsed.duplicateRemote.length, 1, "the duplicated remote version was not recorded");
+  assert.equal(parsed.duplicateLocal.length, 1, "the duplicated local version was not recorded");
+});
+
+test("parseHostedMigrationList: local-only rows are NORMAL on a fresh target", () => {
+  // Every row is local-only against an empty remote; that must not be an anomaly.
+  const fresh = [
+    "   Local      | Remote     | Time",
+    "  -----------|------------|------",
+    "   20260428120000 |                | 2026-04-28",
+    "   20260501000000 |                | 2026-05-01",
+  ].join("\n");
+  const parsed = parseHostedMigrationList(fresh, ["20260428120000", "20260501000000"]);
+  assert.equal(parsed.localOnly.length, 2, "a fresh target's rows are local-only by definition");
+  assert.deepEqual(parsed.duplicateLocal, [], "distinct local-only rows are not duplicates");
+  const { rows: _r, ...evidence } = parsed;
+  assert.equal(classifyHostedTarget([], ["20260428120000", "20260501000000"], { ...evidence, localMigrationCount: 2 }).mode,
+    "fresh", "a fresh remote history was refused as a local-side anomaly");
+});
+
+test("applyHosted: a stray LOCAL-ONLY row cannot be normalized into REPEATABILITY", () => {
+  const files = ["20260428120000_a.sql", "20260501000000_b.sql"];
+  // Precondition: without the local-side evidence this shape reads as repeatability.
+  const parsed = parseHostedMigrationList(LOCAL_ONLY_TABLE, ["20260428120000", "20260501000000"]);
+  const remoteSet = [...new Set(parsed.rows.map((r) => r.remote).filter(Boolean))].sort();
+  assert.equal(
+    classifyHostedTarget(remoteSet, ["20260428120000", "20260501000000"], {
+      matchedRows: parsed.matchedRows, mismatchedPairs: parsed.mismatchedPairs,
+      unexpectedRemote: parsed.unexpectedRemote, duplicateRemote: parsed.duplicateRemote,
+      pendingLocal: parsed.pendingLocal, localMigrationCount: 2,
+    }).mode,
+    "repeatability",
+    "precondition: with only the pre-remediation-22 evidence this shape reports repeatability",
+  );
+
+  const { result, calls } = applyHostedWithMigrationList(LOCAL_ONLY_TABLE, files);
+  assert.equal(result.ok, false, "a stray local-only row was accepted by the live apply path");
+  assert.equal(result.failedFile, "(hosted target classification)", `refused at the wrong stage: ${result.failedFile}`);
+  assert.match(String(result.reason), /duplicate local/, `the local-side anomaly was not named: ${result.reason}`);
+  assert.equal(calls.some((c) => c.includes("push")), false, `a destructive push was reached: ${calls.join(" | ")}`);
+});
+
+test("readHostedMigrationVersions: the pairing record is DERIVED from the parser, not re-listed", () => {
+  // Remediation 21 claimed a parser field could never again be dropped while still naming
+  // fields by hand — which was not literally true, as `localOnly`/`duplicateLocal` showed.
+  // The record is now spread from the parser's own evidence.
+  const source = readFileSync(SCRIPT, "utf8");
+  const pairing = source.slice(source.indexOf("const { rows: _rows, ...rowEvidence } = parsed;"), source.indexOf("return {", source.indexOf("const { rows: _rows")));
+  assert.match(pairing, /\.\.\.rowEvidence/, "the pairing record no longer spreads the parser's evidence");
+  assert.doesNotMatch(pairing, /matchedRows:|unexpectedRemote:|duplicateRemote:|localOnly:|duplicateLocal:/,
+    "the pairing record went back to naming parser fields by hand, which is how a field gets dropped");
 });

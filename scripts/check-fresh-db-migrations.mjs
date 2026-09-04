@@ -492,6 +492,24 @@ function parseHostedMigrationList(output, localTimestamps) {
   const remoteSeen = new Map();
   for (const r of rows) if (r.remote) remoteSeen.set(r.remote, (remoteSeen.get(r.remote) ?? 0) + 1);
   const duplicateRemote = [...remoteSeen.entries()].filter(([, n]) => n > 1).map(([v, n]) => `${v}x${n}`);
+
+  // THE LOCAL SIDE, recorded as ROW SHAPE rather than inferred from per-version facts.
+  //
+  // `localOnly` is every row carrying a Local version and a blank Remote. On a fresh
+  // target that is the NORMAL shape — the CLI lists every local migration with an empty
+  // Remote — so a local-only row is not an anomaly by itself and is recorded as evidence,
+  // not as a refusal.
+  //
+  // `duplicateLocal` is the anomaly: one local version appearing on more than one row. It
+  // is the local-side mirror of `duplicateRemote`, and it is what `pendingLocal` cannot
+  // express. `pendingLocal` answers "does this version have a correctly paired row
+  // ANYWHERE", so in `A|A`, `B|B`, `A|` the stray `A|` vanishes from it — A is already
+  // paired. The table is still malformed, and it deduplicated into a remote set equal to
+  // local history and certified as REPEATABILITY.
+  const localOnly = [...new Set(rows.filter((r) => r.local && !r.remote).map((r) => r.local))];
+  const localSeen = new Map();
+  for (const r of rows) if (r.local) localSeen.set(r.local, (localSeen.get(r.local) ?? 0) + 1);
+  const duplicateLocal = [...localSeen.entries()].filter(([, n]) => n > 1).map(([v, n]) => `${v}x${n}`);
   const remoteSet = new Set(rows.map((r) => r.remote).filter(Boolean));
   const remoteOnly = [...new Set(rows.filter((r) => r.remote && !r.local).map((r) => r.remote))];
   // Pending = a local version with no row that PAIRS it to the same remote version.
@@ -505,6 +523,8 @@ function parseHostedMigrationList(output, localTimestamps) {
     unexpectedRemote: remoteOnly,
     mismatchedPairs,
     duplicateRemote,
+    localOnly,
+    duplicateLocal,
     matchedCount: remoteSet.size,
     matchedRows,
   };
@@ -542,9 +562,13 @@ function classifyHostedTarget(remoteVersions, localVersions, pairing = null) {
           "table is never certifiable in any mode.",
       };
     }
+    // A local version on more than one row is malformed output whatever the other cells
+    // say. It is listed here rather than as its own rule because it is the same class of
+    // fact as the remote-side anomalies: a row the canonical pairing cannot explain.
     const oneSided = [
       ...(pairing.unexpectedRemote ?? []).map((v) => `remote-only ${v}`),
       ...(pairing.duplicateRemote ?? []).map((v) => `duplicate remote ${v}`),
+      ...(pairing.duplicateLocal ?? []).map((v) => `duplicate local ${v}`),
     ];
     if (oneSided.length > 0) {
       return {
@@ -1824,22 +1848,20 @@ function readHostedMigrationVersions(localTimestamps, runner = runNpx) {
   const parsed = parseHostedMigrationList(list.stdout ?? "", localTimestamps);
   const recognition = recognizeMigrationListRows(parsed.rows, localTimestamps);
   if (!recognition.ok) return { ok: false, reason: recognition.reason };
-  // ONE evidence object, assembled once. `applyHosted` forwards it WHOLESALE to
-  // `classifyHostedTarget`, so a field added to the parser can never again be recognized
-  // upstream and then silently dropped at the handoff — which is exactly what happened to
-  // `unexpectedRemote` and `duplicateRemote`: the classifier's row-anomaly refusal read
-  // them through `?? []`, so on the live path it was dead code and a malformed table
-  // (`A|A`, `B|B`, `|A`) deduplicated into an equal version set and reached REPEATABILITY.
+  // ONE evidence object, DERIVED rather than re-listed.
+  //
+  // Remediation 21 fixed the handoff but assembled this object by naming fields, and its
+  // comment claimed a parser field could never again be dropped. That claim was not
+  // literally true: adding `localOnly` and `duplicateLocal` to the parser would have
+  // required remembering to name them here too. Spreading the parser's own row evidence
+  // makes the guarantee real — everything the parser produces except the raw `rows`
+  // travels, and a future field arrives without a second edit.
+  const { rows: _rows, ...rowEvidence } = parsed;
   const pairing = {
-    matchedRows: parsed.matchedRows,
-    mismatchedPairs: parsed.mismatchedPairs,
-    unexpectedRemote: parsed.unexpectedRemote,
-    duplicateRemote: parsed.duplicateRemote,
-    // Carried for completeness of the evidence record. `classifyHostedTarget` derives
-    // `missing` from the version sets itself and enforces pairing through
-    // `matchedRows === localMigrationCount`, so it consumes no separate pendingLocal rule;
-    // none is invented here merely for symmetry.
-    pendingLocal: parsed.pendingLocal,
+    ...rowEvidence,
+    // `pendingLocal` is carried for completeness and drives no rule of its own:
+    // `classifyHostedTarget` derives `missing` from the version sets and enforces pairing
+    // through `matchedRows === localMigrationCount`.
     localMigrationCount: [...new Set(localTimestamps)].length,
   };
 
@@ -1926,6 +1948,12 @@ function verifyHostedRepeatability(files) {
         `${parsed.mismatchedPairs.length} migration row(s) pair a Local version with a DIFFERENT Remote version ` +
         `(${parsed.mismatchedPairs.slice(0, 5).join(", ")}${parsed.mismatchedPairs.length > 5 ? ", ..." : ""}). ` +
         "A shifted or misparsed table is never repeatability.",
+    };
+  }
+  if (parsed.duplicateLocal.length > 0) {
+    return {
+      ok: false,
+      reason: `${parsed.duplicateLocal.length} local migration version(s) appear on more than one row (${parsed.duplicateLocal.slice(0, 5).join(", ")}); malformed output is never repeatability`,
     };
   }
   if (parsed.duplicateRemote.length > 0) {
