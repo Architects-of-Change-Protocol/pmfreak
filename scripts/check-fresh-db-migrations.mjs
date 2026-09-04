@@ -33,6 +33,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const ROOT = process.cwd();
@@ -689,8 +690,8 @@ function classifyObjectEmptiness(counts) {
     ["user_triggers", "triggers that do not exactly match the certified stock platform baseline (extra, altered, or MISSING)"],
     ["user_event_triggers", "database-level event triggers that are not platform/extension-owned"],
     ["user_managed_schema_objects", "relations/indexes/functions/types inside managed schemas that do not exactly match the certified stock baseline (extra, altered, re-owned, or MISSING)"],
-    ["user_extensions", "installed PostgreSQL extensions outside the certified stock platform set"],
-    ["user_managed_table_rows", "stock managed platform tables carrying rows that a pristine project does not (cron.job, vault.secrets, auth.users, storage.buckets, ...)"],
+    ["user_extensions", "installed PostgreSQL extensions that are not the certified stock set at the certified versions (extra, missing, or wrong version)"],
+    ["user_managed_table_rows", "managed platform tables whose row state is not the certified pristine one (extra rows, missing bootstrap rows, altered stable content, or rows in a table a pristine project leaves empty)"],
     ["migration_rows", "PMFreak migration-history rows"],
     ["auth_users", "auth.users identities"],
     ["storage_buckets", "storage buckets"],
@@ -838,348 +839,453 @@ function classifyObservedTriggers(observed) {
  * false EMPTY followed by a destructive push.
  */
 /**
- * CERTIFIED STOCK EXTENSION BASELINE.
+ * CERTIFIED STOCK EXTENSION BASELINE — NAME **AND VERSION**.
  *
  * Every object carrying a `pg_depend` extension dependency is exempted from the object
- * inventory — which is sound only if the EXTENSION itself belongs on a pristine project.
- * It was not being checked: an operator can `CREATE EXTENSION hstore SCHEMA extensions`,
- * and every relation, function and type it ships is then `deptype = 'e'`, exempted, and
- * invisible. The target certifies as fresh while `CREATE EXTENSION IF NOT EXISTS` in the
- * migration chain now meets a pre-existing, differently-versioned installation.
+ * inventory, which is sound only if the extension belongs on a pristine project. A
+ * names-only list was not enough: `hstore` at any version is drift, but so is a STOCK
+ * extension name at a version the platform never shipped — the name matched, every
+ * object it owns stayed exempt, and the target certified fresh against a differently
+ * versioned installation that `CREATE EXTENSION IF NOT EXISTS` would then meet.
  *
- * So the installed extension SET is inventoried too, and anything outside this baseline
- * counts as application state. Names only: an extension's schema is a deployment choice
- * and its version moves with the platform, but its presence is the fact that matters.
+ * The fingerprint is `name@version@schema`. Drift in EITHER direction refuses FRESH: an
+ * extra extension, a missing one, or a version that is not the certified one. A platform
+ * upgrade therefore refuses until this list is re-certified by hand, which is intended.
  */
 const STOCK_EXTENSION_BASELINE = Object.freeze([
-  "plpgsql",
-  "pg_stat_statements",
-  "pgcrypto",
-  "uuid-ossp",
-  "supabase_vault",
-  "pg_graphql",
-  "pgjwt",
-  "pg_net",
-  "pgsodium",
-  "pg_cron",
-  "pgaudit",
-  "plpgsql_check",
-  "pgtap",
+  { name: "pg_stat_statements", version: "1.11", schema: "extensions" },
+  { name: "pgcrypto", version: "1.3", schema: "extensions" },
+  { name: "plpgsql", version: "1.0", schema: "pg_catalog" },
+  { name: "supabase_vault", version: "0.3.1", schema: "vault" },
+  { name: "uuid-ossp", version: "1.1", schema: "extensions" },
 ]);
 
+const extensionKey = (e) => `${e.name}@${e.version}@${e.schema}`;
+
+/** Classifies the installed extension set against the certified one, both directions. */
+function classifyInstalledExtensions(observed) {
+  const remaining = STOCK_EXTENSION_BASELINE.map(extensionKey);
+  const nonStock = [];
+  for (const e of observed ?? []) {
+    const index = remaining.indexOf(extensionKey(e));
+    if (index === -1) {
+      nonStock.push(extensionKey(e));
+      continue;
+    }
+    remaining.splice(index, 1);
+  }
+  return {
+    nonStockCount: nonStock.length,
+    nonStock,
+    missingStockCount: remaining.length,
+    missingStock: remaining,
+    baselineSatisfied: nonStock.length === 0 && remaining.length === 0,
+  };
+}
+
 /**
- * TABLES A PRISTINE PROJECT LEGITIMATELY HAS ROWS IN.
+ * CERTIFIED ROW STATE FOR STOCK MANAGED TABLES.
  *
- * Row emptiness used to be checked in exactly three places — `auth.users`,
- * `storage.buckets`, `storage.objects` — so a target whose only application state was a
- * scheduled `cron.job` or a `vault.secrets` entry passed with every counter at zero.
- * Rows are now counted across EVERY stock managed table, and only the platform's own
- * bookkeeping is allowed to be non-empty: the service migration ledgers, and the
- * realtime tenant bootstrap that ships with a new project.
+ * A table-name allowlist proved only "this table is normally non-empty". It did not
+ * prove "these are the stock rows", so an extra row in a permitted ledger or bootstrap
+ * table still certified as fresh. Every legitimately-populated table now carries an
+ * explicit rule, and a populated managed table WITHOUT one refuses FRESH.
  *
- * Anything else carrying rows is application state, including tables this gate has never
- * heard of — an unknown managed table is not in this list, so it must be empty.
+ *   ledger     a platform service's own migration history: exact cardinality plus a
+ *              digest over the stable key projection, so an inserted, removed or edited
+ *              ledger row is caught. Version-bound by construction.
+ *   bootstrap  rows a new project legitimately ships with: exact cardinality plus a
+ *              digest over PLATFORM DEFAULT columns only. Instance-specific values —
+ *              names, external ids, jwt secrets, timestamps — are deliberately excluded
+ *              because they vary per project and fingerprinting them would refuse every
+ *              target. The stable projection is what proves the row is bootstrap state.
+ *   history    `supabase_migrations.schema_migrations`, governed by the migration-history
+ *              contract and counted as `migration_rows`. Named here ONLY so it cannot be
+ *              laundered through the stock-row allowance; it carries no row rule.
  */
-const STOCK_MANAGED_TABLES_WITH_ROWS = Object.freeze([
-  "auth.schema_migrations",
-  "storage.migrations",
-  "realtime.schema_migrations",
-  "_realtime.schema_migrations",
-  "supabase_functions.migrations",
-  "_realtime.tenants",
-  "_realtime.extensions",
-  "_realtime.feature_flags",
-  // The CLI's own ledger; its ROW COUNT is reported separately as `migration_rows`.
-  "supabase_migrations.schema_migrations",
-]);
+const STOCK_MANAGED_ROW_RULES = Object.freeze({
+  "auth.schema_migrations": { kind: "ledger", count: 77, projection: "version", digest: "a52750ffd8d87982d5a5425be6ea91c8" },
+  "storage.migrations": { kind: "ledger", count: 63, projection: "id::text||':'||name", digest: "087989384b776815d32387b866b730df" },
+  "realtime.schema_migrations": { kind: "ledger", count: 81, projection: "version::text", digest: "e6d7261362bd5fa45276ed1b993c6b5e" },
+  "_realtime.schema_migrations": { kind: "ledger", count: 33, projection: "version::text", digest: "b206edc47893d6f354768ff7cf0ed724" },
+  "supabase_functions.migrations": { kind: "ledger", count: 2, projection: "version", digest: "38b1040e3cbc0a1c5c3be8883b827734" },
+  "_realtime.tenants": {
+    kind: "bootstrap", count: 1, digest: "a2e42ef4144d4728594714480300a4e0",
+    projection:
+      "max_concurrent_users::text||','||max_events_per_second::text||','||max_bytes_per_second::text||','||" +
+      "max_channels_per_client::text||','||max_joins_per_second::text||','||suspend::text||','||" +
+      "postgres_cdc_default::text||','||private_only::text||','||presence_enabled::text",
+  },
+  "_realtime.feature_flags": {
+    kind: "bootstrap", count: 1, digest: "e2b82a07ed6194d579dd0d4d143d40ed",
+    projection: "name||','||enabled::text||','||coalesce(rollout_percentage::text,'')||','||coalesce(bucket_key,'')",
+  },
+  "_realtime.extensions": { kind: "bootstrap", count: 1, digest: "ef33364c7f2274ff477068170de843b5", projection: "type" },
+  "supabase_migrations.schema_migrations": { kind: "history" },
+});
 
 /**
- * CERTIFIED STOCK MANAGED-SCHEMA OBJECT BASELINE.
+ * Classifies observed managed-table row state against the certified rules. Every failure
+ * mode the finding named is a refusal: an extra row, a missing bootstrap row, a changed
+ * stable field, and rows in a table that has no rule at all.
+ */
+function classifyManagedRowState(observed) {
+  const problems = [];
+  for (const t of observed ?? []) {
+    const qualified = `${t.schema}.${t.name}`;
+    const rule = STOCK_MANAGED_ROW_RULES[qualified];
+    if (rule?.kind === "history") continue; // counted as migration_rows, never excused here
+    if (Number(t.rows) === 0) continue;
+    if (!rule) {
+      problems.push(`${qualified}=${t.rows} (no certified stock row state; a pristine project has none)`);
+      continue;
+    }
+    if (Number(t.rows) !== rule.count) {
+      problems.push(`${qualified}=${t.rows} rows, certified ${rule.count}`);
+      continue;
+    }
+    if (t.digest !== rule.digest) {
+      problems.push(`${qualified} row content differs from the certified ${rule.kind} state`);
+    }
+  }
+  // A certified table that is EMPTY is drift too: a pristine project carries those rows.
+  for (const [qualified, rule] of Object.entries(STOCK_MANAGED_ROW_RULES)) {
+    if (rule.kind === "history") continue;
+    const seen = (observed ?? []).find((t) => `${t.schema}.${t.name}` === qualified);
+    if (!seen || Number(seen.rows) === 0) {
+      problems.push(`${qualified} is EMPTY but a pristine project carries ${rule.count} row(s)`);
+    }
+  }
+  return { problemCount: problems.length, problems };
+}
+
+/** Whitespace-normalised, so formatting differences are not mistaken for drift. */
+function normalizeDefinition(text) {
+  return String(text ?? "").replace(/\s+/g, " ").trim();
+}
+
+/** The structural fingerprint an observed object must present to match the baseline. */
+function fingerprintDefinition(definition) {
+  return createHash("sha256").update(normalizeDefinition(definition)).digest("hex").slice(0, 24);
+}
+
+/**
+ * CERTIFIED STOCK MANAGED-SCHEMA OBJECT BASELINE — WITH STRUCTURE.
  *
- * WHY OWNERSHIP ALONE IS NOT ENOUGH — and this is the correction of the previous
- * attempt. `pg_class.relowner` records the CURRENT owner, not the creator. An operator
- * holding an administrative connection can `SET ROLE supabase_storage_admin` or
- * `ALTER TABLE storage.custom_table OWNER TO supabase_storage_admin`, after which an
- * owner-only rule classifies a user-created object as platform stock. Ownership narrows
- * the attack; it does not close it.
+ * Matching on schema + kind + name + owner was not enough. All four survive a stock
+ * object being REWRITTEN in place: `CREATE OR REPLACE` on a platform function, an
+ * `ALTER TABLE` on a stock table, a same-named index rebuilt over different columns, a
+ * type redefined. The identity fields still matched, so the target still certified as
+ * pristine. Ownership was already shown not to be provenance; a name is not structure.
  *
- * So membership of THIS list is now required. It is a strict structural baseline, in the
- * same spirit as STOCK_PLATFORM_TRIGGER_BASELINE and with the same trade-off stated
- * openly: it is versioned source, NEVER learned from the target under inspection, and
- * drift in EITHER direction refuses FRESH. If a future Supabase release adds, renames or
- * re-owns a stock object, this baseline stops matching and every target reports
- * NON-empty until it is re-certified by hand. A false NON_EMPTY is always preferable to
- * a false EMPTY followed by a destructive `db push`.
+ * Each entry therefore carries a `fingerprint`: a sha256 prefix over a whitespace-
+ * normalised, deterministic definition —
  *
- * PROVENANCE: enumerated from a Supabase CLI stack whose managed schemas are stock —
- * every non-extension-owned relation, index, sequence, view, function and type in the
- * managed schema set. PMFreak's own 161 migrations create objects only in `public`, so
- * they contribute nothing here. Objects carrying a `pg_depend` extension dependency are
- * excluded upstream in SQL and are deliberately absent.
+ *   relations  relkind, partition parent and bound, and every column in order with its
+ *              type, nullability and default;
+ *   views      the view definition; sequences their kind;
+ *   indexes    `pg_get_indexdef`;
+ *   functions  identity arguments (so overloads are distinct), return type, kind,
+ *              volatility, security mode, and a digest of the body;
+ *   types      typtype plus structure — enum labels in order, domain base, range
+ *              subtype, composite attributes.
  *
- * RE-CERTIFYING: re-run the managed-object inventory against a pristine project and
- * replace this array wholesale. Do not append entries observed on a target being gated.
+ * It is NOT a hash of the name: the name is already a separate field, so a fingerprint
+ * derived from it would prove nothing. Versioned source, never learned from the target
+ * under inspection, and drift in either direction refuses FRESH.
  */
 const STOCK_MANAGED_OBJECT_BASELINE = Object.freeze([
-  { schema: "_realtime", kind: "index", name: "extensions_pkey", owner: "supabase_admin" },
-  { schema: "_realtime", kind: "index", name: "extensions_tenant_external_id_index", owner: "supabase_admin" },
-  { schema: "_realtime", kind: "index", name: "extensions_tenant_external_id_type_index", owner: "supabase_admin" },
-  { schema: "_realtime", kind: "index", name: "feature_flags_name_index", owner: "supabase_admin" },
-  { schema: "_realtime", kind: "index", name: "feature_flags_pkey", owner: "supabase_admin" },
-  { schema: "_realtime", kind: "index", name: "schema_migrations_pkey", owner: "supabase_admin" },
-  { schema: "_realtime", kind: "index", name: "tenants_external_id_index", owner: "supabase_admin" },
-  { schema: "_realtime", kind: "index", name: "tenants_pkey", owner: "supabase_admin" },
-  { schema: "_realtime", kind: "relation", name: "extensions", owner: "supabase_admin" },
-  { schema: "_realtime", kind: "relation", name: "feature_flags", owner: "supabase_admin" },
-  { schema: "_realtime", kind: "relation", name: "schema_migrations", owner: "supabase_admin" },
-  { schema: "_realtime", kind: "relation", name: "tenants", owner: "supabase_admin" },
-  { schema: "auth", kind: "function", name: "email", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "function", name: "jwt", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "function", name: "role", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "function", name: "uid", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "amr_id_pk", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "audit_log_entries_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "audit_logs_instance_id_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "confirmation_token_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "custom_oauth_providers_created_at_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "custom_oauth_providers_enabled_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "custom_oauth_providers_identifier_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "custom_oauth_providers_identifier_key", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "custom_oauth_providers_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "custom_oauth_providers_provider_type_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "email_change_token_current_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "email_change_token_new_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "factor_id_created_at_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "flow_state_created_at_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "flow_state_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "identities_email_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "identities_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "identities_provider_id_provider_unique", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "identities_user_id_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "idx_auth_code", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "idx_oauth_client_states_created_at", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "idx_user_id_auth_method", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "instances_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "mfa_amr_claims_session_id_authentication_method_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "mfa_challenge_created_at_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "mfa_challenges_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "mfa_factors_last_challenged_at_key", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "mfa_factors_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "mfa_factors_user_friendly_name_unique", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "mfa_factors_user_id_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "oauth_auth_pending_exp_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "oauth_authorizations_authorization_code_key", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "oauth_authorizations_authorization_id_key", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "oauth_authorizations_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "oauth_client_states_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "oauth_clients_deleted_at_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "oauth_clients_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "oauth_consents_active_client_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "oauth_consents_active_user_client_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "oauth_consents_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "oauth_consents_user_client_unique", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "oauth_consents_user_order_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "one_time_tokens_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "one_time_tokens_relates_to_hash_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "one_time_tokens_token_hash_hash_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "one_time_tokens_user_id_token_type_key", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "reauthentication_token_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "recovery_token_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "refresh_tokens_instance_id_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "refresh_tokens_instance_id_user_id_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "refresh_tokens_parent_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "refresh_tokens_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "refresh_tokens_session_id_revoked_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "refresh_tokens_token_unique", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "refresh_tokens_updated_at_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "saml_providers_entity_id_key", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "saml_providers_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "saml_providers_sso_provider_id_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "saml_relay_states_created_at_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "saml_relay_states_for_email_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "saml_relay_states_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "saml_relay_states_sso_provider_id_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "schema_migrations_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "sessions_not_after_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "sessions_oauth_client_id_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "sessions_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "sessions_user_id_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "sso_domains_domain_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "sso_domains_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "sso_domains_sso_provider_id_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "sso_providers_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "sso_providers_resource_id_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "sso_providers_resource_id_pattern_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "unique_phone_factor_per_user", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "user_id_created_at_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "users_email_partial_key", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "users_instance_id_email_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "users_instance_id_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "users_is_anonymous_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "users_phone_key", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "users_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "webauthn_challenges_expires_at_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "webauthn_challenges_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "webauthn_challenges_user_id_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "webauthn_credentials_credential_id_key", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "webauthn_credentials_pkey", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "index", name: "webauthn_credentials_user_id_idx", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "audit_log_entries", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "custom_oauth_providers", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "flow_state", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "identities", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "instances", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "mfa_amr_claims", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "mfa_challenges", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "mfa_factors", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "oauth_authorizations", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "oauth_client_states", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "oauth_clients", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "oauth_consents", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "one_time_tokens", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "refresh_tokens", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "refresh_tokens_id_seq", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "saml_providers", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "saml_relay_states", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "schema_migrations", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "sessions", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "sso_domains", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "sso_providers", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "users", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "webauthn_challenges", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "relation", name: "webauthn_credentials", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "type", name: "aal_level", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "type", name: "code_challenge_method", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "type", name: "factor_status", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "type", name: "factor_type", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "type", name: "oauth_authorization_status", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "type", name: "oauth_client_type", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "type", name: "oauth_registration_type", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "type", name: "oauth_response_type", owner: "supabase_auth_admin" },
-  { schema: "auth", kind: "type", name: "one_time_token_type", owner: "supabase_auth_admin" },
-  { schema: "extensions", kind: "function", name: "grant_pg_cron_access", owner: "supabase_admin" },
-  { schema: "extensions", kind: "function", name: "grant_pg_graphql_access", owner: "supabase_admin" },
-  { schema: "extensions", kind: "function", name: "grant_pg_net_access", owner: "supabase_admin" },
-  { schema: "extensions", kind: "function", name: "pgrst_ddl_watch", owner: "supabase_admin" },
-  { schema: "extensions", kind: "function", name: "pgrst_drop_watch", owner: "supabase_admin" },
-  { schema: "extensions", kind: "function", name: "set_graphql_placeholder", owner: "supabase_admin" },
-  { schema: "graphql_public", kind: "function", name: "graphql", owner: "supabase_admin" },
-  { schema: "pgbouncer", kind: "function", name: "get_auth", owner: "supabase_admin" },
-  { schema: "realtime", kind: "function", name: "apply_rls", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "function", name: "broadcast_changes", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "function", name: "build_prepared_statement_sql", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "function", name: "cast", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "function", name: "check_equality_op", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "function", name: "check_equality_op", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "function", name: "is_visible_through_filters", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "function", name: "list_changes", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "function", name: "quote_wal2json", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "function", name: "send", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "function", name: "send_binary", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "function", name: "subscription_check_filters", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "function", name: "to_regrole", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "function", name: "topic", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "function", name: "wal2json_escape_identifier", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "index", name: "ix_realtime_subscription_entity", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "index", name: "messages_inserted_at_topic_index", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "index", name: "messages_pkey", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "index", name: "pk_subscription", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "index", name: "schema_migrations_pkey", owner: "supabase_admin" },
-  { schema: "realtime", kind: "index", name: "subscription_subscription_id_entity_filters_action_filter_selec", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "relation", name: "messages", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "relation", name: "schema_migrations", owner: "supabase_admin" },
-  { schema: "realtime", kind: "relation", name: "subscription", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "relation", name: "subscription_id_seq", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "type", name: "action", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "type", name: "equality_op", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "type", name: "user_defined_filter", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "type", name: "wal_column", owner: "supabase_realtime_admin" },
-  { schema: "realtime", kind: "type", name: "wal_rls", owner: "supabase_realtime_admin" },
-  { schema: "storage", kind: "function", name: "allow_any_operation", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "allow_only_operation", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "can_insert_object", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "enforce_bucket_name_length", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "extension", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "filename", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "foldername", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "get_common_prefix", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "get_size_by_bucket", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "list_multipart_uploads_with_delimiter", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "list_objects_with_delimiter", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "operation", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "protect_delete", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "search", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "search_by_timestamp", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "search_v2", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "function", name: "update_updated_at_column", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "bname", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "bucketid_objname", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "buckets_analytics_pkey", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "buckets_analytics_unique_name_idx", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "buckets_pkey", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "buckets_vectors_pkey", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "iceberg_namespaces_pkey", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "iceberg_tables_pkey", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "idx_iceberg_namespaces_bucket_id", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "idx_iceberg_tables_location", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "idx_iceberg_tables_namespace_id", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "idx_multipart_uploads_list", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "idx_objects_bucket_id_name", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "idx_objects_bucket_id_name_lower", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "migrations_name_key", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "migrations_pkey", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "name_prefix_search", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "objects_pkey", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "s3_multipart_uploads_parts_pkey", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "s3_multipart_uploads_pkey", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "vector_indexes_name_bucket_id_idx", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "index", name: "vector_indexes_pkey", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "relation", name: "buckets", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "relation", name: "buckets_analytics", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "relation", name: "buckets_vectors", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "relation", name: "iceberg_namespaces", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "relation", name: "iceberg_tables", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "relation", name: "migrations", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "relation", name: "objects", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "relation", name: "s3_multipart_uploads", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "relation", name: "s3_multipart_uploads_parts", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "relation", name: "vector_indexes", owner: "supabase_storage_admin" },
-  { schema: "storage", kind: "type", name: "buckettype", owner: "supabase_storage_admin" },
-  { schema: "supabase_functions", kind: "function", name: "http_request", owner: "supabase_functions_admin" },
-  { schema: "supabase_functions", kind: "index", name: "hooks_pkey", owner: "supabase_functions_admin" },
-  { schema: "supabase_functions", kind: "index", name: "migrations_pkey", owner: "supabase_functions_admin" },
-  { schema: "supabase_functions", kind: "index", name: "supabase_functions_hooks_h_table_id_h_name_idx", owner: "supabase_functions_admin" },
-  { schema: "supabase_functions", kind: "index", name: "supabase_functions_hooks_request_id_idx", owner: "supabase_functions_admin" },
-  { schema: "supabase_functions", kind: "relation", name: "hooks", owner: "supabase_functions_admin" },
-  { schema: "supabase_functions", kind: "relation", name: "hooks_id_seq", owner: "supabase_functions_admin" },
-  { schema: "supabase_functions", kind: "relation", name: "migrations", owner: "supabase_functions_admin" },
-  { schema: "supabase_migrations", kind: "index", name: "schema_migrations_pkey", owner: "postgres" },
-  { schema: "supabase_migrations", kind: "relation", name: "schema_migrations", owner: "postgres" },
-  { schema: "vault", kind: "index", name: "secrets_name_idx", owner: "supabase_admin" },
-  { schema: "vault", kind: "index", name: "secrets_pkey", owner: "supabase_admin" },
+  { schema: "_realtime", kind: "index", name: "extensions_pkey", owner: "supabase_admin", fingerprint: "3d53c407072c79f1de713725" },
+  { schema: "_realtime", kind: "index", name: "extensions_tenant_external_id_index", owner: "supabase_admin", fingerprint: "3aa2945f6e40e4a8604a36a9" },
+  { schema: "_realtime", kind: "index", name: "extensions_tenant_external_id_type_index", owner: "supabase_admin", fingerprint: "5a23d3d7138878281032de2c" },
+  { schema: "_realtime", kind: "index", name: "feature_flags_name_index", owner: "supabase_admin", fingerprint: "a58f9016f434f42b68971343" },
+  { schema: "_realtime", kind: "index", name: "feature_flags_pkey", owner: "supabase_admin", fingerprint: "9a504c75b5cb0f47fea0435f" },
+  { schema: "_realtime", kind: "index", name: "schema_migrations_pkey", owner: "supabase_admin", fingerprint: "bd59af5780686684f584f9ff" },
+  { schema: "_realtime", kind: "index", name: "tenants_external_id_index", owner: "supabase_admin", fingerprint: "7fe12f967c14f2401d0be782" },
+  { schema: "_realtime", kind: "index", name: "tenants_pkey", owner: "supabase_admin", fingerprint: "c7558febe01ba61cbc88d2ea" },
+  { schema: "_realtime", kind: "relation", name: "extensions", owner: "supabase_admin", fingerprint: "58c02e45e7e80026cc26d3a6" },
+  { schema: "_realtime", kind: "relation", name: "feature_flags", owner: "supabase_admin", fingerprint: "598e6143fbe9fadf295d1696" },
+  { schema: "_realtime", kind: "relation", name: "schema_migrations", owner: "supabase_admin", fingerprint: "46bfe322a9a66a408abf03d8" },
+  { schema: "_realtime", kind: "relation", name: "tenants", owner: "supabase_admin", fingerprint: "01e222476f73602f95c06d0e" },
+  { schema: "auth", kind: "function", name: "email()", owner: "supabase_auth_admin", fingerprint: "e00e82d6493628750bfd41ba" },
+  { schema: "auth", kind: "function", name: "jwt()", owner: "supabase_auth_admin", fingerprint: "f1da990e4dd1cb8ac6629746" },
+  { schema: "auth", kind: "function", name: "role()", owner: "supabase_auth_admin", fingerprint: "17c53a585fafa58a98bc3f6a" },
+  { schema: "auth", kind: "function", name: "uid()", owner: "supabase_auth_admin", fingerprint: "ec3168fcaa3afbfe05d8495a" },
+  { schema: "auth", kind: "index", name: "amr_id_pk", owner: "supabase_auth_admin", fingerprint: "75ed917852874113b302089f" },
+  { schema: "auth", kind: "index", name: "audit_log_entries_pkey", owner: "supabase_auth_admin", fingerprint: "23189222336039c08af028f9" },
+  { schema: "auth", kind: "index", name: "audit_logs_instance_id_idx", owner: "supabase_auth_admin", fingerprint: "c54616425c04dfdc154992a1" },
+  { schema: "auth", kind: "index", name: "confirmation_token_idx", owner: "supabase_auth_admin", fingerprint: "7693101fdf361a318b7653a6" },
+  { schema: "auth", kind: "index", name: "custom_oauth_providers_created_at_idx", owner: "supabase_auth_admin", fingerprint: "b0c2fffa2a76bc31be2be29f" },
+  { schema: "auth", kind: "index", name: "custom_oauth_providers_enabled_idx", owner: "supabase_auth_admin", fingerprint: "eed47bc6d8e951ae83433fb6" },
+  { schema: "auth", kind: "index", name: "custom_oauth_providers_identifier_idx", owner: "supabase_auth_admin", fingerprint: "9cb64b8e84066fb257e6405a" },
+  { schema: "auth", kind: "index", name: "custom_oauth_providers_identifier_key", owner: "supabase_auth_admin", fingerprint: "9741ad1d90bcd5733d9a269b" },
+  { schema: "auth", kind: "index", name: "custom_oauth_providers_pkey", owner: "supabase_auth_admin", fingerprint: "381357bf63520d26c98212c7" },
+  { schema: "auth", kind: "index", name: "custom_oauth_providers_provider_type_idx", owner: "supabase_auth_admin", fingerprint: "1f06e3964a740f9f99c3633d" },
+  { schema: "auth", kind: "index", name: "email_change_token_current_idx", owner: "supabase_auth_admin", fingerprint: "fd99c1dee02ec59bbe3b75f0" },
+  { schema: "auth", kind: "index", name: "email_change_token_new_idx", owner: "supabase_auth_admin", fingerprint: "bc0d46be0cbf0a9a97d82204" },
+  { schema: "auth", kind: "index", name: "factor_id_created_at_idx", owner: "supabase_auth_admin", fingerprint: "f108a47ea4cda2504e46b031" },
+  { schema: "auth", kind: "index", name: "flow_state_created_at_idx", owner: "supabase_auth_admin", fingerprint: "9879508a5ac0a1d891655fc3" },
+  { schema: "auth", kind: "index", name: "flow_state_pkey", owner: "supabase_auth_admin", fingerprint: "94706997593b9cc900546d45" },
+  { schema: "auth", kind: "index", name: "identities_email_idx", owner: "supabase_auth_admin", fingerprint: "1fe099d3fb36ed24a0ddcb00" },
+  { schema: "auth", kind: "index", name: "identities_pkey", owner: "supabase_auth_admin", fingerprint: "1e169b260efec6cc1ede378f" },
+  { schema: "auth", kind: "index", name: "identities_provider_id_provider_unique", owner: "supabase_auth_admin", fingerprint: "0b9bcbb7e4a70480cc41c462" },
+  { schema: "auth", kind: "index", name: "identities_user_id_idx", owner: "supabase_auth_admin", fingerprint: "03a922321e32074b333488e7" },
+  { schema: "auth", kind: "index", name: "idx_auth_code", owner: "supabase_auth_admin", fingerprint: "7083741d4918527c6ed34edd" },
+  { schema: "auth", kind: "index", name: "idx_oauth_client_states_created_at", owner: "supabase_auth_admin", fingerprint: "b471de2e43684ed7872d4c91" },
+  { schema: "auth", kind: "index", name: "idx_user_id_auth_method", owner: "supabase_auth_admin", fingerprint: "84525c706077b88c443d0527" },
+  { schema: "auth", kind: "index", name: "instances_pkey", owner: "supabase_auth_admin", fingerprint: "c980d6171185562e938e5c1c" },
+  { schema: "auth", kind: "index", name: "mfa_amr_claims_session_id_authentication_method_pkey", owner: "supabase_auth_admin", fingerprint: "1d1015cf7eefc3b124a6228a" },
+  { schema: "auth", kind: "index", name: "mfa_challenge_created_at_idx", owner: "supabase_auth_admin", fingerprint: "d0de522158a076fc57fa0490" },
+  { schema: "auth", kind: "index", name: "mfa_challenges_pkey", owner: "supabase_auth_admin", fingerprint: "af70aeaa166259487a82f6f0" },
+  { schema: "auth", kind: "index", name: "mfa_factors_last_challenged_at_key", owner: "supabase_auth_admin", fingerprint: "4bf9e3dfdcae2f2429d7a1e7" },
+  { schema: "auth", kind: "index", name: "mfa_factors_pkey", owner: "supabase_auth_admin", fingerprint: "ba44dc219533b06cffda3f40" },
+  { schema: "auth", kind: "index", name: "mfa_factors_user_friendly_name_unique", owner: "supabase_auth_admin", fingerprint: "362ddad6760cb64097f0237e" },
+  { schema: "auth", kind: "index", name: "mfa_factors_user_id_idx", owner: "supabase_auth_admin", fingerprint: "97030b66963914244ee732aa" },
+  { schema: "auth", kind: "index", name: "oauth_auth_pending_exp_idx", owner: "supabase_auth_admin", fingerprint: "bbc9ab61a9711becfdad53fd" },
+  { schema: "auth", kind: "index", name: "oauth_authorizations_authorization_code_key", owner: "supabase_auth_admin", fingerprint: "6a424ec1194f059abd16afce" },
+  { schema: "auth", kind: "index", name: "oauth_authorizations_authorization_id_key", owner: "supabase_auth_admin", fingerprint: "2dee230996f9a271e7e60feb" },
+  { schema: "auth", kind: "index", name: "oauth_authorizations_pkey", owner: "supabase_auth_admin", fingerprint: "cdc817e814bd9e1114c29b34" },
+  { schema: "auth", kind: "index", name: "oauth_client_states_pkey", owner: "supabase_auth_admin", fingerprint: "5b54d1ac92ad81f89a78e538" },
+  { schema: "auth", kind: "index", name: "oauth_clients_deleted_at_idx", owner: "supabase_auth_admin", fingerprint: "a46adf3d7bed0950bf4dcdc9" },
+  { schema: "auth", kind: "index", name: "oauth_clients_pkey", owner: "supabase_auth_admin", fingerprint: "a31b3eea3190e254fcd423ac" },
+  { schema: "auth", kind: "index", name: "oauth_consents_active_client_idx", owner: "supabase_auth_admin", fingerprint: "21f4bea76fb2c8faee6ccf34" },
+  { schema: "auth", kind: "index", name: "oauth_consents_active_user_client_idx", owner: "supabase_auth_admin", fingerprint: "149b26aacf878c03823cb7bd" },
+  { schema: "auth", kind: "index", name: "oauth_consents_pkey", owner: "supabase_auth_admin", fingerprint: "e023895c3b8604a4017ae522" },
+  { schema: "auth", kind: "index", name: "oauth_consents_user_client_unique", owner: "supabase_auth_admin", fingerprint: "1de504e0dfc2d8484d559b00" },
+  { schema: "auth", kind: "index", name: "oauth_consents_user_order_idx", owner: "supabase_auth_admin", fingerprint: "8e2b2713691bf7db8b2f831f" },
+  { schema: "auth", kind: "index", name: "one_time_tokens_pkey", owner: "supabase_auth_admin", fingerprint: "f5647762ad5c80b7fd1fe1e0" },
+  { schema: "auth", kind: "index", name: "one_time_tokens_relates_to_hash_idx", owner: "supabase_auth_admin", fingerprint: "446384dbdc16f6bafc4d6360" },
+  { schema: "auth", kind: "index", name: "one_time_tokens_token_hash_hash_idx", owner: "supabase_auth_admin", fingerprint: "a5882053eb6be4b0f43582b2" },
+  { schema: "auth", kind: "index", name: "one_time_tokens_user_id_token_type_key", owner: "supabase_auth_admin", fingerprint: "90db0e491403245c27cefd38" },
+  { schema: "auth", kind: "index", name: "reauthentication_token_idx", owner: "supabase_auth_admin", fingerprint: "5380c10fd859331c1f30ed5b" },
+  { schema: "auth", kind: "index", name: "recovery_token_idx", owner: "supabase_auth_admin", fingerprint: "05d132cff8bbb024b7900279" },
+  { schema: "auth", kind: "index", name: "refresh_tokens_instance_id_idx", owner: "supabase_auth_admin", fingerprint: "bc483db95506f23beda10b5e" },
+  { schema: "auth", kind: "index", name: "refresh_tokens_instance_id_user_id_idx", owner: "supabase_auth_admin", fingerprint: "c0c6c711e67d189d78f1df00" },
+  { schema: "auth", kind: "index", name: "refresh_tokens_parent_idx", owner: "supabase_auth_admin", fingerprint: "e47f9a339cf07ea7bad533aa" },
+  { schema: "auth", kind: "index", name: "refresh_tokens_pkey", owner: "supabase_auth_admin", fingerprint: "4e7aea1dd91ae2499afdd18e" },
+  { schema: "auth", kind: "index", name: "refresh_tokens_session_id_revoked_idx", owner: "supabase_auth_admin", fingerprint: "f30cb6cac32bfb5b2c51658f" },
+  { schema: "auth", kind: "index", name: "refresh_tokens_token_unique", owner: "supabase_auth_admin", fingerprint: "eeec759f22cb35d8629f5792" },
+  { schema: "auth", kind: "index", name: "refresh_tokens_updated_at_idx", owner: "supabase_auth_admin", fingerprint: "e3f2cc18523f52398e2eb214" },
+  { schema: "auth", kind: "index", name: "saml_providers_entity_id_key", owner: "supabase_auth_admin", fingerprint: "93c83cbffacb743c428cb27d" },
+  { schema: "auth", kind: "index", name: "saml_providers_pkey", owner: "supabase_auth_admin", fingerprint: "785f3e4d67fce0fdcb36bfc0" },
+  { schema: "auth", kind: "index", name: "saml_providers_sso_provider_id_idx", owner: "supabase_auth_admin", fingerprint: "149a94646e1632139678bf55" },
+  { schema: "auth", kind: "index", name: "saml_relay_states_created_at_idx", owner: "supabase_auth_admin", fingerprint: "5d60fb76bfee51c7f35fee39" },
+  { schema: "auth", kind: "index", name: "saml_relay_states_for_email_idx", owner: "supabase_auth_admin", fingerprint: "59a9dc6e985f6103ec7d59fb" },
+  { schema: "auth", kind: "index", name: "saml_relay_states_pkey", owner: "supabase_auth_admin", fingerprint: "90b03130aa1139dc08d6c9ea" },
+  { schema: "auth", kind: "index", name: "saml_relay_states_sso_provider_id_idx", owner: "supabase_auth_admin", fingerprint: "99809c080f40573d1a512584" },
+  { schema: "auth", kind: "index", name: "schema_migrations_pkey", owner: "supabase_auth_admin", fingerprint: "38bde549f9d728520fc4bdc4" },
+  { schema: "auth", kind: "index", name: "sessions_not_after_idx", owner: "supabase_auth_admin", fingerprint: "3382d23aa68879a9215ac344" },
+  { schema: "auth", kind: "index", name: "sessions_oauth_client_id_idx", owner: "supabase_auth_admin", fingerprint: "3c2a93cb43e8b3ec9eff8163" },
+  { schema: "auth", kind: "index", name: "sessions_pkey", owner: "supabase_auth_admin", fingerprint: "326d6a4eb9cea0305dcf9cd0" },
+  { schema: "auth", kind: "index", name: "sessions_user_id_idx", owner: "supabase_auth_admin", fingerprint: "a21ccb943551e3199cff8c2d" },
+  { schema: "auth", kind: "index", name: "sso_domains_domain_idx", owner: "supabase_auth_admin", fingerprint: "e0a1cf17b81def3d6da3ab20" },
+  { schema: "auth", kind: "index", name: "sso_domains_pkey", owner: "supabase_auth_admin", fingerprint: "f004cd30623fa55659ba0417" },
+  { schema: "auth", kind: "index", name: "sso_domains_sso_provider_id_idx", owner: "supabase_auth_admin", fingerprint: "0aaf44316b357aec0a955e62" },
+  { schema: "auth", kind: "index", name: "sso_providers_pkey", owner: "supabase_auth_admin", fingerprint: "cae54c7b755e188247ac2d9e" },
+  { schema: "auth", kind: "index", name: "sso_providers_resource_id_idx", owner: "supabase_auth_admin", fingerprint: "9f1b75439f3e8b62690d714b" },
+  { schema: "auth", kind: "index", name: "sso_providers_resource_id_pattern_idx", owner: "supabase_auth_admin", fingerprint: "d5828f31102018d2c1721e9b" },
+  { schema: "auth", kind: "index", name: "unique_phone_factor_per_user", owner: "supabase_auth_admin", fingerprint: "200cf0a1dd1618c56ef895a4" },
+  { schema: "auth", kind: "index", name: "user_id_created_at_idx", owner: "supabase_auth_admin", fingerprint: "43e2e7e6571562b67eadae27" },
+  { schema: "auth", kind: "index", name: "users_email_partial_key", owner: "supabase_auth_admin", fingerprint: "f3261803ee464ee22ff8d8a9" },
+  { schema: "auth", kind: "index", name: "users_instance_id_email_idx", owner: "supabase_auth_admin", fingerprint: "2dc6ba4f14a0aadc57d7ee63" },
+  { schema: "auth", kind: "index", name: "users_instance_id_idx", owner: "supabase_auth_admin", fingerprint: "1622c438e9b370d90519f781" },
+  { schema: "auth", kind: "index", name: "users_is_anonymous_idx", owner: "supabase_auth_admin", fingerprint: "e6b3fe846701aa4032caf78f" },
+  { schema: "auth", kind: "index", name: "users_phone_key", owner: "supabase_auth_admin", fingerprint: "613426ca694ef731d71315d7" },
+  { schema: "auth", kind: "index", name: "users_pkey", owner: "supabase_auth_admin", fingerprint: "13c0ee034bbbb317c9d8a33f" },
+  { schema: "auth", kind: "index", name: "webauthn_challenges_expires_at_idx", owner: "supabase_auth_admin", fingerprint: "505d8d4e83442cfff18b8969" },
+  { schema: "auth", kind: "index", name: "webauthn_challenges_pkey", owner: "supabase_auth_admin", fingerprint: "bb189d832dda958265addf98" },
+  { schema: "auth", kind: "index", name: "webauthn_challenges_user_id_idx", owner: "supabase_auth_admin", fingerprint: "446499244aed6956732bb702" },
+  { schema: "auth", kind: "index", name: "webauthn_credentials_credential_id_key", owner: "supabase_auth_admin", fingerprint: "f38a48350f7634bb2babbc93" },
+  { schema: "auth", kind: "index", name: "webauthn_credentials_pkey", owner: "supabase_auth_admin", fingerprint: "ac261cb204c95bd7652bb643" },
+  { schema: "auth", kind: "index", name: "webauthn_credentials_user_id_idx", owner: "supabase_auth_admin", fingerprint: "d25dbacde9e1df1dfab80ea8" },
+  { schema: "auth", kind: "relation", name: "audit_log_entries", owner: "supabase_auth_admin", fingerprint: "c3df34740f57a46a83d05012" },
+  { schema: "auth", kind: "relation", name: "custom_oauth_providers", owner: "supabase_auth_admin", fingerprint: "0e58880f7b7d41eef0d8cdf5" },
+  { schema: "auth", kind: "relation", name: "flow_state", owner: "supabase_auth_admin", fingerprint: "2d9781fbe7eb576fc0066788" },
+  { schema: "auth", kind: "relation", name: "identities", owner: "supabase_auth_admin", fingerprint: "e42c1b60d275f44417962f50" },
+  { schema: "auth", kind: "relation", name: "instances", owner: "supabase_auth_admin", fingerprint: "4b038741fd34a04e65eb5027" },
+  { schema: "auth", kind: "relation", name: "mfa_amr_claims", owner: "supabase_auth_admin", fingerprint: "e5680db8f53e6173d37a0a03" },
+  { schema: "auth", kind: "relation", name: "mfa_challenges", owner: "supabase_auth_admin", fingerprint: "641175b9e5da52f473ceaef4" },
+  { schema: "auth", kind: "relation", name: "mfa_factors", owner: "supabase_auth_admin", fingerprint: "84e44fdf12a2f7d63edee1bd" },
+  { schema: "auth", kind: "relation", name: "oauth_authorizations", owner: "supabase_auth_admin", fingerprint: "17133e9985598ce54dc31178" },
+  { schema: "auth", kind: "relation", name: "oauth_client_states", owner: "supabase_auth_admin", fingerprint: "879287ce281794bb9b0b92c2" },
+  { schema: "auth", kind: "relation", name: "oauth_clients", owner: "supabase_auth_admin", fingerprint: "9a7feec9b2a51ac6889cfc5b" },
+  { schema: "auth", kind: "relation", name: "oauth_consents", owner: "supabase_auth_admin", fingerprint: "1a21930966da03036a1f0dc5" },
+  { schema: "auth", kind: "relation", name: "one_time_tokens", owner: "supabase_auth_admin", fingerprint: "65cca1324ddda49c1415a7fa" },
+  { schema: "auth", kind: "relation", name: "refresh_tokens", owner: "supabase_auth_admin", fingerprint: "eb9986b29c42cf06a359fc49" },
+  { schema: "auth", kind: "relation", name: "refresh_tokens_id_seq", owner: "supabase_auth_admin", fingerprint: "bf37c7c208717d6de100ce85" },
+  { schema: "auth", kind: "relation", name: "saml_providers", owner: "supabase_auth_admin", fingerprint: "cf6f117948dffc3a013c39e4" },
+  { schema: "auth", kind: "relation", name: "saml_relay_states", owner: "supabase_auth_admin", fingerprint: "bd4908de19a23c43ae8a73cf" },
+  { schema: "auth", kind: "relation", name: "schema_migrations", owner: "supabase_auth_admin", fingerprint: "3a1ebe682e3b536e7e72fa3c" },
+  { schema: "auth", kind: "relation", name: "sessions", owner: "supabase_auth_admin", fingerprint: "64f7ded398b1ec96cb9fba59" },
+  { schema: "auth", kind: "relation", name: "sso_domains", owner: "supabase_auth_admin", fingerprint: "4c80b737ed7fdc00af507b04" },
+  { schema: "auth", kind: "relation", name: "sso_providers", owner: "supabase_auth_admin", fingerprint: "6f2177883362e3492f9f010f" },
+  { schema: "auth", kind: "relation", name: "users", owner: "supabase_auth_admin", fingerprint: "20ea37155b0c4caf768847f0" },
+  { schema: "auth", kind: "relation", name: "webauthn_challenges", owner: "supabase_auth_admin", fingerprint: "1983c4a139d852fca06dcee1" },
+  { schema: "auth", kind: "relation", name: "webauthn_credentials", owner: "supabase_auth_admin", fingerprint: "3a627027de317c4cc84c2813" },
+  { schema: "auth", kind: "type", name: "aal_level", owner: "supabase_auth_admin", fingerprint: "d784b6c668f92fcb45f7fde5" },
+  { schema: "auth", kind: "type", name: "code_challenge_method", owner: "supabase_auth_admin", fingerprint: "d094c103dbc6bcfb87ad3484" },
+  { schema: "auth", kind: "type", name: "factor_status", owner: "supabase_auth_admin", fingerprint: "4c268284a87853689c386a48" },
+  { schema: "auth", kind: "type", name: "factor_type", owner: "supabase_auth_admin", fingerprint: "22c4520bb248b33c74cc2671" },
+  { schema: "auth", kind: "type", name: "oauth_authorization_status", owner: "supabase_auth_admin", fingerprint: "c45806fd83e8d0619f583176" },
+  { schema: "auth", kind: "type", name: "oauth_client_type", owner: "supabase_auth_admin", fingerprint: "ef56c0261384a25d485b49ae" },
+  { schema: "auth", kind: "type", name: "oauth_registration_type", owner: "supabase_auth_admin", fingerprint: "a062e2c9034eb37c361fdbae" },
+  { schema: "auth", kind: "type", name: "oauth_response_type", owner: "supabase_auth_admin", fingerprint: "b8342e6a9695f21931c8ca31" },
+  { schema: "auth", kind: "type", name: "one_time_token_type", owner: "supabase_auth_admin", fingerprint: "79f58d545444fd6e00b6f0f7" },
+  { schema: "extensions", kind: "function", name: "grant_pg_cron_access()", owner: "supabase_admin", fingerprint: "bd9fe9aa354cf015b345996f" },
+  { schema: "extensions", kind: "function", name: "grant_pg_graphql_access()", owner: "supabase_admin", fingerprint: "40abdced876032234b1d8568" },
+  { schema: "extensions", kind: "function", name: "grant_pg_net_access()", owner: "supabase_admin", fingerprint: "398fa51f2c40091c83d982c7" },
+  { schema: "extensions", kind: "function", name: "pgrst_ddl_watch()", owner: "supabase_admin", fingerprint: "15b562a4bd3ab9840792befc" },
+  { schema: "extensions", kind: "function", name: "pgrst_drop_watch()", owner: "supabase_admin", fingerprint: "12200cc4d20efe394e21cb1f" },
+  { schema: "extensions", kind: "function", name: "set_graphql_placeholder()", owner: "supabase_admin", fingerprint: "df212c2dc26487cf234f0289" },
+  { schema: "graphql_public", kind: "function", name: "graphql(\"operationName\" text, query text, variables jsonb, extensions jsonb)", owner: "supabase_admin", fingerprint: "5a081c2c146a6f00d4de5208" },
+  { schema: "pgbouncer", kind: "function", name: "get_auth(p_usename text)", owner: "supabase_admin", fingerprint: "8c175dee6d37d6a5e0ceaddb" },
+  { schema: "realtime", kind: "function", name: "apply_rls(wal jsonb, max_record_bytes integer)", owner: "supabase_realtime_admin", fingerprint: "2a9c87013603a3219cce52b0" },
+  { schema: "realtime", kind: "function", name: "broadcast_changes(topic_name text, event_name text, operation text, table_name text, table_schema text, new record, old record, level text)", owner: "supabase_realtime_admin", fingerprint: "8dc080f5d473385118c174b8" },
+  { schema: "realtime", kind: "function", name: "build_prepared_statement_sql(prepared_statement_name text, entity regclass, columns realtime.wal_column[])", owner: "supabase_realtime_admin", fingerprint: "a430c896a72710b6b58250ad" },
+  { schema: "realtime", kind: "function", name: "cast(val text, type_ regtype)", owner: "supabase_realtime_admin", fingerprint: "f69015348147b2d1014bf86a" },
+  { schema: "realtime", kind: "function", name: "check_equality_op(op realtime.equality_op, type_ regtype, val_1 text, val_2 text)", owner: "supabase_realtime_admin", fingerprint: "52c64cc5f3103eb3e06e2c1c" },
+  { schema: "realtime", kind: "function", name: "check_equality_op(op realtime.equality_op, type_ regtype, val_1 text, val_2 text, negate boolean)", owner: "supabase_realtime_admin", fingerprint: "500f45a38323cc466fe551a2" },
+  { schema: "realtime", kind: "function", name: "is_visible_through_filters(columns realtime.wal_column[], filters realtime.user_defined_filter[])", owner: "supabase_realtime_admin", fingerprint: "792b4d73a711cbcdde077539" },
+  { schema: "realtime", kind: "function", name: "list_changes(publication name, slot_name name, max_changes integer, max_record_bytes integer)", owner: "supabase_realtime_admin", fingerprint: "0d82948c8d7340d4499dd7f3" },
+  { schema: "realtime", kind: "function", name: "quote_wal2json(entity regclass)", owner: "supabase_realtime_admin", fingerprint: "6408bdaf806cae6972d64bf8" },
+  { schema: "realtime", kind: "function", name: "send(payload jsonb, event text, topic text, private boolean)", owner: "supabase_realtime_admin", fingerprint: "cc01ec1101da0b5bc824dcc1" },
+  { schema: "realtime", kind: "function", name: "send_binary(payload bytea, event text, topic text, private boolean)", owner: "supabase_realtime_admin", fingerprint: "6af0815f25dd53357452661b" },
+  { schema: "realtime", kind: "function", name: "subscription_check_filters()", owner: "supabase_realtime_admin", fingerprint: "9bd29fe4303e7a5465578b6e" },
+  { schema: "realtime", kind: "function", name: "to_regrole(role_name text)", owner: "supabase_realtime_admin", fingerprint: "b41dd85feb228c79813a3e47" },
+  { schema: "realtime", kind: "function", name: "topic()", owner: "supabase_realtime_admin", fingerprint: "471ece183ced015e6b0892a5" },
+  { schema: "realtime", kind: "function", name: "wal2json_escape_identifier(name text)", owner: "supabase_realtime_admin", fingerprint: "7331624650fa2c8bf51be5b8" },
+  { schema: "realtime", kind: "index", name: "ix_realtime_subscription_entity", owner: "supabase_realtime_admin", fingerprint: "3e340e9d4d6afa46468e04c3" },
+  { schema: "realtime", kind: "index", name: "messages_2026_09_02_inserted_at_topic_idx", owner: "supabase_realtime_admin", fingerprint: "68d12115880630712b870a2b" },
+  { schema: "realtime", kind: "index", name: "messages_2026_09_03_inserted_at_topic_idx", owner: "supabase_realtime_admin", fingerprint: "2b8d681264aa25b1e51b4ddd" },
+  { schema: "realtime", kind: "index", name: "messages_2026_09_04_inserted_at_topic_idx", owner: "supabase_realtime_admin", fingerprint: "e04dea65065b37dcc254208c" },
+  { schema: "realtime", kind: "index", name: "messages_2026_09_05_inserted_at_topic_idx", owner: "supabase_realtime_admin", fingerprint: "373bedb3265371207828bfe6" },
+  { schema: "realtime", kind: "index", name: "messages_2026_09_06_inserted_at_topic_idx", owner: "supabase_realtime_admin", fingerprint: "c4f1426630afef07f3385a07" },
+  { schema: "realtime", kind: "index", name: "messages_2026_09_07_inserted_at_topic_idx", owner: "supabase_realtime_admin", fingerprint: "931703d2419a47868e25efe7" },
+  { schema: "realtime", kind: "index", name: "messages_inserted_at_topic_index", owner: "supabase_realtime_admin", fingerprint: "b03d05bf4bfdb1f91fee484d" },
+  { schema: "realtime", kind: "index", name: "messages_pkey", owner: "supabase_realtime_admin", fingerprint: "54ad8229330b9004eed6d11f" },
+  { schema: "realtime", kind: "index", name: "pk_subscription", owner: "supabase_realtime_admin", fingerprint: "268a6dab8499d75ace107d13" },
+  { schema: "realtime", kind: "index", name: "schema_migrations_pkey", owner: "supabase_admin", fingerprint: "50882d8345e00ddbe46cb38e" },
+  { schema: "realtime", kind: "index", name: "subscription_subscription_id_entity_filters_action_filter_selec", owner: "supabase_realtime_admin", fingerprint: "a069693f300c7acd0ed1bc53" },
+  { schema: "realtime", kind: "relation", name: "messages", owner: "supabase_realtime_admin", fingerprint: "b340dc435e650a4b36c67fc2" },
+  { schema: "realtime", kind: "relation", name: "schema_migrations", owner: "supabase_admin", fingerprint: "db399b3c8bde4e4515453a9b" },
+  { schema: "realtime", kind: "relation", name: "subscription", owner: "supabase_realtime_admin", fingerprint: "3d4d5893121c2f58498c9452" },
+  { schema: "realtime", kind: "relation", name: "subscription_id_seq", owner: "supabase_realtime_admin", fingerprint: "bf37c7c208717d6de100ce85" },
+  { schema: "realtime", kind: "type", name: "action", owner: "supabase_realtime_admin", fingerprint: "e1777c56eac042d2f65ef683" },
+  { schema: "realtime", kind: "type", name: "equality_op", owner: "supabase_realtime_admin", fingerprint: "b5ee8f4f405706b84a337d89" },
+  { schema: "realtime", kind: "type", name: "user_defined_filter", owner: "supabase_realtime_admin", fingerprint: "e0a5a83ae5c2e7e1a3231de9" },
+  { schema: "realtime", kind: "type", name: "wal_column", owner: "supabase_realtime_admin", fingerprint: "93cc889c0e561bb2127f64b1" },
+  { schema: "realtime", kind: "type", name: "wal_rls", owner: "supabase_realtime_admin", fingerprint: "6fa3df8d2b55d60c63844463" },
+  { schema: "storage", kind: "function", name: "allow_any_operation(expected_operations text[])", owner: "supabase_storage_admin", fingerprint: "049f2938e6d20a0d6c8ed753" },
+  { schema: "storage", kind: "function", name: "allow_only_operation(expected_operation text)", owner: "supabase_storage_admin", fingerprint: "26accf14675cc194daad62dc" },
+  { schema: "storage", kind: "function", name: "can_insert_object(bucketid text, name text, owner uuid, metadata jsonb)", owner: "supabase_storage_admin", fingerprint: "a80f9cc523f1013a9398fcfc" },
+  { schema: "storage", kind: "function", name: "enforce_bucket_name_length()", owner: "supabase_storage_admin", fingerprint: "76282e902f637a397f97c2cb" },
+  { schema: "storage", kind: "function", name: "extension(name text)", owner: "supabase_storage_admin", fingerprint: "63bc5bbb0576601874beb119" },
+  { schema: "storage", kind: "function", name: "filename(name text)", owner: "supabase_storage_admin", fingerprint: "c3d8f314754d939deb7975c4" },
+  { schema: "storage", kind: "function", name: "foldername(name text)", owner: "supabase_storage_admin", fingerprint: "a92234f29d6857068b62ee9e" },
+  { schema: "storage", kind: "function", name: "get_common_prefix(p_key text, p_prefix text, p_delimiter text)", owner: "supabase_storage_admin", fingerprint: "e3706ae12f4e67cec841bd28" },
+  { schema: "storage", kind: "function", name: "get_size_by_bucket()", owner: "supabase_storage_admin", fingerprint: "5ef3e3277f6cd6da27462d5b" },
+  { schema: "storage", kind: "function", name: "list_multipart_uploads_with_delimiter(bucket_id text, prefix_param text, delimiter_param text, max_keys integer, next_key_token text, next_upload_token text)", owner: "supabase_storage_admin", fingerprint: "253f9ab634e8b4e5616701c4" },
+  { schema: "storage", kind: "function", name: "list_objects_with_delimiter(_bucket_id text, prefix_param text, delimiter_param text, max_keys integer, start_after text, next_token text, sort_order text)", owner: "supabase_storage_admin", fingerprint: "a95c2607ec16d0faeee404e5" },
+  { schema: "storage", kind: "function", name: "operation()", owner: "supabase_storage_admin", fingerprint: "036197168d8e43530a1ef6d9" },
+  { schema: "storage", kind: "function", name: "protect_delete()", owner: "supabase_storage_admin", fingerprint: "6dc9dd78a09df5710512defd" },
+  { schema: "storage", kind: "function", name: "search(prefix text, bucketname text, limits integer, levels integer, offsets integer, search text, sortcolumn text, sortorder text)", owner: "supabase_storage_admin", fingerprint: "dc4dd35f8f7f697ee05a62c8" },
+  { schema: "storage", kind: "function", name: "search_by_timestamp(p_prefix text, p_bucket_id text, p_limit integer, p_level integer, p_start_after text, p_sort_order text, p_sort_column text, p_sort_column_after text)", owner: "supabase_storage_admin", fingerprint: "86cdb2fc479a656030d6c889" },
+  { schema: "storage", kind: "function", name: "search_v2(prefix text, bucket_name text, limits integer, levels integer, start_after text, sort_order text, sort_column text, sort_column_after text)", owner: "supabase_storage_admin", fingerprint: "7a5b348881ac11b21205c750" },
+  { schema: "storage", kind: "function", name: "update_updated_at_column()", owner: "supabase_storage_admin", fingerprint: "197545aef590d9e389a77bf1" },
+  { schema: "storage", kind: "index", name: "bname", owner: "supabase_storage_admin", fingerprint: "3cffe7966c2d10423ccd1e61" },
+  { schema: "storage", kind: "index", name: "bucketid_objname", owner: "supabase_storage_admin", fingerprint: "985cd15e65a08b512067e36f" },
+  { schema: "storage", kind: "index", name: "buckets_analytics_pkey", owner: "supabase_storage_admin", fingerprint: "ed3e876a891d193b3a8b9ada" },
+  { schema: "storage", kind: "index", name: "buckets_analytics_unique_name_idx", owner: "supabase_storage_admin", fingerprint: "dd8a9fcf23cbd56152962928" },
+  { schema: "storage", kind: "index", name: "buckets_pkey", owner: "supabase_storage_admin", fingerprint: "7f242e1b70bfd9b1ef47db46" },
+  { schema: "storage", kind: "index", name: "buckets_vectors_pkey", owner: "supabase_storage_admin", fingerprint: "2f14a95659cb2b15e574179f" },
+  { schema: "storage", kind: "index", name: "iceberg_namespaces_pkey", owner: "supabase_storage_admin", fingerprint: "3c358c30241227f8ef0c4f87" },
+  { schema: "storage", kind: "index", name: "iceberg_tables_pkey", owner: "supabase_storage_admin", fingerprint: "4c821af01f1625915ee0c55d" },
+  { schema: "storage", kind: "index", name: "idx_iceberg_namespaces_bucket_id", owner: "supabase_storage_admin", fingerprint: "43d98848779394873ca59e03" },
+  { schema: "storage", kind: "index", name: "idx_iceberg_tables_location", owner: "supabase_storage_admin", fingerprint: "e3a7d91a2ef77fccf70ea80b" },
+  { schema: "storage", kind: "index", name: "idx_iceberg_tables_namespace_id", owner: "supabase_storage_admin", fingerprint: "740196c6d1c9525faf9433fd" },
+  { schema: "storage", kind: "index", name: "idx_multipart_uploads_list", owner: "supabase_storage_admin", fingerprint: "bee695f44ec88e923ea0edb6" },
+  { schema: "storage", kind: "index", name: "idx_objects_bucket_id_name", owner: "supabase_storage_admin", fingerprint: "98079ad666cc42746ca90477" },
+  { schema: "storage", kind: "index", name: "idx_objects_bucket_id_name_lower", owner: "supabase_storage_admin", fingerprint: "bd29760b4fe50fabf2792d46" },
+  { schema: "storage", kind: "index", name: "migrations_name_key", owner: "supabase_storage_admin", fingerprint: "2cd05eddd3d7beb934ad4208" },
+  { schema: "storage", kind: "index", name: "migrations_pkey", owner: "supabase_storage_admin", fingerprint: "fc8ea52f79215fda2346cf06" },
+  { schema: "storage", kind: "index", name: "name_prefix_search", owner: "supabase_storage_admin", fingerprint: "94dc2f9aa22c6b4f9e0f928a" },
+  { schema: "storage", kind: "index", name: "objects_pkey", owner: "supabase_storage_admin", fingerprint: "87353a21f0ec6473e20da830" },
+  { schema: "storage", kind: "index", name: "s3_multipart_uploads_parts_pkey", owner: "supabase_storage_admin", fingerprint: "f2a26ef9e56ec6147e91abc2" },
+  { schema: "storage", kind: "index", name: "s3_multipart_uploads_pkey", owner: "supabase_storage_admin", fingerprint: "91be9fc87e9bb1e225d3f22c" },
+  { schema: "storage", kind: "index", name: "vector_indexes_name_bucket_id_idx", owner: "supabase_storage_admin", fingerprint: "a96467accd7f5daacdd46b72" },
+  { schema: "storage", kind: "index", name: "vector_indexes_pkey", owner: "supabase_storage_admin", fingerprint: "6166165062a8c18180e3db31" },
+  { schema: "storage", kind: "relation", name: "buckets", owner: "supabase_storage_admin", fingerprint: "a5c4ca132b112d9d0570ea90" },
+  { schema: "storage", kind: "relation", name: "buckets_analytics", owner: "supabase_storage_admin", fingerprint: "e737415370c959dac4e072ec" },
+  { schema: "storage", kind: "relation", name: "buckets_vectors", owner: "supabase_storage_admin", fingerprint: "6cae6c9e09f5130b813a0cfd" },
+  { schema: "storage", kind: "relation", name: "iceberg_namespaces", owner: "supabase_storage_admin", fingerprint: "ccb5f88c5225cf9983e58d27" },
+  { schema: "storage", kind: "relation", name: "iceberg_tables", owner: "supabase_storage_admin", fingerprint: "cab80f2ce6cf6ae6c42f53be" },
+  { schema: "storage", kind: "relation", name: "migrations", owner: "supabase_storage_admin", fingerprint: "5cd8aab9b0545d78251cece0" },
+  { schema: "storage", kind: "relation", name: "objects", owner: "supabase_storage_admin", fingerprint: "0135ed83c332edf5c18f3484" },
+  { schema: "storage", kind: "relation", name: "s3_multipart_uploads", owner: "supabase_storage_admin", fingerprint: "0b5973dbfeef2eccb3cd0bc8" },
+  { schema: "storage", kind: "relation", name: "s3_multipart_uploads_parts", owner: "supabase_storage_admin", fingerprint: "a0b0c294969b609a2024c7a7" },
+  { schema: "storage", kind: "relation", name: "vector_indexes", owner: "supabase_storage_admin", fingerprint: "dc7f00baf8accfbf2309e847" },
+  { schema: "storage", kind: "type", name: "buckettype", owner: "supabase_storage_admin", fingerprint: "1bcf63e094949b233be57593" },
+  { schema: "supabase_functions", kind: "function", name: "http_request()", owner: "supabase_functions_admin", fingerprint: "31b8c7f96c2f20c7320f79e8" },
+  { schema: "supabase_functions", kind: "index", name: "hooks_pkey", owner: "supabase_functions_admin", fingerprint: "48ec9989e20efe3c43b6466a" },
+  { schema: "supabase_functions", kind: "index", name: "migrations_pkey", owner: "supabase_functions_admin", fingerprint: "ef60934d9ad1222569819862" },
+  { schema: "supabase_functions", kind: "index", name: "supabase_functions_hooks_h_table_id_h_name_idx", owner: "supabase_functions_admin", fingerprint: "382b0bf2d11ac5af393b965e" },
+  { schema: "supabase_functions", kind: "index", name: "supabase_functions_hooks_request_id_idx", owner: "supabase_functions_admin", fingerprint: "5b45a04d0cddef7b5571d579" },
+  { schema: "supabase_functions", kind: "relation", name: "hooks", owner: "supabase_functions_admin", fingerprint: "75218f5d68605143dc029f6e" },
+  { schema: "supabase_functions", kind: "relation", name: "hooks_id_seq", owner: "supabase_functions_admin", fingerprint: "bf37c7c208717d6de100ce85" },
+  { schema: "supabase_functions", kind: "relation", name: "migrations", owner: "supabase_functions_admin", fingerprint: "f9924e13563fa5bb22773f78" },
+  { schema: "supabase_migrations", kind: "index", name: "schema_migrations_pkey", owner: "postgres", fingerprint: "299e5da633668829ece456f9" },
+  { schema: "supabase_migrations", kind: "relation", name: "schema_migrations", owner: "postgres", fingerprint: "8e79e1ac0f7eefe03da3b702" },
+  { schema: "vault", kind: "index", name: "secrets_name_idx", owner: "supabase_admin", fingerprint: "64f809eae410e0adb409186b" },
+  { schema: "vault", kind: "index", name: "secrets_pkey", owner: "supabase_admin", fingerprint: "7cb8fdeb197d8bcf18147235" },
 ]);
 
 /**
- * The ONE structural exception, and it is a shape rule rather than a name allowlist.
+ * THE ONE DYNAMIC EXCEPTION, ON STRUCTURAL EVIDENCE.
  *
- * The realtime service creates a `realtime.messages_YYYY_MM_DD` partition per day, plus
- * that partition's primary-key index. Their names are generated from the calendar, so no
- * fixed list can contain them and a stale baseline would refuse every project after
- * midnight. They are accepted ONLY when every structural property holds at once: the
- * `realtime` schema, the exact `messages_<date>` shape, the realtime service role as
- * owner, and a relation or index kind. A user-created `realtime.messages_2026_01_01`
- * would have to be owned by `supabase_realtime_admin` to qualify, which is the same bar
- * as every other object here.
+ * The realtime service creates a `realtime.messages_YYYY_MM_DD` partition per day plus
+ * its primary-key index, so no fixed list can hold them. The previous rule accepted a
+ * name regex plus an owner — repeating exactly the provenance mistake the object
+ * baseline exists to correct: a standalone table named `realtime.messages_2026_09_03`,
+ * re-owned to `supabase_realtime_admin`, passed.
+ *
+ * Acceptance now requires the object to BE a partition of the certified parent:
+ * the realtime service role owns it; the name carries a REAL calendar date; a relation
+ * is `parent=realtime.messages` with a bound of exactly that date to the next day and
+ * the certified column shape; an index is exactly the certified index over that
+ * partition. All of it is checked as the same normalised definition the baseline uses,
+ * with the date substituted into the certified template — so an altered column list, a
+ * different bound, a standalone table or a rebuilt index all fail.
  */
-const REALTIME_DAILY_PARTITION = /^messages_20\d{2}_\d{2}_\d{2}(_pkey)?$/;
+const REALTIME_PARTITION_NAME = /^messages_(20\d{2})_(\d{2})_(\d{2})(_pkey)?$/;
+const REALTIME_PARTITION_TEMPLATES = Object.freeze({
+  relation: "relkind=r|parent=realtime.messages|bound=FOR VALUES FROM ('<DATE> 00:00:00') TO ('<NEXT> 00:00:00')|cols=topic:text:NN:,extension:text:NN:,payload:jsonb:NULL:,event:text:NULL:,private:boolean:NULL:false,updated_at:timestamp without time zone:NN:now(),inserted_at:timestamp without time zone:NN:now(),id:uuid:NN:gen_random_uuid(),binary_payload:bytea:NULL:",
+  index: "indexdef=CREATE UNIQUE INDEX messages_<DATE_US>_pkey ON realtime.messages_<DATE_US> USING btree (id, inserted_at)",
+});
+
+/** The certified definition for a partition of a given date, or null if it is not one. */
+function realtimePartitionDefinition(object) {
+  if (object.schema !== "realtime" || object.owner !== "supabase_realtime_admin") return null;
+  const match = REALTIME_PARTITION_NAME.exec(object.name);
+  if (!match) return null;
+  const [, year, month, day, pkey] = match;
+  const isIndex = Boolean(pkey);
+  if (isIndex ? object.kind !== "index" : object.kind !== "relation") return null;
+  const date = `${year}-${month}-${day}`;
+  // A REAL calendar date, not merely digit-shaped: `2026_02_31` is not a partition.
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) return null;
+  const next = new Date(parsed.getTime() + 86_400_000).toISOString().slice(0, 10);
+  return (isIndex ? REALTIME_PARTITION_TEMPLATES.index : REALTIME_PARTITION_TEMPLATES.relation)
+    .split("<DATE_US>").join(`${year}_${month}_${day}`)
+    .split("<DATE>").join(date)
+    .split("<NEXT>").join(next);
+}
 
 function isRealtimeDailyPartition(object) {
-  return (
-    object.schema === "realtime" &&
-    (object.kind === "relation" || object.kind === "index") &&
-    object.owner === "supabase_realtime_admin" &&
-    REALTIME_DAILY_PARTITION.test(object.name)
-  );
+  const expected = realtimePartitionDefinition(object);
+  if (expected === null) return false;
+  // The DEFINITION must match. Owner and name alone prove nothing.
+  return normalizeDefinition(object.definition ?? "") === normalizeDefinition(expected);
 }
 
 /**
@@ -1201,12 +1307,17 @@ function classifyManagedSchemaObjects(observed) {
   const remaining = STOCK_MANAGED_OBJECT_BASELINE.map((b) => ({ ...b }));
   for (const object of observed ?? []) {
     if (isRealtimeDailyPartition(object)) continue;
+    // The probe always supplies a `definition`; a precomputed `fingerprint` is accepted
+    // so offline regressions can construct observations without a database.
+    const fingerprint = object.fingerprint ?? fingerprintDefinition(object.definition ?? "");
     const index = remaining.findIndex(
-      (b) => b.schema === object.schema && b.kind === object.kind && b.name === object.name && b.owner === object.owner,
+      (b) =>
+        b.schema === object.schema && b.kind === object.kind && b.name === object.name &&
+        b.owner === object.owner && b.fingerprint === fingerprint,
     );
     if (index === -1) {
-      // Not certified stock. Ownership is deliberately NOT consulted here: an owner can
-      // be reassigned, so it cannot stand in for provenance.
+      // Not certified stock. Neither ownership nor the name stands in for provenance: an
+      // owner can be reassigned, and a stock object can be rewritten under its own name.
       nonStock.push(`${object.schema}.${object.name} (${object.kind}, owner ${object.owner || "unknown"})`);
       continue;
     }
@@ -1327,7 +1438,10 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   // measured stock project carries ZERO of them, so no structural baseline is needed and
   // no schema exemption applies: anything not positively extension-owned refuses FRESH.
   const eventQuery = `
-    select evt.evtname || '~|~' || evt.evtevent || '~|~' || evt.evtenabled || '~|~' ||
+    -- evtenabled is a "char" and evtevent a name; both need an explicit cast, or
+    -- PostgreSQL cannot choose a concatenation operator and this probe errors on
+    -- EVERY database -- which is how it behaved until a live run exposed it.
+    select evt.evtname::text || '~|~' || evt.evtevent::text || '~|~' || evt.evtenabled::text || '~|~' ||
            fn.nspname || '~|~' || pr.proname || '~|~' ||
            case when exists (select 1 from pg_depend d
                                where d.classid = 'pg_event_trigger'::regclass and d.objid = evt.oid and d.deptype = 'e')
@@ -1358,18 +1472,47 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   // type inside a managed schema, carrying the OWNER — the positive evidence the
   // classifier decides on. Extension-owned objects are excluded in SQL by pg_depend, so
   // a stock project's pg_cron/pg_net/pgsodium content never reaches the classifier.
+  // Each row carries the object's STRUCTURAL DEFINITION, which the classifier
+  // fingerprints. Identity fields alone cannot detect a stock object rewritten in place.
   const managedQuery = `
-    select n.nspname || '~|~' || case when c.relkind in ('i','I') then 'index' else 'relation' end || '~|~' ||
-           c.relname || '~|~' || pg_get_userbyid(c.relowner)
+    select n.nspname || '~|~' || (case when c.relkind in ('i','I') then 'index' else 'relation' end) || '~|~' ||
+           c.relname || '~|~' || pg_get_userbyid(c.relowner) || '~|~' ||
+           (case
+              when c.relkind in ('i','I') then 'indexdef=' || coalesce(pg_get_indexdef(c.oid), '')
+              when c.relkind = 'v' then 'viewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
+              when c.relkind = 'm' then 'matviewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
+              when c.relkind = 'S' then 'sequence'
+              else 'relkind=' || c.relkind::text
+                   || '|parent=' || coalesce((select pn.nspname || '.' || pc.relname from pg_inherits i
+                        join pg_class pc on pc.oid = i.inhparent join pg_namespace pn on pn.oid = pc.relnamespace
+                        where i.inhrelid = c.oid), '')
+                   || '|bound=' || coalesce(pg_get_expr(c.relpartbound, c.oid), '')
+                   || '|cols=' || coalesce((select string_agg(a.attname || ':' || format_type(a.atttypid, a.atttypmod) || ':' ||
+                        (case when a.attnotnull then 'NN' else 'NULL' end) || ':' ||
+                        coalesce(pg_get_expr(ad.adbin, ad.adrelid), ''), ',' order by a.attnum)
+                        from pg_attribute a left join pg_attrdef ad on ad.adrelid = a.attrelid and ad.adnum = a.attnum
+                        where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped), '')
+            end)
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where c.relkind in ('r','p','v','m','S','f','i','I') and (${MANAGED})
        and ${notExtensionOwned("pg_class", "c")}
     union all
-    select n.nspname || '~|~' || 'function' || '~|~' || p.proname || '~|~' || pg_get_userbyid(p.proowner)
+    select n.nspname || '~|~' || 'function' || '~|~' ||
+           p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' || '~|~' ||
+           pg_get_userbyid(p.proowner) || '~|~' ||
+           'ret=' || pg_catalog.format_type(p.prorettype, null) || '|kind=' || p.prokind::text ||
+           '|vol=' || p.provolatile::text || '|sec=' || (case when p.prosecdef then 'definer' else 'invoker' end) ||
+           '|body=' || coalesce(md5(coalesce(p.prosrc, '')), '')
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where (${MANAGED}) and ${notExtensionOwned("pg_proc", "p")}
     union all
-    select n.nspname || '~|~' || 'type' || '~|~' || t.typname || '~|~' || pg_get_userbyid(t.typowner)
+    select n.nspname || '~|~' || 'type' || '~|~' || t.typname || '~|~' || pg_get_userbyid(t.typowner) || '~|~' ||
+           'typtype=' || t.typtype::text ||
+           '|enum=' || coalesce((select string_agg(e.enumlabel, ',' order by e.enumsortorder) from pg_enum e where e.enumtypid = t.oid), '') ||
+           '|domainbase=' || coalesce((select format_type(t.typbasetype, t.typtypmod) where t.typtype = 'd'), '') ||
+           '|range=' || coalesce((select format_type(r.rngsubtype, null) from pg_range r where r.rngtypid = t.oid), '') ||
+           '|attrs=' || coalesce((select string_agg(a.attname || ':' || format_type(a.atttypid, a.atttypmod), ',' order by a.attnum)
+                from pg_attribute a where a.attrelid = t.typrelid and a.attnum > 0 and not a.attisdropped), '')
       from pg_type t join pg_namespace n on n.oid = t.typnamespace
      where (${MANAGED}) and t.typtype in ('c','d','e','r','m')
        and ${notExtensionOwned("pg_type", "t")}
@@ -1385,10 +1528,10 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   for (const line of (managed.stdout ?? "").split(/\r?\n/)) {
     if (line.trim() === "") continue;
     const f = line.split("~|~");
-    if (f.length !== 4) {
-      return { ok: false, reason: `the managed-schema ownership probe returned an unrecognized row (${f.length} field(s)); refusing to infer emptiness.` };
+    if (f.length < 5) {
+      return { ok: false, reason: `the managed-schema object probe returned an unrecognized row (${f.length} field(s)); refusing to infer emptiness.` };
     }
-    managedObjects.push({ schema: f[0], kind: f[1], name: f[2], owner: f[3] });
+    managedObjects.push({ schema: f[0], kind: f[1], name: f[2], owner: f[3], definition: f.slice(4).join("~|~") });
   }
   const managedVerdict = classifyManagedSchemaObjects(managedObjects);
   // Drift in EITHER direction defeats fresh certification, exactly as for triggers: a
@@ -1397,20 +1540,52 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
 
   // INSTALLED EXTENSIONS. Exempting extension-owned objects is only sound if the
   // extension itself is stock, so the set is inventoried rather than assumed.
-  const extResult = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c", "select extname from pg_extension order by 1;"]);
+  const extResult = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c",
+    "select e.extname || '~|~' || e.extversion || '~|~' || n.nspname from pg_extension e join pg_namespace n on n.oid = e.extnamespace order by 1;"]);
   if (extResult.status !== 0) {
     return { ok: false, failure: describeSpawnResult(extResult, "psql (installed-extension probe)"), stderr: extResult.stderr };
   }
-  const installedExtensions = (extResult.stdout ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const nonStockExtensions = installedExtensions.filter((name) => !STOCK_EXTENSION_BASELINE.includes(name));
-  counts.user_extensions = nonStockExtensions.length;
+  const installedExtensions = [];
+  for (const line of (extResult.stdout ?? "").split(/\r?\n/)) {
+    if (line.trim() === "") continue;
+    const f = line.split("~|~");
+    if (f.length !== 3) {
+      return { ok: false, reason: `the installed-extension probe returned an unrecognized row (${f.length} field(s)); refusing to infer emptiness.` };
+    }
+    installedExtensions.push({ name: f[0], version: f[1], schema: f[2] });
+  }
+  const extensionVerdict = classifyInstalledExtensions(installedExtensions);
+  // Drift in EITHER direction: an extra extension, a missing one, or a wrong version.
+  counts.user_extensions = extensionVerdict.nonStockCount + extensionVerdict.missingStockCount;
+  const nonStockExtensions = extensionVerdict.nonStock;
 
   // ROWS IN STOCK MANAGED TABLES. `query_to_xml` runs one count per table inside a single
   // read-only statement, so no table is missed and nothing is mutated. Only the
   // platform's own bookkeeping may be non-empty.
+  // Each populated table also returns a DIGEST over its certified stable projection, so
+  // "this table may be non-empty" is no longer the whole test. The projections come from
+  // STOCK_MANAGED_ROW_RULES, so the rules in source drive the SQL rather than the reverse.
+  const EMPTY_SQL_STRING = "''";
+  const projectionCase = Object.entries(STOCK_MANAGED_ROW_RULES)
+    .filter(([, rule]) => typeof rule.projection === "string")
+    .map(([qualified, rule]) => {
+      const [schema, name] = qualified.split(".");
+      const inner =
+        `select md5(coalesce(string_agg(x, ${EMPTY_SQL_STRING}|${EMPTY_SQL_STRING} order by x), ` +
+        `${EMPTY_SQL_STRING}${EMPTY_SQL_STRING})) as c from (select %s as x from %I.%I) s`;
+      return (
+        `when n.nspname = '${schema}' and c.relname = '${name}' then ` +
+        `(xpath('/row/c/text()', query_to_xml(format('${inner}', ` +
+        `'${rule.projection.replace(/'/g, "''")}', n.nspname, c.relname), false, true, ${EMPTY_SQL_STRING})))[1]::text`
+      );
+    })
+    .join("\n              ");
   const rowQuery = `
     select n.nspname || '~|~' || c.relname || '~|~' ||
            (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', n.nspname, c.relname), false, true, '')))[1]::text
+           || '~|~' || coalesce((case
+              ${projectionCase}
+              else null end), '')
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where c.relkind in ('r','p') and (${MANAGED})
        and ${notExtensionOwned("pg_class", "c")};
@@ -1419,20 +1594,18 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   if (rowResult.status !== 0) {
     return { ok: false, failure: describeSpawnResult(rowResult, "psql (managed-table row probe)"), stderr: rowResult.stderr };
   }
-  const populatedManagedTables = [];
+  const observedRowState = [];
   for (const line of (rowResult.stdout ?? "").split(/\r?\n/)) {
     if (line.trim() === "") continue;
     const f = line.split("~|~");
-    if (f.length !== 3 || !/^\d+$/.test(f[2].trim())) {
+    if (f.length !== 4 || !/^\d+$/.test(f[2].trim())) {
       return { ok: false, reason: `the managed-table row probe returned an unrecognized row (${f.length} field(s)); refusing to infer emptiness.` };
     }
-    const qualified = `${f[0]}.${f[1]}`;
-    const rows = Number(f[2].trim());
-    if (rows > 0 && !STOCK_MANAGED_TABLES_WITH_ROWS.includes(qualified)) {
-      populatedManagedTables.push(`${qualified}=${rows}`);
-    }
+    observedRowState.push({ schema: f[0], name: f[1], rows: Number(f[2].trim()), digest: f[3].trim() });
   }
-  counts.user_managed_table_rows = populatedManagedTables.length;
+  const rowVerdict = classifyManagedRowState(observedRowState);
+  const populatedManagedTables = rowVerdict.problems;
+  counts.user_managed_table_rows = rowVerdict.problemCount;
 
   const triggers = classifyObservedTriggers(observed);
   // Drift in EITHER direction defeats fresh certification.
@@ -1444,7 +1617,8 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     nonStockTriggers: triggers.nonStock, missingStockTriggers: triggers.missingStock,
     eventTriggers, managedObjects,
     nonStockManagedObjects: managedVerdict.nonStock, missingStockManagedObjects: managedVerdict.missingStock,
-    installedExtensions, nonStockExtensions, populatedManagedTables, verdict,
+    installedExtensions, nonStockExtensions, missingStockExtensions: extensionVerdict.missingStock,
+    observedRowState, populatedManagedTables, verdict,
   };
 }
 
@@ -1698,7 +1872,13 @@ if (isMainModule) main();
 export {
   classifyManagedSchemaObjects,
   STOCK_MANAGED_OBJECT_BASELINE,
+  STOCK_EXTENSION_BASELINE,
+  STOCK_MANAGED_ROW_RULES,
+  classifyInstalledExtensions,
+  classifyManagedRowState,
   isRealtimeDailyPartition,
+  realtimePartitionDefinition,
+  fingerprintDefinition,
   determineMode,
   safetyGuard,
   checkInventoryAndOrdering,

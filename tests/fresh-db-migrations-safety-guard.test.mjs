@@ -25,7 +25,13 @@ import {
   recognizeMigrationListRows,
   classifyManagedSchemaObjects,
   STOCK_MANAGED_OBJECT_BASELINE,
+  STOCK_EXTENSION_BASELINE,
+  STOCK_MANAGED_ROW_RULES,
+  classifyInstalledExtensions,
+  classifyManagedRowState,
   isRealtimeDailyPartition,
+  realtimePartitionDefinition,
+  fingerprintDefinition,
   readHostedMigrationVersions,
   HOSTED_ALLOWED_VALIDATION_REFS,
   redact,
@@ -1308,7 +1314,7 @@ test("classifyManagedSchemaObjects: OWNERSHIP ALONE no longer excuses anything",
 test("classifyManagedSchemaObjects: a CUSTOM object in a managed schema is counted, whoever owns it", () => {
   for (const owner of ["postgres", "supabase_storage_admin", "some_operator"]) {
     assert.equal(
-      classifyManagedSchemaObjects([...wholeBaseline(), { schema: "storage", kind: "relation", name: "custom_table", owner }]).nonStockCount,
+      classifyManagedSchemaObjects([...wholeBaseline(), { schema: "storage", kind: "relation", name: "custom_table", owner, definition: "relkind=r|parent=|bound=|cols=id:uuid:NN:" }]).nonStockCount,
       1,
       `a custom storage table owned by ${owner} evaded the inventory`,
     );
@@ -1341,20 +1347,164 @@ test("classifyManagedSchemaObjects: a DUPLICATED stock fingerprint is still an e
   assert.equal(verdict.nonStockCount, 1, "a duplicated stock object was consumed twice");
 });
 
-test("isRealtimeDailyPartition: only the exact structural shape is accepted", () => {
-  assert.equal(isRealtimeDailyPartition({ schema: "realtime", kind: "relation", name: "messages_2026_09_04", owner: "supabase_realtime_admin" }), true);
-  assert.equal(isRealtimeDailyPartition({ schema: "realtime", kind: "index", name: "messages_2026_09_04_pkey", owner: "supabase_realtime_admin" }), true);
-  // Every property is load-bearing: wrong schema, wrong owner, wrong kind, wrong shape.
-  assert.equal(isRealtimeDailyPartition({ schema: "storage", kind: "relation", name: "messages_2026_09_04", owner: "supabase_realtime_admin" }), false);
-  assert.equal(isRealtimeDailyPartition({ schema: "realtime", kind: "relation", name: "messages_2026_09_04", owner: "postgres" }), false);
-  assert.equal(isRealtimeDailyPartition({ schema: "realtime", kind: "function", name: "messages_2026_09_04", owner: "supabase_realtime_admin" }), false);
-  assert.equal(isRealtimeDailyPartition({ schema: "realtime", kind: "relation", name: "messages_custom", owner: "supabase_realtime_admin" }), false);
-  // ...and a daily partition still passes through the classifier without being flagged.
+const partitionObject = (name, kind = "relation", overrides = {}) => {
+  const base = { schema: "realtime", kind, name, owner: "supabase_realtime_admin" };
+  return { ...base, definition: realtimePartitionDefinition(base), ...overrides };
+};
+
+test("realtime daily partition: a GENUINE certified partition is accepted", () => {
+  assert.equal(isRealtimeDailyPartition(partitionObject("messages_2027_01_01")), true, "a genuine daily partition was refused");
+  assert.equal(isRealtimeDailyPartition(partitionObject("messages_2027_01_01_pkey", "index")), true, "a genuine partition index was refused");
+  // ...and it passes through the classifier without being flagged.
   assert.equal(
-    classifyManagedSchemaObjects([...wholeBaseline(), { schema: "realtime", kind: "relation", name: "messages_2026_12_31", owner: "supabase_realtime_admin" }]).nonStockCount,
+    classifyManagedSchemaObjects([...wholeBaseline(), partitionObject("messages_2027_01_01")]).nonStockCount,
     0,
-    "a legitimate daily realtime partition was flagged as application state",
+    "a genuine daily partition was flagged as application state",
   );
+});
+
+test("realtime daily partition: a STANDALONE table with the same name and owner is REFUSED", () => {
+  // The exact evasion: name plus owner used to be the whole test. This object is not a
+  // partition of realtime.messages at all — no parent, no bound.
+  const fake = partitionObject("messages_2027_01_01", "relation", {
+    definition: "relkind=r|parent=|bound=|cols=id:uuid:NN:,payload:jsonb:NULL:",
+  });
+  assert.equal(isRealtimeDailyPartition(fake), false, "a standalone table posing as a daily partition was accepted");
+  assert.equal(classifyManagedSchemaObjects([...wholeBaseline(), fake]).nonStockCount, 1, "the impostor partition was not counted");
+});
+
+test("realtime daily partition: ALTERED columns or bound are REFUSED", () => {
+  const genuine = realtimePartitionDefinition({ schema: "realtime", kind: "relation", name: "messages_2027_01_01", owner: "supabase_realtime_admin" });
+  const altered = partitionObject("messages_2027_01_01", "relation", { definition: `${genuine},injected_col:text:NULL:` });
+  assert.equal(isRealtimeDailyPartition(altered), false, "a partition with an extra column was accepted");
+  const rebound = partitionObject("messages_2027_01_01", "relation", {
+    definition: genuine.replace("TO ('2027-01-02 00:00:00')", "TO ('2028-01-02 00:00:00')"),
+  });
+  assert.equal(isRealtimeDailyPartition(rebound), false, "a partition with a different bound was accepted");
+});
+
+test("realtime daily partition: an ALTERED index definition is REFUSED", () => {
+  const genuine = realtimePartitionDefinition({ schema: "realtime", kind: "index", name: "messages_2027_01_01_pkey", owner: "supabase_realtime_admin" });
+  const altered = partitionObject("messages_2027_01_01_pkey", "index", { definition: genuine.replace("(id, inserted_at)", "(id)") });
+  assert.equal(isRealtimeDailyPartition(altered), false, "a rebuilt partition index was accepted");
+});
+
+test("realtime daily partition: owner, schema, kind and a REAL date are all load-bearing", () => {
+  const genuine = realtimePartitionDefinition({ schema: "realtime", kind: "relation", name: "messages_2027_01_01", owner: "supabase_realtime_admin" });
+  assert.equal(isRealtimeDailyPartition({ schema: "realtime", kind: "relation", name: "messages_2027_01_01", owner: "postgres", definition: genuine }), false, "a re-owned partition was accepted");
+  assert.equal(isRealtimeDailyPartition({ schema: "storage", kind: "relation", name: "messages_2027_01_01", owner: "supabase_realtime_admin", definition: genuine }), false, "the schema was not checked");
+  assert.equal(isRealtimeDailyPartition({ schema: "realtime", kind: "function", name: "messages_2027_01_01", owner: "supabase_realtime_admin", definition: genuine }), false, "the kind was not checked");
+  // 2027-02-31 is digit-shaped but not a calendar date.
+  assert.equal(realtimePartitionDefinition({ schema: "realtime", kind: "relation", name: "messages_2027_02_31", owner: "supabase_realtime_admin" }), null, "an impossible date was treated as a partition");
+});
+
+// ─── F1: structural fingerprints ──────────────────────────────────────────
+
+test("classifyManagedSchemaObjects: a stock object REWRITTEN in place is refused", () => {
+  // schema + kind + name + owner all still match; only the definition changed. This is
+  // the case a four-field identity match could never see.
+  for (const kind of ["relation", "index", "function", "type"]) {
+    const entry = STOCK_MANAGED_OBJECT_BASELINE.find((b) => b.kind === kind);
+    assert.ok(entry, `the baseline carries no ${kind} to mutate`);
+    const rewritten = wholeBaseline().map((b) =>
+      b === b && b.schema === entry.schema && b.kind === entry.kind && b.name === entry.name
+        ? { ...b, fingerprint: undefined, definition: "TAMPERED DEFINITION" }
+        : b);
+    const verdict = classifyManagedSchemaObjects(rewritten);
+    assert.equal(verdict.nonStockCount, 1, `a rewritten stock ${kind} was accepted as pristine`);
+    assert.equal(verdict.missingStockCount, 1, `the original stock ${kind} was not reported missing`);
+  }
+});
+
+test("fingerprintDefinition: whitespace is normalised, content is not", () => {
+  assert.equal(fingerprintDefinition("a  b\n c"), fingerprintDefinition("a b c"), "whitespace differences were treated as drift");
+  assert.notEqual(fingerprintDefinition("a b c"), fingerprintDefinition("a b d"), "a content change did not change the fingerprint");
+});
+
+// ─── F2: extension name AND version ───────────────────────────────────────
+
+const stockExtensions = () => STOCK_EXTENSION_BASELINE.map((e) => ({ ...e }));
+
+test("classifyInstalledExtensions: the certified set at the certified versions is accepted", () => {
+  const verdict = classifyInstalledExtensions(stockExtensions());
+  assert.equal(verdict.baselineSatisfied, true, `stock extensions were flagged: ${verdict.nonStock.join(", ")} / missing ${verdict.missingStock.join(", ")}`);
+});
+
+test("classifyInstalledExtensions: an EXTRA extension is refused", () => {
+  const verdict = classifyInstalledExtensions([...stockExtensions(), { name: "hstore", version: "1.8", schema: "extensions" }]);
+  assert.equal(verdict.nonStockCount, 1, "an extra extension was accepted");
+  assert.match(verdict.nonStock[0], /^hstore@1\.8@extensions$/, `unexpected finding: ${verdict.nonStock[0]}`);
+});
+
+test("classifyInstalledExtensions: a stock NAME at a DIFFERENT VERSION is refused", () => {
+  const drifted = stockExtensions().map((e) => (e.name === "pgcrypto" ? { ...e, version: "1.2" } : e));
+  const verdict = classifyInstalledExtensions(drifted);
+  assert.equal(verdict.nonStockCount, 1, "a stock extension at an uncertified version was accepted");
+  assert.equal(verdict.missingStockCount, 1, "the certified version was not reported missing");
+  assert.equal(verdict.baselineSatisfied, false, "version drift satisfied the baseline");
+});
+
+test("classifyInstalledExtensions: a MISSING certified extension is drift", () => {
+  const verdict = classifyInstalledExtensions(stockExtensions().slice(1));
+  assert.equal(verdict.missingStockCount, 1, "a missing certified extension was not reported");
+  assert.equal(verdict.baselineSatisfied, false, "a target missing a platform extension satisfied the baseline");
+});
+
+test("classifyInstalledExtensions: a DUPLICATED extension row is refused", () => {
+  const dup = stockExtensions();
+  const verdict = classifyInstalledExtensions([...dup, { ...dup[0] }]);
+  assert.equal(verdict.nonStockCount, 1, "a duplicated extension row was consumed twice");
+});
+
+// ─── F3: certified managed row state ──────────────────────────────────────
+
+const certifiedRowState = () =>
+  Object.entries(STOCK_MANAGED_ROW_RULES)
+    .filter(([, rule]) => rule.kind !== "history")
+    .map(([qualified, rule]) => {
+      const [schema, name] = qualified.split(".");
+      return { schema, name, rows: rule.count, digest: rule.digest };
+    });
+
+test("classifyManagedRowState: the certified pristine row state is accepted", () => {
+  const verdict = classifyManagedRowState(certifiedRowState());
+  assert.equal(verdict.problemCount, 0, `pristine row state was flagged: ${verdict.problems.join("; ")}`);
+});
+
+test("classifyManagedRowState: an EXTRA row in a permitted table is refused", () => {
+  const state = certifiedRowState().map((t) => (t.name === "schema_migrations" && t.schema === "auth" ? { ...t, rows: t.rows + 1 } : t));
+  const verdict = classifyManagedRowState(state);
+  assert.equal(verdict.problemCount, 1, "an extra ledger row was accepted");
+  assert.match(verdict.problems[0], /auth\.schema_migrations=\d+ rows, certified/, `unexpected problem: ${verdict.problems[0]}`);
+});
+
+test("classifyManagedRowState: a MISSING required bootstrap row is refused", () => {
+  const verdict = classifyManagedRowState(certifiedRowState().filter((t) => !(t.schema === "_realtime" && t.name === "tenants")));
+  assert.equal(verdict.problemCount, 1, "a missing bootstrap row was accepted");
+  assert.match(verdict.problems[0], /_realtime\.tenants is EMPTY/, `unexpected problem: ${verdict.problems[0]}`);
+});
+
+test("classifyManagedRowState: a MODIFIED stable bootstrap value is refused", () => {
+  const state = certifiedRowState().map((t) => (t.schema === "_realtime" && t.name === "tenants" ? { ...t, digest: "0".repeat(32) } : t));
+  const verdict = classifyManagedRowState(state);
+  assert.equal(verdict.problemCount, 1, "an altered bootstrap row was accepted");
+  assert.match(verdict.problems[0], /_realtime\.tenants row content differs/, `unexpected problem: ${verdict.problems[0]}`);
+});
+
+test("classifyManagedRowState: rows in a table with NO certified state are refused", () => {
+  for (const [schema, name] of [["cron", "job"], ["vault", "secrets"], ["auth", "users"], ["storage", "buckets"], ["storage", "objects"]]) {
+    const verdict = classifyManagedRowState([...certifiedRowState(), { schema, name, rows: 1, digest: "" }]);
+    assert.equal(verdict.problemCount, 1, `a row in ${schema}.${name} was accepted`);
+    assert.match(verdict.problems[0], new RegExp(`${schema}\\.${name}=1`), `unexpected problem: ${verdict.problems[0]}`);
+  }
+});
+
+test("classifyManagedRowState: the migration ledger is NOT laundered through the row allowance", () => {
+  // supabase_migrations.schema_migrations is governed by the migration-history contract
+  // and counted as migration_rows; it must neither be flagged here nor excuse anything.
+  const verdict = classifyManagedRowState([...certifiedRowState(), { schema: "supabase_migrations", name: "schema_migrations", rows: 161, digest: "" }]);
+  assert.equal(verdict.problemCount, 0, `the migration ledger was flagged: ${verdict.problems.join("; ")}`);
+  assert.equal(STOCK_MANAGED_ROW_RULES["supabase_migrations.schema_migrations"].kind, "history", "the ledger is not marked as history-governed");
 });
 
 test("classifyObjectEmptiness: the new managed categories all defeat application-emptiness", () => {
