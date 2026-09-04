@@ -1043,14 +1043,33 @@ function classifyManagedRowState(observed) {
   return { problemCount: problems.length, problems };
 }
 
-/** Whitespace-normalised, so formatting differences are not mistaken for drift. */
-function normalizeDefinition(text) {
-  return String(text ?? "").replace(/\s+/g, " ").trim();
-}
-
-/** The structural fingerprint an observed object must present to match the baseline. */
+/**
+ * The structural fingerprint an observed object must present to match the baseline.
+ *
+ * EXACT BYTES. This used to hash a whitespace-canonicalized form
+ * (`replace(/\s+/g, " ")`), which is not SQL-lexically aware: it collapsed whitespace
+ * INSIDE string literals, where whitespace is DATA rather than formatting. Reproduced
+ * against the certified stock `realtime.apply_rls`: changing only
+ * `'Error 400: Bad Request, no primary key'` to `'Error 400: Bad  Request, ...'` — a
+ * function that now returns a different value — normalized to the same text and produced
+ * the identical fingerprint c2529bc57768c673eb39c6e7, so a rewritten managed function
+ * classified as certified stock.
+ *
+ * WHY EXACT RATHER THAN LEXICAL-AWARE NORMALIZATION. A lexer would have to be right about
+ * single-quoted literals with doubled quotes, E'' escapes, quoted identifiers, and
+ * dollar-quoted bodies with arbitrary tags — which `pg_get_functiondef` emits, and which
+ * themselves contain single-quoted literals. Being wrong anywhere in that just moves the
+ * collision inward, which is the failure mode this remediation exists to end. Hashing the
+ * bytes cannot be wrong about SQL syntax because it makes no claim about it.
+ *
+ * THE TRADEOFF, STATED. Formatting-only differences now change the fingerprint too, so a
+ * platform release that reformats its own deparse output refuses FRESH until the baseline
+ * is re-certified by hand. That is the same bias every other certified baseline here
+ * already carries: a false NON_EMPTY is always preferable to a false EMPTY followed by a
+ * destructive push.
+ */
 function fingerprintDefinition(definition) {
-  return createHash("sha256").update(normalizeDefinition(definition)).digest("hex").slice(0, 24);
+  return createHash("sha256").update(String(definition ?? ""), "utf8").digest("hex").slice(0, 24);
 }
 
 /**
@@ -1200,10 +1219,10 @@ const STOCK_MANAGED_OBJECT_BASELINE = Object.freeze([
   { schema: "_realtime", kind: "relation", name: "feature_flags", owner: "supabase_admin", fingerprint: "9fa2e8d9b5e4adbd93087f4d" },
   { schema: "_realtime", kind: "relation", name: "schema_migrations", owner: "supabase_admin", fingerprint: "823262bb1397b90c209ef8c7" },
   { schema: "_realtime", kind: "relation", name: "tenants", owner: "supabase_admin", fingerprint: "27c092736ba0121902560d1d" },
-  { schema: "auth", kind: "function", name: "email()", owner: "supabase_auth_admin", fingerprint: "4862bd140368070c76bcde50" },
-  { schema: "auth", kind: "function", name: "jwt()", owner: "supabase_auth_admin", fingerprint: "1323547c6d227abcaa122fec" },
-  { schema: "auth", kind: "function", name: "role()", owner: "supabase_auth_admin", fingerprint: "4389bdccd3cc289019eaca49" },
-  { schema: "auth", kind: "function", name: "uid()", owner: "supabase_auth_admin", fingerprint: "1ac1c3505c49dda5104e3bdf" },
+  { schema: "auth", kind: "function", name: "email()", owner: "supabase_auth_admin", fingerprint: "bf2cd63ec711ed7baf75be87" },
+  { schema: "auth", kind: "function", name: "jwt()", owner: "supabase_auth_admin", fingerprint: "d9cceb83ea2471c1fb6fd2ca" },
+  { schema: "auth", kind: "function", name: "role()", owner: "supabase_auth_admin", fingerprint: "08a3c9b9aa5a0884d48853dd" },
+  { schema: "auth", kind: "function", name: "uid()", owner: "supabase_auth_admin", fingerprint: "9d659e4b7813a0a8268b7bfb" },
   { schema: "auth", kind: "index", name: "amr_id_pk", owner: "supabase_auth_admin", fingerprint: "75ed917852874113b302089f" },
   { schema: "auth", kind: "index", name: "audit_log_entries_pkey", owner: "supabase_auth_admin", fingerprint: "23189222336039c08af028f9" },
   { schema: "auth", kind: "index", name: "audit_logs_instance_id_idx", owner: "supabase_auth_admin", fingerprint: "c54616425c04dfdc154992a1" },
@@ -1324,29 +1343,29 @@ const STOCK_MANAGED_OBJECT_BASELINE = Object.freeze([
   { schema: "auth", kind: "type", name: "oauth_registration_type", owner: "supabase_auth_admin", fingerprint: "7386adc8d96a47106b0d2e7a" },
   { schema: "auth", kind: "type", name: "oauth_response_type", owner: "supabase_auth_admin", fingerprint: "8a8da122ee3cfada4bf61471" },
   { schema: "auth", kind: "type", name: "one_time_token_type", owner: "supabase_auth_admin", fingerprint: "7e852173a2e5a56084ea863f" },
-  { schema: "extensions", kind: "function", name: "grant_pg_cron_access()", owner: "supabase_admin", fingerprint: "8b9444e1b35487ee2d25fa8e" },
-  { schema: "extensions", kind: "function", name: "grant_pg_graphql_access()", owner: "supabase_admin", fingerprint: "97b5d13668d3a0a801262b68" },
-  { schema: "extensions", kind: "function", name: "grant_pg_net_access()", owner: "supabase_admin", fingerprint: "16e1a93420381fe90384b81c" },
-  { schema: "extensions", kind: "function", name: "pgrst_ddl_watch()", owner: "supabase_admin", fingerprint: "8d486f391592985d8ff9d7fb" },
-  { schema: "extensions", kind: "function", name: "pgrst_drop_watch()", owner: "supabase_admin", fingerprint: "84ca36320c65adde38ca2553" },
-  { schema: "extensions", kind: "function", name: "set_graphql_placeholder()", owner: "supabase_admin", fingerprint: "692b39e39dd2db0aee0986e8" },
-  { schema: "graphql_public", kind: "function", name: "graphql(\"operationName\" text, query text, variables jsonb, extensions jsonb)", owner: "supabase_admin", fingerprint: "60c207b0153854535101aa2a" },
-  { schema: "pgbouncer", kind: "function", name: "get_auth(p_usename text)", owner: "supabase_admin", fingerprint: "c7dce757e305ea189e10a64f" },
-  { schema: "realtime", kind: "function", name: "apply_rls(wal jsonb, max_record_bytes integer)", owner: "supabase_realtime_admin", fingerprint: "c2529bc57768c673eb39c6e7" },
-  { schema: "realtime", kind: "function", name: "broadcast_changes(topic_name text, event_name text, operation text, table_name text, table_schema text, new record, old record, level text)", owner: "supabase_realtime_admin", fingerprint: "72b0bcc5122896a7e7c7b945" },
-  { schema: "realtime", kind: "function", name: "build_prepared_statement_sql(prepared_statement_name text, entity regclass, columns realtime.wal_column[])", owner: "supabase_realtime_admin", fingerprint: "88e78e18130b11fa5ee974a0" },
-  { schema: "realtime", kind: "function", name: "cast(val text, type_ regtype)", owner: "supabase_realtime_admin", fingerprint: "719f59d64deeeed81cd25f1c" },
-  { schema: "realtime", kind: "function", name: "check_equality_op(op realtime.equality_op, type_ regtype, val_1 text, val_2 text)", owner: "supabase_realtime_admin", fingerprint: "14d8f2f4fe755b7237c0d847" },
-  { schema: "realtime", kind: "function", name: "check_equality_op(op realtime.equality_op, type_ regtype, val_1 text, val_2 text, negate boolean)", owner: "supabase_realtime_admin", fingerprint: "174ca60eaa3101c79517de0d" },
-  { schema: "realtime", kind: "function", name: "is_visible_through_filters(columns realtime.wal_column[], filters realtime.user_defined_filter[])", owner: "supabase_realtime_admin", fingerprint: "e618a3ef394572af5772b358" },
-  { schema: "realtime", kind: "function", name: "list_changes(publication name, slot_name name, max_changes integer, max_record_bytes integer)", owner: "supabase_realtime_admin", fingerprint: "463ed2922d7373cb54947871" },
-  { schema: "realtime", kind: "function", name: "quote_wal2json(entity regclass)", owner: "supabase_realtime_admin", fingerprint: "046180be53af2b437b0f2bc8" },
-  { schema: "realtime", kind: "function", name: "send(payload jsonb, event text, topic text, private boolean)", owner: "supabase_realtime_admin", fingerprint: "356a74469fb8f0a8099e8990" },
-  { schema: "realtime", kind: "function", name: "send_binary(payload bytea, event text, topic text, private boolean)", owner: "supabase_realtime_admin", fingerprint: "c29f294e24831719b37c7e68" },
-  { schema: "realtime", kind: "function", name: "subscription_check_filters()", owner: "supabase_realtime_admin", fingerprint: "fa4a9fa07f10a7710c32c419" },
-  { schema: "realtime", kind: "function", name: "to_regrole(role_name text)", owner: "supabase_realtime_admin", fingerprint: "db16045c9af1b1b60d507d33" },
-  { schema: "realtime", kind: "function", name: "topic()", owner: "supabase_realtime_admin", fingerprint: "3a13696650813a4318f70b81" },
-  { schema: "realtime", kind: "function", name: "wal2json_escape_identifier(name text)", owner: "supabase_realtime_admin", fingerprint: "eb32a4e850eb47d9da6e5dba" },
+  { schema: "extensions", kind: "function", name: "grant_pg_cron_access()", owner: "supabase_admin", fingerprint: "76080dae01e3ec7e6c8d3a7c" },
+  { schema: "extensions", kind: "function", name: "grant_pg_graphql_access()", owner: "supabase_admin", fingerprint: "973487198f6c54c1a01dde19" },
+  { schema: "extensions", kind: "function", name: "grant_pg_net_access()", owner: "supabase_admin", fingerprint: "47bd3c532140e2eb4cfe8c82" },
+  { schema: "extensions", kind: "function", name: "pgrst_ddl_watch()", owner: "supabase_admin", fingerprint: "c72c551538fdd2dd442b8364" },
+  { schema: "extensions", kind: "function", name: "pgrst_drop_watch()", owner: "supabase_admin", fingerprint: "4dd03475cb14cc7dfcae8de3" },
+  { schema: "extensions", kind: "function", name: "set_graphql_placeholder()", owner: "supabase_admin", fingerprint: "8da74c1fa9b2710309075efc" },
+  { schema: "graphql_public", kind: "function", name: "graphql(\"operationName\" text, query text, variables jsonb, extensions jsonb)", owner: "supabase_admin", fingerprint: "cd48542c10700d1b2a88cd04" },
+  { schema: "pgbouncer", kind: "function", name: "get_auth(p_usename text)", owner: "supabase_admin", fingerprint: "80b96f37cad874bca547fc5f" },
+  { schema: "realtime", kind: "function", name: "apply_rls(wal jsonb, max_record_bytes integer)", owner: "supabase_realtime_admin", fingerprint: "616221a1c5dc2811a7f452ca" },
+  { schema: "realtime", kind: "function", name: "broadcast_changes(topic_name text, event_name text, operation text, table_name text, table_schema text, new record, old record, level text)", owner: "supabase_realtime_admin", fingerprint: "a2c2c5b4e17aa6891ada6a14" },
+  { schema: "realtime", kind: "function", name: "build_prepared_statement_sql(prepared_statement_name text, entity regclass, columns realtime.wal_column[])", owner: "supabase_realtime_admin", fingerprint: "4afb37b377ea270820398d01" },
+  { schema: "realtime", kind: "function", name: "cast(val text, type_ regtype)", owner: "supabase_realtime_admin", fingerprint: "2d226dd3b3b2788f2a797b73" },
+  { schema: "realtime", kind: "function", name: "check_equality_op(op realtime.equality_op, type_ regtype, val_1 text, val_2 text)", owner: "supabase_realtime_admin", fingerprint: "c3c44f24b34440c6ed1c1be0" },
+  { schema: "realtime", kind: "function", name: "check_equality_op(op realtime.equality_op, type_ regtype, val_1 text, val_2 text, negate boolean)", owner: "supabase_realtime_admin", fingerprint: "c67199f5fa555c21d85add50" },
+  { schema: "realtime", kind: "function", name: "is_visible_through_filters(columns realtime.wal_column[], filters realtime.user_defined_filter[])", owner: "supabase_realtime_admin", fingerprint: "aa0dce987dc6ffd186315a48" },
+  { schema: "realtime", kind: "function", name: "list_changes(publication name, slot_name name, max_changes integer, max_record_bytes integer)", owner: "supabase_realtime_admin", fingerprint: "6ba104dead771211438e0957" },
+  { schema: "realtime", kind: "function", name: "quote_wal2json(entity regclass)", owner: "supabase_realtime_admin", fingerprint: "5fecc542306c98c6acc7fe7c" },
+  { schema: "realtime", kind: "function", name: "send(payload jsonb, event text, topic text, private boolean)", owner: "supabase_realtime_admin", fingerprint: "3db533a2ca85df9d2faf3ef5" },
+  { schema: "realtime", kind: "function", name: "send_binary(payload bytea, event text, topic text, private boolean)", owner: "supabase_realtime_admin", fingerprint: "74bf7b13ae7b0d411ec935c0" },
+  { schema: "realtime", kind: "function", name: "subscription_check_filters()", owner: "supabase_realtime_admin", fingerprint: "7181e0e00bfeaea5f57f7877" },
+  { schema: "realtime", kind: "function", name: "to_regrole(role_name text)", owner: "supabase_realtime_admin", fingerprint: "9102d332ca093b9ca83fd157" },
+  { schema: "realtime", kind: "function", name: "topic()", owner: "supabase_realtime_admin", fingerprint: "99e7182f9fb07da373c7de5d" },
+  { schema: "realtime", kind: "function", name: "wal2json_escape_identifier(name text)", owner: "supabase_realtime_admin", fingerprint: "dcac1fe54b96d255b7c1c622" },
   { schema: "realtime", kind: "index", name: "ix_realtime_subscription_entity", owner: "supabase_realtime_admin", fingerprint: "3e340e9d4d6afa46468e04c3" },
   { schema: "realtime", kind: "index", name: "messages_2026_09_02_inserted_at_topic_idx", owner: "supabase_realtime_admin", fingerprint: "68d12115880630712b870a2b" },
   { schema: "realtime", kind: "index", name: "messages_2026_09_03_inserted_at_topic_idx", owner: "supabase_realtime_admin", fingerprint: "2b8d681264aa25b1e51b4ddd" },
@@ -1368,23 +1387,23 @@ const STOCK_MANAGED_OBJECT_BASELINE = Object.freeze([
   { schema: "realtime", kind: "type", name: "user_defined_filter", owner: "supabase_realtime_admin", fingerprint: "1b513c8920088255009c6deb" },
   { schema: "realtime", kind: "type", name: "wal_column", owner: "supabase_realtime_admin", fingerprint: "f6e054bd504ae423e9971af7" },
   { schema: "realtime", kind: "type", name: "wal_rls", owner: "supabase_realtime_admin", fingerprint: "aa604b9bc125865debb301b7" },
-  { schema: "storage", kind: "function", name: "allow_any_operation(expected_operations text[])", owner: "supabase_storage_admin", fingerprint: "b9493ec4c9559392949e5f0b" },
-  { schema: "storage", kind: "function", name: "allow_only_operation(expected_operation text)", owner: "supabase_storage_admin", fingerprint: "2416e40d755d6bdb3ac4b936" },
-  { schema: "storage", kind: "function", name: "can_insert_object(bucketid text, name text, owner uuid, metadata jsonb)", owner: "supabase_storage_admin", fingerprint: "c26ae371376b28f8519ed07d" },
-  { schema: "storage", kind: "function", name: "enforce_bucket_name_length()", owner: "supabase_storage_admin", fingerprint: "8d3732fbe7b2f5a266e4ee3c" },
-  { schema: "storage", kind: "function", name: "extension(name text)", owner: "supabase_storage_admin", fingerprint: "add128e593dddb7aba4a213d" },
-  { schema: "storage", kind: "function", name: "filename(name text)", owner: "supabase_storage_admin", fingerprint: "326858e841aa51f4bfbfc82b" },
-  { schema: "storage", kind: "function", name: "foldername(name text)", owner: "supabase_storage_admin", fingerprint: "079db50ae7c0d85d916585e5" },
-  { schema: "storage", kind: "function", name: "get_common_prefix(p_key text, p_prefix text, p_delimiter text)", owner: "supabase_storage_admin", fingerprint: "cb6f0ddb429a5841670bce61" },
-  { schema: "storage", kind: "function", name: "get_size_by_bucket()", owner: "supabase_storage_admin", fingerprint: "2490aed34368aa692ef384d2" },
-  { schema: "storage", kind: "function", name: "list_multipart_uploads_with_delimiter(bucket_id text, prefix_param text, delimiter_param text, max_keys integer, next_key_token text, next_upload_token text)", owner: "supabase_storage_admin", fingerprint: "4b4b11a6c29884443c40c2a3" },
-  { schema: "storage", kind: "function", name: "list_objects_with_delimiter(_bucket_id text, prefix_param text, delimiter_param text, max_keys integer, start_after text, next_token text, sort_order text)", owner: "supabase_storage_admin", fingerprint: "fee991f78344ef4477824c63" },
-  { schema: "storage", kind: "function", name: "operation()", owner: "supabase_storage_admin", fingerprint: "8ffceb35d8833a6f96928dc4" },
-  { schema: "storage", kind: "function", name: "protect_delete()", owner: "supabase_storage_admin", fingerprint: "9b15a1e966a3154204e12dc0" },
-  { schema: "storage", kind: "function", name: "search(prefix text, bucketname text, limits integer, levels integer, offsets integer, search text, sortcolumn text, sortorder text)", owner: "supabase_storage_admin", fingerprint: "da68666a3f65d6ac06db8be5" },
-  { schema: "storage", kind: "function", name: "search_by_timestamp(p_prefix text, p_bucket_id text, p_limit integer, p_level integer, p_start_after text, p_sort_order text, p_sort_column text, p_sort_column_after text)", owner: "supabase_storage_admin", fingerprint: "f1f75708d7ca960276433b9d" },
-  { schema: "storage", kind: "function", name: "search_v2(prefix text, bucket_name text, limits integer, levels integer, start_after text, sort_order text, sort_column text, sort_column_after text)", owner: "supabase_storage_admin", fingerprint: "ffd9bb8eb28b156685d6bfa1" },
-  { schema: "storage", kind: "function", name: "update_updated_at_column()", owner: "supabase_storage_admin", fingerprint: "ae240fe2b03e5c465d359e1b" },
+  { schema: "storage", kind: "function", name: "allow_any_operation(expected_operations text[])", owner: "supabase_storage_admin", fingerprint: "d50ddfe362a585c516e98327" },
+  { schema: "storage", kind: "function", name: "allow_only_operation(expected_operation text)", owner: "supabase_storage_admin", fingerprint: "7f0f8b2ea6c9783de8dab9b1" },
+  { schema: "storage", kind: "function", name: "can_insert_object(bucketid text, name text, owner uuid, metadata jsonb)", owner: "supabase_storage_admin", fingerprint: "c1748d430a06268a94a32ba6" },
+  { schema: "storage", kind: "function", name: "enforce_bucket_name_length()", owner: "supabase_storage_admin", fingerprint: "46af76dda19b0caa2d0a2835" },
+  { schema: "storage", kind: "function", name: "extension(name text)", owner: "supabase_storage_admin", fingerprint: "6e971b6d1fe2b5bcb59a0114" },
+  { schema: "storage", kind: "function", name: "filename(name text)", owner: "supabase_storage_admin", fingerprint: "6daae637d8635c7a3c8068a3" },
+  { schema: "storage", kind: "function", name: "foldername(name text)", owner: "supabase_storage_admin", fingerprint: "907e4f17e10f58161732da86" },
+  { schema: "storage", kind: "function", name: "get_common_prefix(p_key text, p_prefix text, p_delimiter text)", owner: "supabase_storage_admin", fingerprint: "208783daadf8ddde32da3f2f" },
+  { schema: "storage", kind: "function", name: "get_size_by_bucket()", owner: "supabase_storage_admin", fingerprint: "1e53a9384dcb7498f817074a" },
+  { schema: "storage", kind: "function", name: "list_multipart_uploads_with_delimiter(bucket_id text, prefix_param text, delimiter_param text, max_keys integer, next_key_token text, next_upload_token text)", owner: "supabase_storage_admin", fingerprint: "57861b45130a6dc3b6f994fe" },
+  { schema: "storage", kind: "function", name: "list_objects_with_delimiter(_bucket_id text, prefix_param text, delimiter_param text, max_keys integer, start_after text, next_token text, sort_order text)", owner: "supabase_storage_admin", fingerprint: "0fb0f0b4d6072b0248668c61" },
+  { schema: "storage", kind: "function", name: "operation()", owner: "supabase_storage_admin", fingerprint: "eb4f783523b5aa413584fe08" },
+  { schema: "storage", kind: "function", name: "protect_delete()", owner: "supabase_storage_admin", fingerprint: "9e0634e716c9c5850a1a8bd2" },
+  { schema: "storage", kind: "function", name: "search(prefix text, bucketname text, limits integer, levels integer, offsets integer, search text, sortcolumn text, sortorder text)", owner: "supabase_storage_admin", fingerprint: "9fa8aa5220746254c8940c64" },
+  { schema: "storage", kind: "function", name: "search_by_timestamp(p_prefix text, p_bucket_id text, p_limit integer, p_level integer, p_start_after text, p_sort_order text, p_sort_column text, p_sort_column_after text)", owner: "supabase_storage_admin", fingerprint: "a2ff58e5ea5af8000abeeda9" },
+  { schema: "storage", kind: "function", name: "search_v2(prefix text, bucket_name text, limits integer, levels integer, start_after text, sort_order text, sort_column text, sort_column_after text)", owner: "supabase_storage_admin", fingerprint: "562d31694a6471103133e2a6" },
+  { schema: "storage", kind: "function", name: "update_updated_at_column()", owner: "supabase_storage_admin", fingerprint: "2fc97610de84e637b39bffd6" },
   { schema: "storage", kind: "index", name: "bname", owner: "supabase_storage_admin", fingerprint: "3cffe7966c2d10423ccd1e61" },
   { schema: "storage", kind: "index", name: "bucketid_objname", owner: "supabase_storage_admin", fingerprint: "985cd15e65a08b512067e36f" },
   { schema: "storage", kind: "index", name: "buckets_analytics_pkey", owner: "supabase_storage_admin", fingerprint: "ed3e876a891d193b3a8b9ada" },
@@ -1418,7 +1437,7 @@ const STOCK_MANAGED_OBJECT_BASELINE = Object.freeze([
   { schema: "storage", kind: "relation", name: "s3_multipart_uploads_parts", owner: "supabase_storage_admin", fingerprint: "7169951459829491cf70aa48" },
   { schema: "storage", kind: "relation", name: "vector_indexes", owner: "supabase_storage_admin", fingerprint: "c8d8a874a3a27e1a830c9231" },
   { schema: "storage", kind: "type", name: "buckettype", owner: "supabase_storage_admin", fingerprint: "d85527c6ad17ea4011867af1" },
-  { schema: "supabase_functions", kind: "function", name: "http_request()", owner: "supabase_functions_admin", fingerprint: "150e17fc4d7c239f6db9d859" },
+  { schema: "supabase_functions", kind: "function", name: "http_request()", owner: "supabase_functions_admin", fingerprint: "d6e5a42efa0da6cb80516adc" },
   { schema: "supabase_functions", kind: "index", name: "hooks_pkey", owner: "supabase_functions_admin", fingerprint: "48ec9989e20efe3c43b6466a" },
   { schema: "supabase_functions", kind: "index", name: "migrations_pkey", owner: "supabase_functions_admin", fingerprint: "ef60934d9ad1222569819862" },
   { schema: "supabase_functions", kind: "index", name: "supabase_functions_hooks_h_table_id_h_name_idx", owner: "supabase_functions_admin", fingerprint: "382b0bf2d11ac5af393b965e" },
@@ -1477,8 +1496,9 @@ function realtimePartitionDefinition(object) {
 function isRealtimeDailyPartition(object) {
   const expected = realtimePartitionDefinition(object);
   if (expected === null) return false;
-  // The DEFINITION must match. Owner and name alone prove nothing.
-  return normalizeDefinition(object.definition ?? "") === normalizeDefinition(expected);
+  // The DEFINITION must match, byte for byte, for the same reason the fingerprint is now
+  // exact: canonicalizing whitespace here would reopen the same literal-data collision.
+  return String(object.definition ?? "") === String(expected);
 }
 
 /**
@@ -1676,7 +1696,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   const managedQuery = `
     select n.nspname || '~|~' || (case when c.relkind in ('i','I') then 'index' else 'relation' end) || '~|~' ||
            c.relname || '~|~' || pg_get_userbyid(c.relowner) || '~|~' ||
-           (case
+           translate(encode(convert_to((case
               when c.relkind in ('i','I') then 'indexdef=' || coalesce(pg_get_indexdef(c.oid), '')
               when c.relkind = 'v' then 'viewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
               when c.relkind = 'm' then 'matviewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
@@ -1711,7 +1731,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
                    || '|acl=' || coalesce(array_to_string(array(select unnest(c.relacl)::text order by 1), ','), '(default)')
         || '|rls=' || c.relrowsecurity::text || '/' || c.relforcerowsecurity::text
         || '|replident=' || c.relreplident::text
-            end)
+            end), 'UTF8'), 'base64'), chr(10) || chr(13), '')
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where c.relkind in ('r','p','v','m','S','f','i','I') and (${MANAGED})
        and ${notExtensionOwned("pg_class", "c")}
@@ -1719,16 +1739,19 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     select n.nspname || '~|~' || 'function' || '~|~' ||
            p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' || '~|~' ||
            pg_get_userbyid(p.proowner) || '~|~' ||
-           'def=' || coalesce(replace(replace(pg_get_functiondef(p.oid), chr(10), ' '), chr(13), ' '), 'ret=' || pg_catalog.format_type(p.prorettype, null) || '|kind=' || p.prokind::text) ||
-           '|lang=' || l.lanname || '|strict=' || p.proisstrict::text || '|parallel=' || p.proparallel::text ||
-           '|leakproof=' || p.proleakproof::text || '|vol=' || p.provolatile::text ||
-           '|sec=' || (case when p.prosecdef then 'definer' else 'invoker' end) ||
-           '|config=' || coalesce(array_to_string(array(select unnest(p.proconfig) order by 1), ','), '(none)') ||
-           '|acl=' || coalesce(array_to_string(array(select unnest(p.proacl)::text order by 1), ','), '(default)')
+           translate(encode(convert_to(
+             'def=' || coalesce(pg_get_functiondef(p.oid), 'ret=' || pg_catalog.format_type(p.prorettype, null) || '|kind=' || p.prokind::text) ||
+             '|lang=' || l.lanname || '|strict=' || p.proisstrict::text || '|parallel=' || p.proparallel::text ||
+             '|leakproof=' || p.proleakproof::text || '|vol=' || p.provolatile::text ||
+             '|sec=' || (case when p.prosecdef then 'definer' else 'invoker' end) ||
+             '|config=' || coalesce(array_to_string(array(select unnest(p.proconfig) order by 1), ','), '(none)') ||
+             '|acl=' || coalesce(array_to_string(array(select unnest(p.proacl)::text order by 1), ','), '(default)')
+           , 'UTF8'), 'base64'), chr(10) || chr(13), '')
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace join pg_language l on l.oid = p.prolang
      where (${MANAGED}) and ${notExtensionOwned("pg_proc", "p")}
     union all
     select n.nspname || '~|~' || 'type' || '~|~' || t.typname || '~|~' || pg_get_userbyid(t.typowner) || '~|~' ||
+           translate(encode(convert_to(
            'typtype=' || t.typtype::text ||
            '|enum=' || coalesce((select string_agg(e.enumlabel, ',' order by e.enumsortorder) from pg_enum e where e.enumtypid = t.oid), '') ||
            '|domainbase=' || coalesce((select format_type(t.typbasetype, t.typtypmod) where t.typtype = 'd'), '') ||
@@ -1738,6 +1761,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
            '|attrs=' || coalesce((select string_agg(a.attname || ':' || format_type(a.atttypid, a.atttypmod), ',' order by a.attnum)
                 from pg_attribute a where a.attrelid = t.typrelid and a.attnum > 0 and not a.attisdropped), '') ||
            '|acl=' || coalesce(array_to_string(array(select unnest(t.typacl)::text order by 1), ','), '(default)')
+           , 'UTF8'), 'base64'), chr(10) || chr(13), '')
       from pg_type t join pg_namespace n on n.oid = t.typnamespace
      where (${MANAGED}) and t.typtype in ('c','d','e','r','m')
        and ${notExtensionOwned("pg_type", "t")}
@@ -1756,7 +1780,19 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     if (f.length < 5) {
       return { ok: false, reason: `the managed-schema object probe returned an unrecognized row (${f.length} field(s)); refusing to infer emptiness.` };
     }
-    managedObjects.push({ schema: f[0], kind: f[1], name: f[2], owner: f[3], definition: f.slice(4).join("~|~") });
+    // LOSSLESS TRANSPORT. The definition arrives base64-encoded because the previous
+    // wire format flattened newlines to spaces (`replace(pg_get_functiondef(...), chr(10),
+    // ' ')`) BEFORE JavaScript ever saw it — so a newline inside a string literal was
+    // already erased upstream, and no JS-side fix could have recovered it. base64 also
+    // removes a latent transport hazard: a definition containing a newline would
+    // otherwise have split into fragments across the line-oriented reader.
+    let definition;
+    try {
+      definition = Buffer.from(f.slice(4).join("~|~"), "base64").toString("utf8");
+    } catch {
+      return { ok: false, reason: "the managed-schema object probe returned an undecodable definition; refusing to infer emptiness." };
+    }
+    managedObjects.push({ schema: f[0], kind: f[1], name: f[2], owner: f[3], definition });
   }
   const managedVerdict = classifyManagedSchemaObjects(managedObjects);
   // Drift in EITHER direction defeats fresh certification, exactly as for triggers: a

@@ -1420,9 +1420,183 @@ test("classifyManagedSchemaObjects: a stock object REWRITTEN in place is refused
   }
 });
 
-test("fingerprintDefinition: whitespace is normalised, content is not", () => {
-  assert.equal(fingerprintDefinition("a  b\n c"), fingerprintDefinition("a b c"), "whitespace differences were treated as drift");
+// ─── Exact-byte fingerprints (semantic whitespace) ────────────────────────
+//
+// The defect: `fingerprintDefinition` collapsed every whitespace run to a single
+// space before hashing, and the probe additionally flattened newlines to spaces in
+// SQL. Whitespace is not decoration inside a definition — it is content. A string
+// literal in a stock function body could be rewritten from `'Error 400: Bad Request'`
+// to `'Error 400: Bad  Request'` (or with an embedded newline) and hash IDENTICALLY
+// to the certified value, so the rewritten object was certified pristine and the
+// project was declared application-empty ahead of a destructive push.
+//
+// The fixture below is the genuine certified `realtime.apply_rls` definition captured
+// through the probe's own projection. Its first assertion is that it still hashes to
+// the frozen baseline fingerprint — so if Supabase ships a new stock body, this fails
+// loudly and attributably rather than silently testing a stale blob.
+
+/** The certified `realtime.apply_rls` definition, exactly as the probe transports it. */
+const applyRlsDefinition = () =>
+  Buffer.from(
+    readFileSync(new URL("./fixtures/realtime-apply-rls-definition.base64", import.meta.url), "utf8").replace(/\s+/g, ""),
+    "base64",
+  ).toString("utf8");
+
+const APPLY_RLS_IDENTITY = Object.freeze({
+  schema: "realtime",
+  kind: "function",
+  name: "apply_rls(wal jsonb, max_record_bytes integer)",
+  owner: "supabase_realtime_admin",
+});
+
+/** The certified baseline entry for `realtime.apply_rls`, or a stale-fixture failure. */
+const certifiedApplyRls = () => {
+  const entry = STOCK_MANAGED_OBJECT_BASELINE.find(
+    (b) => b.schema === APPLY_RLS_IDENTITY.schema && b.kind === APPLY_RLS_IDENTITY.kind && b.name === APPLY_RLS_IDENTITY.name,
+  );
+  assert.ok(entry, "realtime.apply_rls is no longer in the certified baseline; the fixture is stale");
+  return entry;
+};
+
+test("fingerprintDefinition: the fingerprint is EXACT — whitespace is content, not formatting", () => {
+  // The replaced policy asserted the opposite of each of these.
+  assert.notEqual(fingerprintDefinition("a  b"), fingerprintDefinition("a b"), "a doubled space was normalised away");
+  assert.notEqual(fingerprintDefinition("a\nb"), fingerprintDefinition("a b"), "a newline was normalised away");
+  assert.notEqual(fingerprintDefinition("a\tb"), fingerprintDefinition("a b"), "a tab was normalised away");
+  assert.notEqual(fingerprintDefinition(" a b"), fingerprintDefinition("a b"), "leading whitespace was trimmed away");
+  assert.notEqual(fingerprintDefinition("a b "), fingerprintDefinition("a b"), "trailing whitespace was trimmed away");
   assert.notEqual(fingerprintDefinition("a b c"), fingerprintDefinition("a b d"), "a content change did not change the fingerprint");
+  assert.equal(fingerprintDefinition("a b c"), fingerprintDefinition("a b c"), "the fingerprint is not deterministic");
+  // Byte-exact, not merely whitespace-exact: the hash is over the UTF-8 bytes.
+  assert.notEqual(fingerprintDefinition("é"), fingerprintDefinition("e"), "non-ASCII content was folded");
+});
+
+test("fingerprintDefinition: the fixture IS the certified apply_rls definition, losslessly", () => {
+  const definition = applyRlsDefinition();
+  assert.equal(
+    fingerprintDefinition(definition),
+    certifiedApplyRls().fingerprint,
+    "the captured apply_rls definition no longer hashes to the certified baseline fingerprint; re-capture the fixture and regenerate the baseline together",
+  );
+  // Lossless transport: the definition still carries its real newlines. Under the old
+  // wire format these were replaced with spaces in SQL, before JavaScript saw them.
+  assert.ok(definition.split("\n").length > 100, "the fixture lost its newlines; the transport is not lossless");
+  assert.ok(definition.includes("Error 400: Bad Request"), "the fixture no longer carries the literal these controls mutate");
+});
+
+test("fingerprintDefinition: semantically distinct whitespace mutations all diverge from stock", () => {
+  const definition = applyRlsDefinition();
+  const stockFingerprint = certifiedApplyRls().fingerprint;
+  const LITERAL = "Error 400: Bad Request";
+  const controls = [
+    // A — a doubled space INSIDE a string literal. This is the reported collision: the
+    //     emitted error text changes, but the old normaliser hashed it as stock.
+    ["A: doubled space inside a string literal", definition.replace(LITERAL, "Error 400: Bad  Request")],
+    // B — a newline and a tab inside the same literal. Under the old pipeline these were
+    //     erased twice over: flattened to spaces in SQL, then collapsed in JavaScript.
+    ["B: newline inside a string literal", definition.replace(LITERAL, "Error 400: Bad\nRequest")],
+    ["B: tab inside a string literal", definition.replace(LITERAL, "Error 400: Bad\tRequest")],
+    // C — whitespace OUTSIDE any literal. Re-indenting a certified body is drift too:
+    //     the gate certifies the exact bytes of stock, not an equivalence class of them.
+    ["C: re-indented body outside literals", definition.replace("\n", "\n  ")],
+    // E — an ordinary content change, which the old policy did already catch. Kept so a
+    //     regression that broke content detection cannot hide behind the new controls.
+    ["E: a different body", definition.replace(LITERAL, "Error 401: Unauthorized")],
+  ];
+  for (const [label, mutated] of controls) {
+    assert.notEqual(mutated, definition, `${label} did not actually mutate the fixture`);
+    assert.notEqual(fingerprintDefinition(mutated), stockFingerprint, `${label} collided with the certified stock fingerprint`);
+  }
+  // D — the unmutated stock definition is still accepted. A fingerprint that refused
+  //     everything would pass every control above and be worthless.
+  assert.equal(fingerprintDefinition(definition), stockFingerprint, "D: the unmutated stock definition was refused");
+});
+
+test("classifyManagedSchemaObjects: a whitespace-only rewrite of stock apply_rls is refused", () => {
+  // Drives the classifier, not the hash: a COMPLETE stock observation built from the
+  // version-controlled baseline, with ONLY realtime.apply_rls replaced by the
+  // semantically mutated definition. Before the fix this observation was fully stock.
+  const certified = certifiedApplyRls();
+  const mutated = applyRlsDefinition().replace("Error 400: Bad Request", "Error 400: Bad  Request");
+  const observed = wholeBaseline().map((b) =>
+    b.schema === certified.schema && b.kind === certified.kind && b.name === certified.name
+      ? { ...APPLY_RLS_IDENTITY, fingerprint: undefined, definition: mutated }
+      : b);
+  assert.equal(observed.length, STOCK_MANAGED_OBJECT_BASELINE.length, "the observation is not a complete stock inventory");
+
+  const verdict = classifyManagedSchemaObjects(observed);
+  assert.equal(verdict.baselineSatisfied, false, "a whitespace-only rewrite of a stock function satisfied the baseline");
+  assert.ok(
+    verdict.nonStock.some((entry) => entry.includes("realtime.apply_rls")),
+    `the rewritten apply_rls was not reported as non-stock: ${verdict.nonStock.join(", ")}`,
+  );
+  assert.ok(
+    verdict.missingStock.some((entry) => entry.includes("realtime.apply_rls")),
+    `the certified apply_rls was not reported missing: ${verdict.missingStock.join(", ")}`,
+  );
+  // Exactly one object moved, in both directions — the rest of stock is untouched.
+  assert.equal(verdict.nonStockCount, 1, `unrelated objects were flagged: ${verdict.nonStock.join(", ")}`);
+  assert.equal(verdict.missingStockCount, 1, `unrelated objects went missing: ${verdict.missingStock.join(", ")}`);
+
+  // The same observation with the UNMUTATED definition is fully stock, which proves the
+  // refusal above is caused by the mutation and not by rebuilding the entry by hand.
+  const honest = wholeBaseline().map((b) =>
+    b.schema === certified.schema && b.kind === certified.kind && b.name === certified.name
+      ? { ...APPLY_RLS_IDENTITY, fingerprint: undefined, definition: applyRlsDefinition() }
+      : b);
+  assert.equal(classifyManagedSchemaObjects(honest).baselineSatisfied, true, "the unmutated stock observation was refused");
+});
+
+test("classifyManagedSchemaObjects: whitespace-only rewrites are refused for EVERY object kind", () => {
+  // The generic surface, not just the one reported object: relations, indexes, functions
+  // and types all carry definitions, and all four must be exact.
+  for (const kind of ["relation", "index", "function", "type"]) {
+    const entry = STOCK_MANAGED_OBJECT_BASELINE.find((b) => b.kind === kind);
+    assert.ok(entry, `the baseline carries no ${kind}`);
+    for (const [label, definition] of [["doubled space", "a  b"], ["newline", "a\nb"], ["tab", "a\tb"]]) {
+      // `a b` is the normalised form of all three; under the old policy each of them
+      // hashed to whatever `a b` hashed to, so none of them could be distinguished.
+      assert.notEqual(
+        fingerprintDefinition(definition),
+        fingerprintDefinition("a b"),
+        `a ${kind} ${label} was normalised away`,
+      );
+      const observed = wholeBaseline().map((b) =>
+        b.schema === entry.schema && b.kind === entry.kind && b.name === entry.name
+          ? { schema: b.schema, kind: b.kind, name: b.name, owner: b.owner, fingerprint: undefined, definition }
+          : b);
+      const verdict = classifyManagedSchemaObjects(observed);
+      assert.equal(verdict.nonStockCount, 1, `a rewritten ${kind} (${label}) was accepted as pristine`);
+      assert.equal(verdict.missingStockCount, 1, `the original stock ${kind} (${label}) was not reported missing`);
+    }
+  }
+});
+
+test("the managed-object probe transports definitions losslessly and normalises nothing", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  // The normaliser is gone outright, not merely unused.
+  assert.doesNotMatch(source, /normalizeDefinition/, "the whitespace normaliser is still present in the script");
+  // The hash is over the raw definition.
+  assert.match(
+    source,
+    /function fingerprintDefinition\(definition\)\s*\{\s*return createHash\("sha256"\)\.update\(String\(definition \?\? ""\), "utf8"\)/,
+    "fingerprintDefinition no longer hashes the raw definition",
+  );
+  const region = source.slice(source.indexOf("const managedQuery"), source.indexOf("const managedVerdict"));
+  // No SQL-side whitespace flattening survives in the managed-object probe.
+  assert.doesNotMatch(region, /replace\([^)]*chr\(10\)/, "the probe still flattens newlines in SQL");
+  // All three branches (relation, function, type) transport base64, and the only
+  // characters stripped are the base64 line breaks psql's encoder inserts.
+  assert.equal(
+    (region.match(/encode\(convert_to\(/g) ?? []).length, 3,
+    "not every managed-object branch transports its definition losslessly",
+  );
+  assert.equal(
+    (region.match(/'base64'\), chr\(10\) \|\| chr\(13\), ''\)/g) ?? []).length, 3,
+    "a managed-object branch does not strip base64 line breaks exactly",
+  );
+  // A definition that will not decode is a refusal, never an assumption of emptiness.
+  assert.match(region, /undecodable definition; refusing to infer emptiness/, "an undecodable definition does not fail closed");
 });
 
 // ─── Constraint, sequence and ACL layers of the relation fingerprint ──────
