@@ -28,6 +28,8 @@ import {
   pidAlive,
   pidExistsBySignal,
   processGroupPids,
+  processIdentity,
+  identityPresent,
   runBoundedChild,
   stabilizeAndReapProcessTree,
   windowsTreeKill,
@@ -426,6 +428,129 @@ test("F2 (linux). a discovered process that VANISHES before its stop is confirme
       await new Promise((resolve) => setTimeout(resolve, 300));
       assert.equal(pidAlive(grandchildPid), false, "the regression failed to clean up its controlled escapee");
     }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("F2 (linux). a descendant that is a ZOMBIE on FIRST discovery also fails closed", async (t) => {
+  if (!PROC_AVAILABLE) {
+    t.skip("Linux-only");
+    return;
+  }
+  const dir = scratch();
+  let grandchildPid = 0;
+  try {
+    // The window BEFORE the first discovery pass. The group SIGSTOP cannot reach a
+    // descendant that has detached into its own group, so it keeps running while the root
+    // is frozen; if it forks and exits there, the frozen root cannot reap it and it is a
+    // ZOMBIE the very first time it is seen. Exempting "already dead when first seen" let
+    // two passes agree on root-plus-zombie and certify while the grandchild ran.
+    //
+    // Deterministic via the `afterFreeze` seam — a live root would simply reap its child,
+    // so the zombie only exists inside this exact window.
+    const goFile = path.join(dir, "go");
+    const gcFile = path.join(dir, "grandchild.pid");
+    const childScript = path.join(dir, "child.mjs");
+    fs.writeFileSync(
+      childScript,
+      [
+        'import { spawn } from "node:child_process";',
+        'import fs from "node:fs";',
+        `const tick = setInterval(() => {`,
+        `  if (!fs.existsSync(${JSON.stringify(goFile)})) return;`,
+        `  clearInterval(tick);`,
+        `  const gc = spawn(process.execPath, ["-e", "setTimeout(() => {}, 600000)"], { stdio: "ignore", detached: true });`,
+        `  gc.unref();`,
+        `  fs.writeFileSync(${JSON.stringify(gcFile)}, String(gc.pid));`,
+        `  process.exit(0);`,
+        "}, 5);",
+      ].join("\n"),
+    );
+    const parent = path.join(dir, "parent.mjs");
+    fs.writeFileSync(
+      parent,
+      [
+        'import { spawn } from "node:child_process";',
+        `const child = spawn(process.execPath, [${JSON.stringify(childScript)}], { stdio: "ignore", detached: true });`,
+        "child.unref();",
+        "setTimeout(() => {}, 600000);",
+      ].join("\n"),
+    );
+
+    const root = spawn(process.execPath, [parent], { cwd: dir, stdio: "ignore", detached: true });
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const rootPid = root.pid!;
+
+    const result = await stabilizeAndReapProcessTree(rootPid, {
+      afterFreeze: async () => {
+        // Root is now frozen; the detached child is not. Release it and wait until it has
+        // forked and died, so it is a zombie before the first discovery pass runs.
+        fs.writeFileSync(goFile, "");
+        for (let i = 0; i < 200 && !fs.existsSync(gcFile); i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      },
+    });
+
+    grandchildPid = fs.existsSync(gcFile) ? Number(fs.readFileSync(gcFile, "utf8").trim()) : 0;
+    assert.ok(grandchildPid > 0, "the controlled grandchild never started");
+
+    assert.equal(result.stabilized, false, "a zombie discovered on the first pass still produced a stabilized certification");
+    assert.equal(result.reaped, false, "a zombie discovered on the first pass still produced a reaped certification");
+    assert.match(
+      result.reason,
+      /discovered_identity_vanished_before_confirmed_stop:\d+:\d+/,
+      `the pre-observation zombie was not named as the failure: ${result.reason}`,
+    );
+    assert.equal(result.fallbackCleanupAttempted, true, "no fallback cleanup after the zombie failure");
+    assert.equal(pidAlive(grandchildPid), true, "the escapee did not survive, so this case is not exercising the risk");
+  } finally {
+    if (grandchildPid > 0) {
+      try { process.kill(grandchildPid, "SIGKILL"); } catch { /* gone */ }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      assert.equal(pidAlive(grandchildPid), false, "the regression failed to clean up its controlled escapee");
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("F2 (linux). fallback cleanup signals a remembered target only while its IDENTITY matches", async (t) => {
+  if (!PROC_AVAILABLE) {
+    t.skip("Linux-only");
+    return;
+  }
+  const dir = scratch();
+  try {
+    // The ledger exists to defeat pid reuse; flattening it to bare pids during cleanup
+    // would undo that and could SIGKILL an unrelated process that inherited the pid.
+    // This proves the helper reaps only what it still recognises: an innocent bystander
+    // started AFTER the failure must be untouched.
+    const parent = path.join(dir, "parent.mjs");
+    fs.writeFileSync(parent, "setTimeout(() => {}, 600000);\n");
+    const child = spawn(process.execPath, [parent], { cwd: dir, stdio: "ignore", detached: true });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const rootPid = child.pid!;
+
+    const bystander = spawn(process.execPath, ["-e", "setTimeout(() => {}, 600000)"], { stdio: "ignore", detached: true });
+    bystander.unref();
+    const bystanderPid = bystander.pid!;
+    const bystanderIdentity = processIdentity(bystanderPid);
+    assert.ok(bystanderIdentity, "the bystander could not be identified");
+
+    const result = await stabilizeAndReapProcessTree(rootPid, { maxPasses: 0 });
+    assert.equal(result.stabilized, false, "precondition: stabilization must fail so fallback cleanup runs");
+    assert.equal(result.fallbackCleanupAttempted, true, "fallback cleanup did not run");
+    assert.equal(result.fallbackKnownProcessesReaped, true, `fallback left processes: ${result.survivors.join(",")}`);
+    assert.equal(pidAlive(rootPid), false, "the controlled root survived fallback cleanup");
+    // The bystander was never in this tree and must be untouched.
+    assert.equal(pidAlive(bystanderPid), true, "fallback cleanup killed a process outside the tree");
+    assert.equal(identityPresent(bystanderIdentity!), true, "the bystander's identity changed under cleanup");
+    assert.ok(!result.survivors.includes(bystanderPid), "an unrelated process was reported as cleanup residue");
+
+    try { process.kill(bystanderPid, "SIGKILL"); } catch { /* gone */ }
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

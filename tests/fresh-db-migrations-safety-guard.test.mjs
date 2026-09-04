@@ -24,8 +24,8 @@ import {
   applyHosted,
   recognizeMigrationListRows,
   classifyManagedSchemaObjects,
-  MANAGED_SCHEMA_PLATFORM_OWNERS,
   STOCK_MANAGED_OBJECT_BASELINE,
+  isRealtimeDailyPartition,
   readHostedMigrationVersions,
   HOSTED_ALLOWED_VALIDATION_REFS,
   redact,
@@ -1038,9 +1038,17 @@ test("emptiness: the probe counts every material relkind and both proc and type 
   const source = readFileSync(SCRIPT, "utf8");
   const start = source.indexOf("const PLATFORM_SCHEMA_PREDICATE");
   const fn = source.slice(start, source.indexOf("// Reads the linked project's migration history"));
-  assert.match(fn, /relkind in \('r','p','v','m','S','f'\)/, "the probe omits a material relation kind");
+  // Indexes ('i','I') are counted too: a custom index on a stock managed relation is
+  // operator-created DDL that no other counter sees.
+  assert.match(fn, /relkind in \('r','p','v','m','S','f','i','I'\)/, "the probe omits a material relation kind");
   assert.match(fn, /pg_proc/, "the probe does not count user functions/procedures");
   assert.match(fn, /pg_type/, "the probe does not count user-defined types");
+  // Range and multirange types are user-definable and were previously uncounted.
+  assert.match(fn, /typtype in \('c','d','e','r','m'\)/, "the probe omits range/multirange types");
+  // Managed schemas are inventoried rather than excluded wholesale.
+  assert.match(fn, /managed-schema ownership probe|MANAGED/, "managed schemas are not inventoried");
+  assert.match(fn, /pg_extension/, "installed extensions are not inventoried");
+  assert.match(fn, /query_to_xml/, "rows in stock managed tables are not counted");
   // Extension-owned objects excluded via dependency metadata, not a hand-maintained list.
   assert.match(fn, /pg_depend/, "extension-owned objects are not excluded via pg_depend");
   assert.match(fn, /deptype = 'e'/, "the extension-ownership predicate is missing");
@@ -1263,103 +1271,99 @@ test("fresh composition: every objection category independently refuses FRESH", 
 // object reported zero and was certified application-empty before a destructive push.
 // The replacement decides per object, on positive ownership evidence.
 
-const platformObject = (schema, kind, name) => ({
-  schema, kind, name, owner: MANAGED_SCHEMA_PLATFORM_OWNERS[schema][0],
+const stockObject = (schema, kind, name) => {
+  const entry = STOCK_MANAGED_OBJECT_BASELINE.find((b) => b.schema === schema && b.kind === kind && b.name === name);
+  assert.ok(entry, `${schema}.${name} (${kind}) is not in the certified baseline; the fixture is stale`);
+  return { ...entry };
+};
+/** The whole certified baseline, which by definition must classify as fully stock. */
+const wholeBaseline = () => STOCK_MANAGED_OBJECT_BASELINE.map((b) => ({ ...b }));
+
+test("classifyManagedSchemaObjects: the certified baseline itself is exactly stock", () => {
+  const verdict = classifyManagedSchemaObjects(wholeBaseline());
+  assert.equal(verdict.nonStockCount, 0, `stock objects were flagged: ${verdict.nonStock.slice(0, 5).join(", ")}`);
+  assert.equal(verdict.missingStockCount, 0, `baseline objects were reported missing: ${verdict.missingStock.slice(0, 5).join(", ")}`);
+  assert.equal(verdict.baselineSatisfied, true, "the baseline does not satisfy itself");
 });
 
-test("classifyManagedSchemaObjects: a pristine platform-owned managed surface is acceptable", () => {
-  const pristine = [
-    platformObject("auth", "relation", "users"),
-    platformObject("auth", "relation", "sessions"),
-    platformObject("auth", "function", "uid"),
-    platformObject("storage", "relation", "objects"),
-    platformObject("storage", "relation", "buckets"),
-    platformObject("storage", "function", "filename"),
+test("classifyManagedSchemaObjects: a MISSING certified object is drift, not emptiness", () => {
+  // Both directions, exactly as the trigger baseline: a target lacking platform objects
+  // is not pristine either, and an extras-only check would have passed it.
+  const short = wholeBaseline().slice(1);
+  const verdict = classifyManagedSchemaObjects(short);
+  assert.equal(verdict.missingStockCount, 1, "a missing certified platform object was not reported");
+  assert.equal(verdict.baselineSatisfied, false, "a target missing platform objects satisfied the baseline");
+});
+
+test("classifyManagedSchemaObjects: OWNERSHIP ALONE no longer excuses anything", () => {
+  // The correction Codex found: pg_class.relowner is the CURRENT owner, not the creator,
+  // and an operator with an administrative connection can reassign it. A custom object
+  // re-owned to the platform service role must still be counted.
+  for (const [schema, owner] of [["storage", "supabase_storage_admin"], ["auth", "supabase_auth_admin"], ["realtime", "supabase_realtime_admin"]]) {
+    const verdict = classifyManagedSchemaObjects([{ schema, kind: "relation", name: "custom_table", owner }]);
+    assert.equal(verdict.nonStockCount, 1, `${schema}.custom_table re-owned to ${owner} was accepted as stock`);
+  }
+});
+
+test("classifyManagedSchemaObjects: a CUSTOM object in a managed schema is counted, whoever owns it", () => {
+  for (const owner of ["postgres", "supabase_storage_admin", "some_operator"]) {
+    assert.equal(
+      classifyManagedSchemaObjects([...wholeBaseline(), { schema: "storage", kind: "relation", name: "custom_table", owner }]).nonStockCount,
+      1,
+      `a custom storage table owned by ${owner} evaded the inventory`,
+    );
+  }
+});
+
+test("classifyManagedSchemaObjects: custom managed view, function, type, RANGE type and INDEX are all counted", () => {
+  const injections = [
+    { schema: "storage", kind: "relation", name: "custom_view", owner: "supabase_storage_admin" },
+    { schema: "auth", kind: "function", name: "custom_function", owner: "supabase_auth_admin" },
+    { schema: "cron", kind: "type", name: "custom_type", owner: "postgres" },
+    { schema: "storage", kind: "type", name: "custom_range", owner: "supabase_storage_admin" },
+    { schema: "storage", kind: "index", name: "custom_objects_idx", owner: "supabase_storage_admin" },
   ];
-  const verdict = classifyManagedSchemaObjects(pristine);
-  assert.equal(verdict.nonStockCount, 0, `a stock managed surface was flagged: ${verdict.nonStock.join(", ")}`);
-});
-
-test("classifyManagedSchemaObjects: a CUSTOM storage relation is counted, not excused by its schema", () => {
-  const verdict = classifyManagedSchemaObjects([
-    platformObject("storage", "relation", "objects"),
-    { schema: "storage", kind: "relation", name: "custom_table", owner: "postgres" },
-  ]);
-  assert.equal(verdict.nonStockCount, 1, "a user-created storage table was treated as platform state");
-  assert.match(verdict.nonStock[0], /storage\.custom_table/, `unexpected finding: ${verdict.nonStock[0]}`);
-});
-
-test("classifyManagedSchemaObjects: a CUSTOM storage view/materialized view is counted", () => {
-  const verdict = classifyManagedSchemaObjects([
-    { schema: "storage", kind: "relation", name: "custom_view", owner: "postgres" },
-  ]);
-  assert.equal(verdict.nonStockCount, 1, "a user-created storage view was treated as platform state");
-});
-
-test("classifyManagedSchemaObjects: a CUSTOM auth function is counted", () => {
-  const verdict = classifyManagedSchemaObjects([
-    platformObject("auth", "function", "uid"),
-    { schema: "auth", kind: "function", name: "custom_function", owner: "postgres" },
-  ]);
-  assert.equal(verdict.nonStockCount, 1, "a user-created auth function was treated as platform state");
-  assert.match(verdict.nonStock[0], /auth\.custom_function/, `unexpected finding: ${verdict.nonStock[0]}`);
-});
-
-test("classifyManagedSchemaObjects: a CUSTOM cron type is counted, including one owned by postgres", () => {
-  for (const owner of ["some_operator", "postgres"]) {
-    const verdict = classifyManagedSchemaObjects([{ schema: "cron", kind: "type", name: "custom_type", owner }]);
-    assert.equal(verdict.nonStockCount, 1, `a cron type owned by ${owner} was treated as platform state`);
+  for (const injected of injections) {
+    const verdict = classifyManagedSchemaObjects([...wholeBaseline(), injected]);
+    assert.equal(verdict.nonStockCount, 1, `${injected.schema}.${injected.name} (${injected.kind}) evaded the inventory`);
   }
 });
 
-test("classifyManagedSchemaObjects: `postgres` is never a certified platform owner", () => {
-  // The role an operator creates objects as must not launder anything. This is the exact
-  // hole the first attempt at this model shipped with.
-  for (const [schema, owners] of Object.entries(MANAGED_SCHEMA_PLATFORM_OWNERS)) {
-    assert.ok(!owners.includes("postgres"), `${schema} lists postgres as a platform owner`);
-  }
-  for (const schema of ["cron", "net", "extensions", "supabase_migrations", "storage", "auth"]) {
-    const verdict = classifyManagedSchemaObjects([{ schema, kind: "relation", name: "operator_made", owner: "postgres" }]);
-    assert.equal(verdict.nonStockCount, 1, `a postgres-owned relation in ${schema} was excused`);
-  }
+test("classifyManagedSchemaObjects: a stock NAME under a different owner or kind is not that object", () => {
+  const real = stockObject("storage", "relation", "objects");
+  assert.equal(classifyManagedSchemaObjects([{ ...real, owner: "postgres" }]).nonStockCount, 1, "a re-owned stock name was excused");
+  assert.equal(classifyManagedSchemaObjects([{ ...real, kind: "function" }]).nonStockCount, 1, "a stock name under a different kind was excused");
 });
 
-test("classifyManagedSchemaObjects: the CLI migration ledger is the only postgres-owned stock object", () => {
-  const ledger = classifyManagedSchemaObjects([
-    { schema: "supabase_migrations", kind: "relation", name: "schema_migrations", owner: "postgres" },
-  ]);
-  assert.equal(ledger.nonStockCount, 0, "the certified CLI migration ledger was flagged as application state");
-  // Same name, different kind or owner, is a different object and is NOT excused.
+test("classifyManagedSchemaObjects: a DUPLICATED stock fingerprint is still an extra", () => {
+  const real = stockObject("storage", "relation", "objects");
+  const verdict = classifyManagedSchemaObjects([...wholeBaseline(), { ...real }]);
+  assert.equal(verdict.nonStockCount, 1, "a duplicated stock object was consumed twice");
+});
+
+test("isRealtimeDailyPartition: only the exact structural shape is accepted", () => {
+  assert.equal(isRealtimeDailyPartition({ schema: "realtime", kind: "relation", name: "messages_2026_09_04", owner: "supabase_realtime_admin" }), true);
+  assert.equal(isRealtimeDailyPartition({ schema: "realtime", kind: "index", name: "messages_2026_09_04_pkey", owner: "supabase_realtime_admin" }), true);
+  // Every property is load-bearing: wrong schema, wrong owner, wrong kind, wrong shape.
+  assert.equal(isRealtimeDailyPartition({ schema: "storage", kind: "relation", name: "messages_2026_09_04", owner: "supabase_realtime_admin" }), false);
+  assert.equal(isRealtimeDailyPartition({ schema: "realtime", kind: "relation", name: "messages_2026_09_04", owner: "postgres" }), false);
+  assert.equal(isRealtimeDailyPartition({ schema: "realtime", kind: "function", name: "messages_2026_09_04", owner: "supabase_realtime_admin" }), false);
+  assert.equal(isRealtimeDailyPartition({ schema: "realtime", kind: "relation", name: "messages_custom", owner: "supabase_realtime_admin" }), false);
+  // ...and a daily partition still passes through the classifier without being flagged.
   assert.equal(
-    classifyManagedSchemaObjects([{ schema: "supabase_migrations", kind: "function", name: "schema_migrations", owner: "postgres" }]).nonStockCount,
-    1,
-    "a baseline NAME under a different kind was excused",
+    classifyManagedSchemaObjects([...wholeBaseline(), { schema: "realtime", kind: "relation", name: "messages_2026_12_31", owner: "supabase_realtime_admin" }]).nonStockCount,
+    0,
+    "a legitimate daily realtime partition was flagged as application state",
   );
-  assert.ok(STOCK_MANAGED_OBJECT_BASELINE.every((b) => b.schema === "supabase_migrations"), "the postgres-owned baseline widened beyond the CLI ledger");
 });
 
-test("classifyManagedSchemaObjects: a stock NAME under the wrong owner is still counted", () => {
-  // Name is not evidence. An object called storage.objects owned by postgres is not the
-  // platform's storage.objects.
-  const verdict = classifyManagedSchemaObjects([
-    { schema: "storage", kind: "relation", name: "objects", owner: "postgres" },
-  ]);
-  assert.equal(verdict.nonStockCount, 1, "ownership was ignored in favour of the object name");
-});
-
-test("classifyManagedSchemaObjects: an UNRECOGNISED managed schema exempts nothing", () => {
-  const verdict = classifyManagedSchemaObjects([
-    { schema: "some_future_platform_schema", kind: "relation", name: "whatever", owner: "supabase_admin" },
-  ]);
-  assert.equal(verdict.nonStockCount, 1, "an unknown managed schema opened an exemption instead of failing closed");
-});
-
-test("classifyObjectEmptiness: managed-schema custom objects defeat application-emptiness", () => {
-  const clean = classifyObjectEmptiness({});
-  assert.equal(clean.empty, true, "an all-zero inventory was not empty");
-  const dirty = classifyObjectEmptiness({ user_managed_schema_objects: 1 });
-  assert.equal(dirty.empty, false, "a custom managed-schema object still certified as application-empty");
-  assert.match(dirty.reason, /user_managed_schema_objects=1/, `unexpected reason: ${dirty.reason}`);
+test("classifyObjectEmptiness: the new managed categories all defeat application-emptiness", () => {
+  assert.equal(classifyObjectEmptiness({}).empty, true, "an all-zero inventory was not empty");
+  for (const key of ["user_managed_schema_objects", "user_extensions", "user_managed_table_rows"]) {
+    const dirty = classifyObjectEmptiness({ [key]: 1 });
+    assert.equal(dirty.empty, false, `${key}=1 still certified as application-empty`);
+    assert.match(dirty.reason, new RegExp(`${key}=1`), `unexpected reason: ${dirty.reason}`);
+  }
 });
 
 // ─── F5: local/remote ROW PAIRING must survive classification ──────────────
@@ -1456,4 +1460,37 @@ test("parseHostedMigrationList: BACKTICK-rendered swapped pairs are also detecte
   const parsed = parseHostedMigrationList(out, ["20260428120000", "20260501000000"]);
   assert.equal(parsed.mismatchedPairs.length, 2, "backtick-rendered swapped rows evaded pairing detection");
   assert.equal(parsed.matchedRows, 0, "backtick-rendered swapped rows reported matched rows");
+});
+
+// ─── F5 (extended): one-sided and duplicate rows must reach classification ──
+
+test("parseHostedMigrationList: a stray remote-only row is reported, not absorbed", () => {
+  const out = table([row("20260428120000", "20260428120000"), row("20260501000000", "20260501000000"), row(null, "20260428120000")]);
+  const parsed = parseHostedMigrationList(out, ["20260428120000", "20260501000000"]);
+  assert.equal(parsed.matchedRows, 2, "the two genuine pairs were not matched");
+  assert.deepEqual(parsed.unexpectedRemote, ["20260428120000"], `stray row not reported: ${JSON.stringify(parsed.unexpectedRemote)}`);
+  assert.equal(parsed.duplicateRemote.length, 1, "the duplicated remote version was not reported");
+});
+
+test("classifyHostedTarget: A|A + B|B + |A is NOT repeatability", () => {
+  const local = ["20260428120000", "20260501000000"];
+  const out = table([row("20260428120000", "20260428120000"), row("20260501000000", "20260501000000"), row(null, "20260428120000")]);
+  const parsed = parseHostedMigrationList(out, local);
+  // Set equality alone still says repeatability — which is exactly the defect.
+  assert.equal(classifyHostedTarget(local, local).mode, "repeatability", "precondition: set-only classification passes");
+  const verdict = classifyHostedTarget(local, local, {
+    matchedRows: parsed.matchedRows,
+    mismatchedPairs: parsed.mismatchedPairs,
+    unexpectedRemote: parsed.unexpectedRemote,
+    duplicateRemote: parsed.duplicateRemote,
+    localMigrationCount: 2,
+  });
+  assert.equal(verdict.mode, "fail", "a stray remote-only row was normalized into a complete history");
+  assert.match(verdict.reason, /row anomaly|anomalies/, `unexpected reason: ${verdict.reason}`);
+});
+
+test("verifyHostedRepeatability-shaped input: duplicate remote versions are refused", () => {
+  const out = table([row("20260428120000", "20260428120000"), row("20260501000000", "20260428120000")]);
+  const parsed = parseHostedMigrationList(out, ["20260428120000", "20260501000000"]);
+  assert.ok(parsed.mismatchedPairs.length > 0 || parsed.duplicateRemote.length > 0, "neither mismatch nor duplication was detected");
 });

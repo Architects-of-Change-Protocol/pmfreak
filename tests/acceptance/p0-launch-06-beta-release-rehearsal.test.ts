@@ -41,6 +41,7 @@ import {
   shutdownProductionServer,
   startProductionServer,
   type ServerHandle,
+  type StartOutcome,
 } from "./support/runtime-acceptance";
 
 const ROOT = process.cwd();
@@ -177,6 +178,29 @@ const governedFirstUse = (s: HttpSession) =>
 function assertShutdownClean(outcome: { orphans?: number[]; unreaped?: number[] }, label: string): void {
   assert.deepEqual(outcome.orphans ?? [], [], `${label} left orphan process(es) behind`);
   assert.deepEqual(outcome.unreaped ?? [], [], `${label} left unreaped process(es) behind`);
+}
+
+/**
+ * A REQUIRED start that did not start still has cleanup to account for.
+ *
+ * `startProductionServer` reaps a failed start itself, but it can come back with
+ * `reaped: false` or a non-empty `survivors` list — and on the failure path there is no
+ * handle, so nothing was ever assigned to `server` and the final teardown has nothing to
+ * retry. Asserting `outcome.started` alone therefore throws while a known process is
+ * still running and never appears in any ledger.
+ *
+ * So the failure is RECORDED first, in the same ledger the final control asserts empty,
+ * and only then re-raised. `assertStarted` is used at every required start site.
+ */
+function assertStarted(outcome: StartOutcome, label: string): ServerHandle {
+  if (outcome.started) return outcome.handle;
+  if (!outcome.reaped || outcome.survivors.length > 0) {
+    HARNESS_PROCESS_RESIDUE.push({ control: `${label} (failed start)`, orphans: outcome.survivors, unreaped: [] });
+  }
+  assert.fail(
+    `${label} did not start: ${outcome.reason} ` +
+      `[launcherPid=${outcome.launcherPid ?? "none"}, reaped=${outcome.reaped}, survivors=${outcome.survivors.join(",") || "none"}]`,
+  );
 }
 
 const membershipOf = async (userId: string, workspaceId: string) => {
@@ -614,7 +638,14 @@ test("A1. STARTUP BOUNDARY: an invalid closed-beta environment leaves NO applica
     EVIDENCE.invalidEnvSurfaces = `${shape}; ${surfaces.map(([p, s]) => `${p}=${s}`).join(" ")}`;
     EVIDENCE.invalidEnvApplicationSurfacesOperational = "NO";
   } finally {
-    if (outcome.started) assertShutdownClean(await shutdownProductionServer(outcome.handle, { label: "A1 invalid-env server", graceMs: 8_000 }), "A1 invalid-env server");
+    if (outcome.started) {
+      assertShutdownClean(await shutdownProductionServer(outcome.handle, { label: "A1 invalid-env server", graceMs: 8_000 }), "A1 invalid-env server");
+    } else {
+      // A refused start is the EXPECTED outcome here, but its reaping still has to be
+      // accounted for: a failed start that left a survivor is residue like any other.
+      assert.equal(outcome.reaped, true, `A1 invalid-env server was not reaped: ${outcome.survivors.join(",")}`);
+      assert.deepEqual(outcome.survivors, [], "A1 invalid-env server left surviving process(es)");
+    }
   }
 });
 
@@ -733,8 +764,7 @@ test("A2. STARTUP BOUNDARY: the guard names offending VARIABLES and never their 
 
 test("A3. STARTUP: a VALID closed-beta environment starts and serves liveness", async () => {
   const outcome = await startProductionServer({ port: PORT, env: betaEnv(), timeoutMs: 240_000 });
-  assert.ok(outcome.started, "the valid closed-beta environment did not start a server");
-  server = outcome.handle;
+  server = assertStarted(outcome, "A3 beta runtime");
 
   const health = await session.request("/api/health");
   assert.equal(health.status, 200, `liveness did not answer 200: ${health.status}`);
@@ -1231,7 +1261,7 @@ test("H3. DATABASE outage/recovery is EXECUTED here, not inherited from a source
     timeoutMs: 240_000,
   });
   try {
-    assert.ok(dbOutage.started, "the database-outage rehearsal server did not start");
+    assertStarted(dbOutage, "H3 database-outage rehearsal server");
     const s = new HttpSession(`http://127.0.0.1:${dbPort}`);
     const readiness = async () => {
       const r = await s.request("/api/ready");
@@ -1370,7 +1400,7 @@ test("J1. OFFBOARD_AUDIT_FAILURE: the incident is surfaced, and the operator res
       env: betaEnv({ PMFREAK_ACCEPTANCE_OFFBOARD_AUDIT_FAULT: "1" }),
       timeoutMs: 240_000,
     });
-    assert.ok(faultServer.started, "the audit-fault rehearsal server did not start");
+    assertStarted(faultServer, "J1 audit-fault rehearsal server");
 
     const s = new HttpSession(`http://127.0.0.1:${faultPort}`);
     const login = await s.request("/api/login", {
