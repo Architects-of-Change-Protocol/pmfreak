@@ -1002,7 +1002,27 @@ test("D: an ISOLATED authentication outage grants nothing and is not mistaken fo
     EVIDENCE.authFailureNewLogin = "refused — no session cookie established";
     EVIDENCE.authFailureAnonymousRead = "401";
     EVIDENCE.authFailureGovernedOperation = `refused with HTTP ${governed.status}`;
-    EVIDENCE.authFailureReadiness = "200 ready — authentication is NOT a declared readiness dependency (see the evidence document)";
+    // Recorded from what this case ACTUALLY observed a few lines above — 503 not_ready
+    // with auth=fail and database=pass. The predecessor string here claimed the opposite
+    // ("200 ready — authentication is NOT a declared readiness dependency"), which was
+    // true before the closed-free-beta profile declared auth as a readiness dependency
+    // and false after; the case asserted one thing and published another.
+    EVIDENCE.authFailureReadiness =
+      `${notReady.status} not_ready — authentication IS a declared readiness dependency under the closed-free-beta profile ` +
+      "(auth=fail, database=pass); liveness stays 200 and the process is never restarted";
+    // The evidence may not drift from the observation again: this pins the published
+    // string to the readiness status this case actually asserted.
+    assert.equal(notReady.status, 503, "the auth-outage readiness observation is no longer 503");
+    assert.match(
+      String(EVIDENCE.authFailureReadiness),
+      /^503 not_ready — authentication IS a declared readiness dependency/,
+      "the published auth-outage readiness evidence does not match the observed NOT READY state",
+    );
+    assert.doesNotMatch(
+      String(EVIDENCE.authFailureReadiness),
+      /NOT a declared readiness dependency/,
+      "the superseded pre-profile auth-readiness claim is still being published",
+    );
     EVIDENCE.authFailureProductClassification = `PRODUCT_LOG ${AUTH_DEPENDENCY_EVENT} error_code=AuthRetryableFetchError`;
     OPERATOR_SIGNALS.AUTH_UNAVAILABLE = {
       sources: ["PRODUCT_LOG"],

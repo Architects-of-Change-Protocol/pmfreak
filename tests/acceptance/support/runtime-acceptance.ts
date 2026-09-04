@@ -557,71 +557,67 @@ const isStopped = (pid: number): boolean => {
 };
 
 export type TreeStabilization = {
+  /** Certification. TRUE only when every rule in the fixed-point contract held. */
   readonly stabilized: boolean;
+  /** Certification. Every recorded identity was verified gone AFTER a proven freeze. */
   readonly reaped: boolean;
   readonly reason: string;
   readonly recorded: ProcIdentity[];
   readonly survivors: number[];
   readonly unreaped: number[];
   readonly passes: number;
+  /** Whether best-effort cleanup ran because certification failed after a freeze began. */
+  readonly fallbackCleanupAttempted: boolean;
+  /**
+   * Whether that fallback killed everything it KNEW about. Deliberately separate from
+   * `reaped`: cleaning up the known processes says nothing about a process that escaped
+   * observation, which is exactly why certification stays false either way.
+   */
+  readonly fallbackKnownProcessesReaped: boolean | null;
 };
 
 /**
- * FREEZE -> DISCOVER -> FREEZE -> FIXED POINT -> KILL -> VERIFY, for a timed-out tree.
+ * FREEZE -> DISCOVER -> CONFIRM STOP -> FIXED POINT -> KILL -> VERIFY, for a timed-out tree.
  *
- * WHY A SNAPSHOT IS NOT ENOUGH. The previous implementation read group membership and
- * descendants in two separate /proc walks and killed what it found. Two races defeat
- * that, and both end in the worst possible way — a live process with `survivors` empty,
- * `unreaped` empty and no residue recorded, i.e. a false PASS:
+ * WHY A SNAPSHOT IS NOT ENOUGH. Reading group membership and descendants and killing what
+ * was found loses to two races, both ending in the worst way — a live process with empty
+ * `survivors`/`unreaped` and no residue, i.e. a false PASS:
  *
- *   A. the root exits BETWEEN the two walks (it can complete right on the deadline,
- *      before Node has delivered `exit`), so a detached child is missing from the group
- *      walk and already re-parented away from the descendant walk;
- *   B. a child detaches AFTER both walks but before the kill, leaving the group and the
- *      recorded set while still running.
+ *   A. the root exits BETWEEN the two walks, so a detached child is missing from one and
+ *      already re-parented away from the other;
+ *   B. a child detaches AFTER both walks but before the kill.
  *
- * Neither is fixed by scanning harder. They are fixed by removing the ability to change:
- * SIGSTOP cannot be caught, blocked or ignored, so a stopped process cannot fork, exit
- * or call setsid. Freezing the group and the root first creates a boundary; discovery
- * then runs against a tree that cannot move underneath it. A process that forked in the
- * instant before its parent stopped is simply found on the next pass, and the loop only
- * exits when two consecutive passes agree on the same IDENTITY set with everything
- * stopped and the root still present and stopped.
+ * Neither is fixed by scanning harder. SIGSTOP cannot be caught, blocked or ignored, so a
+ * stopped process cannot fork, exit or call setsid. Freezing first creates a boundary that
+ * discovery can then run against.
  *
- * FAIL CLOSED. If the root is already gone before the freeze, or a fixed point cannot be
- * proven within the deadline, this returns `stabilized: false` with a named reason. It
- * does NOT kill and then describe the tree as having been known.
+ * WHY DISCOVERY ALONE IS STILL NOT ENOUGH. Discovering a process does not stop it. An
+ * already-detached descendant can fork and exit in the interval between being SEEN and its
+ * SIGSTOP taking effect; its grandchild is then re-parented outside both the root ancestry
+ * and the original group, and two later passes happily agree on the reduced set. So every
+ * identity discovered in a pass must be CONFIRMED non-executable — stopped, or a zombie —
+ * before the pass counts. An identity that simply disappears before that confirmation is an
+ * unobservable escape risk and fails stabilization outright; it is never quietly dropped.
+ *
+ * FAIL CLOSED, AND NEVER LEAVE THE TREE FROZEN. Any failure after a freeze has begun runs
+ * a best-effort cleanup over the root, the original group and every EVER-discovered
+ * identity, then verifies it. That cleanup NEVER upgrades certification: `stabilized` and
+ * `reaped` stay false and the original failure reason is retained, because the processes it
+ * could clean up are by definition the ones it knew about.
  */
 export async function stabilizeAndReapProcessTree(
   rootPid: number,
-  options: { deadlineMs?: number; maxPasses?: number; verifyMs?: number } = {},
+  options: {
+    deadlineMs?: number;
+    maxPasses?: number;
+    verifyMs?: number;
+    /** Test-only seam: runs between discovery and stop-confirmation. Unused in production. */
+    afterDiscovery?: (identities: readonly ProcIdentity[], pass: number) => void | Promise<void>;
+  } = {},
 ): Promise<TreeStabilization> {
   const deadline = Date.now() + (options.deadlineMs ?? 15_000);
   const maxPasses = options.maxPasses ?? 25;
   const verifyMs = options.verifyMs ?? 10_000;
-
-  const failed = (reason: string, recorded: ProcIdentity[], passes: number): TreeStabilization => ({
-    stabilized: false,
-    reaped: false,
-    reason,
-    recorded,
-    survivors: recorded.filter((id) => identityPresent(id) && pidAlive(id.pid)).map((id) => id.pid),
-    unreaped: recorded.filter((id) => identityPresent(id) && pidUnreaped(id.pid)).map((id) => id.pid),
-    passes,
-  });
-
-  // Freezing our own process group would freeze this gate. A detached child is its own
-  // group leader, so this can only be reached by misuse — refuse it explicitly.
-  if (rootPid <= 1 || rootPid === process.pid || processGroupPids(rootPid).includes(process.pid)) {
-    return failed(`refusing to stabilize process group ${rootPid}: it would include this gate`, [], 0);
-  }
-
-  // 1/2. The root must be provably present BEFORE anything is frozen. `state.exit`
-  //      being null is not proof: Node may simply not have delivered the event yet.
-  const rootIdentity = processIdentity(rootPid);
-  if (rootIdentity === null || !pidAlive(rootPid)) {
-    return failed("timeout_root_disappeared_before_tree_stabilization", [], 0);
-  }
 
   const signal = (pid: number, sig: NodeJS.Signals) => {
     try {
@@ -630,12 +626,81 @@ export async function stabilizeAndReapProcessTree(
       /* already gone, or not ours */
     }
   };
+  const isStoppedOrDead = (pid: number) => isStopped(pid) || pidUnreaped(pid);
+
+  // EVERY identity ever seen, so failure cleanup can reach a process that was discovered
+  // once and then left the group or the ancestry.
+  const everDiscovered = new Map<string, ProcIdentity>();
+  /** Identities positively observed in state T. Termination after this is not an escape. */
+  const confirmedStopped = new Set<string>();
+  // Identities that were RUNNING when first seen and have not yet been confirmed stopped.
+  // These are the only ones that can still fork, so they are the only ones whose
+  // termination is indistinguishable from an escape.
+  const executableUnconfirmed = new Map<string, ProcIdentity>();
+  let originalGroup: number[] = [];
+  let freezeBegun = false;
+
+  /** Best-effort termination of everything KNOWN, then verification. Never a certification. */
+  const fallbackCleanup = async (): Promise<{ attempted: boolean; reaped: boolean; survivors: number[]; unreaped: number[] }> => {
+    if (!freezeBegun) return { attempted: false, reaped: false, survivors: [], unreaped: [] };
+    const known = [...everDiscovered.values()];
+    const groupNow = processGroupPids(rootPid).filter((pid) => pid !== process.pid && pid > 1);
+    const targets = [...new Set([...known.map((id) => id.pid), ...originalGroup, ...groupNow, rootPid])]
+      .filter((pid) => pid > 1 && pid !== process.pid);
+    // SIGKILL reaches a stopped process directly; SIGCONT is not a prerequisite, and
+    // resuming first would hand a frozen process a window to fork before it dies.
+    for (const pid of targets) if (pid !== rootPid) signal(pid, "SIGKILL");
+    signal(-rootPid, "SIGKILL");
+    signal(rootPid, "SIGKILL");
+    await waitUntil(() => targets.every((pid) => !pidAlive(pid)), verifyMs, 25);
+    await waitUntil(() => targets.every((pid) => !pidUnreaped(pid)), 2_000, 25);
+    const survivors = targets.filter(pidAlive);
+    const unreaped = targets.filter(pidUnreaped);
+    return { attempted: true, reaped: survivors.length === 0 && unreaped.length === 0, survivors, unreaped };
+  };
+
+  const failed = async (reason: string, recorded: ProcIdentity[], passes: number): Promise<TreeStabilization> => {
+    const fallback = await fallbackCleanup();
+    return {
+      stabilized: false,
+      reaped: false,
+      // The ORIGINAL failure is retained even when cleanup succeeded: a process that
+      // escaped observation cannot be cleaned up by definition.
+      reason: fallback.attempted
+        ? `${reason} [fallback cleanup ${fallback.reaped ? "reaped every KNOWN process" : `left ${fallback.survivors.length} survivor(s), ${fallback.unreaped.length} uncollected`}]`
+        : reason,
+      recorded,
+      survivors: fallback.attempted ? fallback.survivors : recorded.filter((id) => identityPresent(id) && pidAlive(id.pid)).map((id) => id.pid),
+      unreaped: fallback.attempted ? fallback.unreaped : recorded.filter((id) => identityPresent(id) && pidUnreaped(id.pid)).map((id) => id.pid),
+      passes,
+      fallbackCleanupAttempted: fallback.attempted,
+      fallbackKnownProcessesReaped: fallback.attempted ? fallback.reaped : null,
+    };
+  };
+
+  // Freezing our own process group would freeze this gate. A detached child is its own
+  // group leader, so this can only be reached by misuse — refuse it explicitly.
+  if (rootPid <= 1 || rootPid === process.pid || processGroupPids(rootPid).includes(process.pid)) {
+    return await failed(`refusing to stabilize process group ${rootPid}: it would include this gate`, [], 0);
+  }
+
+  // 1/2. The root must be provably present BEFORE anything is frozen. `state.exit`
+  //      being null is not proof: Node may simply not have delivered the event yet.
+  const rootIdentity = processIdentity(rootPid);
+  if (rootIdentity === null || !pidAlive(rootPid)) {
+    return await failed("timeout_root_disappeared_before_tree_stabilization", [], 0);
+  }
 
   // 3. Freeze the group, then the root itself.
+  originalGroup = processGroupPids(rootPid).filter((pid) => pid !== process.pid && pid > 1);
+  freezeBegun = true;
   signal(-rootPid, "SIGSTOP");
   signal(rootPid, "SIGSTOP");
+  everDiscovered.set(identityKey(rootIdentity), rootIdentity);
+  await sleep(10); // let the root's own stop land before the first discovery pass
+  if (isStopped(rootPid)) confirmedStopped.add(identityKey(rootIdentity));
 
-  // 4/5/6. Discover -> stop -> repeat, until two consecutive passes agree.
+  // 4/5/6. Discover -> stop -> CONFIRM -> repeat, until two consecutive passes agree.
   let previousKeys: string | null = null;
   let recorded: ProcIdentity[] = [];
   let passes = 0;
@@ -648,36 +713,83 @@ export async function stabilizeAndReapProcessTree(
     const identities = discovered
       .map((pid) => processIdentity(pid))
       .filter((id): id is ProcIdentity => id !== null);
-
-    // 5. Anything not already stopped is stopped — including a descendant that has
-    //    detached into its own process group, which the group signal cannot reach.
     for (const id of identities) {
-      if (!isStopped(id.pid) && !pidUnreaped(id.pid)) signal(id.pid, "SIGSTOP");
+      everDiscovered.set(identityKey(id), id);
+      // Already a zombie when first seen? Then it never had a window to fork under our
+      // observation, and its later disappearance carries no escape risk.
+      if (!isStoppedOrDead(id.pid) && !confirmedStopped.has(identityKey(id))) {
+        executableUnconfirmed.set(identityKey(id), id);
+      }
     }
+
+    // The seam fires HERE — after the identities have been read from /proc but before
+    // any of them is stopped. That is the real window the finding is about: a process
+    // that has been SEEN but whose SIGSTOP has not yet taken effect can still fork and
+    // exit. A hook placed after the stops could not model it, because a stopped process
+    // cannot act at all.
+    if (options.afterDiscovery) await options.afterDiscovery(identities, passes);
+
+    // Anything not already non-executable is stopped — including a descendant that has
+    // detached into its own process group, which the group signal cannot reach.
+    for (const id of identities) if (!isStoppedOrDead(id.pid)) signal(id.pid, "SIGSTOP");
     await sleep(25); // let the stops land before re-reading /proc
 
-    const present = identities.filter(identityPresent);
-    const keys = present.map(identityKey).sort().join(",");
-    const everythingStopped = present.every((id) => isStopped(id.pid) || pidUnreaped(id.pid));
+    // CONFIRMATION. An identity that was RUNNING when discovered must now be present and
+    // STOPPED. Anything else — gone, or terminated — is an unobservable escape risk:
+    //
+    //   MEASURED, not theorised. A detached child released in this window forked a
+    //   grandchild and exited. It did not vanish from /proc: its parent is the frozen
+    //   root, which cannot reap it, so it became a ZOMBIE. Treating "zombie" as an
+    //   acceptable terminal state therefore let two passes agree on an unchanged
+    //   identity set and certify the tree while the grandchild — re-parented outside
+    //   both the root ancestry and every group we can walk — was still running.
+    //
+    // So termination only settles a process that was ALREADY non-executable when first
+    // seen. A running process must be caught stopped; if it died first, it may have
+    // forked first, and certification fails.
+    for (const id of identities) {
+      const key = identityKey(id);
+      const present = identityPresent(id);
+      if (present && isStopped(id.pid)) {
+        confirmedStopped.add(key);
+        executableUnconfirmed.delete(key);
+        continue;
+      }
+      if (executableUnconfirmed.has(key)) {
+        return await failed(
+          `discovered_identity_vanished_before_confirmed_stop:${id.pid}:${id.starttime}` +
+            ` (state ${present ? (pidUnreaped(id.pid) ? "terminated-unreaped" : String(processState(id.pid))) : "absent"})`,
+          identities.filter(identityPresent),
+          passes,
+        );
+      }
+      if (present && !isStoppedOrDead(id.pid)) {
+        // Seen running but not yet stopped and not previously executable-unconfirmed:
+        // not a failure by itself, but the set is not stable, so no fixed point here.
+        previousKeys = null;
+      }
+    }
+
+    const keys = identities.map(identityKey).sort().join(",");
+    const everythingStopped = identities.every((id) => isStoppedOrDead(id.pid));
     const rootHeld = identityPresent(rootIdentity) && isStopped(rootPid);
-    recorded = present;
+    recorded = identities;
 
     if (!rootHeld) {
-      return failed("timeout_root_disappeared_before_tree_stabilization", recorded, passes);
+      return await failed("timeout_root_disappeared_before_tree_stabilization", recorded, passes);
     }
     if (keys === previousKeys && everythingStopped) {
       stabilized = true;
       break;
     }
-    previousKeys = keys;
+    previousKeys = everythingStopped ? keys : null;
   }
   if (!stabilized) {
-    return failed(`the process tree did not reach a stable fixed point in ${passes} pass(es)`, recorded, passes);
+    return await failed(`the process tree did not reach a stable fixed point in ${passes} pass(es)`, recorded, passes);
   }
 
   // 7/8. Only now destroy it. Descendants first, so the stabilized identity set is
   //      still intact while every target is signalled; the group and root go last.
-  //      SIGKILL cannot be caught or ignored and reaches a stopped process.
   for (const id of recorded) if (id.pid !== rootPid) signal(id.pid, "SIGKILL");
   signal(-rootPid, "SIGKILL");
   signal(rootPid, "SIGKILL");
@@ -692,17 +804,25 @@ export async function stabilizeAndReapProcessTree(
   const rootGone = !identityPresent(rootIdentity) || !pidAlive(rootPid);
   const reaped = survivors.length === 0 && unreaped.length === 0 && groupRemnant.length === 0 && rootGone;
 
+  if (!reaped) {
+    return await failed(
+      `stabilized in ${passes} pass(es) but ${survivors.length} survivor(s), ${unreaped.length} uncollected, ` +
+        `${groupRemnant.length} group remnant(s), root ${rootGone ? "gone" : "still present"}`,
+      recorded,
+      passes,
+    );
+  }
+
   return {
     stabilized: true,
-    reaped,
-    reason: reaped
-      ? `stabilized in ${passes} pass(es) over ${recorded.length} process(es); every recorded identity is gone`
-      : `stabilized in ${passes} pass(es) but ${survivors.length} survivor(s), ${unreaped.length} uncollected, ` +
-        `${groupRemnant.length} group remnant(s), root ${rootGone ? "gone" : "still present"}`,
+    reaped: true,
+    reason: `stabilized in ${passes} pass(es) over ${recorded.length} process(es); every recorded identity is gone`,
     recorded,
-    survivors: [...new Set([...survivors, ...groupRemnant])],
-    unreaped,
+    survivors: [],
+    unreaped: [],
     passes,
+    fallbackCleanupAttempted: false,
+    fallbackKnownProcessesReaped: null,
   };
 }
 
@@ -837,6 +957,10 @@ export type BoundedChildOutcome = {
   readonly timeoutTreeStabilized: boolean | null;
   /** Timeout path only: whether every recorded identity was then verified gone. */
   readonly timeoutTreeReaped: boolean | null;
+  /** Whether failed certification triggered best-effort cleanup of everything KNOWN. */
+  readonly fallbackCleanupAttempted: boolean;
+  /** Whether that fallback succeeded. NEVER upgrades certification; reported apart. */
+  readonly fallbackKnownProcessesReaped: boolean | null;
   /** Windows only: whether `taskkill /T /F` succeeded AND the root is verifiably gone. */
   readonly windowsTreeKill: "SUCCESS" | "FAILED" | null;
   /** Non-null when cleanup itself failed. A caller must fail closed on this. */
@@ -957,6 +1081,8 @@ export async function runBoundedChild(options: {
   let timeoutTreeStabilized: boolean | null = null;
   let timeoutTreeReaped: boolean | null = null;
   let windowsTreeKillResult: BoundedChildOutcome["windowsTreeKill"] = null;
+  let fallbackCleanupAttempted = false;
+  let fallbackKnownProcessesReaped: boolean | null = null;
   let cleanupError: string | null = null;
   let survivors: number[] = [];
   let unreaped: number[] = [];
@@ -971,9 +1097,14 @@ export async function runBoundedChild(options: {
     timeoutTreeReaped = stabilization.reaped;
     survivors = stabilization.survivors;
     unreaped = stabilization.unreaped;
+    fallbackCleanupAttempted = stabilization.fallbackCleanupAttempted;
+    fallbackKnownProcessesReaped = stabilization.fallbackKnownProcessesReaped;
     if (stabilization.stabilized && stabilization.reaped) {
       treeEvidence = "timeout-stabilized-linux-proc";
     } else {
+      // Certification failed. Fallback cleanup may well have killed everything KNOWN —
+      // that is reported separately and NEVER upgrades this, because a process that
+      // escaped observation is precisely the one cleanup could not target.
       treeEvidence = "cleanup-failed";
       cleanupError = stabilization.reason;
       HARNESS_PROCESS_RESIDUE.push({ control: `${label} [timeout tree cleanup: ${cleanupError}]`, orphans: survivors, unreaped });
@@ -1045,6 +1176,8 @@ export async function runBoundedChild(options: {
     wholeTreeVerified: treeEvidence === "timeout-stabilized-linux-proc",
     timeoutTreeStabilized,
     timeoutTreeReaped,
+    fallbackCleanupAttempted,
+    fallbackKnownProcessesReaped,
     windowsTreeKill: windowsTreeKillResult,
     cleanupError,
     survivors,

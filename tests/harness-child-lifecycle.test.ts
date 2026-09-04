@@ -223,6 +223,7 @@ test("F2 (linux). a timed-out child's DESCENDANT is reaped, and residue is never
     assert.equal(run.timeoutTreeStabilized, true, "the tree did not reach a proven fixed point before the kill");
     assert.equal(run.timeoutTreeReaped, true, "the stabilized tree was not verified gone");
     assert.equal(run.wholeTreeVerified, true, "a stabilized Linux timeout must carry the whole-tree claim");
+    assert.equal(run.fallbackCleanupAttempted, false, "a successful certification must not have needed fallback cleanup");
     assert.equal(run.cleanupError, null, `cleanup reported a failure: ${run.cleanupError}`);
     assert.ok(run.rootPid, "no root pid was recorded for the bounded child");
 
@@ -304,7 +305,7 @@ test("F2 (linux). a root that DISAPPEARS before stabilization fails closed, neve
   );
 });
 
-test("F2 (linux). stabilization that cannot reach a fixed point fails closed", async (t) => {
+test("F2 (linux). stabilization that cannot reach a fixed point fails closed AND unfreezes nothing", async (t) => {
   if (!PROC_AVAILABLE) {
     t.skip("Linux-only");
     return;
@@ -312,23 +313,119 @@ test("F2 (linux). stabilization that cannot reach a fixed point fails closed", a
   const dir = scratch();
   try {
     // A live, well-behaved child — but zero passes are allowed, so a fixed point cannot
-    // be PROVEN. The tree must not be described as known merely because it was killed.
+    // be PROVEN. The tree must not be described as known merely because it was killed,
+    // and — the point of this case — the helper must not leave it SIGSTOPped either.
     const parent = path.join(dir, "parent.mjs");
     fs.writeFileSync(parent, "setTimeout(() => {}, 600000);\n");
     const child = spawn(process.execPath, [parent], { cwd: dir, stdio: "ignore", detached: true });
     await new Promise((resolve) => setTimeout(resolve, 400));
     const rootPid = child.pid!;
+
     const result = await stabilizeAndReapProcessTree(rootPid, { maxPasses: 0 });
+
     assert.equal(result.stabilized, false, "a fixed point was claimed without a single discovery pass");
-    assert.equal(result.reaped, false, "an unstabilized tree was reported as reaped");
+    assert.equal(result.reaped, false, "an unstabilized tree was reported as certified-reaped");
     assert.match(result.reason, /stable fixed point/, `unexpected reason: ${result.reason}`);
-    // The refusal must not leave the frozen child behind: SIGSTOP was delivered, so it
-    // has to be released and killed explicitly here.
-    try { process.kill(rootPid, "SIGCONT"); } catch { /* gone */ }
-    try { process.kill(rootPid, "SIGKILL"); } catch { /* gone */ }
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    assert.equal(pidAlive(rootPid), false, "the probe leaked its controlled child");
+    // FINDING 2. The helper froze this process, so the helper — not this test — has to
+    // deal with it. Nothing below sends SIGCONT or SIGKILL.
+    assert.equal(result.fallbackCleanupAttempted, true, "a failure after the freeze did not attempt fallback cleanup");
+    assert.equal(result.fallbackKnownProcessesReaped, true, `fallback cleanup left processes behind: ${result.survivors.join(",")}`);
+    assert.equal(pidAlive(rootPid), false, `the helper returned leaving the root ${rootPid} alive or frozen`);
+    assert.deepEqual(processGroupPids(rootPid).filter(pidAlive), [], "the original process group still has live members");
+    // Cleanup succeeding must NOT be readable as certification.
+    assert.notEqual(result.reaped, result.fallbackKnownProcessesReaped, "fallback success was conflated with certification");
   } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("F2 (linux). a discovered process that VANISHES before its stop is confirmed fails closed", async (t) => {
+  if (!PROC_AVAILABLE) {
+    t.skip("Linux-only");
+    return;
+  }
+  const dir = scratch();
+  let grandchildPid = 0;
+  try {
+    // The exact escape Codex described, built deterministically rather than raced for:
+    //
+    //   root -> detached child -> grandchild
+    //
+    // The child is already detached (its own process group), so the group signal cannot
+    // reach it. It is discovered, then — through the test-only `afterDiscovery` seam,
+    // which fires between discovery and stop-confirmation — it forks a grandchild and
+    // exits. The grandchild is re-parented away from the root ancestry and is in neither
+    // the root's group nor the child's. Nothing the algorithm can walk will find it.
+    // Silently dropping the vanished child would let two later passes agree on the
+    // reduced set and certify a tree with a live escapee in it.
+    const goFile = path.join(dir, "go");
+    const gcFile = path.join(dir, "grandchild.pid");
+    const childScript = path.join(dir, "child.mjs");
+    fs.writeFileSync(
+      childScript,
+      [
+        'import { spawn } from "node:child_process";',
+        'import fs from "node:fs";',
+        // Poll for the release marker, then fork a survivor and exit immediately.
+        `const tick = setInterval(() => {`,
+        `  if (!fs.existsSync(${JSON.stringify(goFile)})) return;`,
+        `  clearInterval(tick);`,
+        `  const gc = spawn(process.execPath, ["-e", "setTimeout(() => {}, 600000)"], { stdio: "ignore", detached: true });`,
+        `  gc.unref();`,
+        `  fs.writeFileSync(${JSON.stringify(gcFile)}, String(gc.pid));`,
+        `  process.exit(0);`,
+        "}, 5);",
+      ].join("\n"),
+    );
+    const parent = path.join(dir, "parent.mjs");
+    fs.writeFileSync(
+      parent,
+      [
+        'import { spawn } from "node:child_process";',
+        `const child = spawn(process.execPath, [${JSON.stringify(childScript)}], { stdio: "ignore", detached: true });`,
+        "child.unref();",
+        "setTimeout(() => {}, 600000);",
+      ].join("\n"),
+    );
+
+    const root = spawn(process.execPath, [parent], { cwd: dir, stdio: "ignore", detached: true });
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const rootPid = root.pid!;
+
+    const result = await stabilizeAndReapProcessTree(rootPid, {
+      // Deterministic: release the child only once it has actually been discovered, then
+      // wait for it to be gone. The vanish therefore lands inside the confirmation window
+      // by construction, not by timing luck.
+      afterDiscovery: async (identities) => {
+        if (identities.length < 2 || fs.existsSync(goFile)) return;
+        fs.writeFileSync(goFile, "");
+        for (let i = 0; i < 200 && !fs.existsSync(gcFile); i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+      },
+    });
+
+    grandchildPid = fs.existsSync(gcFile) ? Number(fs.readFileSync(gcFile, "utf8").trim()) : 0;
+    assert.ok(grandchildPid > 0, "the controlled grandchild never started, so the escape was not reproduced");
+
+    assert.equal(result.stabilized, false, "a vanished discovered identity still produced a stabilized certification");
+    assert.equal(result.reaped, false, "a vanished discovered identity still produced a reaped certification");
+    assert.match(
+      result.reason,
+      /discovered_identity_vanished_before_confirmed_stop:\d+:\d+/,
+      `the vanish was not named in the failure reason: ${result.reason}`,
+    );
+    // Fallback cleanup still runs, and still does not launder the certification.
+    assert.equal(result.fallbackCleanupAttempted, true, "no fallback cleanup after a vanish failure");
+    // The escapee is, by construction, unreachable — which is exactly why certification
+    // had to fail. This asserts the honest position, not that the impossible was done.
+    assert.equal(pidAlive(grandchildPid), true, "the escapee did not survive, so this case is not exercising the risk");
+  } finally {
+    if (grandchildPid > 0) {
+      try { process.kill(grandchildPid, "SIGKILL"); } catch { /* gone */ }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      assert.equal(pidAlive(grandchildPid), false, "the regression failed to clean up its controlled escapee");
+    }
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

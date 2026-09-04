@@ -358,7 +358,11 @@ function applyHosted(files = loadMigrationFiles(), runner = runNpx) {
       stderr: history.stderr,
     };
   }
-  const target = classifyHostedTarget(history.remoteVersions, localTimestamps);
+  const target = classifyHostedTarget(history.remoteVersions, localTimestamps, {
+    matchedRows: history.matchedRows,
+    mismatchedPairs: history.mismatchedPairs,
+    localMigrationCount: history.localMigrationCount,
+  });
   console.log(`[apply:hosted] PRE_APPLY_REMOTE_MIGRATION_COUNT=${target.preApplyRemoteMigrationCount}`);
   console.log(`[apply:hosted] HOSTED_TARGET_CLASSIFICATION=${target.mode.toUpperCase()}`);
 
@@ -477,12 +481,29 @@ function parseHostedMigrationList(output, localTimestamps) {
     rows.push({ local, remote });
   }
 
+  // ROW PAIRING IS EVIDENCE, NOT NOISE. Reducing the table to a local SET and a remote
+  // SET throws away which local version was recorded against which remote one, and two
+  // shifted rows — local=A/remote=B and local=B/remote=A — then produce identical sets
+  // with ZERO actually-matching rows. That is a misparsed or shifted table, and it was
+  // being certified as a complete matching history. A row carrying BOTH cells must agree.
+  const mismatchedPairs = rows
+    .filter((r) => r.local && r.remote && r.local !== r.remote)
+    .map((r) => `${r.local}!=${r.remote}`);
   const remoteSet = new Set(rows.map((r) => r.remote).filter(Boolean));
   const remoteOnly = [...new Set(rows.filter((r) => r.remote && !r.local).map((r) => r.remote))];
-  const pendingLocal = localTimestamps.filter((ts) => !remoteSet.has(ts));
+  // Pending = a local version with no row that PAIRS it to the same remote version.
+  const pairedLocals = new Set(rows.filter((r) => r.local && r.remote && r.local === r.remote).map((r) => r.local));
+  const pendingLocal = localTimestamps.filter((ts) => !pairedLocals.has(ts));
   const matchedRows = rows.filter((r) => r.local && r.remote && r.local === r.remote).length;
 
-  return { rows, pendingLocal, unexpectedRemote: remoteOnly, matchedCount: remoteSet.size, matchedRows };
+  return {
+    rows,
+    pendingLocal,
+    unexpectedRemote: remoteOnly,
+    mismatchedPairs,
+    matchedCount: remoteSet.size,
+    matchedRows,
+  };
 }
 
 // ─── Hosted target classification (pre-apply) ──────────────────────────────
@@ -496,9 +517,41 @@ function parseHostedMigrationList(output, localTimestamps) {
 //   fail           partial, or any unexpected remote      -> not certifiable as fresh
 //
 // Pure so it can be unit-tested without network or credentials.
-function classifyHostedTarget(remoteVersions, localVersions) {
+function classifyHostedTarget(remoteVersions, localVersions, pairing = null) {
   const remote = [...new Set(remoteVersions)].sort();
   const local = [...new Set(localVersions)].sort();
+
+  // PAIRING FIRST. Set comparison alone cannot tell a complete history from a shifted
+  // table: local=A/remote=B plus local=B/remote=A yields identical sets with zero rows
+  // actually matching. When row evidence is available it is authoritative, and no
+  // malformed pairing may become a successful classification.
+  if (pairing) {
+    if ((pairing.mismatchedPairs?.length ?? 0) > 0) {
+      return {
+        mode: "fail",
+        preApplyRemoteMigrationCount: remote.length,
+        unexpected: [],
+        missing: local,
+        reason:
+          `hosted migration table contains ${pairing.mismatchedPairs.length} row(s) whose Local and Remote cells ` +
+          `name different migrations (${pairing.mismatchedPairs.slice(0, 5).join(", ")}). A shifted or misparsed ` +
+          "table is never certifiable in any mode.",
+      };
+    }
+    const expectedRows = pairing.localMigrationCount ?? local.length;
+    if (remote.length > 0 && (pairing.matchedRows ?? 0) !== expectedRows) {
+      return {
+        mode: "fail",
+        preApplyRemoteMigrationCount: remote.length,
+        unexpected: [],
+        missing: local.filter((v) => !remote.includes(v)),
+        reason:
+          `hosted target reports ${remote.length} remote migration version(s) but only ${pairing.matchedRows ?? 0} of ` +
+          `${expectedRows} local migration(s) are paired to the SAME remote version. Repeatability requires row ` +
+          "matches, not merely equal version sets.",
+      };
+    }
+  }
   const unexpected = remote.filter((v) => !local.includes(v));
   const missing = local.filter((v) => !remote.includes(v));
 
@@ -614,6 +667,7 @@ function classifyObjectEmptiness(counts) {
     ["user_policies", "RLS policies that are not platform/extension-owned (including on managed relations such as storage.objects)"],
     ["user_triggers", "triggers that do not exactly match the certified stock platform baseline (extra, altered, or MISSING)"],
     ["user_event_triggers", "database-level event triggers that are not platform/extension-owned"],
+    ["user_managed_schema_objects", "relations/functions/types inside managed schemas (auth, storage, cron, ...) that are neither extension-owned nor owned by that schema's certified platform role"],
     ["migration_rows", "PMFreak migration-history rows"],
     ["auth_users", "auth.users identities"],
     ["storage_buckets", "storage buckets"],
@@ -728,6 +782,103 @@ function classifyObservedTriggers(observed) {
   };
 }
 
+/**
+ * CERTIFIED PLATFORM OWNERSHIP FOR MANAGED SCHEMAS.
+ *
+ * WHY THIS EXISTS. The object inventory used to exclude every managed schema from the
+ * relation/function/type counters, so a target holding ONLY a user-created
+ * `storage.custom_table`, `auth.custom_fn` or `cron.custom_type` reported zero for all of
+ * them and was certified application-empty immediately before a destructive `db push`.
+ * The defect is the MODEL, not the counter: "the schema is managed" says nothing about
+ * who created the object in it. Managed schema != platform owned.
+ *
+ * THE REPLACEMENT IS POSITIVE EVIDENCE, per object, from PostgreSQL's own metadata:
+ *
+ *   1. extension-owned  — proven by `pg_depend` deptype 'e'; already how every other
+ *                         category exempts stock objects, and version-proof.
+ *   2. platform-owned   — the object's OWNER is the role the platform service itself
+ *                         runs its own migrations as. Supabase's auth service owns its
+ *                         objects as `supabase_auth_admin`, storage as
+ *                         `supabase_storage_admin`, and so on. An object created by an
+ *                         operator through the SQL editor, a migration or the API is
+ *                         owned by `postgres`, so it does NOT match — which is the whole
+ *                         point.
+ *
+ * Anything else inside a managed schema counts as application state. Deliberately NOT a
+ * name prefix, NOT a schema exemption, and NOT "trusted because it is in auth/storage".
+ * A managed schema with no certified owner set (an unrecognised one) exempts NOTHING, so
+ * a new platform schema fails closed rather than opening a hole.
+ *
+ * Biased toward refusal, exactly like the trigger baseline: if a future Supabase version
+ * introduces a stock object under a different owner, this reports NON-empty until the
+ * ownership model is re-certified by hand. A false NON_EMPTY is always preferable to a
+ * false EMPTY followed by a destructive push.
+ */
+const MANAGED_SCHEMA_PLATFORM_OWNERS = Object.freeze({
+  auth: ["supabase_auth_admin"],
+  storage: ["supabase_storage_admin"],
+  realtime: ["supabase_admin", "supabase_realtime_admin"],
+  _realtime: ["supabase_admin", "supabase_realtime_admin"],
+  supabase_functions: ["supabase_functions_admin"],
+  vault: ["supabase_admin"],
+  pgsodium: ["supabase_admin"],
+  pgsodium_masks: ["supabase_admin"],
+  graphql: ["supabase_admin"],
+  graphql_public: ["supabase_admin"],
+  pgbouncer: ["pgbouncer", "supabase_admin"],
+  _analytics: ["supabase_admin"],
+  _supavisor: ["supabase_admin"],
+});
+
+/**
+ * `postgres` IS NOT A PLATFORM OWNER, and appears in no list above.
+ *
+ * This was got wrong on the first attempt and the adversarial pass caught it: mapping
+ * `cron`, `net`, `extensions` and `supabase_migrations` to `postgres` re-created exactly
+ * the hole the finding is about, because `postgres` is the role an OPERATOR creates
+ * objects as. A `cron.sneaky` type owned by `postgres` sailed straight through.
+ *
+ * Measured against a stock local Supabase stack, those schemas need no owner exemption at
+ * all: everything in `cron`, `net`, `extensions`, `vault`, `pgsodium` and `graphql*` is
+ * extension-owned and is already excluded in SQL by `pg_depend`. Exactly ONE stock object
+ * is owned by `postgres` — the CLI's own migration ledger — so it is named explicitly as a
+ * baseline fingerprint (schema + kind + name + owner) rather than by widening a role list.
+ * Its ROWS are counted separately as `migration_rows`, so naming the relation here does
+ * not weaken anything.
+ */
+const STOCK_MANAGED_OBJECT_BASELINE = Object.freeze([
+  { schema: "supabase_migrations", kind: "relation", name: "schema_migrations", owner: "postgres" },
+  { schema: "supabase_migrations", kind: "relation", name: "seed_files", owner: "postgres" },
+]);
+
+/**
+ * Classifies objects observed inside MANAGED schemas.
+ *
+ * Extension ownership is proven upstream in SQL (`pg_depend`); those rows never reach
+ * here. What arrives is every non-extension-owned relation, function and type in a
+ * managed schema, and each must be positively attributable to that schema's platform
+ * role or it counts as application state.
+ *
+ * Pure, so every case below is unit-testable offline — no hosted project is contacted to
+ * prove the classifier.
+ */
+function classifyManagedSchemaObjects(observed) {
+  const nonStock = [];
+  for (const object of observed ?? []) {
+    const owners = MANAGED_SCHEMA_PLATFORM_OWNERS[object.schema];
+    // 1. Owned by the platform SERVICE role for its own schema.
+    if (Array.isArray(owners) && owners.includes(object.owner)) continue;
+    // 2. Or an explicitly certified stock object, matched on every fingerprint field.
+    //    A stock NAME under a different owner or kind is NOT this object.
+    const baselined = STOCK_MANAGED_OBJECT_BASELINE.some(
+      (b) => b.schema === object.schema && b.kind === object.kind && b.name === object.name && b.owner === object.owner,
+    );
+    if (baselined) continue;
+    nonStock.push(`${object.schema}.${object.name} (${object.kind}, owner ${object.owner || "unknown"})`);
+  }
+  return { nonStockCount: nonStock.length, nonStock };
+}
+
 const PLATFORM_SCHEMA_PREDICATE =
   "n.nspname NOT LIKE 'pg\\_%' AND n.nspname NOT IN ('information_schema','public','auth','storage','realtime'," +
   "'extensions','graphql','graphql_public','pgbouncer','pgsodium','pgsodium_masks','pgtle','vault','cron','net'," +
@@ -739,7 +890,10 @@ const PLATFORM_SCHEMA_PREDICATE =
 // runner. Never mutates; used only to decide whether a fresh apply may proceed.
 function probeHostedApplicationState(dbUrl, runner = sh) {
   // Application schemas = public, plus any schema outside the Supabase platform set.
+  // MANAGED schemas are NOT exempt — they are inventoried separately below, by ownership
+  // rather than by schema name, because a custom object in `storage` is still custom.
   const APP = `(n.nspname = 'public' OR (${PLATFORM_SCHEMA_PREDICATE}))`;
+  const MANAGED = `NOT (n.nspname = 'public' OR (${PLATFORM_SCHEMA_PREDICATE})) AND n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'`;
   // Extension-owned objects are NOT application state. A stock Supabase project ships
   // plenty of them, so they are excluded through PostgreSQL's own dependency metadata
   // (pg_depend deptype 'e') rather than a hand-maintained list that would rot.
@@ -857,6 +1011,44 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   }
   counts.user_event_triggers = eventTriggers.length;
 
+  // MANAGED-SCHEMA INVENTORY. One row per non-extension-owned relation, function and
+  // type inside a managed schema, carrying the OWNER — the positive evidence the
+  // classifier decides on. Extension-owned objects are excluded in SQL by pg_depend, so
+  // a stock project's pg_cron/pg_net/pgsodium content never reaches the classifier.
+  const managedQuery = `
+    select n.nspname || '~|~' || 'relation' || '~|~' || c.relname || '~|~' || pg_get_userbyid(c.relowner)
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where c.relkind in ('r','p','v','m','S','f') and (${MANAGED})
+       and ${notExtensionOwned("pg_class", "c")}
+    union all
+    select n.nspname || '~|~' || 'function' || '~|~' || p.proname || '~|~' || pg_get_userbyid(p.proowner)
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where (${MANAGED}) and ${notExtensionOwned("pg_proc", "p")}
+    union all
+    select n.nspname || '~|~' || 'type' || '~|~' || t.typname || '~|~' || pg_get_userbyid(t.typowner)
+      from pg_type t join pg_namespace n on n.oid = t.typnamespace
+     where (${MANAGED}) and t.typtype in ('c','d','e')
+       and ${notExtensionOwned("pg_type", "t")}
+       and (t.typtype <> 'c' or not exists (
+             select 1 from pg_class rc where rc.oid = t.typrelid and rc.relkind <> 'c'));
+  `;
+  const managed = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c", managedQuery]);
+  if (managed.status !== 0) {
+    // Fail closed: an unprovable managed surface is never an empty one.
+    return { ok: false, failure: describeSpawnResult(managed, "psql (managed-schema ownership probe)"), stderr: managed.stderr };
+  }
+  const managedObjects = [];
+  for (const line of (managed.stdout ?? "").split(/\r?\n/)) {
+    if (line.trim() === "") continue;
+    const f = line.split("~|~");
+    if (f.length !== 4) {
+      return { ok: false, reason: `the managed-schema ownership probe returned an unrecognized row (${f.length} field(s)); refusing to infer emptiness.` };
+    }
+    managedObjects.push({ schema: f[0], kind: f[1], name: f[2], owner: f[3] });
+  }
+  const managedVerdict = classifyManagedSchemaObjects(managedObjects);
+  counts.user_managed_schema_objects = managedVerdict.nonStockCount;
+
   const triggers = classifyObservedTriggers(observed);
   // Drift in EITHER direction defeats fresh certification.
   counts.user_triggers = triggers.nonStockCount + triggers.missingStockCount;
@@ -865,7 +1057,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   return {
     ok: true, counts, observedTriggers: observed,
     nonStockTriggers: triggers.nonStock, missingStockTriggers: triggers.missingStock,
-    eventTriggers, verdict,
+    eventTriggers, managedObjects, nonStockManagedObjects: managedVerdict.nonStock, verdict,
   };
 }
 
@@ -886,7 +1078,14 @@ function readHostedMigrationVersions(localTimestamps, runner = runNpx) {
   const parsed = parseHostedMigrationList(list.stdout ?? "", localTimestamps);
   const recognition = recognizeMigrationListRows(parsed.rows, localTimestamps);
   if (!recognition.ok) return { ok: false, reason: recognition.reason };
-  return { ok: true, remoteVersions: parsed.rows.map((r) => r.remote).filter(Boolean) };
+  return {
+    ok: true,
+    remoteVersions: parsed.rows.map((r) => r.remote).filter(Boolean),
+    // Carried forward so classification can require ROW matches rather than set equality.
+    matchedRows: parsed.matchedRows,
+    mismatchedPairs: parsed.mismatchedPairs,
+    localMigrationCount: [...new Set(localTimestamps)].length,
+  };
 }
 
 // Pure, so the invariant is unit-testable without a CLI.
@@ -900,6 +1099,20 @@ function recognizeMigrationListRows(rows, localTimestamps) {
         `UNRECOGNIZED_OUTPUT: 'supabase migration list --linked' exited 0 but no migration rows were recognized, ` +
         `while ${locals.length} local migration(s) exist. The CLI lists every LOCAL migration even against an empty ` +
         "remote, so zero recognized rows means the output format was not understood — not that the target is fresh.",
+    };
+  }
+  // A row whose two populated cells disagree is a PARSING/PAIRING failure. It is never
+  // normalized into two independent set members, because doing so is exactly what let a
+  // shifted table read as a complete history.
+  const mismatched = rows.filter((r) => r.local && r.remote && r.local !== r.remote);
+  if (mismatched.length > 0) {
+    const shown = mismatched.slice(0, 5).map((r) => `local=${r.local}/remote=${r.remote}`).join(", ");
+    return {
+      ok: false,
+      reason:
+        `UNRECOGNIZED_OUTPUT: ${mismatched.length} migration row(s) carry a Local and a Remote version that do ` +
+        `not agree (${shown}${mismatched.length > 5 ? ", ..." : ""}). A populated pair must name the SAME ` +
+        "migration; a shifted or misparsed table is never classifiable as history.",
     };
   }
   const seenLocal = new Set(rows.map((r) => r.local).filter(Boolean));
@@ -932,6 +1145,15 @@ function verifyHostedRepeatability(files) {
   const localTimestamps = files.map((f) => f.match(/^(\d{14})_/)?.[1]).filter(Boolean);
   const parsed = parseHostedMigrationList(list.stdout ?? "", localTimestamps);
 
+  if (parsed.mismatchedPairs.length > 0) {
+    return {
+      ok: false,
+      reason:
+        `${parsed.mismatchedPairs.length} migration row(s) pair a Local version with a DIFFERENT Remote version ` +
+        `(${parsed.mismatchedPairs.slice(0, 5).join(", ")}${parsed.mismatchedPairs.length > 5 ? ", ..." : ""}). ` +
+        "A shifted or misparsed table is never repeatability.",
+    };
+  }
   if (parsed.pendingLocal.length > 0) {
     return {
       ok: false,
@@ -944,14 +1166,18 @@ function verifyHostedRepeatability(files) {
       reason: `${parsed.unexpectedRemote.length} migration(s) recorded on the linked project with no matching local file (remote-unexpected drift): ${parsed.unexpectedRemote.slice(0, 5).join(", ")}${parsed.unexpectedRemote.length > 5 ? ", ..." : ""}`,
     };
   }
-  if (parsed.matchedCount !== files.length) {
+  // matchedROWS, not a set size: repeatability means every local migration is recorded
+  // against ITSELF on the remote, one row at a time.
+  if (parsed.matchedRows !== files.length) {
     return {
       ok: false,
-      reason: `migration count mismatch: ${files.length} local file(s) discovered but ${parsed.matchedCount} matched local+remote row(s) found`,
+      reason:
+        `migration pairing mismatch: ${files.length} local file(s) discovered but ${parsed.matchedRows} row(s) ` +
+        `pair a local version with the SAME remote version (remote version set size ${parsed.matchedCount})`,
     };
   }
 
-  return { ok: true, matchedCount: parsed.matchedCount };
+  return { ok: true, matchedCount: parsed.matchedCount, matchedRows: parsed.matchedRows };
 }
 
 // ─── Step 4: schema / RLS / RPC smoke checks (local mode) ──────────────────
@@ -1069,6 +1295,9 @@ const isMainModule = Boolean(process.argv[1]) && path.resolve(process.argv[1]) =
 if (isMainModule) main();
 
 export {
+  classifyManagedSchemaObjects,
+  MANAGED_SCHEMA_PLATFORM_OWNERS,
+  STOCK_MANAGED_OBJECT_BASELINE,
   determineMode,
   safetyGuard,
   checkInventoryAndOrdering,

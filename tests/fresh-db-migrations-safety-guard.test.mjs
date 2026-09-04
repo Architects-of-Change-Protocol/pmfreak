@@ -23,6 +23,9 @@ import {
   verifyHostedTargetBinding,
   applyHosted,
   recognizeMigrationListRows,
+  classifyManagedSchemaObjects,
+  MANAGED_SCHEMA_PLATFORM_OWNERS,
+  STOCK_MANAGED_OBJECT_BASELINE,
   readHostedMigrationVersions,
   HOSTED_ALLOWED_VALIDATION_REFS,
   redact,
@@ -1251,4 +1254,206 @@ test("fresh composition: every objection category independently refuses FRESH", 
   for (const key of Object.keys(EMPTY_COUNTS)) {
     assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, [key]: 1 }).empty, false, `${key} must be able to refuse a fresh apply`);
   }
+});
+
+// ─── F4: custom objects inside MANAGED schemas must not evade emptiness ────
+//
+// The defect: the inventory excluded every managed schema from the relation, function
+// and type counters, so a project holding only a user-created `storage.*` or `auth.*`
+// object reported zero and was certified application-empty before a destructive push.
+// The replacement decides per object, on positive ownership evidence.
+
+const platformObject = (schema, kind, name) => ({
+  schema, kind, name, owner: MANAGED_SCHEMA_PLATFORM_OWNERS[schema][0],
+});
+
+test("classifyManagedSchemaObjects: a pristine platform-owned managed surface is acceptable", () => {
+  const pristine = [
+    platformObject("auth", "relation", "users"),
+    platformObject("auth", "relation", "sessions"),
+    platformObject("auth", "function", "uid"),
+    platformObject("storage", "relation", "objects"),
+    platformObject("storage", "relation", "buckets"),
+    platformObject("storage", "function", "filename"),
+  ];
+  const verdict = classifyManagedSchemaObjects(pristine);
+  assert.equal(verdict.nonStockCount, 0, `a stock managed surface was flagged: ${verdict.nonStock.join(", ")}`);
+});
+
+test("classifyManagedSchemaObjects: a CUSTOM storage relation is counted, not excused by its schema", () => {
+  const verdict = classifyManagedSchemaObjects([
+    platformObject("storage", "relation", "objects"),
+    { schema: "storage", kind: "relation", name: "custom_table", owner: "postgres" },
+  ]);
+  assert.equal(verdict.nonStockCount, 1, "a user-created storage table was treated as platform state");
+  assert.match(verdict.nonStock[0], /storage\.custom_table/, `unexpected finding: ${verdict.nonStock[0]}`);
+});
+
+test("classifyManagedSchemaObjects: a CUSTOM storage view/materialized view is counted", () => {
+  const verdict = classifyManagedSchemaObjects([
+    { schema: "storage", kind: "relation", name: "custom_view", owner: "postgres" },
+  ]);
+  assert.equal(verdict.nonStockCount, 1, "a user-created storage view was treated as platform state");
+});
+
+test("classifyManagedSchemaObjects: a CUSTOM auth function is counted", () => {
+  const verdict = classifyManagedSchemaObjects([
+    platformObject("auth", "function", "uid"),
+    { schema: "auth", kind: "function", name: "custom_function", owner: "postgres" },
+  ]);
+  assert.equal(verdict.nonStockCount, 1, "a user-created auth function was treated as platform state");
+  assert.match(verdict.nonStock[0], /auth\.custom_function/, `unexpected finding: ${verdict.nonStock[0]}`);
+});
+
+test("classifyManagedSchemaObjects: a CUSTOM cron type is counted, including one owned by postgres", () => {
+  for (const owner of ["some_operator", "postgres"]) {
+    const verdict = classifyManagedSchemaObjects([{ schema: "cron", kind: "type", name: "custom_type", owner }]);
+    assert.equal(verdict.nonStockCount, 1, `a cron type owned by ${owner} was treated as platform state`);
+  }
+});
+
+test("classifyManagedSchemaObjects: `postgres` is never a certified platform owner", () => {
+  // The role an operator creates objects as must not launder anything. This is the exact
+  // hole the first attempt at this model shipped with.
+  for (const [schema, owners] of Object.entries(MANAGED_SCHEMA_PLATFORM_OWNERS)) {
+    assert.ok(!owners.includes("postgres"), `${schema} lists postgres as a platform owner`);
+  }
+  for (const schema of ["cron", "net", "extensions", "supabase_migrations", "storage", "auth"]) {
+    const verdict = classifyManagedSchemaObjects([{ schema, kind: "relation", name: "operator_made", owner: "postgres" }]);
+    assert.equal(verdict.nonStockCount, 1, `a postgres-owned relation in ${schema} was excused`);
+  }
+});
+
+test("classifyManagedSchemaObjects: the CLI migration ledger is the only postgres-owned stock object", () => {
+  const ledger = classifyManagedSchemaObjects([
+    { schema: "supabase_migrations", kind: "relation", name: "schema_migrations", owner: "postgres" },
+  ]);
+  assert.equal(ledger.nonStockCount, 0, "the certified CLI migration ledger was flagged as application state");
+  // Same name, different kind or owner, is a different object and is NOT excused.
+  assert.equal(
+    classifyManagedSchemaObjects([{ schema: "supabase_migrations", kind: "function", name: "schema_migrations", owner: "postgres" }]).nonStockCount,
+    1,
+    "a baseline NAME under a different kind was excused",
+  );
+  assert.ok(STOCK_MANAGED_OBJECT_BASELINE.every((b) => b.schema === "supabase_migrations"), "the postgres-owned baseline widened beyond the CLI ledger");
+});
+
+test("classifyManagedSchemaObjects: a stock NAME under the wrong owner is still counted", () => {
+  // Name is not evidence. An object called storage.objects owned by postgres is not the
+  // platform's storage.objects.
+  const verdict = classifyManagedSchemaObjects([
+    { schema: "storage", kind: "relation", name: "objects", owner: "postgres" },
+  ]);
+  assert.equal(verdict.nonStockCount, 1, "ownership was ignored in favour of the object name");
+});
+
+test("classifyManagedSchemaObjects: an UNRECOGNISED managed schema exempts nothing", () => {
+  const verdict = classifyManagedSchemaObjects([
+    { schema: "some_future_platform_schema", kind: "relation", name: "whatever", owner: "supabase_admin" },
+  ]);
+  assert.equal(verdict.nonStockCount, 1, "an unknown managed schema opened an exemption instead of failing closed");
+});
+
+test("classifyObjectEmptiness: managed-schema custom objects defeat application-emptiness", () => {
+  const clean = classifyObjectEmptiness({});
+  assert.equal(clean.empty, true, "an all-zero inventory was not empty");
+  const dirty = classifyObjectEmptiness({ user_managed_schema_objects: 1 });
+  assert.equal(dirty.empty, false, "a custom managed-schema object still certified as application-empty");
+  assert.match(dirty.reason, /user_managed_schema_objects=1/, `unexpected reason: ${dirty.reason}`);
+});
+
+// ─── F5: local/remote ROW PAIRING must survive classification ──────────────
+
+const table = (rows) =>
+  ["   Local    |   Remote   |     Time", "  ---------|-----------|--------", ...rows].join("\n");
+const row = (local, remote) => `   ${local ?? ""}   |   ${remote ?? ""}   | 2026-04-28`;
+
+test("parseHostedMigrationList: SWAPPED local/remote pairs are reported as mismatched, not normalized", () => {
+  const out = table([row("20260428120000", "20260501000000"), row("20260501000000", "20260428120000")]);
+  const parsed = parseHostedMigrationList(out, ["20260428120000", "20260501000000"]);
+  assert.equal(parsed.matchedRows, 0, "swapped rows produced matched rows");
+  assert.equal(parsed.mismatchedPairs.length, 2, `swapped rows were not detected: ${JSON.stringify(parsed.mismatchedPairs)}`);
+});
+
+test("recognizeMigrationListRows: a swapped table FAILS CLOSED instead of being classified", () => {
+  const out = table([row("20260428120000", "20260501000000"), row("20260501000000", "20260428120000")]);
+  const parsed = parseHostedMigrationList(out, ["20260428120000", "20260501000000"]);
+  const recognized = recognizeMigrationListRows(parsed.rows, ["20260428120000", "20260501000000"]);
+  assert.equal(recognized.ok, false, "a shifted migration table was accepted as recognized output");
+  assert.match(recognized.reason, /do not agree|not agree/, `unexpected reason: ${recognized.reason}`);
+});
+
+test("classifyHostedTarget: equal version SETS with zero matching ROWS are never repeatability", () => {
+  const local = ["20260428120000", "20260501000000"];
+  // The exact defect: sets are equal, so the set-only classifier said repeatability.
+  const setOnly = classifyHostedTarget(local, local);
+  assert.equal(setOnly.mode, "repeatability", "precondition: set comparison alone reports repeatability");
+  const withPairing = classifyHostedTarget(local, local, {
+    matchedRows: 0,
+    mismatchedPairs: ["20260428120000!=20260501000000", "20260501000000!=20260428120000"],
+    localMigrationCount: 2,
+  });
+  assert.equal(withPairing.mode, "fail", "a swapped pairing was still classified as repeatability");
+  assert.match(withPairing.reason, /name different migrations/, `unexpected reason: ${withPairing.reason}`);
+});
+
+test("classifyHostedTarget: a partially-paired history is not repeatability even with equal sets", () => {
+  const local = ["20260428120000", "20260501000000"];
+  const verdict = classifyHostedTarget(local, local, { matchedRows: 1, mismatchedPairs: [], localMigrationCount: 2 });
+  assert.equal(verdict.mode, "fail", "one matched row out of two was accepted as repeatability");
+  assert.match(verdict.reason, /paired to the SAME remote version/, `unexpected reason: ${verdict.reason}`);
+});
+
+test("parseHostedMigrationList: A/A + B/B is a fully paired history", () => {
+  const out = table([row("20260428120000", "20260428120000"), row("20260501000000", "20260501000000")]);
+  const parsed = parseHostedMigrationList(out, ["20260428120000", "20260501000000"]);
+  assert.equal(parsed.matchedRows, 2, "a correctly paired table did not report two matched rows");
+  assert.deepEqual(parsed.mismatchedPairs, [], "a correctly paired table reported mismatches");
+  assert.deepEqual(parsed.pendingLocal, [], "a correctly paired table reported pending local migrations");
+  const verdict = classifyHostedTarget(["20260428120000", "20260501000000"], ["20260428120000", "20260501000000"], {
+    matchedRows: parsed.matchedRows, mismatchedPairs: parsed.mismatchedPairs, localMigrationCount: 2,
+  });
+  assert.equal(verdict.mode, "repeatability", `a fully paired history was not repeatability: ${verdict.reason ?? ""}`);
+});
+
+test("parseHostedMigrationList: A/blank + B/blank is a FRESH remote history", () => {
+  const out = table([row("20260428120000", null), row("20260501000000", null)]);
+  const parsed = parseHostedMigrationList(out, ["20260428120000", "20260501000000"]);
+  assert.deepEqual(parsed.mismatchedPairs, [], "a fresh table reported mismatched pairs");
+  assert.equal(parsed.matchedRows, 0, "a fresh table reported matched rows");
+  assert.deepEqual(parsed.unexpectedRemote, [], "a fresh table reported unexpected remote rows");
+  const recognized = recognizeMigrationListRows(parsed.rows, ["20260428120000", "20260501000000"]);
+  assert.equal(recognized.ok, true, `a fresh table was not recognized: ${recognized.reason ?? ""}`);
+  const verdict = classifyHostedTarget([], ["20260428120000", "20260501000000"], {
+    matchedRows: 0, mismatchedPairs: [], localMigrationCount: 2,
+  });
+  assert.equal(verdict.mode, "fresh", "an empty remote history was not classified fresh");
+});
+
+test("parseHostedMigrationList: A/A + B/blank is a pending delta, not repeatability", () => {
+  const out = table([row("20260428120000", "20260428120000"), row("20260501000000", null)]);
+  const parsed = parseHostedMigrationList(out, ["20260428120000", "20260501000000"]);
+  assert.equal(parsed.matchedRows, 1, "a partial history did not report exactly one matched row");
+  assert.deepEqual(parsed.pendingLocal, ["20260501000000"], `unexpected pending set: ${parsed.pendingLocal.join(",")}`);
+  const verdict = classifyHostedTarget(["20260428120000"], ["20260428120000", "20260501000000"], {
+    matchedRows: 1, mismatchedPairs: [], localMigrationCount: 2,
+  });
+  assert.equal(verdict.mode, "fail", "a partially-applied target was not refused");
+});
+
+test("parseHostedMigrationList: blank/A is unexpected remote drift", () => {
+  const out = table([row(null, "20260901000000")]);
+  const parsed = parseHostedMigrationList(out, ["20260428120000"]);
+  assert.deepEqual(parsed.unexpectedRemote, ["20260901000000"], "a remote-only row was not reported as unexpected");
+  assert.deepEqual(parsed.mismatchedPairs, [], "a remote-only row was reported as a mismatched pair");
+});
+
+test("parseHostedMigrationList: BACKTICK-rendered swapped pairs are also detected", () => {
+  const out = table([
+    "   `20260428120000`   |   `20260501000000`   | 2026-04-28",
+    "   `20260501000000`   |   `20260428120000`   | 2026-05-01",
+  ]);
+  const parsed = parseHostedMigrationList(out, ["20260428120000", "20260501000000"]);
+  assert.equal(parsed.mismatchedPairs.length, 2, "backtick-rendered swapped rows evaded pairing detection");
+  assert.equal(parsed.matchedRows, 0, "backtick-rendered swapped rows reported matched rows");
 });
