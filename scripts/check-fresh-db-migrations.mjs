@@ -469,24 +469,44 @@ function parseHostedMigrationList(output, localTimestamps) {
   // them. Validating cells (rather than baking the timestamp shape into the
   // line regex) is what keeps headers, `---|---|---` separators and stray
   // CLI chatter out of the row set while still accepting both cell forms.
-  const linePattern = /^([^|\n]*)\|([^|\n]*)\|/gm;
+  // LINE-ORIENTED DISCOVERY, because the previous row regex required TWO pipes to even
+  // look at a line. The CLI's row shape is `local | remote | time`, so a TRUNCATED row
+  // carrying only one pipe never reached the cell parser, never reached
+  // `malformedMigrationRows`, and simply vanished — leaving the surviving rows to read as
+  // a complete matching history (REPEATABILITY) or an untouched target (FRESH). Detecting
+  // a partially-parseable row after it has already matched a well-formed shape cannot see
+  // a row that never matched at all, so discovery itself is what had to change.
   const rows = [];
   const malformedMigrationRows = [];
-  let match;
-  while ((match = linePattern.exec(output)) !== null) {
-    const local = parseMigrationCell(match[1]);
-    const remote = parseMigrationCell(match[2]);
+  for (const rawLine of output.split(/\r?\n/)) {
+    const pipeCount = (rawLine.match(/\|/g) ?? []).length;
+    if (pipeCount === 0) continue; // ordinary prose chatter; deliberately out of scope
+    const cells = rawLine.split("|");
+    const local = parseMigrationCell(cells[0] ?? "");
+    const remote = parseMigrationCell(cells[1] ?? "");
+    // A cell "carries a version" only when it parsed as a real timestamp. `undefined` is
+    // unreadable and `null` is a legitimately blank cell; neither is a version.
+    const carriesAVersion =
+      (local !== undefined && local !== null) || (remote !== undefined && remote !== null);
+    const evidence = `${(cells[0] ?? "").trim()}|${(cells[1] ?? "").trim()}`;
+
+    if (pipeCount < 2) {
+      // TRUNCATED. Structure alone is enough to refuse when a real migration version is
+      // present — including `X | X` and `X |`, where both visible cells are perfectly
+      // readable. The gate must not certify from an output format it did not receive
+      // whole. A one-pipe line with no version on either side (`status | complete`,
+      // `foo | bar`) stays ignorable chatter.
+      if (carriesAVersion) malformedMigrationRows.push(evidence);
+      continue;
+    }
+
+    // NORMAL three-column row: unchanged semantics from here down.
     if (local === undefined || remote === undefined) {
-      // PARTIALLY PARSEABLE, which is not the same as chatter. Skipping a row whenever
-      // EITHER cell failed to parse threw away rows whose OTHER cell held a perfectly
-      // valid migration version: `garbage | 20260601000000` vanished, and what remained
-      // read as a complete matching history (REPEATABILITY) or as an untouched target
-      // (FRESH). A header or separator has NO valid timestamp on either side and is still
-      // ignored; a row with one real version and one cell we could not understand is a
-      // migration row this parser did not understand, and it fails closed.
-      const carriesAVersion =
-        (local !== undefined && local !== null) || (remote !== undefined && remote !== null);
-      if (carriesAVersion) malformedMigrationRows.push(`${match[1].trim()}|${match[2].trim()}`);
+      // PARTIALLY PARSEABLE, which is not the same as chatter. A header or separator has
+      // NO valid timestamp on either side and is still ignored; a row with one real
+      // version and one unreadable cell is a migration row this parser did not
+      // understand, and it fails closed.
+      if (carriesAVersion) malformedMigrationRows.push(evidence);
       continue;
     }
     if (local === null && remote === null) continue; // blank filler line

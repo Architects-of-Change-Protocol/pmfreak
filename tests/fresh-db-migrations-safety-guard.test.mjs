@@ -2417,3 +2417,112 @@ test("verifyHostedRepeatability refuses partially-parseable rows independently",
   assert.match(verifySrc.slice(0, verifySrc.indexOf("return { ok: true")), /parsed\.malformedMigrationRows\.length > 0/,
     "verifyHostedRepeatability does not refuse partially-parseable rows");
 });
+
+// ─── Truncated migration rows (remediation 26) ────────────────────────────
+//
+// Remediation 25 detected a partially-parseable row AFTER a line had matched the
+// three-column shape. Row DISCOVERY still required two pipes, so a truncated row never
+// reached the cell parser at all and simply vanished — the surviving rows then read as a
+// complete matching history or an untouched target.
+
+const HEADER_LINES = ["   Local      | Remote     | Time", "  -----------|------------|------"];
+const withTruncatedLine = (bodyRows, truncated) => [...HEADER_LINES, ...bodyRows, truncated].join("\n");
+const PAIRED = [migrationRow(LOCALS[0], LOCALS[0]), migrationRow(LOCALS[1], LOCALS[1])];
+const FRESH_ROWS = [migrationRow(LOCALS[0], null), migrationRow(LOCALS[1], null)];
+
+const truncatedEvidence = (table) => parseHostedMigrationList(table, LOCALS).malformedMigrationRows;
+
+test("CASE A (truncated) — a one-pipe row must not yield REPEATABILITY, and never reaches a push", () => {
+  const table = withTruncatedLine(PAIRED, `   garbage | ${UNKNOWN_LOCAL}`);
+  const parsed = parseHostedMigrationList(table, LOCALS);
+  assert.equal(parsed.malformedMigrationRows.length, 1, "TRUNCATED_ROW_DETECTED=NO — the one-pipe row vanished");
+  assert.match(parsed.malformedMigrationRows[0], /garbage\|20260601000000/, `unexpected evidence: ${parsed.malformedMigrationRows[0]}`);
+  assert.equal(parsed.matchedRows, 2, "the two genuine rows must still parse normally");
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS, parsed.malformedMigrationRows).ok, false, "recognition accepted a truncated row");
+  const { rows: _r, ...evidence } = parsed;
+  const remote = [...new Set(parsed.rows.map((r) => r.remote).filter(Boolean))];
+  assert.equal(classifyHostedTarget(remote, LOCALS, { ...evidence, localMigrationCount: 2 }).mode, "fail", "REPEATABILITY=YES");
+
+  const { result, calls } = applyHostedWithMigrationList(table, ["20260428120000_a.sql", "20260501000000_b.sql"]);
+  assert.equal(result.ok, false, "the live apply path accepted a truncated row");
+  assert.equal(calls.some((c) => c.includes("push")), false, `DB_PUSH_REACHED: ${calls.join(" | ")}`);
+});
+
+test("CASE B (truncated) — a one-pipe row must not yield FRESH, and never reaches a push", () => {
+  const table = withTruncatedLine(FRESH_ROWS, `   garbage | ${UNKNOWN_LOCAL}`);
+  const parsed = parseHostedMigrationList(table, LOCALS);
+  assert.equal(parsed.malformedMigrationRows.length, 1, "TRUNCATED_ROW_DETECTED=NO on the fresh shape");
+  const remote = [...new Set(parsed.rows.map((r) => r.remote).filter(Boolean))];
+  assert.deepEqual(remote, [], "precondition: the surviving rows leave the remote history empty");
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS, parsed.malformedMigrationRows).ok, false, "recognition accepted it");
+  const { rows: _r, ...evidence } = parsed;
+  assert.equal(classifyHostedTarget(remote, LOCALS, { ...evidence, localMigrationCount: 2 }).mode, "fail", "FRESH=YES");
+
+  const { result, calls } = applyHostedWithMigrationList(table, ["20260428120000_a.sql", "20260501000000_b.sql"]);
+  assert.equal(result.ok, false, "the live apply path accepted a truncated fresh target");
+  assert.equal(calls.some((c) => c.includes("push")), false, `DB_PUSH_REACHED: ${calls.join(" | ")}`);
+});
+
+test("CASE C — valid|valid is refused on STRUCTURE, not just on readability", () => {
+  // Both cells parse perfectly. The row is still truncated, and the gate must not
+  // certify from an output format it did not receive whole.
+  const evidence = truncatedEvidence(withTruncatedLine(PAIRED, `   ${UNKNOWN_LOCAL} | ${UNKNOWN_LOCAL}`));
+  assert.equal(evidence.length, 1, "a structurally truncated row with two readable cells was accepted");
+  assert.match(evidence[0], /20260601000000\|20260601000000/, `unexpected evidence: ${evidence[0]}`);
+});
+
+test("CASE D — valid|blank truncated is refused", () => {
+  const evidence = truncatedEvidence(withTruncatedLine(PAIRED, `   ${UNKNOWN_LOCAL} |`));
+  assert.equal(evidence.length, 1, "a truncated row with a blank second cell was accepted");
+  assert.match(evidence[0], /20260601000000\|/, `unexpected evidence: ${evidence[0]}`);
+});
+
+test("CASE E — either malformed side of a truncated row is refused", () => {
+  assert.equal(truncatedEvidence(withTruncatedLine(PAIRED, `   garbage | ${UNKNOWN_LOCAL}`)).length, 1, "garbage|version was accepted");
+  assert.equal(truncatedEvidence(withTruncatedLine(PAIRED, `   ${UNKNOWN_LOCAL} | garbage`)).length, 1, "version|garbage was accepted");
+});
+
+test("CASE F — one-pipe chatter with no migration version stays ignorable", () => {
+  const table = [...HEADER_LINES, ...PAIRED, "   status | complete", "   foo | bar"].join("\n");
+  const parsed = parseHostedMigrationList(table, LOCALS);
+  assert.deepEqual(parsed.malformedMigrationRows, [], "ordinary one-pipe chatter was treated as migration corruption");
+  assert.equal(parsed.matchedRows, 2, "the genuine rows were lost");
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS, parsed.malformedMigrationRows).ok, true, "chatter caused a refusal");
+});
+
+test("CASE G — a normal three-column FRESH table is unchanged", () => {
+  const table = [...HEADER_LINES, ...FRESH_ROWS].join("\n");
+  const parsed = parseHostedMigrationList(table, LOCALS);
+  assert.deepEqual(parsed.malformedMigrationRows, []);
+  assert.equal(parsed.rows.length, 2, "normal rows were lost by the new discovery model");
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS, parsed.malformedMigrationRows).ok, true);
+  const { rows: _r, ...evidence } = parsed;
+  assert.equal(classifyHostedTarget([], LOCALS, { ...evidence, localMigrationCount: 2 }).mode, "fresh", "FRESH was lost");
+});
+
+test("CASE H — a normal three-column REPEATABILITY table is unchanged", () => {
+  const table = [...HEADER_LINES, ...PAIRED].join("\n");
+  const parsed = parseHostedMigrationList(table, LOCALS);
+  assert.deepEqual(parsed.malformedMigrationRows, []);
+  assert.equal(parsed.matchedRows, 2);
+  const { rows: _r, ...evidence } = parsed;
+  assert.equal(classifyHostedTarget(LOCALS, LOCALS, { ...evidence, localMigrationCount: 2 }).mode, "repeatability", "REPEATABILITY was lost");
+});
+
+test("row discovery: headers, separators and blank-cell shapes survive the line-oriented model", () => {
+  // The header and separator each carry two pipes and no version; the blank shapes are
+  // normal rows. None of them may become corruption evidence.
+  const table = [
+    "Connecting to remote database...",
+    ...HEADER_LINES,
+    migrationRow(LOCALS[0], null),
+    migrationRow(null, LOCALS[1]),
+    migrationRow(null, null),
+    "Finished supabase migration list.",
+  ].join("\n");
+  const parsed = parseHostedMigrationList(table, LOCALS);
+  assert.deepEqual(parsed.malformedMigrationRows, [], "a header, separator, blank row or prose line was flagged");
+  assert.equal(parsed.rows.length, 2, "blank|blank was not ignored, or a valid shape was lost");
+  assert.deepEqual(parsed.localOnly, [LOCALS[0]], "timestamp|blank lost its meaning");
+  assert.deepEqual(parsed.unexpectedRemote, [LOCALS[1]], "blank|timestamp lost its meaning");
+});
