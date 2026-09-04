@@ -25,6 +25,7 @@ import {
   applyHosted,
   recognizeMigrationListRows,
   classifyManagedSchemaObjects,
+  probeHostedApplicationState,
   STOCK_MANAGED_OBJECT_BASELINE,
   STOCK_MANAGED_OBJECT_PROFILES,
   managedObjectProblemCount,
@@ -2028,6 +2029,188 @@ test("D: an attached daily index does not vouch for its partition", () => {
   // it is skipped, and the profile is unaffected. It cannot ADD certification.
   const orphan = classifyManagedSchemaObjects([...observationOf(LOCAL()), ...indexes]);
   assert.equal(orphan.matchedProfile, "local-cli-stock", "valid dynamic indexes disturbed the profile match");
+});
+
+// ─── R31: extension ownership must not exempt ROW STATE ───────────────────
+//
+// The defect: the managed-table ROW probe carried `notExtensionOwned(...)`. That
+// exemption is right for the static OBJECT profiles — a stock project ships many
+// extension objects — but ownership says nothing about what a table CONTAINS.
+// vault.secrets is owned by supabase_vault, so a rotated allowlisted target could
+// hold real operator secrets and still certify as application-empty ahead of
+// `supabase db push --include-roles`.
+//
+// classifyManagedRowState ALREADY refused such a row; it simply never received one.
+// The missing piece was the SQL observation, so these regressions drive the real
+// probe-to-classifier handoff rather than the classifier alone.
+
+/** The certified non-history row rules, rendered as the probe's own wire format. */
+const certifiedRowLines = () =>
+  Object.entries(STOCK_MANAGED_ROW_RULES)
+    .filter(([, rule]) => rule.kind !== "history")
+    .map(([qualified, rule]) => {
+      const [schema, ...rest] = qualified.split(".");
+      return `${schema}~|~${rest.join(".")}~|~${rule.count}~|~${rule.digest}`;
+    });
+
+/**
+ * A stub psql that answers every probe query for an otherwise-pristine target.
+ *
+ * The row branch simulates PostgreSQL faithfully: `vault.secrets` is extension-owned,
+ * so it is returned ONLY when the query does not filter extension-owned tables. That
+ * is what makes this load-bearing — against the pre-R31 query the row is invisible
+ * exactly as a real database would make it invisible.
+ */
+function stubbedStockRunner({ vaultSecretRows = 0, extensions, capture = {} } = {}) {
+  const EXTENSION_FILTER = /deptype = 'e'/;
+  return (_cmd, args) => {
+    const sql = String(args[args.length - 1]);
+    const ok = (stdout) => ({ status: 0, stdout, stderr: "" });
+    if (sql.includes("as user_schemas")) return ok("0,0,0,0,0,0,0,0,0,0\n");
+    if (sql.includes("pg_get_triggerdef")) {
+      capture.triggerQuery = sql;
+      return ok(STOCK_PLATFORM_TRIGGER_BASELINE.map((t) =>
+        `${t.schema}~|~${t.table}~|~${t.trigger}~|~${t.functionSchema}~|~${t.functionName}~|~${t.functionOwner}~|~${t.definition}~|~${t.provenance}`).join("\n") + "\n");
+    }
+    if (sql.includes("pg_event_trigger")) return ok("");
+    if (sql.includes("pg_get_functiondef")) return ok("");            // managed objects
+    if (sql.includes("pg_extension e join pg_namespace")) {
+      return ok((extensions ?? STOCK_EXTENSION_BASELINE.map((e) => `${e.name}~|~${e.version}~|~${e.schema}`)).join("\n") + "\n");
+    }
+    if (sql.includes("nspacl")) return ok(STOCK_MANAGED_SCHEMA_ACL.map((a) => `${a.schema}~|~${a.acl}`).join("\n") + "\n");
+    if (sql.includes("pg_default_acl")) return ok(STOCK_DEFAULT_ACL.map((a) => `${a.schema}~|~${a.owner}~|~${a.objtype}~|~${a.acl}`).join("\n") + "\n");
+    if (sql.includes("query_to_xml")) {
+      capture.rowQuery = sql;
+      const lines = certifiedRowLines();
+      // vault.secrets is extension-owned; a query that excludes extension-owned
+      // tables simply does not see it.
+      if (!EXTENSION_FILTER.test(sql)) lines.push(`vault~|~secrets~|~${vaultSecretRows}~|~`);
+      return ok(lines.join("\n") + "\n");
+    }
+    throw new Error(`the stub received an unexpected probe query: ${sql.slice(0, 120)}`);
+  };
+}
+
+test("R31: the managed-table ROW probe no longer exempts extension-owned tables", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  const region = source.slice(source.indexOf("const rowQuery"), source.indexOf("const observedRowState"));
+  assert.match(region, /c\.relkind in \('r','p'\) and \(\$\{MANAGED\}\);/, "the row query no longer selects every managed table");
+  assert.doesNotMatch(region, /notExtensionOwned/, "the ROW probe still exempts extension-owned tables");
+  // The OBJECT inventory must keep the exemption: this remediation separates the two
+  // questions, it does not delete the object-side rule.
+  const objectRegion = source.slice(source.indexOf("const managedQuery"), source.indexOf("const managed = runner"));
+  assert.equal((objectRegion.match(/notExtensionOwned\(/g) ?? []).length, 3,
+    "the managed-object inventory lost its extension-ownership exemption");
+});
+
+// ── REGRESSION A / B: the real probe-to-classifier handoff ─────────────────
+
+test("A+B: an extension-owned table's ROWS reach the emptiness verdict", () => {
+  // B — pristine stock: vault.secrets exists, carries zero rows, and is not a problem.
+  const capture = {};
+  const empty = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ vaultSecretRows: 0, capture }));
+  assert.equal(empty.ok, true, `the probe failed on a stock target: ${empty.reason ?? JSON.stringify(empty.failure)}`);
+  assert.ok(
+    empty.observedRowState.some((t) => t.schema === "vault" && t.name === "secrets"),
+    "the extension-owned table was not OBSERVED at all; the probe still cannot see it",
+  );
+  assert.equal(empty.counts.user_managed_table_rows, 0, "a zero-row stock vault.secrets was reported as application state");
+
+  // A — the load-bearing case: one row of real operator state.
+  const populated = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ vaultSecretRows: 1 }));
+  assert.equal(populated.ok, true, "the probe failed on the populated target");
+  assert.ok(populated.counts.user_managed_table_rows > 0,
+    "USER_MANAGED_TABLE_ROWS=0 — an extension-owned table holding operator data was invisible to the emptiness probe");
+  assert.ok(
+    (populated.populatedManagedTables ?? []).some((p) => p.includes("vault.secrets")),
+    `vault.secrets was not named in the row-state problems: ${JSON.stringify(populated.populatedManagedTables)}`,
+  );
+  // APPLICATION_EMPTINESS=NOT_EMPTY, so no destructive push is reached. Asserted on an
+  // otherwise-EMPTY count set so the refusal is attributable to the vault row ALONE and
+  // cannot be borrowed from some unrelated objection the stub happens to produce.
+  const attributable = { ...EMPTY_COUNTS, user_managed_table_rows: populated.counts.user_managed_table_rows };
+  assert.equal(classifyObjectEmptiness(attributable).empty, false,
+    "DB_PUSH_REACHED — the target certified as application-empty while holding operator secrets");
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_managed_table_rows: 0 }).empty, true,
+    "the control set is not otherwise empty, so the refusal above proves nothing");
+  assert.equal(classifyObjectEmptiness(populated.counts).empty, false, "the full observed target certified as empty");
+  // And the difference is caused by the row count alone: everything else is identical.
+  assert.equal(populated.counts.user_managed_schema_objects, empty.counts.user_managed_schema_objects);
+  assert.equal(populated.counts.user_extensions, empty.counts.user_extensions);
+});
+
+// ── REGRESSION C: extension identity is unchanged by this remediation ──────
+
+test("C: extension identity, version and schema are still enforced exactly", () => {
+  const stock = STOCK_EXTENSION_BASELINE.map((e) => `${e.name}~|~${e.version}~|~${e.schema}`);
+  const target = STOCK_EXTENSION_BASELINE.find((e) => e.name === "supabase_vault");
+  assert.ok(target, "supabase_vault is no longer a certified stock extension");
+  const cases = {
+    "a changed version": stock.map((l) => l.startsWith("supabase_vault~|~") ? `supabase_vault~|~99.9.9~|~${target.schema}` : l),
+    "a changed schema": stock.map((l) => l.startsWith("supabase_vault~|~") ? `supabase_vault~|~${target.version}~|~public` : l),
+    "a missing extension": stock.filter((l) => !l.startsWith("supabase_vault~|~")),
+    "an extra extension": [...stock, "pg_cron~|~1.6~|~pg_catalog"],
+  };
+  for (const [label, extensions] of Object.entries(cases)) {
+    const out = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ extensions }));
+    assert.equal(out.ok, true, `the probe failed outright on ${label}`);
+    assert.ok(out.counts.user_extensions > 0, `${label} was accepted as stock`);
+    assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_extensions: out.counts.user_extensions }).empty, false,
+      `${label} still certified as empty`);
+  }
+  // The unmutated stock extension set is still accepted, so the controls above mean something.
+  const clean = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({}));
+  assert.equal(clean.counts.user_extensions, 0, "the certified stock extension set was refused");
+});
+
+// ── REGRESSION D: the existing non-extension row rules are untouched ───────
+
+test("D: every certified non-extension managed row rule still behaves exactly as before", () => {
+  const rules = Object.entries(STOCK_MANAGED_ROW_RULES).filter(([, r]) => r.kind !== "history");
+  assert.equal(rules.length, 8, "the certified non-history row rules changed");
+  for (const [qualified, rule] of rules) {
+    const [schema, ...rest] = qualified.split(".");
+    const name = rest.join(".");
+    const stock = rules.map(([q, r]) => {
+      const [s, ...n] = q.split(".");
+      return { schema: s, name: n.join("."), rows: r.count, digest: r.digest };
+    });
+    assert.equal(classifyManagedRowState(stock).problemCount, 0, `the certified row state was refused (${qualified})`);
+    const mutate = (patch) => stock.map((t) => (t.schema === schema && t.name === name ? { ...t, ...patch } : t));
+    assert.ok(classifyManagedRowState(mutate({ rows: rule.count + 1 })).problemCount > 0, `${qualified} accepted an extra row`);
+    assert.ok(classifyManagedRowState(mutate({ rows: 0 })).problemCount > 0, `${qualified} accepted being EMPTY`);
+    assert.ok(classifyManagedRowState(mutate({ digest: "tampered" })).problemCount > 0, `${qualified} accepted changed row content`);
+  }
+});
+
+// ── REGRESSION E: the contract is generic, not a vault special case ────────
+
+test("E: ANY managed table with rows and no certified rule fails closed, extension-owned or not", () => {
+  // Nothing in the source names vault.secrets as an exception, and nothing keys on a
+  // secret value or a row id.
+  const source = readFileSync(SCRIPT, "utf8");
+  const rowRegion = source.slice(source.indexOf("const rowQuery"), source.indexOf("const observedRowState"));
+  assert.doesNotMatch(rowRegion, /vault|secrets/i, "the row probe special-cases the vault table by name");
+  assert.equal(Object.keys(STOCK_MANAGED_ROW_RULES).includes("vault.secrets"), false,
+    "vault.secrets was given a positive row rule; its certified pristine state is ZERO rows");
+
+  // A hypothetical future extension-owned table behaves identically to vault.secrets.
+  const stock = certifiedRowLines().map((l) => {
+    const [schema, name, rows, digest] = l.split("~|~");
+    return { schema, name, rows: Number(rows), digest };
+  });
+  for (const table of [
+    { schema: "vault", name: "secrets" },
+    { schema: "cron", name: "job" },
+    { schema: "net", name: "http_request_queue" },
+    { schema: "pgsodium", name: "key" },
+  ]) {
+    assert.equal(classifyManagedRowState([...stock, { ...table, rows: 0, digest: "" }]).problemCount, 0,
+      `an empty ${table.schema}.${table.name} was treated as application state`);
+    const verdict = classifyManagedRowState([...stock, { ...table, rows: 1, digest: "" }]);
+    assert.equal(verdict.problemCount, 1, `a populated ${table.schema}.${table.name} did not fail closed`);
+    assert.match(verdict.problems[0], /no certified stock row state/, `${table.schema}.${table.name} failed for the wrong reason`);
+  }
 });
 
 // ─── Constraint, sequence and ACL layers of the relation fingerprint ──────

@@ -1729,6 +1729,15 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
       );
     })
     .join("\n              ");
+  // ROW STATE IS NOT AN OWNERSHIP QUESTION. Extension ownership excuses an OBJECT from the
+  // static managed profiles -- a stock project ships plenty of extension objects -- but it
+  // says nothing about what a table CONTAINS. vault.secrets is owned by supabase_vault and
+  // carries zero rows on pristine stock, so exempting it here let a target hold real
+  // operator data and still certify as application-empty ahead of a destructive push. The
+  // exemption is therefore NOT applied to this probe: every managed ordinary/partitioned
+  // table is counted, whoever owns it, and classifyManagedRowState decides. That contract
+  // is generic -- an extension-owned table with rows and no certified stock rule fails
+  // closed, so a future platform image cannot smuggle state in behind an extension.
   const rowQuery = `
     select n.nspname || '~|~' || c.relname || '~|~' ||
            (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', n.nspname, c.relname), false, true, '')))[1]::text
@@ -1736,8 +1745,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
               ${projectionCase}
               else null end), '')
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
-     where c.relkind in ('r','p') and (${MANAGED})
-       and ${notExtensionOwned("pg_class", "c")};
+     where c.relkind in ('r','p') and (${MANAGED});
   `;
   const rowResult = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c", rowQuery]);
   if (rowResult.status !== 0) {
