@@ -480,7 +480,23 @@ function parseHostedMigrationList(output, localTimestamps) {
   const malformedMigrationRows = [];
   for (const rawLine of output.split(/\r?\n/)) {
     const pipeCount = (rawLine.match(/\|/g) ?? []).length;
-    if (pipeCount === 0) continue; // ordinary prose chatter; deliberately out of scope
+    if (pipeCount === 0) {
+      // A whole line that IS a migration cell is evidence from a structurally truncated
+      // output, not prose. `20260601000000` on its own — bare or backtick-wrapped — was
+      // discarded with the rest of the chatter, and the surviving rows then read as a
+      // complete matching history or an untouched target.
+      //
+      // The test is the WHOLE line, through the same cell parser the columns use, so a
+      // timestamp merely EMBEDDED in prose ("Migration 20260601000000 complete") does not
+      // qualify: the anchored cell pattern rejects it. A blank line parses as an empty
+      // cell rather than a version and stays ignorable, as does every other prose line.
+      //
+      // Provenance does not rescue the structure: a bare EXPECTED local version is
+      // refused too, because the output shape is still truncated.
+      const bareCell = parseMigrationCell(rawLine);
+      if (typeof bareCell === "string") malformedMigrationRows.push(rawLine.trim());
+      continue;
+    }
     const cells = rawLine.split("|");
     const local = parseMigrationCell(cells[0] ?? "");
     const remote = parseMigrationCell(cells[1] ?? "");

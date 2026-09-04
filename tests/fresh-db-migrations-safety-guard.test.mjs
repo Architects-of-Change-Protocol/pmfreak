@@ -2526,3 +2526,89 @@ test("row discovery: headers, separators and blank-cell shapes survive the line-
   assert.deepEqual(parsed.localOnly, [LOCALS[0]], "timestamp|blank lost its meaning");
   assert.deepEqual(parsed.unexpectedRemote, [LOCALS[1]], "blank|timestamp lost its meaning");
 });
+
+// ─── Bare zero-pipe migration tokens (remediation 27) ─────────────────────
+//
+// Remediation 26 made discovery line-oriented but discarded zero-pipe lines outright.
+// A whole line that IS a migration cell is evidence from a structurally truncated
+// output, not prose: `20260601000000` alone vanished, and the surviving rows read as a
+// complete matching history or an untouched target.
+
+const withBareLine = (bodyRows, bare) => [...HEADER_LINES, ...bodyRows, bare].join("\n");
+const bareEvidence = (table) => parseHostedMigrationList(table, LOCALS).malformedMigrationRows;
+
+test("CASE A (bare) — a bare migration token must not yield REPEATABILITY, and never reaches a push", () => {
+  const table = withBareLine(PAIRED, `   ${UNKNOWN_LOCAL}`);
+  const parsed = parseHostedMigrationList(table, LOCALS);
+  assert.deepEqual(parsed.malformedMigrationRows, [UNKNOWN_LOCAL], "MALFORMED_ROW_DETECTED=NO — the bare token vanished");
+  assert.equal(parsed.matchedRows, 2, "the two genuine rows must still parse normally");
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS, parsed.malformedMigrationRows).ok, false, "recognition accepted a bare token");
+  const { rows: _r, ...evidence } = parsed;
+  const remote = [...new Set(parsed.rows.map((r) => r.remote).filter(Boolean))];
+  assert.equal(classifyHostedTarget(remote, LOCALS, { ...evidence, localMigrationCount: 2 }).mode, "fail", "REPEATABILITY=YES");
+
+  const { result, calls } = applyHostedWithMigrationList(table, ["20260428120000_a.sql", "20260501000000_b.sql"]);
+  assert.equal(result.ok, false, "the live apply path accepted a bare migration token");
+  assert.equal(calls.some((c) => c.includes("push")), false, `DB_PUSH_REACHED: ${calls.join(" | ")}`);
+});
+
+test("CASE B (bare) — a bare migration token must not yield FRESH, and never reaches a push", () => {
+  const table = withBareLine(FRESH_ROWS, `   ${UNKNOWN_LOCAL}`);
+  const parsed = parseHostedMigrationList(table, LOCALS);
+  assert.deepEqual(parsed.malformedMigrationRows, [UNKNOWN_LOCAL], "MALFORMED_ROW_DETECTED=NO on the fresh shape");
+  const remote = [...new Set(parsed.rows.map((r) => r.remote).filter(Boolean))];
+  assert.deepEqual(remote, [], "precondition: the surviving rows leave the remote history empty");
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS, parsed.malformedMigrationRows).ok, false, "recognition accepted it");
+  const { rows: _r, ...evidence } = parsed;
+  assert.equal(classifyHostedTarget(remote, LOCALS, { ...evidence, localMigrationCount: 2 }).mode, "fail", "FRESH=YES");
+
+  const { result, calls } = applyHostedWithMigrationList(table, ["20260428120000_a.sql", "20260501000000_b.sql"]);
+  assert.equal(result.ok, false, "the live apply path accepted a bare token on a fresh target");
+  assert.equal(calls.some((c) => c.includes("push")), false, `DB_PUSH_REACHED: ${calls.join(" | ")}`);
+});
+
+test("CASE C (bare) — a BACKTICK-wrapped bare token is refused", () => {
+  // The CLI renders cells both ways; the bare form must be caught in both renderings.
+  const evidence = bareEvidence(withBareLine(PAIRED, `   \`${UNKNOWN_LOCAL}\``));
+  assert.equal(evidence.length, 1, "a backtick-wrapped bare token was accepted");
+  assert.match(evidence[0], /`20260601000000`/, `unexpected evidence: ${evidence[0]}`);
+});
+
+test("CASE D (bare) — a bare EXPECTED local token is refused too", () => {
+  // Provenance does not rescue the structure: the output shape is still truncated.
+  const evidence = bareEvidence(withBareLine(PAIRED, `   ${LOCALS[0]}`));
+  assert.equal(evidence.length, 1, "a bare token was excused because the repository knows that version");
+  assert.match(evidence[0], /20260428120000/, `unexpected evidence: ${evidence[0]}`);
+});
+
+test("CASE E (bare) — ordinary zero-pipe prose stays ignorable", () => {
+  const table = [
+    ...HEADER_LINES,
+    ...PAIRED,
+    "Connecting to remote database...",
+    "status complete",
+    "migration list complete",
+    // The load-bearing one: a timestamp EMBEDDED in prose must not qualify. Only a WHOLE
+    // line that parses as a migration cell does.
+    `Migration ${UNKNOWN_LOCAL} complete`,
+    "",
+  ].join("\n");
+  const parsed = parseHostedMigrationList(table, LOCALS);
+  assert.deepEqual(parsed.malformedMigrationRows, [], "ordinary prose was treated as migration corruption");
+  assert.equal(parsed.matchedRows, 2, "the genuine rows were lost");
+  assert.equal(recognizeMigrationListRows(parsed.rows, LOCALS, parsed.malformedMigrationRows).ok, true, "prose caused a refusal");
+});
+
+test("CASE F (bare) — a normal FRESH table is unchanged", () => {
+  const parsed = parseHostedMigrationList([...HEADER_LINES, ...FRESH_ROWS].join("\n"), LOCALS);
+  assert.deepEqual(parsed.malformedMigrationRows, []);
+  const { rows: _r, ...evidence } = parsed;
+  assert.equal(classifyHostedTarget([], LOCALS, { ...evidence, localMigrationCount: 2 }).mode, "fresh", "FRESH was lost");
+});
+
+test("CASE G (bare) — a normal REPEATABILITY table is unchanged", () => {
+  const parsed = parseHostedMigrationList([...HEADER_LINES, ...PAIRED].join("\n"), LOCALS);
+  assert.deepEqual(parsed.malformedMigrationRows, []);
+  const { rows: _r, ...evidence } = parsed;
+  assert.equal(classifyHostedTarget(LOCALS, LOCALS, { ...evidence, localMigrationCount: 2 }).mode, "repeatability", "REPEATABILITY was lost");
+});
