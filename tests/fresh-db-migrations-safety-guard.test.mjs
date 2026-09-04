@@ -29,6 +29,10 @@ import {
   STOCK_MANAGED_ROW_RULES,
   classifyInstalledExtensions,
   classifyManagedRowState,
+  classifyManagedSchemaAcl,
+  classifyDefaultAcl,
+  STOCK_MANAGED_SCHEMA_ACL,
+  STOCK_DEFAULT_ACL,
   isRealtimeDailyPartition,
   realtimePartitionDefinition,
   fingerprintDefinition,
@@ -1521,6 +1525,120 @@ test("the certified baseline still classifies itself as exactly stock", () => {
   const verdict = classifyManagedSchemaObjects(wholeBaseline());
   assert.equal(verdict.nonStockCount, 0, `stock objects flagged: ${verdict.nonStock.slice(0, 3).join(", ")}`);
   assert.equal(verdict.missingStockCount, 0, `baseline objects reported missing: ${verdict.missingStock.slice(0, 3).join(", ")}`);
+});
+
+// ─── RLS state, function semantics, schema ACL and default privileges ─────
+//
+// Each of these was reproduced as a MATERIAL GAP against the previous head before it
+// was fixed: the mutation changed the database, the old fingerprint stayed byte-
+// identical, and the gate still certified the target as stock.
+
+test("relation fingerprint: RLS state is structure", () => {
+  const rel = (rls) => `relkind=r|parent=|bound=|cols=id:uuid:NN:|cons=|acl=(default)|rls=${rls}|replident=d`;
+  const enabled = rel("true/false");
+  assert.notEqual(fingerprintDefinition(enabled), fingerprintDefinition(rel("false/false")), "DISABLE ROW LEVEL SECURITY did not change the fingerprint");
+  assert.notEqual(fingerprintDefinition(enabled), fingerprintDefinition(rel("true/true")), "FORCE ROW LEVEL SECURITY did not change the fingerprint");
+  assert.notEqual(fingerprintDefinition(rel("false/false")), fingerprintDefinition(enabled), "ENABLE ROW LEVEL SECURITY did not change the fingerprint");
+  // Columns, constraints, indexes and ACL are identical across all three.
+  for (const variant of ["false/false", "true/true"]) {
+    const [a, b] = [enabled, rel(variant)].map((d) => d.replace(/\|rls=[^|]*/, ""));
+    assert.equal(a, b, "precondition: everything except RLS state must be identical");
+  }
+});
+
+test("relation fingerprint: replica identity is part of the relation-level flags", () => {
+  const rel = (ri) => `relkind=r|parent=|bound=|cols=id:uuid:NN:|cons=|acl=(default)|rls=true/false|replident=${ri}`;
+  assert.notEqual(fingerprintDefinition(rel("d")), fingerprintDefinition(rel("f")), "replica identity was not fingerprinted");
+});
+
+test("relation fingerprint: RLS drift is REFUSED by the classifier, both directions", () => {
+  const entry = STOCK_MANAGED_OBJECT_BASELINE.find((b) => b.schema === "storage" && b.name === "objects" && b.kind === "relation");
+  assert.ok(entry, "storage.objects is not in the certified baseline");
+  const tampered = wholeBaseline().map((b) =>
+    b.schema === entry.schema && b.kind === entry.kind && b.name === entry.name
+      ? { schema: b.schema, kind: b.kind, name: b.name, owner: b.owner, definition: "relkind=r|cols=id|cons=|acl=(default)|rls=false/false|replident=d" }
+      : b);
+  const verdict = classifyManagedSchemaObjects(tampered);
+  assert.equal(verdict.nonStockCount, 1, "an RLS-mutated stock relation was accepted");
+  assert.equal(verdict.missingStockCount, 1, "the certified relation was not reported missing");
+});
+
+test("function fingerprint: canonical definition plus behavioural attributes", () => {
+  const fn = (o = {}) => {
+    const { def = "CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ select 1 $$", lang = "sql",
+            strict = "false", parallel = "u", leakproof = "false", vol = "s", sec = "invoker", config = "(none)", acl = "(default)" } = o;
+    return `def=${def}|lang=${lang}|strict=${strict}|parallel=${parallel}|leakproof=${leakproof}|vol=${vol}|sec=${sec}|config=${config}|acl=${acl}`;
+  };
+  const base = fn();
+  for (const [label, variant] of [
+    ["search_path/proconfig", fn({ config: "search_path=pg_catalog" })],
+    ["STRICT", fn({ strict: "true" })],
+    ["PARALLEL", fn({ parallel: "s" })],
+    ["language", fn({ lang: "plpgsql" })],
+    ["leakproof", fn({ leakproof: "true" })],
+    ["volatility", fn({ vol: "i" })],
+    ["security", fn({ sec: "definer" })],
+    ["ACL", fn({ acl: "anon=X/owner" })],
+    ["body", fn({ def: "CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ select 2 $$" })],
+  ]) {
+    assert.notEqual(fingerprintDefinition(base), fingerprintDefinition(variant), `an altered function ${label} did not change the fingerprint`);
+  }
+  // The body is identical across the first eight variants: prosrc alone proves nothing.
+  const bodyOf = (d) => /AS \$\$(.*?)\$\$/.exec(d)?.[1];
+  assert.equal(bodyOf(base), bodyOf(fn({ config: "search_path=pg_catalog" })), "precondition: the body must be unchanged");
+});
+
+const stockSchemaAcl = () => STOCK_MANAGED_SCHEMA_ACL.map((e) => ({ ...e }));
+
+test("schema ACL: the certified stock grants are accepted", () => {
+  const verdict = classifyManagedSchemaAcl(stockSchemaAcl());
+  assert.equal(verdict.baselineSatisfied, true, `stock schema ACLs flagged: ${verdict.nonStock.join(", ")} / missing ${verdict.missingStock.join(", ")}`);
+});
+
+test("schema ACL: an ADDED grant is refused", () => {
+  const drifted = stockSchemaAcl().map((e) => (e.schema === "storage" ? { ...e, acl: `${e.acl},anon=UC/supabase_admin` } : e));
+  const verdict = classifyManagedSchemaAcl(drifted);
+  assert.equal(verdict.nonStockCount, 1, "an added schema grant was accepted");
+  assert.equal(verdict.missingStockCount, 1, "the certified schema ACL was not reported missing");
+});
+
+test("schema ACL: a REMOVED certified privilege is refused", () => {
+  const drifted = stockSchemaAcl().map((e) => (e.schema === "storage" ? { ...e, acl: e.acl.split(",").slice(1).join(",") } : e));
+  assert.equal(classifyManagedSchemaAcl(drifted).baselineSatisfied, false, "a removed schema privilege was accepted");
+});
+
+test("schema ACL: an entirely MISSING or UNKNOWN managed schema is refused", () => {
+  assert.equal(classifyManagedSchemaAcl(stockSchemaAcl().slice(1)).missingStockCount, 1, "a missing managed schema was accepted");
+  assert.equal(
+    classifyManagedSchemaAcl([...stockSchemaAcl(), { schema: "brand_new_schema", acl: "(default)" }]).nonStockCount,
+    1,
+    "an unknown managed schema was accepted",
+  );
+});
+
+const stockDefaultAcl = () => STOCK_DEFAULT_ACL.map((e) => ({ ...e }));
+
+test("default privileges: the certified rule set is accepted", () => {
+  assert.equal(classifyDefaultAcl(stockDefaultAcl()).baselineSatisfied, true, "the certified default-privilege set was flagged");
+});
+
+test("default privileges: an ADDED rule is refused", () => {
+  const verdict = classifyDefaultAcl([...stockDefaultAcl(), { role: "postgres", schema: "storage", objtype: "r", acl: "anon=r/postgres" }]);
+  assert.equal(verdict.nonStockCount, 1, "an added ALTER DEFAULT PRIVILEGES rule was accepted");
+});
+
+test("default privileges: a REMOVED or ALTERED rule is refused", () => {
+  assert.equal(classifyDefaultAcl(stockDefaultAcl().slice(1)).missingStockCount, 1, "a removed default-privilege rule was accepted");
+  const altered = stockDefaultAcl().map((e, i) => (i === 0 ? { ...e, acl: `${e.acl},anon=r/postgres` } : e));
+  assert.equal(classifyDefaultAcl(altered).baselineSatisfied, false, "an altered default-privilege rule was accepted");
+});
+
+test("classifyObjectEmptiness: schema-ACL and default-privilege drift defeat emptiness", () => {
+  for (const key of ["user_schema_acl", "user_default_acl"]) {
+    const dirty = classifyObjectEmptiness({ [key]: 1 });
+    assert.equal(dirty.empty, false, `${key}=1 still certified as application-empty`);
+    assert.match(dirty.reason, new RegExp(`${key}=1`), `unexpected reason: ${dirty.reason}`);
+  }
 });
 
 // ─── F2: extension name AND version ───────────────────────────────────────
