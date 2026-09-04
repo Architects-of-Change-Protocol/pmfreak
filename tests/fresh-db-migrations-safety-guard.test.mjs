@@ -1864,3 +1864,108 @@ test("verifyHostedRepeatability-shaped input: duplicate remote versions are refu
   const parsed = parseHostedMigrationList(out, ["20260428120000", "20260501000000"]);
   assert.ok(parsed.mismatchedPairs.length > 0 || parsed.duplicateRemote.length > 0, "neither mismatch nor duplication was detected");
 });
+
+// ─── Row-anomaly evidence must survive the LIVE applyHosted handoff ───────
+//
+// `classifyHostedTarget` has refused row anomalies since the sixteenth remediation, but
+// `applyHosted` passed it a hand-picked subset of the parser's evidence — matchedRows,
+// mismatchedPairs, localMigrationCount — and dropped unexpectedRemote and
+// duplicateRemote. The classifier read those through `?? []`, so on the LIVE path the
+// refusal was dead code. These cases drive the real `applyHosted` entry point through its
+// runner seam, not `classifyHostedTarget` directly, because direct invocation is exactly
+// what hid the defect.
+
+const MALFORMED_TABLE = [
+  "   Local      | Remote     | Time",
+  "  -----------|------------|------",
+  "   20260428120000 | 20260428120000 | 2026-04-28",
+  "   20260501000000 | 20260501000000 | 2026-05-01",
+  "                  | 20260428120000 | 2026-04-28",
+].join("\n");
+
+/** Drives applyHosted offline: no network, no credentials, no destructive action. */
+function applyHostedWithMigrationList(stdout, files) {
+  const savedEnv = { ...process.env };
+  const savedExit = process.exitCode;
+  const calls = [];
+  try {
+    Object.assign(process.env, {
+      SUPABASE_PROJECT_REF: REF,
+      FRESH_DB_EXPECTED_PROJECT_REF: REF,
+      SUPABASE_DB_URL: `postgresql://postgres:pw@db.${REF}.supabase.co:5432/postgres`,
+      SUPABASE_ACCESS_TOKEN: "sbp_test_token_not_real",
+    });
+    const runner = (args) => {
+      calls.push(args.join(" "));
+      if (args.includes("link")) return { status: 0, stdout: "", stderr: "" };
+      if (args.includes("list")) return { status: 0, stdout, stderr: "" };
+      // Anything else — above all `db push` — would be a destructive step this case must
+      // prove is never reached.
+      return { status: 0, stdout: "", stderr: "" };
+    };
+    return { result: applyHosted(files, runner), calls };
+  } finally {
+    for (const k of Object.keys(process.env)) if (!(k in savedEnv)) delete process.env[k];
+    Object.assign(process.env, savedEnv);
+    process.exitCode = savedExit;
+  }
+}
+
+test("applyHosted: a malformed migration table cannot be normalized into REPEATABILITY", () => {
+  const files = ["20260428120000_a.sql", "20260501000000_b.sql"];
+  // Precondition: the parser DOES recognize the anomalies, so any failure below is the
+  // handoff and not the parser.
+  const parsed = parseHostedMigrationList(MALFORMED_TABLE, ["20260428120000", "20260501000000"]);
+  assert.equal(parsed.matchedRows, 2, "precondition: both genuine pairs must match");
+  assert.deepEqual(parsed.mismatchedPairs, [], "precondition: no row has two disagreeing cells");
+  assert.deepEqual(parsed.unexpectedRemote, ["20260428120000"], `precondition: the remote-only row must be seen: ${JSON.stringify(parsed.unexpectedRemote)}`);
+  assert.equal(parsed.duplicateRemote.length, 1, "precondition: the duplicated remote version must be seen");
+  assert.deepEqual(parsed.pendingLocal, [], "precondition: both local versions are paired");
+  // And the version SET alone is equal to local history — which is why this shape was
+  // dangerous: set comparison on its own reports repeatability.
+  const remoteSet = [...new Set(parsed.rows.map((r) => r.remote).filter(Boolean))].sort();
+  assert.deepEqual(remoteSet, ["20260428120000", "20260501000000"], "precondition: the deduplicated remote set equals local history");
+  assert.equal(classifyHostedTarget(remoteSet, ["20260428120000", "20260501000000"]).mode, "repeatability",
+    "precondition: without row evidence the classifier reports repeatability");
+
+  const { result, calls } = applyHostedWithMigrationList(MALFORMED_TABLE, files);
+
+  assert.equal(result.ok, false, "a malformed migration table was accepted by the live apply path");
+  assert.equal(result.failedFile, "(hosted target classification)", `refused at the wrong stage: ${result.failedFile}`);
+  assert.match(String(result.reason), /row anomal/i, `the row-anomaly reason did not reach the result: ${result.reason}`);
+  assert.match(String(result.reason), /remote-only|duplicate remote/, `the specific anomaly was not named: ${result.reason}`);
+  // DB_PUSH_REACHED=NO — proven from what the runner was actually asked to do.
+  assert.equal(calls.some((c) => /\bdb push\b|db.*push/.test(c)), false, `a destructive push was reached: ${calls.join(" | ")}`);
+  assert.equal(calls.some((c) => c.includes("push")), false, `a push command was reached: ${calls.join(" | ")}`);
+});
+
+test("applyHosted: a genuinely clean history still classifies (the fix refuses nothing extra)", () => {
+  const clean = [
+    "   Local      | Remote     | Time",
+    "  -----------|------------|------",
+    "   20260428120000 | 20260428120000 | 2026-04-28",
+    "   20260501000000 | 20260501000000 | 2026-05-01",
+  ].join("\n");
+  const parsed = parseHostedMigrationList(clean, ["20260428120000", "20260501000000"]);
+  assert.equal(parsed.matchedRows, 2);
+  assert.deepEqual(parsed.unexpectedRemote, []);
+  assert.deepEqual(parsed.duplicateRemote, []);
+  const { result } = applyHostedWithMigrationList(clean, ["20260428120000_a.sql", "20260501000000_b.sql"]);
+  // Repeatability proceeds past classification; it must NOT be refused as an anomaly.
+  assert.notEqual(result.failedFile, "(hosted target classification)",
+    `a clean history was refused at classification: ${result.reason}`);
+});
+
+test("readHostedMigrationVersions: the pairing record carries EVERY parser anomaly field", () => {
+  // Structural: the handoff object is what applyHosted forwards wholesale, so a field the
+  // parser produces must appear here or it can be dropped again.
+  const source = readFileSync(SCRIPT, "utf8");
+  const pairing = source.slice(source.indexOf("const pairing = {"), source.indexOf("localMigrationCount:", source.indexOf("const pairing = {")));
+  for (const field of ["matchedRows", "mismatchedPairs", "unexpectedRemote", "duplicateRemote", "pendingLocal"]) {
+    assert.match(pairing, new RegExp(`${field}:`), `the pairing record omits ${field}`);
+  }
+  // And applyHosted must forward it wholesale rather than re-listing fields.
+  const applySrc = source.slice(source.indexOf("function applyHosted"));
+  assert.match(applySrc.slice(0, applySrc.indexOf("db push")), /classifyHostedTarget\(history\.remoteVersions, localTimestamps, history\.pairing\)/,
+    "applyHosted no longer forwards the whole pairing record");
+});

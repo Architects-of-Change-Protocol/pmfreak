@@ -359,11 +359,9 @@ function applyHosted(files = loadMigrationFiles(), runner = runNpx) {
       stderr: history.stderr,
     };
   }
-  const target = classifyHostedTarget(history.remoteVersions, localTimestamps, {
-    matchedRows: history.matchedRows,
-    mismatchedPairs: history.mismatchedPairs,
-    localMigrationCount: history.localMigrationCount,
-  });
+  // The WHOLE evidence record, not a hand-picked subset. Re-listing fields here is what
+  // dropped `unexpectedRemote` and `duplicateRemote` before classification.
+  const target = classifyHostedTarget(history.remoteVersions, localTimestamps, history.pairing);
   console.log(`[apply:hosted] PRE_APPLY_REMOTE_MIGRATION_COUNT=${target.preApplyRemoteMigrationCount}`);
   console.log(`[apply:hosted] HOSTED_TARGET_CLASSIFICATION=${target.mode.toUpperCase()}`);
 
@@ -1826,9 +1824,29 @@ function readHostedMigrationVersions(localTimestamps, runner = runNpx) {
   const parsed = parseHostedMigrationList(list.stdout ?? "", localTimestamps);
   const recognition = recognizeMigrationListRows(parsed.rows, localTimestamps);
   if (!recognition.ok) return { ok: false, reason: recognition.reason };
+  // ONE evidence object, assembled once. `applyHosted` forwards it WHOLESALE to
+  // `classifyHostedTarget`, so a field added to the parser can never again be recognized
+  // upstream and then silently dropped at the handoff — which is exactly what happened to
+  // `unexpectedRemote` and `duplicateRemote`: the classifier's row-anomaly refusal read
+  // them through `?? []`, so on the live path it was dead code and a malformed table
+  // (`A|A`, `B|B`, `|A`) deduplicated into an equal version set and reached REPEATABILITY.
+  const pairing = {
+    matchedRows: parsed.matchedRows,
+    mismatchedPairs: parsed.mismatchedPairs,
+    unexpectedRemote: parsed.unexpectedRemote,
+    duplicateRemote: parsed.duplicateRemote,
+    // Carried for completeness of the evidence record. `classifyHostedTarget` derives
+    // `missing` from the version sets itself and enforces pairing through
+    // `matchedRows === localMigrationCount`, so it consumes no separate pendingLocal rule;
+    // none is invented here merely for symmetry.
+    pendingLocal: parsed.pendingLocal,
+    localMigrationCount: [...new Set(localTimestamps)].length,
+  };
+
   return {
     ok: true,
     remoteVersions: parsed.rows.map((r) => r.remote).filter(Boolean),
+    pairing,
     // The WHOLE row picture is carried forward. Passing only the mismatched pairs and a
     // match count still let one-sided anomalies vanish: `A|A`, `B|B` plus a bare `|A`
     // produced two clean matches, and `classifyHostedTarget` deduplicated the remote
