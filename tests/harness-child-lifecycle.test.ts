@@ -394,21 +394,43 @@ test("F2 (linux). a discovered process that VANISHES before its stop is confirme
     await new Promise((resolve) => setTimeout(resolve, 600));
     const rootPid = root.pid!;
 
+    // Observed inside the seam so a failure to reach the intended state is reported as a
+    // PRECONDITION failure rather than as a confusing assertion about certification.
+    let childPid = 0;
+    let childTerminated = false;
+
     const result = await stabilizeAndReapProcessTree(rootPid, {
-      // Deterministic: release the child only once it has actually been discovered, then
-      // wait for it to be gone. The vanish therefore lands inside the confirmation window
-      // by construction, not by timing luck.
+      // DETERMINISTIC, and this is the correction of an earlier version that was not.
+      // Waiting for the grandchild's marker file only proved the child was ABOUT to exit:
+      // `process.exit(0)` had not necessarily taken effect, so the stop could still land
+      // first. That leaves the child frozen ALIVE, which keeps the grandchild
+      // parent-reachable — a legitimate, safe outcome in which stabilization correctly
+      // succeeds, and one this case must therefore never observe. It made the test fail
+      // roughly 1 run in 15.
+      //
+      // The hook now returns only once the child has ACTUALLY terminated, so the
+      // confirmation pass is guaranteed to meet a discovered identity that is gone.
       afterDiscovery: async (identities) => {
-        if (identities.length < 2 || fs.existsSync(goFile)) return;
+        if (childPid !== 0 || identities.length < 2) return;
+        const child = identities.find((id) => id.pid !== rootPid);
+        if (!child) return;
+        childPid = child.pid;
         fs.writeFileSync(goFile, "");
-        for (let i = 0; i < 200 && !fs.existsSync(gcFile); i += 1) {
-          await new Promise((resolve) => setTimeout(resolve, 10));
+        for (let i = 0; i < 600 && pidAlive(childPid); i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 5));
         }
+        childTerminated = !pidAlive(childPid);
       },
     });
 
     grandchildPid = fs.existsSync(gcFile) ? Number(fs.readFileSync(gcFile, "utf8").trim()) : 0;
     assert.ok(grandchildPid > 0, "the controlled grandchild never started, so the escape was not reproduced");
+    assert.ok(childPid > 0, "the controlled child was never discovered, so the vanish window was never entered");
+    assert.equal(
+      childTerminated,
+      true,
+      `precondition: the child (${childPid}) had to terminate inside the discovery window; it was still alive, so this run did not exercise the vanish branch`,
+    );
 
     assert.equal(result.stabilized, false, "a vanished discovered identity still produced a stabilized certification");
     assert.equal(result.reaped, false, "a vanished discovered identity still produced a reaped certification");
