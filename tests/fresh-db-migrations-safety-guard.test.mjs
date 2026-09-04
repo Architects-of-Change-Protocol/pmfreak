@@ -1421,6 +1421,108 @@ test("fingerprintDefinition: whitespace is normalised, content is not", () => {
   assert.notEqual(fingerprintDefinition("a b c"), fingerprintDefinition("a b d"), "a content change did not change the fingerprint");
 });
 
+// ─── Constraint, sequence and ACL layers of the relation fingerprint ──────
+//
+// The sixteenth remediation fingerprinted columns, types, nullability, defaults,
+// partition relationship, views, indexes, functions and types — but a table can be
+// behaviourally altered through pg_constraint alone, and a CHECK or FK creates no
+// pg_class object, so it was invisible to the whole inventory. Sequences fingerprinted
+// as the literal string "sequence", and ACLs were not read at all.
+
+/** A stock relation entry, with its definition reconstructed around a chosen part. */
+const relationDefinition = ({ cols = "id:uuid:NN:", cons = "", acl = "(default)" } = {}) =>
+  `relkind=r|parent=|bound=|cols=${cols}|cons=${cons}|acl=${acl}`;
+
+test("relation fingerprint: CONSTRAINTS are part of the structure", () => {
+  const base = relationDefinition({ cons: "p:t_pkey:PRIMARY KEY (id):NOTDEFERRABLE:INITIMMEDIATE:VALIDATED:" });
+  // An added CHECK, a removed constraint, and a same-name/different-definition change
+  // all move the fingerprint — none of them touch columns, so the previous fingerprint
+  // could not see any of them.
+  const added = relationDefinition({ cons: "c:t_chk:CHECK (length(name) < 10):NOTDEFERRABLE:INITIMMEDIATE:VALIDATED:,p:t_pkey:PRIMARY KEY (id):NOTDEFERRABLE:INITIMMEDIATE:VALIDATED:" });
+  const removed = relationDefinition({ cons: "" });
+  const altered = relationDefinition({ cons: "p:t_pkey:PRIMARY KEY (id):DEFERRABLE:INITIMMEDIATE:VALIDATED:" });
+  for (const [label, variant] of [["added", added], ["removed", removed], ["altered", altered]]) {
+    assert.notEqual(fingerprintDefinition(base), fingerprintDefinition(variant), `a ${label} constraint did not change the fingerprint`);
+  }
+  // The columns are identical across every variant: that is what made this invisible.
+  const columnsOf = (d) => /\|cols=([^|]*)/.exec(d)[1];
+  for (const variant of [added, removed, altered]) {
+    assert.equal(columnsOf(base), columnsOf(variant), "precondition: the column list must be unchanged");
+  }
+});
+
+test("relation fingerprint: a FOREIGN KEY carries its referenced relation and semantics", () => {
+  const fk = (def, extra) => relationDefinition({ cons: `f:t_fk:${def}:NOTDEFERRABLE:INITIMMEDIATE:VALIDATED:${extra}` });
+  const a = fk("FOREIGN KEY (bucket_id) REFERENCES storage.buckets(id)", "storage.buckets");
+  const b = fk("FOREIGN KEY (bucket_id) REFERENCES storage.buckets(id) ON DELETE CASCADE", "storage.buckets");
+  const c = fk("FOREIGN KEY (bucket_id) REFERENCES storage.other(id)", "storage.other");
+  assert.notEqual(fingerprintDefinition(a), fingerprintDefinition(b), "ON DELETE semantics were not fingerprinted");
+  assert.notEqual(fingerprintDefinition(a), fingerprintDefinition(c), "the referenced relation was not fingerprinted");
+});
+
+test("relation fingerprint: deferrability and validation state are fingerprinted", () => {
+  const con = (deferrable, deferred, validated) =>
+    relationDefinition({ cons: `f:t_fk:FOREIGN KEY (a) REFERENCES b(a):${deferrable}:${deferred}:${validated}:b` });
+  const base = con("NOTDEFERRABLE", "INITIMMEDIATE", "VALIDATED");
+  assert.notEqual(fingerprintDefinition(base), fingerprintDefinition(con("DEFERRABLE", "INITIMMEDIATE", "VALIDATED")), "deferrability was not fingerprinted");
+  assert.notEqual(fingerprintDefinition(base), fingerprintDefinition(con("DEFERRABLE", "INITDEFERRED", "VALIDATED")), "initial deferral was not fingerprinted");
+  assert.notEqual(fingerprintDefinition(base), fingerprintDefinition(con("NOTDEFERRABLE", "INITIMMEDIATE", "NOTVALIDATED")), "validation state was not fingerprinted");
+});
+
+test("relation fingerprint: a constraint change is REFUSED by the classifier, both directions", () => {
+  const entry = STOCK_MANAGED_OBJECT_BASELINE.find((b) => b.schema === "storage" && b.name === "objects" && b.kind === "relation");
+  assert.ok(entry, "storage.objects is not in the certified baseline");
+  const tampered = wholeBaseline().map((b) =>
+    b.schema === entry.schema && b.kind === entry.kind && b.name === entry.name
+      ? { schema: b.schema, kind: b.kind, name: b.name, owner: b.owner, definition: relationDefinition({ cons: "c:injected:CHECK (true):NOTDEFERRABLE:INITIMMEDIATE:VALIDATED:" }) }
+      : b);
+  const verdict = classifyManagedSchemaObjects(tampered);
+  assert.equal(verdict.nonStockCount, 1, "a constraint-mutated stock relation was accepted");
+  assert.equal(verdict.missingStockCount, 1, "the certified relation was not reported missing");
+});
+
+test("sequence fingerprint: increment, bounds, cache and cycle are structure", () => {
+  const seq = (o = {}) => {
+    const { increment = 1, start = 1, min = 1, max = "9223372036854775807", cache = 1, cycle = "false", acl = "(default)" } = o;
+    return `sequence|increment=${increment}|start=${start}|min=${min}|max=${max}|cache=${cache}|cycle=${cycle}|acl=${acl}`;
+  };
+  const base = seq();
+  for (const [label, variant] of [
+    ["increment", seq({ increment: 2 })],
+    ["start", seq({ start: 100 })],
+    ["min", seq({ min: 0 })],
+    ["max", seq({ max: "42" })],
+    ["cache", seq({ cache: 20 })],
+    ["cycle", seq({ cycle: "true" })],
+  ]) {
+    assert.notEqual(fingerprintDefinition(base), fingerprintDefinition(variant), `an altered sequence ${label} did not change the fingerprint`);
+  }
+  // The previous fingerprint for EVERY sequence was the bare literal "sequence", so none
+  // of the above was distinguishable.
+  assert.equal(fingerprintDefinition("sequence"), fingerprintDefinition("sequence"), "sanity");
+  assert.notEqual(fingerprintDefinition("sequence"), fingerprintDefinition(base), "the sequence fingerprint did not gain structure");
+});
+
+test("ACL: a grant change moves the fingerprint for relations, functions and types", () => {
+  const rel = (acl) => relationDefinition({ acl });
+  assert.notEqual(fingerprintDefinition(rel("(default)")), fingerprintDefinition(rel("anon=r/owner")), "a relation grant was not fingerprinted");
+  assert.notEqual(
+    fingerprintDefinition(rel("anon=arwdDxtm/owner")),
+    fingerprintDefinition(rel("anon=arwdxtm/owner")),
+    "a single revoked privilege was not fingerprinted",
+  );
+  const fn = (acl) => `ret=uuid|kind=f|vol=s|sec=invoker|body=abc|acl=${acl}`;
+  assert.notEqual(fingerprintDefinition(fn("(default)")), fingerprintDefinition(fn("anon=X/owner")), "a function grant was not fingerprinted");
+  const typ = (acl) => `typtype=e|enum=a,b|domainbase=|range=|attrs=|acl=${acl}`;
+  assert.notEqual(fingerprintDefinition(typ("(default)")), fingerprintDefinition(typ("anon=U/owner")), "a type grant was not fingerprinted");
+});
+
+test("the certified baseline still classifies itself as exactly stock", () => {
+  const verdict = classifyManagedSchemaObjects(wholeBaseline());
+  assert.equal(verdict.nonStockCount, 0, `stock objects flagged: ${verdict.nonStock.slice(0, 3).join(", ")}`);
+  assert.equal(verdict.missingStockCount, 0, `baseline objects reported missing: ${verdict.missingStock.slice(0, 3).join(", ")}`);
+});
+
 // ─── F2: extension name AND version ───────────────────────────────────────
 
 const stockExtensions = () => STOCK_EXTENSION_BASELINE.map((e) => ({ ...e }));
