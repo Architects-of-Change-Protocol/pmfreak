@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -25,6 +26,8 @@ import {
   recognizeMigrationListRows,
   classifyManagedSchemaObjects,
   STOCK_MANAGED_OBJECT_BASELINE,
+  STOCK_MANAGED_OBJECT_PROFILES,
+  managedObjectProblemCount,
   STOCK_EXTENSION_BASELINE,
   STOCK_MANAGED_ROW_RULES,
   classifyInstalledExtensions,
@@ -1597,6 +1600,284 @@ test("the managed-object probe transports definitions losslessly and normalises 
   );
   // A definition that will not decode is a refusal, never an assumption of emptiness.
   assert.match(region, /undecodable definition; refusing to infer emptiness/, "an undecodable definition does not fail closed");
+});
+
+// ─── R29: coherent COMPLETE managed-platform profiles ─────────────────────
+//
+// The defect: one monolithic baseline, combined with remediation 28's exact-byte
+// fingerprints, could certify only ONE platform build. The hosted validation project
+// ships a legitimately different stock `extensions.grant_pg_cron_access()`, so a
+// pristine hosted target was refused — fail-closed, but not deployable.
+//
+// The fix is NOT a per-object list of allowed fingerprints. That would accept a
+// Frankenstein platform: the local build of one object beside the hosted build of
+// another, a combination no real platform ever shipped. A target must match one
+// COMPLETE profile in full.
+
+const profileById = (id) => {
+  const profile = STOCK_MANAGED_OBJECT_PROFILES.find((p) => p.id === id);
+  assert.ok(profile, `the certified profile ${id} is missing`);
+  return profile;
+};
+/** A complete observation of one certified profile, as the probe would have seen it. */
+const observationOf = (profile) => profile.objects.map((o) => ({ ...o }));
+const findIn = (profile, schema, name) => {
+  const entry = profile.objects.find((o) => o.schema === schema && o.name === name);
+  assert.ok(entry, `${schema}.${name} is not in profile ${profile.id}`);
+  return entry;
+};
+const withReplaced = (profile, schema, name, patch) =>
+  observationOf(profile).map((o) => (o.schema === schema && o.name === name ? { ...o, ...patch } : o));
+
+const LOCAL = () => profileById("local-cli-stock");
+const HOSTED = () => profileById("hosted-platform-stock");
+
+test("profiles: both certified profiles carry provenance and verify their own digest", () => {
+  assert.equal(STOCK_MANAGED_OBJECT_PROFILES.length, 2, "the certified profile set changed");
+  for (const profile of STOCK_MANAGED_OBJECT_PROFILES) {
+    assert.ok(profile.source, `${profile.id} carries no provenance source`);
+    assert.match(profile.capturedAt, /^\d{4}-\d{2}-\d{2}$/, `${profile.id} carries no capture date`);
+    assert.ok(profile.server, `${profile.id} records no server version`);
+    assert.equal(profile.objects.length, profile.objectCount, `${profile.id} miscounts its own objects`);
+    // The digest the module verifies at load, recomputed here independently.
+    const digest = createHash("sha256")
+      .update(profile.objects.map((o) => `${o.schema}|${o.kind}|${o.name}|${o.owner}|${o.fingerprint}`).sort().join("\n"), "utf8")
+      .digest("hex");
+    assert.equal(digest, profile.digest, `${profile.id} does not match its certified digest`);
+    // Order is not semantic: a profile listed in any order is the same profile.
+    const shuffled = [...profile.objects].sort(() => (Math.random() < 0.5 ? -1 : 1));
+    const shuffledDigest = createHash("sha256")
+      .update(shuffled.map((o) => `${o.schema}|${o.kind}|${o.name}|${o.owner}|${o.fingerprint}`).sort().join("\n"), "utf8")
+      .digest("hex");
+    assert.equal(shuffledDigest, profile.digest, `${profile.id}'s digest depends on construction order`);
+    // No identity may appear twice within one profile.
+    const identities = new Set(profile.objects.map((o) => `${o.schema}|${o.kind}|${o.name}|${o.owner}`));
+    assert.equal(identities.size, profile.objects.length, `${profile.id} carries a duplicate identity`);
+  }
+});
+
+test("profiles: the two certified profiles are genuinely different platform shapes", () => {
+  const local = LOCAL(), hosted = HOSTED();
+  assert.notEqual(local.digest, hosted.digest, "the two profiles are the same set; one is not real evidence");
+  assert.equal(local.objects.length, 236, "the local profile size changed");
+  assert.equal(hosted.objects.length, 213, "the hosted profile size changed");
+  // The authoritative independently-captured hosted digest.
+  assert.equal(hosted.digest, "e86cca120de040a36926e394a8b169c5f4518686fb43a8bec40603f5b0510bd8",
+    "the hosted profile no longer reconstructs to its independently captured digest");
+});
+
+// ── TEST A / TEST B: each COMPLETE profile is accepted, and only as itself ──
+
+test("A+B: each complete certified profile is accepted, and matches only itself", () => {
+  for (const profile of STOCK_MANAGED_OBJECT_PROFILES) {
+    const verdict = classifyManagedSchemaObjects(observationOf(profile));
+    assert.equal(verdict.baselineSatisfied, true, `the complete ${profile.id} profile was refused`);
+    assert.equal(verdict.matchedProfile, profile.id, `${profile.id} matched as ${verdict.matchedProfile}`);
+    assert.deepEqual(verdict.matchingProfiles, [profile.id], `${profile.id} also matched another profile`);
+    assert.equal(managedObjectProblemCount(verdict), 0, `USER_MANAGED_SCHEMA_OBJECTS was not 0 for ${profile.id}`);
+    // Every profile is evaluated, so a refusal is always attributable to a named profile.
+    assert.deepEqual(verdict.profileResults.map((r) => r.profileId), STOCK_MANAGED_OBJECT_PROFILES.map((p) => p.id));
+  }
+});
+
+test("A+B: a profile is matched on CONTENT, never on a caller-supplied label", () => {
+  // The hosted observation is accepted while carrying no marker of its origin at all: the
+  // objects decide. Nothing in the observation names a profile, and nothing may.
+  const hosted = classifyManagedSchemaObjects(observationOf(HOSTED()));
+  assert.equal(hosted.matchedProfile, "hosted-platform-stock");
+  // The local set does NOT become hosted by being asserted to be.
+  const mislabelled = observationOf(LOCAL()).map((o) => ({ ...o, profile: "hosted-platform-stock" }));
+  const verdict = classifyManagedSchemaObjects(mislabelled);
+  assert.equal(verdict.matchedProfile, "local-cli-stock", "a supplied label overrode the observed content");
+});
+
+// ── TEST C: the known divergent object ─────────────────────────────────────
+
+test("C: extensions.grant_pg_cron_access() legitimately differs between the two profiles", () => {
+  const local = findIn(LOCAL(), "extensions", "grant_pg_cron_access()");
+  const hosted = findIn(HOSTED(), "extensions", "grant_pg_cron_access()");
+  assert.equal(local.fingerprint, "76080dae01e3ec7e6c8d3a7c", "the local build's certified fingerprint changed");
+  assert.equal(hosted.fingerprint, "d637c2f316deafce484f113e", "the hosted build's certified fingerprint changed");
+  assert.notEqual(local.fingerprint, hosted.fingerprint, "the divergence this remediation exists for is gone");
+  // Same identity in both profiles — this is one object with two legitimate builds, which
+  // is exactly why a single exact-byte baseline could not certify both platforms.
+  for (const field of ["schema", "kind", "name", "owner"]) {
+    assert.equal(local[field], hosted[field], `the two builds are not the same identity (${field})`);
+  }
+  // Each build is stock in its own profile and foreign in the other.
+  assert.equal(classifyManagedSchemaObjects(observationOf(LOCAL())).matchedProfile, "local-cli-stock");
+  assert.equal(classifyManagedSchemaObjects(observationOf(HOSTED())).matchedProfile, "hosted-platform-stock");
+});
+
+// ── TEST D: the Frankenstein refusal — the load-bearing case ───────────────
+
+test("D: a hybrid assembled from two certified profiles is REFUSED, both directions", () => {
+  // Two independently divergent common identities. Each swapped object is certified
+  // stock SOMEWHERE, so a per-object union rule would accept every one of these sets.
+  const cases = [
+    ["hosted base + the LOCAL build of extensions.grant_pg_cron_access()",
+      withReplaced(HOSTED(), "extensions", "grant_pg_cron_access()", { fingerprint: findIn(LOCAL(), "extensions", "grant_pg_cron_access()").fingerprint }),
+      "hosted-platform-stock"],
+    ["local base + the HOSTED build of storage.buckets",
+      withReplaced(LOCAL(), "storage", "buckets", { fingerprint: findIn(HOSTED(), "storage", "buckets").fingerprint }),
+      "local-cli-stock"],
+    ["hosted base + the LOCAL builds of BOTH divergent objects",
+      withReplaced(HOSTED(), "storage", "buckets", { fingerprint: findIn(LOCAL(), "storage", "buckets").fingerprint })
+        .map((o) => (o.schema === "extensions" && o.name === "grant_pg_cron_access()"
+          ? { ...o, fingerprint: findIn(LOCAL(), "extensions", "grant_pg_cron_access()").fingerprint } : o)),
+      "hosted-platform-stock"],
+  ];
+  for (const [label, observed, closest] of cases) {
+    const verdict = classifyManagedSchemaObjects(observed);
+    assert.equal(verdict.baselineSatisfied, false, `a Frankenstein platform was certified stock: ${label}`);
+    assert.equal(verdict.matchedProfile, null, `${label} reported a matched profile`);
+    assert.deepEqual(verdict.matchingProfiles, [], `${label} matched a profile`);
+    assert.ok(managedObjectProblemCount(verdict) > 0, `${label} contributed 0 problems to emptiness`);
+    // Refusal stays attributable: the closest profile is named, without softening it.
+    assert.equal(verdict.closestProfile, closest, `${label} was diagnosed against the wrong profile`);
+    assert.ok(verdict.nonStockCount > 0 && verdict.missingStockCount > 0, `${label} did not report drift in both directions`);
+  }
+});
+
+test("D: EVERY object of a refused hybrid is certified stock in SOME profile", () => {
+  // The proof that the refusal above comes from completeness, not from an unknown object:
+  // a per-object union rule would have accepted this exact set.
+  const observed = withReplaced(HOSTED(), "extensions", "grant_pg_cron_access()",
+    { fingerprint: findIn(LOCAL(), "extensions", "grant_pg_cron_access()").fingerprint });
+  const union = new Set(STOCK_MANAGED_OBJECT_PROFILES.flatMap((p) =>
+    p.objects.map((o) => `${o.schema}|${o.kind}|${o.name}|${o.owner}|${o.fingerprint}`)));
+  for (const o of observed) {
+    assert.ok(union.has(`${o.schema}|${o.kind}|${o.name}|${o.owner}|${o.fingerprint}`),
+      `${o.schema}.${o.name} is not certified in any profile; the hybrid is not a pure union case`);
+  }
+  assert.equal(classifyManagedSchemaObjects(observed).baselineSatisfied, false,
+    "PER_OBJECT_UNION_ACCEPTANCE — the classifier accepted a set that no single profile certifies");
+});
+
+// ── TEST E: remediation 28 is not reopened by profile support ──────────────
+
+test("E: a semantic whitespace rewrite of apply_rls is refused by EVERY profile", () => {
+  const definition = applyRlsDefinition();
+  const mutated = definition.replace("Error 400: Bad Request, no primary key", "Error 400: Bad  Request, no primary key");
+  assert.notEqual(mutated, definition, "the fixture no longer carries the literal this control mutates");
+  for (const profile of STOCK_MANAGED_OBJECT_PROFILES) {
+    // Sanity: the honest definition satisfies this profile, so the refusal below is the
+    // mutation's doing and not a broken fixture.
+    const honest = withReplaced(profile, "realtime", APPLY_RLS_IDENTITY.name, { fingerprint: undefined, definition });
+    assert.equal(classifyManagedSchemaObjects(honest).matchedProfile, profile.id,
+      `the unmutated apply_rls definition did not satisfy ${profile.id}`);
+
+    const observed = withReplaced(profile, "realtime", APPLY_RLS_IDENTITY.name, { fingerprint: undefined, definition: mutated });
+    const verdict = classifyManagedSchemaObjects(observed);
+    assert.equal(verdict.baselineSatisfied, false, `${profile.id} accepted a whitespace-rewritten apply_rls`);
+    assert.deepEqual(verdict.matchingProfiles, [], `${profile.id} still matched after the mutation`);
+    for (const result of verdict.profileResults) {
+      assert.equal(result.baselineSatisfied, false, `profile ${result.profileId} accepted the mutation`);
+    }
+  }
+});
+
+// ── TESTS F–I: the refusal surface, now per complete profile ───────────────
+
+test("F/G/H/I: unknown, missing, re-owned and duplicated objects are refused in every profile", () => {
+  for (const profile of STOCK_MANAGED_OBJECT_PROFILES) {
+    const stock = profile.objects[0];
+    const cases = {
+      // F — an object in no certified profile at all.
+      "unknown object": [...observationOf(profile), {
+        schema: "storage", kind: "relation", name: "definitely_not_stock", owner: "supabase_storage_admin",
+        definition: "relkind=r|parent=|bound=|cols=id:uuid:NN:",
+      }],
+      // G — a certified object absent from the target.
+      "missing object": observationOf(profile).slice(1),
+      // H — right structure, wrong owner. Ownership is identity, not decoration.
+      "wrong owner": withReplaced(profile, stock.schema, stock.name, { owner: "postgres" }),
+      // I — a valid certified entry present twice.
+      "duplicate object": [...observationOf(profile), { ...stock }],
+      // A fingerprint that belongs to no profile at all.
+      "wrong fingerprint": withReplaced(profile, stock.schema, stock.name, { fingerprint: "0".repeat(24) }),
+    };
+    for (const [label, observed] of Object.entries(cases)) {
+      const verdict = classifyManagedSchemaObjects(observed);
+      assert.equal(verdict.baselineSatisfied, false, `${profile.id} accepted a ${label}`);
+      assert.equal(verdict.matchedProfile, null, `${profile.id} matched despite a ${label}`);
+      assert.ok(managedObjectProblemCount(verdict) > 0, `a ${label} contributed 0 problems in ${profile.id}`);
+    }
+  }
+});
+
+// ── TEST J: the dynamic realtime surface, including the third shape ────────
+
+test("J: all THREE realtime daily shapes are dynamic stock, and belong to no static profile", () => {
+  const date = "2026_09_02", iso = "2026-09-02", next = "2026-09-03";
+  const shapes = {
+    relation: { kind: "relation", name: `messages_${date}` },
+    pkey: { kind: "index", name: `messages_${date}_pkey` },
+    topicIndex: { kind: "index", name: `messages_${date}_inserted_at_topic_idx` },
+  };
+  for (const [label, id] of Object.entries(shapes)) {
+    const object = { schema: "realtime", owner: "supabase_realtime_admin", ...id };
+    const definition = realtimePartitionDefinition(object);
+    assert.ok(definition, `the ${label} shape is not recognised as a daily partition object`);
+    assert.equal(isRealtimeDailyPartition({ ...object, definition }), true, `the ${label} shape was not accepted`);
+    // Dynamic objects are date-derived, so freezing one into a static profile would refuse
+    // every project on a different day.
+    for (const profile of STOCK_MANAGED_OBJECT_PROFILES) {
+      assert.equal(profile.objects.some((o) => o.schema === "realtime" && o.name === id.name), false,
+        `${profile.id} statically carries the dynamic ${label} object ${id.name}`);
+    }
+    // A complete profile plus a valid daily object is still exactly that profile.
+    const verdict = classifyManagedSchemaObjects([...observationOf(LOCAL()), { ...object, definition }]);
+    assert.equal(verdict.matchedProfile, "local-cli-stock", `a valid ${label} defeated the profile match`);
+  }
+  // The third shape's definition is the attached broadcast index, not the primary key.
+  assert.equal(
+    realtimePartitionDefinition({ schema: "realtime", kind: "index", owner: "supabase_realtime_admin", name: `messages_${date}_inserted_at_topic_idx` }),
+    `indexdef=CREATE INDEX messages_${date}_inserted_at_topic_idx ON realtime.messages_${date} USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))`,
+    "the broadcast partition index definition drifted",
+  );
+  assert.match(realtimePartitionDefinition({ schema: "realtime", kind: "relation", owner: "supabase_realtime_admin", name: `messages_${date}` }),
+    new RegExp(`FROM \\('${iso} 00:00:00'\\) TO \\('${next} 00:00:00'\\)`), "the daily bound drifted");
+});
+
+test("J: an impostor daily object is refused on owner, date, kind or definition", () => {
+  const base = { schema: "realtime", kind: "index", owner: "supabase_realtime_admin", name: "messages_2026_09_02_inserted_at_topic_idx" };
+  const genuine = realtimePartitionDefinition(base);
+  assert.ok(genuine, "the fixture is not a recognised partition index");
+  const impostors = {
+    "wrong owner": { ...base, owner: "postgres" },
+    "wrong kind": { ...base, kind: "relation" },
+    "impossible calendar date": { ...base, name: "messages_2026_02_31_inserted_at_topic_idx" },
+    "wrong schema": { ...base, schema: "public" },
+  };
+  for (const [label, object] of Object.entries(impostors)) {
+    assert.equal(realtimePartitionDefinition(object), null, `an impostor with a ${label} was treated as dynamic stock`);
+    assert.equal(isRealtimeDailyPartition({ ...object, definition: genuine }), false, `a ${label} impostor was accepted`);
+  }
+  // A REAL daily index whose definition was rewritten — including a whitespace-only
+  // rewrite, which must not be normalised away here any more than in a fingerprint.
+  for (const [label, definition] of [
+    ["a changed bound", genuine.replace("messages_2026_09_02", "messages_2026_09_09")],
+    ["a changed predicate", genuine.replace("'broadcast'::text", "'postgres_changes'::text")],
+    ["a dropped predicate", genuine.replace(" WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))", "")],
+    ["a doubled space", genuine.replace("USING btree", "USING  btree")],
+  ]) {
+    assert.notEqual(definition, genuine, `the ${label} control did not mutate the definition`);
+    assert.equal(isRealtimeDailyPartition({ ...base, definition }), false, `a daily index with ${label} was accepted as stock`);
+    // And it is not laundered into the static profile either.
+    const verdict = classifyManagedSchemaObjects([...observationOf(LOCAL()), { ...base, definition }]);
+    assert.equal(verdict.baselineSatisfied, false, `a daily index with ${label} was certified stock`);
+  }
+});
+
+test("J: the six dated broadcast indexes are no longer frozen into the local profile", () => {
+  // They were static entries at 826fa53f. The structural audit proved they are partition
+  // child indexes attached to realtime.messages_inserted_at_topic_index, created per day
+  // by the service — so a profile carrying them would expire.
+  const dated = LOCAL().objects.filter((o) => /^messages_20\d{2}_\d{2}_\d{2}_inserted_at_topic_idx$/.test(o.name));
+  assert.deepEqual(dated, [], `the local profile still freezes dated broadcast indexes: ${dated.map((o) => o.name).join(", ")}`);
+  // The PARENT index is not date-derived and remains certified static evidence.
+  assert.ok(findIn(LOCAL(), "realtime", "messages_inserted_at_topic_index"), "the certified parent index was dropped");
 });
 
 // ─── Constraint, sequence and ACL layers of the relation fingerprint ──────
