@@ -780,6 +780,8 @@ function classifyObjectEmptiness(counts) {
     ["user_extensions", "certified extension STATE mismatch: installed extensions that are not the certified stock set at the certified versions, or an extension installation, membership graph or member structure that does not match ONE complete certified extension profile"],
     ["user_managed_table_rows", "managed platform tables whose row state is not the certified pristine one (extra rows, missing bootstrap rows, altered stable content, or rows in a table a pristine project leaves empty)"],
     ["user_authorization", "platform AUTHORIZATION state (pg_roles, pg_auth_members and the current database's owner/ACL) that does not match ONE complete certified authorization profile — a drifted role attribute such as service_role gaining LOGIN, an extra or missing role, an extra/missing membership edge, ADMIN/INHERIT/SET option drift, a re-owned or re-granted database, unreadable evidence, or a surface assembled from more than one platform"],
+    ["user_session_execution_state", "the SESSION EXECUTION configuration that decides whether triggers and rules fire at all: an effective session_replication_role that is not the certified 'origin', or ANY persistent ALTER ROLE/ALTER DATABASE ... SET session_replication_role override (whatever its value), or unreadable execution-state evidence"],
+    ["user_internal_trigger_execution_state", "internally-generated constraint triggers on the certified managed relation surface whose FIRING STATE is not the certified 'O' (origin) — a DISABLED foreign key leaves pg_constraint byte-identical while enforcement is off — or that sit on a relation no certified platform ships, or that carry unreadable evidence"],
     ["user_platform_profile_coherence", "the managed-object and extension subsystems do not agree on ONE certified platform: each matched a complete profile, but not the SAME profile, which is a combination no real platform ever shipped"],
     ["migration_rows", "PMFreak migration-history rows"],
     ["auth_users", "auth.users identities"],
@@ -987,6 +989,233 @@ function classifyObservedTriggers(observed) {
     missingStockCount: missingStock.length,
     missingStock,
     baselineSatisfied: nonStock.length === 0 && missingStock.length === 0,
+  };
+}
+
+/**
+ * R37 / FINDING A — THE SESSION EXECUTION PLANE.
+ *
+ * Everything R28-R36 certifies describes what the database CONTAINS and WHO may act on
+ * it. None of it read the setting that decides whether the contents ENFORCE anything:
+ * `session_replication_role`. Under `replica`, PostgreSQL suppresses ordinary
+ * default-enabled triggers and rules — and foreign keys are implemented as triggers, so
+ * referential integrity goes with them.
+ *
+ * A superuser can persist that per database or per role:
+ *
+ *   ALTER DATABASE <db>  SET session_replication_role = 'replica';
+ *   ALTER ROLE <r> IN DATABASE <db> SET session_replication_role = 'replica';
+ *
+ * Neither touches a role attribute, a membership edge, a database ACL, a schema, a schema
+ * ACL, a managed object, an extension, a trigger definition, a migration row or an
+ * application row — so every counter R28-R36 owns still reads zero. But the value is
+ * applied when a NEW session starts, and the destructive migration runs on a new session.
+ *
+ * REPRODUCED, NOT INFERRED. On a pristine disposable local stack the pre-R37 gate at
+ * 0a17f660 reported APPLICATION_EMPTINESS=EMPTY with every counter at zero and
+ * COMMON_PLATFORM_PROFILE=[local-cli-stock]. `ALTER DATABASE postgres SET
+ * session_replication_role = 'replica'` was then applied and a NEW session opened through
+ * the gate's own connection URL started at `replica` — and the gate still reported EMPTY,
+ * every counter still zero. The push would have been reached with foreign keys off.
+ *
+ * TWO INDEPENDENT FACTS are required, and neither is inferred from the other:
+ *
+ *   A. the EFFECTIVE value, `current_setting('session_replication_role')`, read through
+ *      the SAME connection the rest of the pre-apply inspection uses; and
+ *   B. the PERSISTENT overrides, from `pg_db_role_setting`, scoped to this ONE parameter.
+ *
+ * ANY persistent override refuses fresh certification, INCLUDING one whose value is
+ * 'origin': the override itself is security-relevant drift, and it can differ from the
+ * effective value seen through another connection identity or database. Certification is
+ * `PERSISTENT_SESSION_REPLICATION_ROLE_COUNT=0`, never an allowlist of overrides.
+ *
+ * DELIBERATELY NOT A GUC PROFILE. Only `session_replication_role` is read. A pristine
+ * stack legitimately carries `statement_timeout`, `lock_timeout`, `search_path`,
+ * `log_statement`, `session_preload_libraries`, `default_transaction_read_only`,
+ * `idle_in_transaction_session_timeout` and `app.settings.*` rows in the same catalog —
+ * measured, 9 distinct parameters on pristine local stock — and some of those values are
+ * secret material. Nothing but this one parameter is captured, serialized or digested.
+ */
+const CERTIFIED_SESSION_REPLICATION_ROLE = "origin";
+const SESSION_REPLICATION_ROLE_PARAMETER = "session_replication_role";
+
+/**
+ * Classifies the session execution plane. Zero ONLY when the effective value is the
+ * certified stock one AND no persistent override exists at all.
+ *
+ * "Unreadable" is never "stock": a missing, blank or unrecognized effective value is a
+ * problem in its own right, so no output can ever be read as `origin`.
+ */
+function classifySessionExecutionState(observed) {
+  const problems = [];
+  const effective = typeof observed?.effective === "string" ? observed.effective.trim() : "";
+  if (effective === "") {
+    problems.push(
+      "the effective session_replication_role could not be read; refusing to infer the certified " +
+      `'${CERTIFIED_SESSION_REPLICATION_ROLE}'`);
+  } else if (effective !== CERTIFIED_SESSION_REPLICATION_ROLE) {
+    // 'replica' suppresses trigger and rule firing; 'local' is not stock on either
+    // certified platform. Neither is silently accepted — see the header.
+    problems.push(
+      `effective session_replication_role=${effective}, not the certified stock ` +
+      `'${CERTIFIED_SESSION_REPLICATION_ROLE}' — triggers, rules and foreign keys may not fire`);
+  }
+  const overrides = observed?.persistentOverrides;
+  if (!Array.isArray(overrides)) {
+    problems.push("the persistent session_replication_role evidence is absent; refusing to infer that there is none");
+    return {
+      effective, persistentOverrideCount: 0, persistentOverrides: [],
+      problems, problemCount: Math.max(1, problems.length), baselineSatisfied: false,
+    };
+  }
+  for (const o of overrides) {
+    const role = typeof o?.role === "string" ? o.role.trim() : "";
+    const database = typeof o?.database === "string" ? o.database.trim() : "";
+    const value = typeof o?.value === "string" ? o.value.trim() : "";
+    if (role === "" || database === "" || value === "") {
+      problems.push("a persistent session_replication_role override carries unreadable provenance; refusing to certify");
+      continue;
+    }
+    // EVERY override is drift, whatever its value. An override reading 'origin' is still
+    // a target whose execution configuration is no longer certified virgin, and it can
+    // differ from what another connection identity or database sees.
+    problems.push(
+      `persistent session_replication_role override: role=${role} database=${database} value=${value}` +
+      (value === CERTIFIED_SESSION_REPLICATION_ROLE
+        ? " — an override equal to the stock value is still uncertified execution configuration"
+        : ""));
+  }
+  return {
+    effective,
+    persistentOverrideCount: overrides.length,
+    persistentOverrides: overrides,
+    problems,
+    problemCount: problems.length,
+    baselineSatisfied: problems.length === 0,
+  };
+}
+
+/**
+ * R37 / FINDING B — INTERNAL CONSTRAINT TRIGGER FIRING STATE.
+ *
+ * The ordinary trigger probe carries `where not t.tgisinternal`, so the firing state of
+ * PostgreSQL's internally-generated constraint triggers has never been observed. Foreign
+ * keys are enforced by exactly those triggers, and a superuser can turn them off with
+ *
+ *   ALTER TABLE <managed relation> DISABLE TRIGGER ALL;
+ *
+ * while `pg_constraint` stays byte-identical — so the managed relation's certified
+ * structural fingerprint, which reads `pg_get_constraintdef`, does not move.
+ *
+ * REPRODUCED, NOT INFERRED. On the same pristine disposable stack, `ALTER TABLE
+ * auth.identities DISABLE TRIGGER ALL` moved both of that relation's internal triggers
+ * from O to D; the three constraint definitions were byte-identical before and after
+ * (sha256 1586eadd…, unchanged); an INSERT of a row whose `user_id` matched no
+ * `auth.users` row was ACCEPTED (rolled back, never committed); and the pre-R37 gate at
+ * 0a17f660 still reported APPLICATION_EMPTINESS=EMPTY with every counter at zero.
+ *
+ * WHAT IS CERTIFIED IS THE INVARIANT, NOT A NAME LIST. `RI_ConstraintTrigger_c_17230` is
+ * an OID-derived, installation-specific identity — freezing 108 local or 506 hosted such
+ * names as source would certify an implementation detail that legitimately differs on
+ * every installation. Existence is ALREADY certified: the managed-object profiles carry
+ * every relation's constraints inside its exact structural fingerprint. The property that
+ * was missing is MUTABLE EXECUTION STATE, so that is what this certifies:
+ *
+ *   EVERY internal trigger observed on the certified managed relation surface must have
+ *   tgenabled = 'O'. D (disabled), R (replica-only) and A (always) all refuse.
+ *
+ * The existing five explicit non-internal stock triggers are NOT touched: internal
+ * triggers are a separate probe feeding a separate counter, so the two can never
+ * arithmetically cancel.
+ *
+ * An internal trigger that cannot be associated with a certified platform relation fails
+ * CLOSED rather than being ignored — an unrecognized managed relation is exactly the
+ * shape an unobserved surface takes.
+ */
+const CERTIFIED_INTERNAL_TRIGGER_ENABLED = "O";
+/** The firing states PostgreSQL defines. Anything else is unreadable evidence. */
+const TRIGGER_ENABLED_STATES = Object.freeze(["O", "D", "R", "A"]);
+
+/**
+ * Every relation any certified platform profile ships, as `schema.name`. The UNION across
+ * profiles, deliberately: this is an ASSOCIATION test ("does any real platform carry this
+ * relation at all"), not a platform-identity test. Identity is already decided, atomically
+ * and per-profile, by the managed-object subsystem and enforced by whole-platform
+ * coherence — re-deciding it here would double-count one drift as two.
+ */
+const CERTIFIED_MANAGED_RELATION_KEYS = Object.freeze(new Set(
+  STOCK_MANAGED_OBJECT_PROFILES.flatMap((p) =>
+    p.objects.filter((o) => o.kind === "relation").map((o) => `${o.schema}.${o.name}`))));
+
+/**
+ * True when the relation belongs to the certified managed surface. Three positive kinds
+ * of evidence, all of them already certified elsewhere in this gate, and NO name-prefix
+ * or schema-based trust:
+ *   1. a relation carried by a certified managed-object profile;
+ *   2. a date-derived realtime daily partition, which no static profile can hold;
+ *   3. a relation positively proven extension-owned by pg_depend, whose structure the
+ *      certified extension profile already certifies member by member.
+ */
+function isCertifiedManagedTriggerRelation(row) {
+  if (row?.relation_provenance === "ext") return true;
+  const key = `${row?.relation_schema}.${row?.relation_name}`;
+  if (CERTIFIED_MANAGED_RELATION_KEYS.has(key)) return true;
+  return row?.relation_schema === "realtime" && REALTIME_PARTITION_NAME.test(String(row?.relation_name ?? ""));
+}
+
+/**
+ * Classifies internal constraint-trigger EXECUTION STATE over the certified managed
+ * relation surface. Zero ONLY when every observed internal trigger is enabled in normal
+ * origin mode on a relation a certified platform actually ships.
+ */
+function classifyInternalTriggerExecutionState(observed) {
+  const rows = Array.isArray(observed) ? observed : null;
+  if (rows === null) {
+    return {
+      observedCount: 0, enabledOriginCount: 0, nonOriginCount: 0,
+      problems: ["the internal constraint-trigger evidence is absent; refusing to infer that every internal trigger fires"],
+      problemCount: 1, baselineSatisfied: false,
+    };
+  }
+  const problems = [];
+  let enabledOriginCount = 0;
+  let nonOriginCount = 0;
+  for (const row of rows) {
+    const schema = typeof row?.relation_schema === "string" ? row.relation_schema.trim() : "";
+    const relation = typeof row?.relation_name === "string" ? row.relation_name.trim() : "";
+    const name = typeof row?.trigger_name === "string" ? row.trigger_name.trim() : "";
+    const enabled = typeof row?.enabled === "string" ? row.enabled.trim() : "";
+    // The unstable OID-derived trigger name is diagnostics only; the CONSTRAINT and the
+    // RELATION are what a reader can act on, so they lead every message.
+    const where = `${schema || "?"}.${relation || "?"}` +
+      (row?.constraint_name ? ` constraint ${row.constraint_name}` : "") +
+      (name ? ` (${name})` : "");
+    if (schema === "" || relation === "" || name === "" || !TRIGGER_ENABLED_STATES.includes(enabled)) {
+      problems.push(`unreadable internal constraint-trigger evidence on ${where}; refusing to certify`);
+      continue;
+    }
+    if (!isCertifiedManagedTriggerRelation({ ...row, relation_schema: schema, relation_name: relation })) {
+      // Fail closed: an internal trigger the gate cannot tie to a certified platform
+      // relation is an unobserved surface, not an irrelevance.
+      problems.push(`internal constraint trigger on ${where}, which no certified platform profile ships; refusing to certify`);
+      continue;
+    }
+    if (enabled !== CERTIFIED_INTERNAL_TRIGGER_ENABLED) {
+      nonOriginCount++;
+      problems.push(
+        `internal constraint trigger on ${where} is tgenabled=${enabled}, not the certified ` +
+        `'${CERTIFIED_INTERNAL_TRIGGER_ENABLED}' — the constraint definition is unchanged but it does not fire`);
+      continue;
+    }
+    enabledOriginCount++;
+  }
+  return {
+    observedCount: rows.length,
+    enabledOriginCount,
+    nonOriginCount,
+    problems,
+    problemCount: problems.length,
+    baselineSatisfied: problems.length === 0,
   };
 }
 
@@ -2164,6 +2393,125 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   const eventVerdict = classifyObservedEventTriggers(eventTriggers);
   counts.user_event_triggers = eventVerdict.problemCount;
 
+  // SESSION EXECUTION STATE. Read through the SAME dbUrl every other pre-apply probe uses,
+  // so the effective value is bound to the connection identity and database the migration
+  // will actually run on -- never to a default local psql, another project, a maintenance
+  // database or a different login. Two independent facts in ONE statement, so they cannot
+  // drift apart between probes: the EFFECTIVE value, and the PERSISTENT overrides.
+  //
+  // ONLY session_replication_role is read out of pg_db_role_setting. A pristine stack
+  // legitimately carries statement_timeout, lock_timeout, search_path, log_statement,
+  // session_preload_libraries, default_transaction_read_only,
+  // idle_in_transaction_session_timeout and app.settings.* rows in that same catalog --
+  // measured, 9 distinct parameters -- and some of those values are secret material.
+  // Nothing else is selected, transported or digested here.
+  const sessionExecutionQuery = `
+    -- missing_ok=true so an unreadable parameter yields NULL rather than erroring; the
+    -- empty value is then REFUSED below. No output must ever be readable as 'origin'.
+    select 'EFFECTIVE~|~' || coalesce(current_setting('${SESSION_REPLICATION_ROLE_PARAMETER}', true), '')
+    union all
+    -- setrole = 0 means "every role" and setdatabase = 0 means "every database"; both
+    -- resolve to NULL through the joins, so the scope is spelled out rather than blanked.
+    select 'PERSIST~|~' || coalesce(r.rolname, '(all roles)') || '~|~' ||
+           coalesce(d.datname, '(all databases)') || '~|~' ||
+           split_part(s.setting, '=', 1) || '~|~' || substr(s.setting, strpos(s.setting, '=') + 1)
+      from pg_db_role_setting st
+      left join pg_roles r on r.oid = st.setrole
+      left join pg_database d on d.oid = st.setdatabase
+      cross join lateral unnest(st.setconfig) as s(setting)
+     where lower(split_part(s.setting, '=', 1)) = '${SESSION_REPLICATION_ROLE_PARAMETER}';
+  `;
+  const sessionResult = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c", sessionExecutionQuery]);
+  if (sessionResult.status !== 0) {
+    // Fail closed: an unprovable execution plane is never a certified one.
+    return { ok: false, failure: describeSpawnResult(sessionResult, "psql (session execution-state probe)"), stderr: sessionResult.stderr };
+  }
+  const observedSessionExecution = { effective: null, persistentOverrides: [] };
+  for (const line of (sessionResult.stdout ?? "").split(/\r?\n/)) {
+    if (line.trim() === "") continue;
+    const f = line.split("~|~");
+    if (f[0] === "EFFECTIVE") {
+      if (f.length !== 2) {
+        return { ok: false, reason: `the session execution-state probe returned an unrecognized EFFECTIVE row (${f.length} field(s)); refusing to infer emptiness.` };
+      }
+      if (observedSessionExecution.effective !== null) {
+        return { ok: false, reason: "the session execution-state probe returned more than one effective-value row; refusing to infer emptiness." };
+      }
+      observedSessionExecution.effective = f[1];
+      continue;
+    }
+    if (f[0] === "PERSIST") {
+      if (f.length !== 5) {
+        return { ok: false, reason: `the session execution-state probe returned an unrecognized PERSIST row (${f.length} field(s)); refusing to infer emptiness.` };
+      }
+      // The probe asked for ONE parameter. A row naming any other one means the evidence
+      // is not what this control believes it is -- refuse rather than reinterpret it.
+      if (f[3].trim().toLowerCase() !== SESSION_REPLICATION_ROLE_PARAMETER) {
+        return { ok: false, reason: `the session execution-state probe returned a persistent override for ${String(f[3]).slice(0, 48)} rather than ${SESSION_REPLICATION_ROLE_PARAMETER}; refusing to infer emptiness.` };
+      }
+      if (f[1].trim() === "" || f[2].trim() === "" || f[4].trim() === "") {
+        return { ok: false, reason: "the session execution-state probe returned a persistent override with unreadable provenance; refusing to infer emptiness." };
+      }
+      observedSessionExecution.persistentOverrides.push({ role: f[1], database: f[2], parameter: f[3], value: f[4] });
+      continue;
+    }
+    return { ok: false, reason: `the session execution-state probe returned an unrecognized row tag (${String(f[0]).slice(0, 24)}); refusing to infer emptiness.` };
+  }
+  // NO OUTPUT IS NOT 'origin'. The effective value must be positively established; a probe
+  // that returned only override rows, or nothing at all, refuses here.
+  if (observedSessionExecution.effective === null) {
+    return { ok: false, reason: "the session execution-state probe returned no effective session_replication_role; refusing to infer emptiness." };
+  }
+  const sessionExecutionVerdict = classifySessionExecutionState(observedSessionExecution);
+  counts.user_session_execution_state = sessionExecutionVerdict.problemCount;
+
+  // INTERNAL CONSTRAINT TRIGGERS. The ordinary trigger probe above excludes tgisinternal,
+  // so the firing state of PostgreSQL's own foreign-key enforcement triggers was never
+  // observed. Scoped to the certified MANAGED relation surface -- the same predicate the
+  // managed-object inventory uses -- so no catalog-internal machinery unrelated to the
+  // platform is inventoried. The relation's extension provenance travels with the row: the
+  // certified extension profile is what makes an extension-owned relation trustworthy, and
+  // this probe must not re-derive that from a schema name.
+  const internalTriggerQuery = `
+    select n.nspname || '~|~' || c.relname || '~|~' || t.tgname || '~|~' || t.tgenabled::text || '~|~' ||
+           -- Constraint identity where it is stable and available. The trigger's own name
+           -- is OID-derived and installation-specific, so it is never the certified identity.
+           coalesce(con.conname, '') || '~|~' || coalesce(con.contype::text, '') || '~|~' ||
+           coalesce(rn.nspname || '.' || rc.relname, '') || '~|~' ||
+           case when exists (select 1 from pg_depend d
+                               where d.classid = 'pg_class'::regclass and d.objid = c.oid and d.deptype = 'e')
+                then 'ext' else 'user' end
+      from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      left join pg_constraint con on con.oid = t.tgconstraint
+      left join pg_class rc on rc.oid = con.confrelid
+      left join pg_namespace rn on rn.oid = rc.relnamespace
+     where t.tgisinternal and (${MANAGED});
+  `;
+  const internalTrig = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c", internalTriggerQuery]);
+  if (internalTrig.status !== 0) {
+    // Fail closed: an unprovable enforcement surface is never an enforcing one.
+    return { ok: false, failure: describeSpawnResult(internalTrig, "psql (internal constraint-trigger probe)"), stderr: internalTrig.stderr };
+  }
+  const observedInternalTriggers = [];
+  for (const line of (internalTrig.stdout ?? "").split(/\r?\n/)) {
+    if (line.trim() === "") continue;
+    const f = line.split("~|~");
+    if (f.length !== 8) {
+      return { ok: false, reason: `the internal constraint-trigger probe returned an unrecognized row (${f.length} field(s)); refusing to infer emptiness.` };
+    }
+    observedInternalTriggers.push({
+      relation_schema: f[0], relation_name: f[1], trigger_name: f[2], enabled: f[3],
+      constraint_name: f[4], constraint_type: f[5], referenced_relation: f[6],
+      relation_provenance: f[7], is_internal: true,
+    });
+  }
+  const internalTriggerVerdict = classifyInternalTriggerExecutionState(observedInternalTriggers);
+  // A SEPARATE counter from user_triggers on purpose: the five explicit non-internal stock
+  // triggers keep their own identity baseline, and neither control can cancel the other.
+  counts.user_internal_trigger_execution_state = internalTriggerVerdict.problemCount;
+
   // MANAGED-SCHEMA INVENTORY. One row per non-extension-owned relation, function and
   // type inside a managed schema, carrying the OWNER — the positive evidence the
   // classifier decides on. Extension-owned objects are excluded in SQL by pg_depend, so
@@ -2570,6 +2918,8 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     observedExtensionState, extensionProfile: extensionProfileVerdict,
     commonPlatformProfiles, platformProfile: commonPlatformProfiles[0] ?? null,
     observedRowState, populatedManagedTables,
+    observedSessionExecution, sessionExecutionState: sessionExecutionVerdict,
+    observedInternalTriggers, internalTriggerExecutionState: internalTriggerVerdict,
     observedAuthorization, authorizationProfile: authorizationVerdict,
     matchedAuthorizationProfile: authorizationVerdict.matchedProfile,
     matchingAuthorizationProfiles: authorizationVerdict.matchingProfiles,
@@ -2952,6 +3302,12 @@ export {
   STOCK_PLATFORM_TRIGGER_BASELINE,
   STOCK_EVENT_TRIGGER_BASELINE,
   classifyObservedEventTriggers,
+  classifySessionExecutionState,
+  classifyInternalTriggerExecutionState,
+  isCertifiedManagedTriggerRelation,
+  CERTIFIED_SESSION_REPLICATION_ROLE,
+  CERTIFIED_INTERNAL_TRIGGER_ENABLED,
+  CERTIFIED_MANAGED_RELATION_KEYS,
   probeHostedApplicationState,
   extractSupabaseProjectRefFromDbUrl,
   verifyHostedTargetBinding,

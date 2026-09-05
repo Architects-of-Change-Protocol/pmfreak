@@ -32,6 +32,12 @@ import {
   SUPPORTED_EXTENSION_MEMBER_CLASSES,
   STOCK_EVENT_TRIGGER_BASELINE,
   classifyObservedEventTriggers,
+  classifySessionExecutionState,
+  classifyInternalTriggerExecutionState,
+  isCertifiedManagedTriggerRelation,
+  CERTIFIED_SESSION_REPLICATION_ROLE,
+  CERTIFIED_INTERNAL_TRIGGER_ENABLED,
+  CERTIFIED_MANAGED_RELATION_KEYS,
   LOCAL_STOCK_PROFILE,
   managedProfileVariants,
   eligibleLedgerStates,
@@ -617,7 +623,7 @@ test("readHostedMigrationVersions: the real backtick format parses through the i
 });
 
 // ─── Object emptiness: an empty LEDGER is not an empty DATABASE ───────────
-const EMPTY_COUNTS = { user_schemas: 0, user_relations: 0, public_rows: 0, user_functions: 0, user_types: 0, user_policies: 0, user_triggers: 0, user_event_triggers: 0, migration_rows: 0, auth_users: 0, storage_buckets: 0, storage_objects: 0 };
+const EMPTY_COUNTS = { user_schemas: 0, user_relations: 0, public_rows: 0, user_functions: 0, user_types: 0, user_policies: 0, user_triggers: 0, user_event_triggers: 0, user_session_execution_state: 0, user_internal_trigger_execution_state: 0, migration_rows: 0, auth_users: 0, storage_buckets: 0, storage_objects: 0 };
 
 test("classifyObjectEmptiness: a genuinely new project is empty", () => {
   const v = classifyObjectEmptiness(EMPTY_COUNTS);
@@ -626,7 +632,7 @@ test("classifyObjectEmptiness: a genuinely new project is empty", () => {
 });
 
 test("classifyObjectEmptiness: an empty ledger with application state is NOT fresh, and names the category", () => {
-  for (const key of ["user_relations", "public_rows", "user_functions", "user_types", "user_policies", "user_triggers", "user_event_triggers", "auth_users", "storage_buckets", "storage_objects", "user_schemas"]) {
+  for (const key of ["user_relations", "public_rows", "user_functions", "user_types", "user_policies", "user_triggers", "user_event_triggers", "user_session_execution_state", "user_internal_trigger_execution_state", "auth_users", "storage_buckets", "storage_objects", "user_schemas"]) {
     const v = classifyObjectEmptiness({ ...EMPTY_COUNTS, [key]: 3 });
     assert.equal(v.empty, false, `${key} must defeat a fresh-apply certification`);
     assert.equal(v.nonEmpty[0].category, key, "the refusal must name the non-empty category");
@@ -2106,7 +2112,7 @@ const certifiedRowLines = () =>
  * is what makes this load-bearing — against the pre-R31 query the row is invisible
  * exactly as a real database would make it invisible.
  */
-function stubbedStockRunner({ vaultSecretRows = 0, extensions, triggerRows, eventTriggerRows, presence, counts, schemaAclRows, authorizationRows, capture = {} } = {}) {
+function stubbedStockRunner({ vaultSecretRows = 0, extensions, triggerRows, eventTriggerRows, presence, counts, schemaAclRows, authorizationRows, sessionRows, internalTriggerRows, capture = {} } = {}) {
   const EXTENSION_FILTER = /deptype = 'e'/;
   return (_cmd, args) => {
     const sql = String(args[args.length - 1]);
@@ -2133,6 +2139,18 @@ function stubbedStockRunner({ vaultSecretRows = 0, extensions, triggerRows, even
     if (sql.includes("pg_auth_members")) {
       capture.authorizationQuery = sql;
       return ok((authorizationRows ?? stockAuthorizationRows()).join("\n") + "\n");
+    }
+    // R37 — the session EXECUTION plane. A pristine stack answers with the effective value
+    // and NO persistent session_replication_role override at all.
+    if (sql.includes("pg_db_role_setting")) {
+      capture.sessionExecutionQuery = sql;
+      return ok((sessionRows ?? ["EFFECTIVE~|~origin"]).join("\n") + "\n");
+    }
+    // R37 — internal constraint triggers. Dispatched on the constraint join, because the
+    // ORDINARY trigger query also mentions tgisinternal (to exclude it).
+    if (sql.includes("t.tgconstraint")) {
+      capture.internalTriggerQuery = sql;
+      return ok((internalTriggerRows ?? stockInternalTriggerRows()).join("\n") + "\n");
     }
     // Dispatched BEFORE the managed-object branch: the certified extension profile query
     // also carries pg_get_functiondef, through the shared structural builder.
@@ -5520,4 +5538,541 @@ test("R36 fixtures: authorization profiles are certified evidence, and carry no 
   assert.deepEqual(hEdges.filter((e) => !lEdges.includes(e)), [],
     "the hosted capture gained a membership edge local does not have");
   assert.notEqual(local.digest, hosted.digest, "the two certified platforms digest identically");
+});
+
+// ─── R37: THE TRIGGER-EXECUTION PLANE ──────────────────────────────────────
+//
+// Two controls, two counters, one theme: everything R28-R36 certifies describes what the
+// database CONTAINS and WHO may act on it. Neither reads the state that decides whether
+// any of it ENFORCES anything.
+//
+//   A. session_replication_role — under 'replica' PostgreSQL suppresses ordinary
+//      default-enabled triggers and rules, and foreign keys ARE triggers. A superuser can
+//      persist that per database or per role through pg_db_role_setting.
+//   B. internally-generated constraint triggers — `where not t.tgisinternal` meant their
+//      firing state was never observed, so ALTER TABLE ... DISABLE TRIGGER ALL turned
+//      foreign-key enforcement off while pg_constraint stayed byte-identical.
+//
+// BOTH WERE REPRODUCED ON A PRISTINE DISPOSABLE LOCAL STACK against the exact pre-R37 head
+// 0a17f660, which reported APPLICATION_EMPTINESS=EMPTY with every counter at zero and
+// COMMON_PLATFORM_PROFILE=[local-cli-stock] in each case. See the script headers.
+
+/**
+ * MEASURED internal constraint-trigger rows, in the probe's own wire format, captured from
+ * the pristine disposable local stack (PostgreSQL 17.6, CLI v2.116.0). A REPRESENTATIVE
+ * SAMPLE, deliberately not the full 108-row local (or 506-row hosted) surface: the
+ * certified property is the INVARIANT — every internal trigger on the certified managed
+ * relation surface fires in origin mode — never a frozen list of OID-derived names such as
+ * RI_ConstraintTrigger_c_17230, which differ on every installation.
+ *
+ * The sample covers both sides of a foreign key (the `_c_` triggers on the referencing
+ * relation and the `_a_` triggers on the referenced one) and three managed schemas.
+ */
+const STOCK_INTERNAL_TRIGGERS = Object.freeze([
+  { relation_schema: "_realtime", relation_name: "extensions", trigger_name: "RI_ConstraintTrigger_c_16746", enabled: "O", constraint_name: "extensions_tenant_external_id_fkey", constraint_type: "f", referenced_relation: "_realtime.tenants", relation_provenance: "user" },
+  { relation_schema: "_realtime", relation_name: "extensions", trigger_name: "RI_ConstraintTrigger_c_16747", enabled: "O", constraint_name: "extensions_tenant_external_id_fkey", constraint_type: "f", referenced_relation: "_realtime.tenants", relation_provenance: "user" },
+  { relation_schema: "auth", relation_name: "identities", trigger_name: "RI_ConstraintTrigger_c_17230", enabled: "O", constraint_name: "identities_user_id_fkey", constraint_type: "f", referenced_relation: "auth.users", relation_provenance: "user" },
+  { relation_schema: "auth", relation_name: "identities", trigger_name: "RI_ConstraintTrigger_c_17231", enabled: "O", constraint_name: "identities_user_id_fkey", constraint_type: "f", referenced_relation: "auth.users", relation_provenance: "user" },
+  { relation_schema: "auth", relation_name: "users", trigger_name: "RI_ConstraintTrigger_a_17228", enabled: "O", constraint_name: "identities_user_id_fkey", constraint_type: "f", referenced_relation: "auth.users", relation_provenance: "user" },
+  { relation_schema: "auth", relation_name: "users", trigger_name: "RI_ConstraintTrigger_a_17229", enabled: "O", constraint_name: "identities_user_id_fkey", constraint_type: "f", referenced_relation: "auth.users", relation_provenance: "user" },
+  { relation_schema: "storage", relation_name: "objects", trigger_name: "RI_ConstraintTrigger_c_16989", enabled: "O", constraint_name: "objects_bucketId_fkey", constraint_type: "f", referenced_relation: "storage.buckets", relation_provenance: "user" },
+  { relation_schema: "storage", relation_name: "objects", trigger_name: "RI_ConstraintTrigger_c_16990", enabled: "O", constraint_name: "objects_bucketId_fkey", constraint_type: "f", referenced_relation: "storage.buckets", relation_provenance: "user" },
+]);
+
+const internalTriggerLine = (t) =>
+  `${t.relation_schema}~|~${t.relation_name}~|~${t.trigger_name}~|~${t.enabled}~|~${t.constraint_name}~|~${t.constraint_type}~|~${t.referenced_relation}~|~${t.relation_provenance}`;
+
+/** The stock internal-trigger surface as the probe's wire, optionally mutating one row. */
+function stockInternalTriggerRows(patch = null, targetTrigger = null) {
+  return STOCK_INTERNAL_TRIGGERS.map((t) =>
+    internalTriggerLine(patch && (targetTrigger === null || t.trigger_name === targetTrigger) ? { ...t, ...patch } : t));
+}
+
+/** The session execution wire for an arbitrary effective value and override set. */
+const sessionWire = (effective, overrides = []) => [
+  ...(effective === null ? [] : [`EFFECTIVE~|~${effective}`]),
+  ...overrides.map((o) => `PERSIST~|~${o.role}~|~${o.database}~|~${o.parameter ?? "session_replication_role"}~|~${o.value}`),
+];
+
+// ── S1-S9: the session execution plane, at the classifier ──────────────────
+
+test("S1-S9: session_replication_role certifies ONLY origin with zero persistent overrides", () => {
+  assert.equal(CERTIFIED_SESSION_REPLICATION_ROLE, "origin", "the certified stock session_replication_role changed");
+
+  // S1 — effective origin, no persistent override.
+  const s1 = classifySessionExecutionState({ effective: "origin", persistentOverrides: [] });
+  assert.equal(s1.baselineSatisfied, true, `pristine execution state was refused: ${JSON.stringify(s1.problems)}`);
+  assert.equal(s1.problemCount, 0);
+  assert.equal(s1.persistentOverrideCount, 0);
+
+  // S2 — effective replica. This is the state that suppresses trigger, rule and FK firing.
+  const s2 = classifySessionExecutionState({ effective: "replica", persistentOverrides: [] });
+  assert.equal(s2.baselineSatisfied, false, "EFFECTIVE_REPLICA_REFUSED=NO");
+  assert.ok(s2.problems.some((p) => /replica/.test(p) && /foreign keys/.test(p)), `the refusal did not explain replica: ${JSON.stringify(s2.problems)}`);
+
+  // S3 — effective local. Not stock on either certified platform, and never silently accepted.
+  const s3 = classifySessionExecutionState({ effective: "local", persistentOverrides: [] });
+  assert.equal(s3.baselineSatisfied, false, "an effective session_replication_role of 'local' was certified stock");
+
+  // Any other value is refused too; nothing but the certified one passes.
+  for (const value of ["ORIGIN", "Origin", "origins", " replica ".trim(), "off", "0"]) {
+    if (value === CERTIFIED_SESSION_REPLICATION_ROLE) continue;
+    assert.equal(classifySessionExecutionState({ effective: value, persistentOverrides: [] }).baselineSatisfied, false,
+      `effective session_replication_role=${JSON.stringify(value)} was certified stock`);
+  }
+
+  // S4 — a persistent DATABASE-level override, with the effective value still origin. This
+  // is exactly the shape the reproduction produced: the gate's own connection reads origin
+  // only because THIS session predates the override; the next one will not.
+  const s4 = classifySessionExecutionState({
+    effective: "origin",
+    persistentOverrides: [{ role: "(all roles)", database: "postgres", parameter: "session_replication_role", value: "replica" }],
+  });
+  assert.equal(s4.baselineSatisfied, false, "PERSISTENT_REPLICA_REFUSED=NO — a database-level override was certified stock");
+  assert.ok(s4.problems.some((p) => /database=postgres/.test(p)), `the refusal did not name the database: ${JSON.stringify(s4.problems)}`);
+
+  // S5 — a persistent ROLE-level override.
+  const s5 = classifySessionExecutionState({
+    effective: "origin",
+    persistentOverrides: [{ role: "postgres", database: "postgres", parameter: "session_replication_role", value: "replica" }],
+  });
+  assert.equal(s5.baselineSatisfied, false, "PERSISTENT_REPLICA_REFUSED=NO — a role-level override was certified stock");
+  assert.ok(s5.problems.some((p) => /role=postgres/.test(p)), `the refusal did not name the role: ${JSON.stringify(s5.problems)}`);
+
+  // S6 — an override whose VALUE IS 'origin' is STILL drift. The target is no longer
+  // certified virgin execution configuration even though its immediate value equals stock,
+  // and the override can differ from what another connection identity or database sees.
+  const s6 = classifySessionExecutionState({
+    effective: "origin",
+    persistentOverrides: [{ role: "(all roles)", database: "postgres", parameter: "session_replication_role", value: "origin" }],
+  });
+  assert.equal(s6.baselineSatisfied, false, "PERSISTENT_ORIGIN_OVERRIDE_REFUSED=NO");
+  assert.ok(s6.problems.some((p) => /still uncertified execution configuration/.test(p)),
+    `the refusal did not explain why a stock-valued override is drift: ${JSON.stringify(s6.problems)}`);
+  // Certification is a COUNT of zero, never an allowlist: no override value passes.
+  for (const value of ["origin", "replica", "local", "ORIGIN"]) {
+    assert.equal(classifySessionExecutionState({
+      effective: "origin", persistentOverrides: [{ role: "r", database: "d", parameter: "session_replication_role", value }],
+    }).baselineSatisfied, false, `a persistent override valued ${value} was certified stock`);
+  }
+
+  // S7 — malformed override evidence fails closed rather than being dropped.
+  for (const bad of [{ role: "", database: "postgres", value: "replica" }, { role: "postgres", database: "", value: "replica" },
+    { role: "postgres", database: "postgres", value: "" }, { role: null, database: null, value: null }]) {
+    const verdict = classifySessionExecutionState({ effective: "origin", persistentOverrides: [bad] });
+    assert.equal(verdict.baselineSatisfied, false, `a malformed override ${JSON.stringify(bad)} was certified stock`);
+    assert.ok(verdict.problems.some((p) => /unreadable provenance/.test(p)), `unexpected problems: ${JSON.stringify(verdict.problems)}`);
+  }
+  // And the override LIST itself cannot simply be absent: no output is not "no overrides".
+  for (const missing of [undefined, null, "none", 0]) {
+    const verdict = classifySessionExecutionState({ effective: "origin", persistentOverrides: missing });
+    assert.equal(verdict.baselineSatisfied, false, `persistentOverrides=${JSON.stringify(missing)} was certified stock`);
+    assert.ok(verdict.problemCount >= 1, "an absent override list produced no problem");
+  }
+
+  // S8 — a missing or blank EFFECTIVE value is never read as origin.
+  for (const missing of [undefined, null, "", "   "]) {
+    const verdict = classifySessionExecutionState({ effective: missing, persistentOverrides: [] });
+    assert.equal(verdict.baselineSatisfied, false, `effective=${JSON.stringify(missing)} was certified stock`);
+    assert.ok(verdict.problems.some((p) => /refusing to infer/.test(p)), `unexpected problems: ${JSON.stringify(verdict.problems)}`);
+  }
+  assert.equal(classifySessionExecutionState(undefined).baselineSatisfied, false, "an absent execution-state record was certified stock");
+  assert.equal(classifySessionExecutionState({}).baselineSatisfied, false, "an empty execution-state record was certified stock");
+
+  // The two facts are INDEPENDENT: neither cancels the other, and both together count both.
+  const both = classifySessionExecutionState({
+    effective: "replica",
+    persistentOverrides: [{ role: "(all roles)", database: "postgres", parameter: "session_replication_role", value: "replica" }],
+  });
+  assert.equal(both.problemCount, 2, `the effective value and the persistent override did not count independently: ${JSON.stringify(both.problems)}`);
+});
+
+// ── S-WIRE: the REAL probe-to-classifier path ──────────────────────────────
+
+test("S-WIRE: the session execution plane is read through the gate's OWN connection, and fails closed", () => {
+  // NOT a pure helper test: this drives probeHostedApplicationState(), so the real SQL, the
+  // real wire format, the real parser and the real classifier all run.
+  const capture = {};
+  const stock = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ capture }));
+  assert.equal(stock.ok, true, `the probe failed on a stock target: ${stock.reason ?? JSON.stringify(stock.failure)}`);
+  assert.equal(stock.counts.user_session_execution_state, 0, "a pristine execution plane was flagged");
+  assert.equal(stock.sessionExecutionState.effective, "origin", "the effective value did not survive the wire");
+  assert.equal(stock.sessionExecutionState.persistentOverrideCount, 0, "a pristine target reported persistent overrides");
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_session_execution_state: 0 }).empty, true,
+    "the control set is not otherwise empty, so the refusals below prove nothing");
+
+  // EFFECTIVE SESSION BINDING. The value must be read through the SAME dbUrl every other
+  // pre-apply probe uses — never a default local psql, another project, a maintenance
+  // database or a different login.
+  assert.match(capture.sessionExecutionQuery, /current_setting\('session_replication_role'/,
+    "the probe never reads the effective session_replication_role");
+  const sessionCalls = [];
+  const bindingRunner = (cmd, args) => {
+    if (String(args[args.length - 1]).includes("pg_db_role_setting")) sessionCalls.push({ cmd, url: args[args.indexOf("-A") + 1] });
+    return stubbedStockRunner({})(cmd, args);
+  };
+  probeHostedApplicationState("postgresql://bound-target", bindingRunner);
+  assert.equal(sessionCalls.length, 1, "the session execution state is not probed exactly once");
+  assert.equal(sessionCalls[0].cmd, "psql", "the execution state is not read through psql");
+  assert.equal(sessionCalls[0].url, "postgresql://bound-target",
+    "EFFECTIVE_SESSION_BOUND_TO_DBURL=NO — the execution state is read through a different connection than the rest of the gate");
+
+  // NO BROAD GUC PROFILE. Only this one parameter may be read out of pg_db_role_setting: a
+  // pristine stack carries statement_timeout, search_path, log_statement and app.settings.*
+  // rows there, and some of those values are secret material.
+  assert.match(capture.sessionExecutionQuery, /pg_db_role_setting/, "persistent overrides are not probed");
+  assert.match(capture.sessionExecutionQuery, /= 'session_replication_role'/, "the override probe is not scoped to one parameter");
+  for (const foreign of [/statement_timeout/, /search_path/, /jwt/i, /log_statement/, /session_preload_libraries/, /app\.settings/]) {
+    assert.doesNotMatch(capture.sessionExecutionQuery, foreign,
+      `BROAD_GUC_PROFILE=YES — the execution-state probe reads ${foreign}`);
+  }
+  // Content is the only authority.
+  for (const inferred of [/process\.env/, /projectRef/, /hostname/]) {
+    assert.doesNotMatch(capture.sessionExecutionQuery, inferred, "the execution state is inferred from something other than content");
+  }
+
+  // S10 — THE LOAD-BEARING CASE, reproduced live on scratch: a persistent DATABASE-level
+  // replica override, reaching the emptiness verdict through the real wire.
+  const dbOverride = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({
+    sessionRows: sessionWire("replica", [{ role: "(all roles)", database: "postgres", value: "replica" }]),
+  }));
+  assert.equal(dbOverride.ok, true, `the probe failed on the drifted target: ${dbOverride.reason}`);
+  assert.ok(dbOverride.counts.user_session_execution_state > 0,
+    "POST_R37_PERSISTENT_REPLICA_REFUSED=NO — a persistent replica override reached the verdict as stock");
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_session_execution_state: dbOverride.counts.user_session_execution_state }).empty, false,
+    "DB_PUSH_REACHED — a database persisted at session_replication_role=replica certified as empty");
+  // Every OTHER counter is untouched: this is exactly why the pre-R37 gate could not see it.
+  for (const k of ["user_managed_schema_objects", "user_schema_acl", "user_extensions", "user_event_triggers",
+    "user_managed_table_rows", "user_authorization", "user_triggers", "user_internal_trigger_execution_state"]) {
+    assert.equal(dbOverride.counts[k], stock.counts[k], `${k} moved, so this is not the reported execution-state-only bypass`);
+  }
+  assert.deepEqual(dbOverride.commonPlatformProfiles, stock.commonPlatformProfiles,
+    "the platform profile moved, so the refusal is not attributable to the execution plane alone");
+
+  // S5 through the wire — a role-scoped override, reproduced live as the gate's own login role.
+  const roleOverride = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({
+    sessionRows: sessionWire("replica", [{ role: "postgres", database: "postgres", value: "replica" }]),
+  }));
+  assert.ok(roleOverride.counts.user_session_execution_state > 0, "a role-scoped replica override was invisible");
+
+  // S6 through the wire — an override valued 'origin' beside an effective 'origin'.
+  const originOverride = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({
+    sessionRows: sessionWire("origin", [{ role: "(all roles)", database: "postgres", value: "origin" }]),
+  }));
+  assert.equal(originOverride.counts.user_session_execution_state, 1,
+    "PERSISTENT_ORIGIN_OVERRIDE_REFUSED=NO — an override equal to the stock value certified as clean");
+  assert.equal(classifyObjectEmptiness(originOverride.counts).empty, false, "DB_PUSH_REACHED — a stock-valued override certified as empty");
+
+  // S2 through the wire — an effective replica with no persistent override at all.
+  const effectiveOnly = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ sessionRows: sessionWire("replica") }));
+  assert.equal(effectiveOnly.counts.user_session_execution_state, 1, "an effective replica with no override was not refused exactly once");
+
+  // S7/S8 — MALFORMED WIRE FAILS CLOSED. "No output" is never "origin", and never "no
+  // overrides": both facts must be positively established.
+  for (const [label, rows, pattern] of [
+    ["no effective row at all", sessionWire(null, [{ role: "r", database: "d", value: "replica" }]), /no effective session_replication_role/],
+    ["a completely empty answer", [], /no effective session_replication_role/],
+    ["a blank effective value", ["EFFECTIVE~|~"], /could not be read|no effective/],
+    ["a short EFFECTIVE row", ["EFFECTIVE"], /unrecognized EFFECTIVE row/],
+    ["a long EFFECTIVE row", ["EFFECTIVE~|~origin~|~extra"], /unrecognized EFFECTIVE row/],
+    ["two effective rows", ["EFFECTIVE~|~origin", "EFFECTIVE~|~replica"], /more than one effective-value row/],
+    ["a short PERSIST row", ["EFFECTIVE~|~origin", "PERSIST~|~postgres~|~postgres"], /unrecognized PERSIST row/],
+    ["a PERSIST row for another parameter", ["EFFECTIVE~|~origin", "PERSIST~|~postgres~|~postgres~|~statement_timeout~|~2s"], /rather than session_replication_role/],
+    ["a PERSIST row with a blank role", ["EFFECTIVE~|~origin", "PERSIST~|~~|~postgres~|~session_replication_role~|~replica"], /unreadable provenance/],
+    ["a PERSIST row with a blank value", ["EFFECTIVE~|~origin", "PERSIST~|~postgres~|~postgres~|~session_replication_role~|~"], /unreadable provenance/],
+    ["an unknown row tag", ["EFFECTIVE~|~origin", "SETTING~|~log_statement~|~all"], /unrecognized row tag/],
+  ]) {
+    const bad = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ sessionRows: rows }));
+    if (bad.ok) {
+      // A blank effective value is legal WIRE but illegal EVIDENCE: the classifier refuses it.
+      assert.ok(bad.counts.user_session_execution_state > 0, `${label} certified as clean`);
+      assert.ok(bad.sessionExecutionState.problems.some((p) => pattern.test(p)), `${label}: unexpected problems ${JSON.stringify(bad.sessionExecutionState.problems)}`);
+      continue;
+    }
+    assert.match(String(bad.reason), pattern, `${label}: unexpected reason ${bad.reason}`);
+  }
+
+  // S9 — a psql failure is a refusal, never a zero.
+  const failing = probeHostedApplicationState("postgresql://stub", (cmd, args) => {
+    if (String(args[args.length - 1]).includes("pg_db_role_setting")) return { status: 2, stdout: "", stderr: "FATAL: terminating connection" };
+    return stubbedStockRunner({})(cmd, args);
+  });
+  assert.equal(failing.ok, false, "a failed execution-state probe still certified the target");
+  assert.match(formatFailure(failing.failure) + String(failing.reason ?? ""), /session execution-state probe/,
+    `the failure was not attributed to the execution-state probe: ${JSON.stringify(failing.failure)}`);
+});
+
+// ── T1-T8: internal constraint-trigger firing state, at the classifier ─────
+
+test("T1-T8: every internal constraint trigger on the managed surface must fire in origin mode", () => {
+  assert.equal(CERTIFIED_INTERNAL_TRIGGER_ENABLED, "O", "the certified internal-trigger firing state changed");
+  const observed = () => STOCK_INTERNAL_TRIGGERS.map((t) => ({ ...t }));
+
+  // T1 — the measured stock surface certifies.
+  const t1 = classifyInternalTriggerExecutionState(observed());
+  assert.equal(t1.baselineSatisfied, true, `a stock internal-trigger surface was refused: ${JSON.stringify(t1.problems)}`);
+  assert.equal(t1.observedCount, STOCK_INTERNAL_TRIGGERS.length);
+  assert.equal(t1.enabledOriginCount, STOCK_INTERNAL_TRIGGERS.length);
+  assert.equal(t1.nonOriginCount, 0);
+
+  // T2/T3/T4 — D (disabled), R (replica-only) and A (always) are each drift, on every row.
+  // Carried exactly, never flattened to a boolean: replica and always are not "enabled".
+  for (const state of ["D", "R", "A"]) {
+    for (const target of STOCK_INTERNAL_TRIGGERS) {
+      const rows = observed().map((t) => (t.trigger_name === target.trigger_name ? { ...t, enabled: state } : t));
+      const verdict = classifyInternalTriggerExecutionState(rows);
+      assert.equal(verdict.baselineSatisfied, false,
+        `INTERNAL_TRIGGER_${state}_REFUSED=NO — ${target.relation_schema}.${target.relation_name} at tgenabled=${state} certified stock`);
+      assert.equal(verdict.nonOriginCount, 1, `${state} on ${target.trigger_name}: expected exactly one non-origin trigger`);
+      assert.equal(verdict.enabledOriginCount, STOCK_INTERNAL_TRIGGERS.length - 1);
+      assert.ok(verdict.problems.some((p) => p.includes(`${target.relation_schema}.${target.relation_name}`) && p.includes(target.constraint_name)),
+        `the refusal named neither the relation nor the constraint: ${JSON.stringify(verdict.problems)}`);
+      // The unstable OID-derived name is diagnostics only — the CONSTRAINT leads.
+      assert.ok(verdict.problems.some((p) => p.indexOf(target.constraint_name) < p.indexOf(target.trigger_name)),
+        "the refusal leads with the unstable trigger name rather than the constraint");
+    }
+  }
+
+  // T5 — the load-bearing shape: the constraint DEFINITION is unchanged (it is not even an
+  // input here — the managed profile owns it) and the trigger is D. Reproduced live: the
+  // three auth.identities constraint definitions were byte-identical before and after
+  // ALTER TABLE ... DISABLE TRIGGER ALL, sha256 unchanged, yet the FK stopped enforcing.
+  const disabledPair = observed().map((t) =>
+    (t.relation_schema === "auth" && t.relation_name === "identities" ? { ...t, enabled: "D" } : t));
+  const t5 = classifyInternalTriggerExecutionState(disabledPair);
+  assert.equal(t5.baselineSatisfied, false, "a disabled foreign key with an intact constraint definition certified stock");
+  assert.equal(t5.nonOriginCount, 2, "both sides of the disabled foreign key were not reported");
+
+  // T6 — an internal trigger on a relation no certified platform ships fails CLOSED, and is
+  // NOT silently ignored just because the enforcement question does not apply to it.
+  const alien = [...observed(), {
+    relation_schema: "auth", relation_name: "r37_impostor", trigger_name: "RI_ConstraintTrigger_c_99999",
+    enabled: "O", constraint_name: "r37_impostor_fkey", constraint_type: "f", referenced_relation: "auth.users", relation_provenance: "user",
+  }];
+  const t6 = classifyInternalTriggerExecutionState(alien);
+  assert.equal(t6.baselineSatisfied, false, "an internal trigger on an uncertified managed relation was ignored");
+  assert.ok(t6.problems.some((p) => /no certified platform profile ships/.test(p)), `unexpected problems: ${JSON.stringify(t6.problems)}`);
+
+  // T7 — malformed rows fail closed rather than being dropped or read as enabled.
+  for (const [label, patch] of [
+    ["a blank schema", { relation_schema: "" }],
+    ["a blank relation", { relation_name: "" }],
+    ["a blank trigger name", { trigger_name: "" }],
+    ["a blank firing state", { enabled: "" }],
+    ["an unknown firing state", { enabled: "X" }],
+    ["a lower-case firing state", { enabled: "o" }],
+    ["a missing firing state", { enabled: undefined }],
+  ]) {
+    const rows = observed().map((t, i) => (i === 0 ? { ...t, ...patch } : t));
+    const verdict = classifyInternalTriggerExecutionState(rows);
+    assert.equal(verdict.baselineSatisfied, false, `${label} was certified stock`);
+    assert.ok(verdict.problems.some((p) => /unreadable internal constraint-trigger evidence/.test(p)),
+      `${label}: unexpected problems ${JSON.stringify(verdict.problems)}`);
+  }
+  // An absent record is not an empty one: "no evidence" never certifies.
+  for (const missing of [undefined, null, "none", {}]) {
+    const verdict = classifyInternalTriggerExecutionState(missing);
+    assert.equal(verdict.baselineSatisfied, false, `internal-trigger evidence ${JSON.stringify(missing)} was certified stock`);
+    assert.ok(verdict.problemCount >= 1, "absent internal-trigger evidence produced no problem");
+  }
+  // An EMPTY observed set is legitimately clean only in the sense that it flags nothing —
+  // it can never make a drifted surface clean, because each drifted row adds its own problem.
+  assert.equal(classifyInternalTriggerExecutionState([]).observedCount, 0);
+
+  // ASSOCIATION is positive evidence, never a schema-name exemption.
+  assert.ok(CERTIFIED_MANAGED_RELATION_KEYS.has("auth.identities"), "the certified relation surface lost auth.identities");
+  assert.ok(CERTIFIED_MANAGED_RELATION_KEYS.has("storage.objects"), "the certified relation surface lost storage.objects");
+  assert.equal(isCertifiedManagedTriggerRelation({ relation_schema: "auth", relation_name: "r37_impostor", relation_provenance: "user" }), false,
+    "an unknown relation in a managed schema was treated as certified");
+  // Extension-owned relations are trusted through pg_depend, whose members the certified
+  // extension profile independently certifies — never through their schema.
+  assert.equal(isCertifiedManagedTriggerRelation({ relation_schema: "cron", relation_name: "job", relation_provenance: "ext" }), true,
+    "a positively extension-owned relation was not associated");
+  // The date-derived realtime daily partitions no static profile can hold.
+  assert.equal(isCertifiedManagedTriggerRelation({ relation_schema: "realtime", relation_name: "messages_2026_09_05", relation_provenance: "user" }), true,
+    "a certified dynamic realtime daily partition was not associated");
+  assert.equal(isCertifiedManagedTriggerRelation({ relation_schema: "realtime", relation_name: "messages_not_a_date", relation_provenance: "user" }), false,
+    "a look-alike realtime relation was associated");
+});
+
+// ── T-WIRE: the REAL probe-to-classifier path ──────────────────────────────
+
+test("T-WIRE: a DISABLED internal foreign-key trigger reaches the emptiness verdict", () => {
+  const capture = {};
+  const stock = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ capture }));
+  assert.equal(stock.ok, true, `the probe failed on a stock target: ${stock.reason ?? JSON.stringify(stock.failure)}`);
+  assert.equal(stock.counts.user_internal_trigger_execution_state, 0, "a stock internal-trigger surface was flagged");
+  assert.equal(stock.internalTriggerExecutionState.observedCount, STOCK_INTERNAL_TRIGGERS.length, "the surface did not survive the wire");
+  assert.equal(stock.internalTriggerExecutionState.enabledOriginCount, STOCK_INTERNAL_TRIGGERS.length);
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_internal_trigger_execution_state: 0 }).empty, true,
+    "the control set is not otherwise empty, so the refusal below proves nothing");
+
+  // The probe must read the INTERNAL triggers, scoped to the managed surface, and carry the
+  // firing state and constraint identity.
+  assert.match(capture.internalTriggerQuery, /where t\.tgisinternal/, "the probe does not select internal triggers");
+  assert.doesNotMatch(capture.internalTriggerQuery, /not t\.tgisinternal/, "the internal-trigger probe still excludes internal triggers");
+  assert.match(capture.internalTriggerQuery, /t\.tgenabled::text/, "the firing state is not transported");
+  assert.match(capture.internalTriggerQuery, /pg_constraint con on con\.oid = t\.tgconstraint/, "the constraint identity is not transported");
+  // Scoped to the MANAGED surface by the same predicate the managed-object inventory uses,
+  // so no PostgreSQL catalog-internal machinery unrelated to the platform is inventoried.
+  for (const fragment of ["n.nspname = 'public'", "n.nspname <> 'information_schema'", "'supabase_migrations'"]) {
+    assert.ok(capture.internalTriggerQuery.includes(fragment),
+      `the internal-trigger probe is not scoped to the managed surface (missing ${fragment})`);
+  }
+  // The ORDINARY five-trigger baseline keeps its own probe, and keeps excluding internals.
+  assert.match(capture.triggerQuery, /where not t\.tgisinternal/, "the ordinary trigger probe changed its internal-trigger exclusion");
+
+  // THE LOAD-BEARING CASE, reproduced live on scratch: auth.identities' foreign key
+  // disabled while pg_constraint stays byte-identical.
+  const disabled = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({
+    internalTriggerRows: STOCK_INTERNAL_TRIGGERS.map((t) =>
+      internalTriggerLine(t.relation_schema === "auth" && t.relation_name === "identities" ? { ...t, enabled: "D" } : t)),
+  }));
+  assert.equal(disabled.ok, true, `the probe failed on the drifted target: ${disabled.reason}`);
+  assert.equal(disabled.counts.user_internal_trigger_execution_state, 2,
+    "POST_R37_DISABLED_INTERNAL_TRIGGER_REFUSED=NO — a disabled foreign key reached the verdict as stock");
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_internal_trigger_execution_state: disabled.counts.user_internal_trigger_execution_state }).empty, false,
+    "DB_PUSH_REACHED — a target with foreign-key enforcement disabled certified as empty");
+  // Every OTHER counter is untouched: this is exactly why the pre-R37 gate could not see it.
+  for (const k of ["user_managed_schema_objects", "user_schema_acl", "user_extensions", "user_event_triggers",
+    "user_managed_table_rows", "user_authorization", "user_triggers", "user_session_execution_state"]) {
+    assert.equal(disabled.counts[k], stock.counts[k], `${k} moved, so this is not the reported internal-trigger-only bypass`);
+  }
+  assert.deepEqual(disabled.commonPlatformProfiles, stock.commonPlatformProfiles,
+    "the platform profile moved, so the refusal is not attributable to the internal triggers alone");
+
+  // T3/T4 through the wire.
+  for (const state of ["R", "A"]) {
+    const out = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({
+      internalTriggerRows: stockInternalTriggerRows({ enabled: state }, "RI_ConstraintTrigger_c_16989"),
+    }));
+    assert.equal(out.counts.user_internal_trigger_execution_state, 1, `an internal trigger at tgenabled=${state} was not refused`);
+    assert.equal(classifyObjectEmptiness(out.counts).empty, false, `DB_PUSH_REACHED — tgenabled=${state} certified as empty`);
+  }
+
+  // T7 — a malformed row fails closed at the probe's own wire reader.
+  for (const [label, rows, pattern] of [
+    ["a short row", stockInternalTriggerRows().map((l, i) => (i === 0 ? l.split("~|~").slice(0, 5).join("~|~") : l)), /unrecognized row/],
+    ["a long row", stockInternalTriggerRows().map((l, i) => (i === 0 ? `${l}~|~extra` : l)), /unrecognized row/],
+  ]) {
+    const bad = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ internalTriggerRows: rows }));
+    assert.equal(bad.ok, false, `${label} was accepted`);
+    assert.match(String(bad.reason), pattern, `${label}: unexpected reason ${bad.reason}`);
+  }
+  // A blank field inside a well-shaped row is unreadable EVIDENCE, refused by the classifier.
+  const blank = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({
+    internalTriggerRows: stockInternalTriggerRows({ enabled: "" }, "RI_ConstraintTrigger_c_16989"),
+  }));
+  assert.ok(blank.counts.user_internal_trigger_execution_state > 0, "a row with a blank firing state certified as clean");
+
+  // T6 through the wire — an unassociated managed relation.
+  const alien = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({
+    internalTriggerRows: [...stockInternalTriggerRows(),
+      "auth~|~r37_impostor~|~RI_ConstraintTrigger_c_99999~|~O~|~r37_impostor_fkey~|~f~|~auth.users~|~user"],
+  }));
+  assert.ok(alien.counts.user_internal_trigger_execution_state > 0, "an internal trigger on an uncertified relation was ignored");
+
+  // T8 — a probe failure is a refusal, never a zero.
+  const failing = probeHostedApplicationState("postgresql://stub", (cmd, args) => {
+    if (String(args[args.length - 1]).includes("t.tgconstraint")) return { status: 2, stdout: "", stderr: "FATAL: terminating connection" };
+    return stubbedStockRunner({})(cmd, args);
+  });
+  assert.equal(failing.ok, false, "a failed internal-trigger probe still certified the target");
+  assert.match(formatFailure(failing.failure) + String(failing.reason ?? ""), /internal constraint-trigger probe/,
+    `the failure was not attributed to the internal-trigger probe: ${JSON.stringify(failing.failure)}`);
+});
+
+// ── T9/T10 + separation: R37 adds controls, it redefines nothing ───────────
+
+test("T9/T10: the five ordinary triggers and the six event triggers are untouched by R37", () => {
+  // T9 — the explicit non-internal stock trigger baseline is unchanged, and internal
+  // triggers were NOT merged into it.
+  assert.equal(STOCK_PLATFORM_TRIGGER_BASELINE.length, 5, "the certified ordinary trigger baseline changed");
+  for (const t of STOCK_PLATFORM_TRIGGER_BASELINE) {
+    assert.equal(t.enabled, "O", `${t.trigger_name} is no longer certified at origin`);
+    assert.ok(!("is_internal" in t), `${t.trigger_name} acquired internal-trigger state`);
+  }
+  // classifyObservedTriggers still skips internal rows: the two controls never overlap.
+  const withInternal = classifyObservedTriggers([
+    ...STOCK_PLATFORM_TRIGGER_BASELINE.map((t) => ({ ...t, is_internal: false, extension_owned: false })),
+    { relation_schema: "auth", relation_name: "identities", trigger_name: "RI_ConstraintTrigger_c_17230",
+      function_schema: "pg_catalog", function_name: "RI_FKey_check_ins", function_owner: "supabase_admin",
+      definition: "", enabled: "D", is_internal: true, extension_owned: false },
+  ]);
+  assert.equal(withInternal.baselineSatisfied, true,
+    "an internal trigger leaked into the ordinary five-trigger identity baseline");
+
+  // T10 — the six event triggers, including evtowner, are unchanged.
+  assert.equal(STOCK_EVENT_TRIGGER_BASELINE.length, 6, "the certified event-trigger baseline changed");
+  for (const t of STOCK_EVENT_TRIGGER_BASELINE) {
+    assert.equal(t.event_trigger_owner, "supabase_admin", `${t.name} lost its certified owner`);
+  }
+  assert.equal(classifyObservedEventTriggers(STOCK_EVENT_TRIGGER_BASELINE.map((t) => ({ ...t, provenance: "user" }))).problemCount, 0,
+    "the certified event triggers no longer certify");
+
+  // THE TWO NEW COUNTERS ARE INDEPENDENT and never cancel each other out.
+  const both = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({
+    sessionRows: sessionWire("replica", [{ role: "(all roles)", database: "postgres", value: "replica" }]),
+    internalTriggerRows: stockInternalTriggerRows({ enabled: "D" }, "RI_ConstraintTrigger_c_17230"),
+  }));
+  assert.ok(both.counts.user_session_execution_state > 0, "the session counter cancelled out");
+  assert.ok(both.counts.user_internal_trigger_execution_state > 0, "the internal-trigger counter cancelled out");
+  assert.equal(classifyObjectEmptiness(both.counts).empty, false, "DB_PUSH_REACHED — both execution-state drifts certified as empty");
+  // Asserted on an otherwise-EMPTY count set, so the two categories are attributable to the
+  // execution-state drifts ALONE and cannot borrow an objection the stub happens to produce.
+  const attributable = classifyObjectEmptiness({
+    ...EMPTY_COUNTS,
+    user_session_execution_state: both.counts.user_session_execution_state,
+    user_internal_trigger_execution_state: both.counts.user_internal_trigger_execution_state,
+  });
+  assert.deepEqual(attributable.nonEmpty.map((n) => n.category).sort(),
+    ["user_internal_trigger_execution_state", "user_session_execution_state"],
+    "the refusal did not name BOTH execution-state categories independently");
+
+  // R28-R36 PRESERVATION: the whole-platform coherence intersection is still the FOUR
+  // certified profile subsystems. R37 certifies execution STATE beside them; it does not
+  // redefine platform identity, and it must not have quietly joined that intersection.
+  const source = readFileSync(SCRIPT, "utf8");
+  const wiring = source.slice(source.indexOf("const commonPlatformProfiles"), source.indexOf("counts.user_platform_profile_coherence"));
+  for (const subsystem of ["managedVerdict", "extensionProfileVerdict", "schemaAclVerdict", "authorizationVerdict"]) {
+    assert.ok(wiring.includes(`${subsystem}.matchingProfiles`), `${subsystem} left the coherence intersection`);
+  }
+  for (const added of ["sessionExecutionVerdict", "internalTriggerVerdict"]) {
+    assert.ok(!wiring.includes(added), `${added} joined the platform-identity intersection; R37 certifies execution state, not identity`);
+  }
+});
+
+test("T6-CONSISTENCY: the association rule can only refuse what the managed profile already refuses", () => {
+  // WHY THIS MATTERS. The association rule is a fail-closed net, not a second platform
+  // identity check — and a net that could refuse a target the rest of the gate certifies
+  // would be an over-refusal, blocking a genuinely pristine project from ever certifying.
+  //
+  // It cannot. The managed-object probe excludes extension-owned objects and skips the
+  // date-derived realtime partitions, so a COMPLETE managed-profile match means every
+  // remaining non-extension-owned managed relation IS in that profile. Association accepts
+  // exactly those three populations, so:
+  //
+  //   managed profile matched  =>  every internal trigger's relation is associated
+  //
+  // The net therefore only ever fires alongside a managed-profile refusal, never instead of
+  // one. Asserted over EVERY certified platform, so a future profile cannot break it.
+  for (const profile of STOCK_MANAGED_OBJECT_PROFILES) {
+    const relations = profile.objects.filter((o) => o.kind === "relation");
+    assert.ok(relations.length > 0, `${profile.id} carries no relations at all`);
+    for (const r of relations) {
+      assert.equal(isCertifiedManagedTriggerRelation({ relation_schema: r.schema, relation_name: r.name, relation_provenance: "user" }), true,
+        `${profile.id}: certified relation ${r.schema}.${r.name} would be refused by the internal-trigger association rule`);
+    }
+  }
+  // And the LIVE local surface confirms it: every relation carrying an internal trigger on
+  // the pristine disposable stack (108 triggers over 29 relations, measured) is a relation
+  // the local certified profile ships.
+  for (const t of STOCK_INTERNAL_TRIGGERS) {
+    assert.ok(CERTIFIED_MANAGED_RELATION_KEYS.has(`${t.relation_schema}.${t.relation_name}`),
+      `the measured internal-trigger relation ${t.relation_schema}.${t.relation_name} is not on the certified relation surface`);
+  }
+  // The union is genuinely a union: neither certified platform alone covers the other's
+  // relations, which is exactly why association is a union and identity is not.
+  const ids = STOCK_MANAGED_OBJECT_PROFILES.map((p) => p.id);
+  assert.ok(ids.includes("local-cli-stock") && ids.includes("hosted-platform-stock"), "a certified platform disappeared");
 });
