@@ -774,7 +774,7 @@ function classifyObjectEmptiness(counts) {
     ["user_triggers", "triggers that do not exactly match the certified stock platform baseline (extra, altered, or MISSING)"],
     ["user_event_triggers", "database-level event triggers that do not exactly match the certified stock set (extra, altered, re-owned, disabled, re-tagged, or MISSING)"],
     ["user_managed_schema_objects", "relations/indexes/functions/types inside managed schemas that do not exactly match ONE complete certified stock profile (extra, altered, re-owned, MISSING, or a hybrid of two profiles)"],
-    ["user_schema_acl", "managed schema ACLs (pg_namespace.nspacl) that do not match ONE complete certified schema-ACL profile (an added grant, a removed certified privilege, an unknown managed schema, or a surface assembled from more than one platform)"],
+    ["user_schema_acl", "managed schema OWNERSHIP and ACLs (pg_namespace.nspowner/nspacl) that do not match ONE complete certified schema profile (a re-owned schema, an added grant, a removed certified privilege, an unknown managed schema, unreadable owner evidence, or a surface assembled from more than one platform)"],
     ["user_default_acl", "ALTER DEFAULT PRIVILEGES rules (pg_default_acl) outside the certified stock set — these grant rights on objects the migration chain is about to create"],
     ["user_extensions", "certified extension STATE mismatch: installed extensions that are not the certified stock set at the certified versions, or an extension installation, membership graph or member structure that does not match ONE complete certified extension profile"],
     ["user_managed_table_rows", "managed platform tables whose row state is not the certified pristine one (extra rows, missing bootstrap rows, altered stable content, or rows in a table a pristine project leaves empty)"],
@@ -1165,25 +1165,37 @@ function fingerprintDefinition(definition) {
  * ACL out of the certified surface, and still reach FRESH. Absence here is a property of
  * the WHOLE hosted profile, never a per-schema exemption.
  *
+ * SCHEMA OWNERSHIP IS PART OF THE PROFILE. The record binds schema, OWNER and ACL
+ * together. `pg_namespace.nspowner` was read nowhere, so a schema could be handed to a
+ * different role while its name and its entire ACL stayed byte-identical, and the gate
+ * still certified it stock. Reproduced against the pre-R35 probe on a pristine local
+ * stack: `ALTER SCHEMA pgbouncer OWNER TO postgres` left the whole managed schema probe
+ * output byte-identical, because a NULL ACL carries no aclitem whose grantor could leak
+ * the change. Ownership is security-semantic on its own -- the owner holds implicit
+ * privileges and administrative control over the schema that nspacl does not represent,
+ * and can re-grant at will -- so it is certified as exact source, never inferred from
+ * contained objects, extension ownership, the environment, a project ref or the name.
+ *
  * Versioned source, never learned from the target. Drift in either direction refuses
- * FRESH: an added grant, a removed certified privilege, or an unknown managed schema.
+ * FRESH: an added grant, a removed certified privilege, a re-owned schema, or an unknown
+ * managed schema.
  */
 const STOCK_MANAGED_SCHEMA_ACL_PROFILES = Object.freeze([
   Object.freeze({
     id: "local-cli-stock",
     source: "Supabase CLI local development stack (supabase start)",
     entries: Object.freeze([
-      { schema: "_realtime", acl: "aclstate=default|acl=" },
-      { schema: "auth", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,dashboard_user=UC/supabase_admin,postgres=U/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_auth_admin=UC/supabase_admin" },
-      { schema: "extensions", acl: "aclstate=explicit|acl=anon=U/postgres,authenticated=U/postgres,dashboard_user=UC/postgres,postgres=UC/postgres,service_role=U/postgres" },
-      { schema: "graphql", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
-      { schema: "graphql_public", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
-      { schema: "pgbouncer", acl: "aclstate=default|acl=" },
-      { schema: "realtime", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_realtime_admin=U*C*/supabase_admin" },
-      { schema: "storage", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,dashboard_user=UC/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_storage_admin=U*C*/supabase_admin" },
-      { schema: "supabase_functions", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_functions_admin=UC/supabase_admin" },
-      { schema: "supabase_migrations", acl: "aclstate=default|acl=" },
-      { schema: "vault", acl: "aclstate=explicit|acl=postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
+      { schema: "_realtime", owner: "postgres", acl: "aclstate=default|acl=" },
+      { schema: "auth", owner: "supabase_admin", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,dashboard_user=UC/supabase_admin,postgres=U/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_auth_admin=UC/supabase_admin" },
+      { schema: "extensions", owner: "postgres", acl: "aclstate=explicit|acl=anon=U/postgres,authenticated=U/postgres,dashboard_user=UC/postgres,postgres=UC/postgres,service_role=U/postgres" },
+      { schema: "graphql", owner: "supabase_admin", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
+      { schema: "graphql_public", owner: "supabase_admin", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
+      { schema: "pgbouncer", owner: "pgbouncer", acl: "aclstate=default|acl=" },
+      { schema: "realtime", owner: "supabase_admin", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_realtime_admin=U*C*/supabase_admin" },
+      { schema: "storage", owner: "supabase_admin", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,dashboard_user=UC/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_storage_admin=U*C*/supabase_admin" },
+      { schema: "supabase_functions", owner: "supabase_admin", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_functions_admin=UC/supabase_admin" },
+      { schema: "supabase_migrations", owner: "postgres", acl: "aclstate=default|acl=" },
+      { schema: "vault", owner: "supabase_admin", acl: "aclstate=explicit|acl=postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
     ]),
   }),
   Object.freeze({
@@ -1193,15 +1205,15 @@ const STOCK_MANAGED_SCHEMA_ACL_PROFILES = Object.freeze([
     // surface. They are not omitted here as "optional"; this profile is the complete
     // hosted surface, and a hosted target that grew either schema matches no profile.
     entries: Object.freeze([
-      { schema: "auth", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,dashboard_user=UC/supabase_admin,postgres=U/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_auth_admin=UC/supabase_admin" },
-      { schema: "extensions", acl: "aclstate=explicit|acl=anon=U/postgres,authenticated=U/postgres,dashboard_user=UC/postgres,postgres=UC/postgres,service_role=U/postgres" },
-      { schema: "graphql", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
-      { schema: "graphql_public", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
-      { schema: "pgbouncer", acl: "aclstate=default|acl=" },
-      { schema: "realtime", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_realtime_admin=UC/supabase_admin" },
-      { schema: "storage", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,dashboard_user=UC/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_storage_admin=U*C*/supabase_admin" },
-      { schema: "supabase_migrations", acl: "aclstate=default|acl=" },
-      { schema: "vault", acl: "aclstate=explicit|acl=postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
+      { schema: "auth", owner: "supabase_admin", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,dashboard_user=UC/supabase_admin,postgres=U/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_auth_admin=UC/supabase_admin" },
+      { schema: "extensions", owner: "postgres", acl: "aclstate=explicit|acl=anon=U/postgres,authenticated=U/postgres,dashboard_user=UC/postgres,postgres=UC/postgres,service_role=U/postgres" },
+      { schema: "graphql", owner: "supabase_admin", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
+      { schema: "graphql_public", owner: "supabase_admin", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
+      { schema: "pgbouncer", owner: "pgbouncer", acl: "aclstate=default|acl=" },
+      { schema: "realtime", owner: "supabase_admin", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_realtime_admin=UC/supabase_admin" },
+      { schema: "storage", owner: "supabase_admin", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,dashboard_user=UC/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_storage_admin=U*C*/supabase_admin" },
+      { schema: "supabase_migrations", owner: "postgres", acl: "aclstate=default|acl=" },
+      { schema: "vault", owner: "supabase_admin", acl: "aclstate=explicit|acl=postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
     ]),
   }),
 ]);
@@ -1214,7 +1226,20 @@ const STOCK_MANAGED_SCHEMA_ACL_PROFILES = Object.freeze([
 const STOCK_MANAGED_SCHEMA_ACL = STOCK_MANAGED_SCHEMA_ACL_PROFILES
   .find((p) => p.id === "local-cli-stock").entries;
 
-const schemaAclKey = (e) => `${e.schema}=${e.acl}`;
+/**
+ * The canonical managed-schema record: schema, OWNER and ACL, in one key. All three are
+ * bound together, so "same schema, same ACL, different owner" is a different record and
+ * can never satisfy a certified entry. This is the exact wire form the probe emits.
+ */
+const schemaAclKey = (e) => `${e.schema}~|~${e.owner}~|~${e.acl}`;
+
+/**
+ * Owner evidence must be PRESENT and well-formed before anything can be certified. A
+ * missing or malformed owner is refused outright rather than being keyed as the string
+ * "undefined": an unreadable owner must never be able to collide with a certified record,
+ * and must never read as "no owner problem".
+ */
+const schemaAclOwnerMissing = (e) => typeof e?.owner !== "string" || e.owner.trim() === "";
 
 /**
  * The certified ACL profiles, each in its LEDGER_PRESENT and LEDGER_ABSENT variant. The
@@ -1261,13 +1286,24 @@ function classifyManagedSchemaAclAgainstProfile(observed, profile) {
  * NOT "every observed schema ACL appears in some profile". That weaker union would certify
  * a target carrying the hosted `realtime` grant beside the local `supabase_functions`
  * schema — a managed schema surface no real platform ever shipped.
+ *
+ * The OWNER is inside that same rule, never a per-schema optional field: a surface pairing
+ * one schema's local owner with another's hosted owner is certified only if ONE complete
+ * profile contains that exact combination.
  */
 function classifyManagedSchemaAcl(observed, { ledgerNamespacePresent } = {}) {
+  // Owner evidence is checked BEFORE any profile is consulted. "Unreadable owner" must
+  // never read as "trusted schema": a row whose owner is missing or malformed refuses
+  // every profile outright, rather than being keyed as a string that merely happens not
+  // to match anything.
+  const malformed = (observed ?? []).filter(schemaAclOwnerMissing)
+    .map((e) => `${e?.schema ?? "(unnamed schema)"} (owner evidence missing or malformed)`);
+
   const eligible = eligibleLedgerStates(ledgerNamespacePresent);
   const profileResults = managedSchemaAclProfileVariants()
     .filter((variant) => eligible.includes(variant.ledger))
     .map((variant) => ({ ...classifyManagedSchemaAclAgainstProfile(observed, variant), ledger: variant.ledger }));
-  const matching = profileResults.filter((r) => r.baselineSatisfied);
+  const matching = malformed.length > 0 ? [] : profileResults.filter((r) => r.baselineSatisfied);
   // Diagnostics come from the CLOSEST profile so a refusal is attributable. This NEVER
   // softens the verdict: `baselineSatisfied` is a complete-profile match, and the counts
   // reported are that one profile's own, never a per-schema minimum across profiles.
@@ -1280,10 +1316,15 @@ function classifyManagedSchemaAcl(observed, { ledgerNamespacePresent } = {}) {
     matchingProfiles: matching.map((r) => r.profileId),
     closestProfile: closest.profileId,
     profileResults,
+    malformedOwnerEvidence: malformed,
     nonStockCount: closest.nonStockCount,
     nonStock: closest.nonStock,
     missingStockCount: closest.missingStockCount,
     missingStock: closest.missingStock,
+    // Zero ONLY on a complete-profile match with well-formed owner evidence throughout.
+    problemCount: matching.length > 0
+      ? 0
+      : Math.max(1, closest.nonStockCount + closest.missingStockCount + malformed.length),
   };
 }
 
@@ -2139,30 +2180,38 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   }
   const extensionProfileVerdict = classifyExtensionState(observedExtensionState);
 
-  // SCHEMA ACLs. Object-level grants were proven; the schemas holding them were not, so
-  // `GRANT CREATE ON SCHEMA storage TO anon` changed the security posture invisibly.
+  // SCHEMA OWNER + ACLs. Object-level grants were proven; the schemas holding them were
+  // not, so `GRANT CREATE ON SCHEMA storage TO anon` changed the security posture
+  // invisibly. The OWNER is transported in the same row: ownership carries implicit
+  // privileges and administrative control that nspacl does not represent, and it is read
+  // from catalog authority -- `pg_get_userbyid(nspowner)` -- never inferred from the
+  // objects the schema contains, from an extension's owner, or from the schema's name.
   const schemaAclResult = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c",
-    "select nspname || '~|~' || " + aclState("nspacl") + " " +
+    "select nspname || '~|~' || pg_get_userbyid(nspowner) || '~|~' || " + aclState("nspacl") + " " +
     "from pg_namespace where " + PLATFORM_SCHEMA_ACL_PREDICATE + " order by 1;"]);
   if (schemaAclResult.status !== 0) {
-    return { ok: false, failure: describeSpawnResult(schemaAclResult, "psql (managed schema ACL probe)"), stderr: schemaAclResult.stderr };
+    return { ok: false, failure: describeSpawnResult(schemaAclResult, "psql (managed schema owner/ACL probe)"), stderr: schemaAclResult.stderr };
   }
   const observedSchemaAcl = [];
   for (const line of (schemaAclResult.stdout ?? "").split(/\r?\n/)) {
     if (line.trim() === "") continue;
     const f = line.split("~|~");
-    if (f.length !== 2) {
-      return { ok: false, reason: `the managed schema ACL probe returned an unrecognized row (${f.length} field(s)); refusing to infer emptiness.` };
+    // A row that is not exactly schema, owner and ACL is unreadable evidence. Refuse it
+    // rather than reconstructing a two-field row and silently dropping the owner: a probe
+    // that lost the owner column must never be able to certify a target.
+    if (f.length !== 3) {
+      return { ok: false, reason: `the managed schema owner/ACL probe returned an unrecognized row (${f.length} field(s)); refusing to infer emptiness.` };
     }
-    observedSchemaAcl.push({ schema: f[0], acl: f[1] });
+    if (f[1].trim() === "") {
+      return { ok: false, reason: `the managed schema owner/ACL probe returned no owner for schema ${f[0]}; refusing to infer emptiness.` };
+    }
+    observedSchemaAcl.push({ schema: f[0], owner: f[1], acl: f[2] });
   }
   const schemaAclVerdict = classifyManagedSchemaAcl(observedSchemaAcl, { ledgerNamespacePresent });
-  // Zero ONLY on a complete-profile match. The closest profile's counts are diagnostics,
-  // so a target that missed every profile can never report 0 just because its drift
-  // happened to cancel out in the arithmetic.
-  counts.user_schema_acl = schemaAclVerdict.baselineSatisfied
-    ? 0
-    : Math.max(1, schemaAclVerdict.nonStockCount + schemaAclVerdict.missingStockCount);
+  // Zero ONLY on a complete-profile match with well-formed owner evidence throughout. A
+  // target that missed every profile can never report 0 because its drift happened to
+  // cancel out in the arithmetic.
+  counts.user_schema_acl = schemaAclVerdict.problemCount;
 
   // DEFAULT PRIVILEGES. These grant rights on objects the migration chain is about to
   // create, while every existing object stays identical.

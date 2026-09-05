@@ -2083,7 +2083,7 @@ const certifiedRowLines = () =>
  * is what makes this load-bearing — against the pre-R31 query the row is invisible
  * exactly as a real database would make it invisible.
  */
-function stubbedStockRunner({ vaultSecretRows = 0, extensions, triggerRows, eventTriggerRows, presence, counts, capture = {} } = {}) {
+function stubbedStockRunner({ vaultSecretRows = 0, extensions, triggerRows, eventTriggerRows, presence, counts, schemaAclRows, capture = {} } = {}) {
   const EXTENSION_FILTER = /deptype = 'e'/;
   return (_cmd, args) => {
     const sql = String(args[args.length - 1]);
@@ -2113,7 +2113,12 @@ function stubbedStockRunner({ vaultSecretRows = 0, extensions, triggerRows, even
     if (sql.includes("pg_extension e join pg_namespace")) {
       return ok((extensions ?? STOCK_EXTENSION_BASELINE.map((e) => `${e.name}~|~${e.version}~|~${e.schema}`)).join("\n") + "\n");
     }
-    if (sql.includes("nspacl")) return ok(STOCK_MANAGED_SCHEMA_ACL.map((a) => `${a.schema}~|~${a.acl}`).join("\n") + "\n");
+    if (sql.includes("nspacl")) {
+      capture.schemaAclQuery = sql;
+      // The probe's real three-field wire form: schema, OWNER, ACL.
+      const rows = schemaAclRows ?? STOCK_MANAGED_SCHEMA_ACL.map((a) => `${a.schema}~|~${a.owner}~|~${a.acl}`);
+      return ok(rows.join("\n") + "\n");
+    }
     if (sql.includes("pg_default_acl")) return ok(STOCK_DEFAULT_ACL.map((a) => `${a.schema}~|~${a.owner}~|~${a.objtype}~|~${a.acl}`).join("\n") + "\n");
     if (sql.includes("query_to_xml")) {
       capture.rowQuery = sql;
@@ -4631,9 +4636,12 @@ test("C7: a schema-ACL surface assembled from BOTH platforms is refused", () => 
 test("C8: the probe never reports a refused schema-ACL surface as zero problems", () => {
   const source = readFileSync(SCRIPT, "utf8");
   const region = source.slice(source.indexOf("const schemaAclVerdict ="), source.indexOf("// DEFAULT PRIVILEGES"));
-  assert.match(region, /schemaAclVerdict\.baselineSatisfied/,
-    "USER_SCHEMA_ACL is not gated on a complete-profile match");
-  assert.match(region, /Math\.max\(1,/, "a refused schema-ACL surface can still arithmetic its way to zero");
+  assert.match(region, /counts\.user_schema_acl = schemaAclVerdict\.problemCount;/,
+    "USER_SCHEMA_ACL is not taken from the classifier's complete-profile problem count");
+  // The guarantee itself lives in the classifier: zero only on a complete-profile match.
+  const verdictRegion = source.slice(source.indexOf("function classifyManagedSchemaAcl("), source.indexOf("CERTIFIED DEFAULT PRIVILEGE BASELINE"));
+  assert.match(verdictRegion, /problemCount: matching\.length > 0/, "problemCount is not gated on a complete-profile match");
+  assert.match(verdictRegion, /Math\.max\(1,/, "a refused schema surface can still arithmetic its way to zero");
   // The single-list assumption is gone from the shipped script.
   assert.match(source, /STOCK_MANAGED_SCHEMA_ACL_PROFILES = Object\.freeze\(\[/, "the schema ACL is not a profile set");
   assert.ok(source.includes("classifyManagedSchemaAclAgainstProfile"), "there is no per-profile schema-ACL classifier");
@@ -4644,4 +4652,235 @@ test("C8: the probe never reports a refused schema-ACL surface as zero problems"
   }
   assert.match(source, /const STOCK_MANAGED_SCHEMA_ACL = STOCK_MANAGED_SCHEMA_ACL_PROFILES/,
     "the local schema-ACL export is not derived from the certified profiles");
+});
+
+// ── O1-O10: managed schema OWNERSHIP is part of the profile ───────────────
+//
+// R34 made the managed schema ACL NULL-safe, complete-profile atomic, local/hosted
+// distinct and part of whole-platform coherence. But the observation bound only the
+// schema NAME, the ACL STATE and the ACL CONTENTS. `pg_namespace.nspowner` was read
+// nowhere, so
+//
+//     same schema + same ACL + different owner
+//
+// satisfied the same profile. Ownership is security-semantic on its own: the owner
+// holds implicit privileges and administrative control the ACL does not represent,
+// and can re-grant at will. Proven against the PRE-R35 probe on a pristine local
+// stack: `ALTER SCHEMA pgbouncer OWNER TO postgres` left the entire managed schema
+// probe output BYTE-IDENTICAL, because a NULL ACL carries no aclitem whose grantor
+// could leak the change.
+
+const ownerOf = (id, schema) => aclById(id).entries.find((e) => e.schema === schema).owner;
+const withOwner = (id, schema, owner) => aclObservation(aclById(id)).map((e) => (e.schema === schema ? { ...e, owner } : e));
+
+test("O1+O2: the exact LOCAL and HOSTED owner+ACL surfaces are accepted, each only as itself", () => {
+  for (const id of ACL_PLATFORMS) {
+    const verdict = classifyManagedSchemaAcl(aclObservation(aclById(id)), { ledgerNamespacePresent: true });
+    assert.equal(verdict.baselineSatisfied, true, `the complete ${id} owner+ACL surface was refused`);
+    assert.deepEqual(verdict.matchingProfiles, [id], `${id} also matched another profile`);
+    assert.equal(verdict.problemCount, 0, `USER_SCHEMA_ACL was not 0 for ${id}`);
+    // Every certified entry actually carries an owner: an absent field would make the
+    // whole control vacuous.
+    for (const e of aclById(id).entries) {
+      assert.equal(typeof e.owner, "string", `${id}: ${e.schema} carries no certified owner`);
+      assert.notEqual(e.owner.trim(), "", `${id}: ${e.schema} carries an empty certified owner`);
+    }
+  }
+  // The captured owner surfaces, pinned as literals.
+  assert.deepEqual(aclById("local-cli-stock").entries.map((e) => `${e.schema}=${e.owner}`), [
+    "_realtime=postgres", "auth=supabase_admin", "extensions=postgres", "graphql=supabase_admin",
+    "graphql_public=supabase_admin", "pgbouncer=pgbouncer", "realtime=supabase_admin",
+    "storage=supabase_admin", "supabase_functions=supabase_admin", "supabase_migrations=postgres",
+    "vault=supabase_admin",
+  ], "the certified LOCAL schema owners changed");
+  assert.deepEqual(aclById("hosted-platform-stock").entries.map((e) => `${e.schema}=${e.owner}`), [
+    "auth=supabase_admin", "extensions=postgres", "graphql=supabase_admin", "graphql_public=supabase_admin",
+    "pgbouncer=pgbouncer", "realtime=supabase_admin", "storage=supabase_admin",
+    "supabase_migrations=postgres", "vault=supabase_admin",
+  ], "the certified HOSTED schema owners changed");
+});
+
+test("O3: hosted auth is stock at supabase_admin and refused at postgres, ACL unchanged", () => {
+  assert.equal(ownerOf("hosted-platform-stock", "auth"), "supabase_admin", "the certified hosted auth owner changed");
+  const stock = aclObservation(aclById("hosted-platform-stock"));
+  assert.equal(classifyManagedSchemaAcl(stock, { ledgerNamespacePresent: true }).matchedProfile, "hosted-platform-stock");
+
+  // Identical ACL, identical schema set, ONE different owner. supabase_admin can SET ROLE
+  // postgres and postgres holds CREATE on the database, so this is a PostgreSQL-realizable
+  // state, not a hypothetical.
+  const drifted = withOwner("hosted-platform-stock", "auth", "postgres");
+  assert.deepEqual(drifted.map((e) => `${e.schema}=${e.acl}`), stock.map((e) => `${e.schema}=${e.acl}`),
+    "precondition: the ACLs must be untouched, or this tests something other than ownership");
+  const verdict = classifyManagedSchemaAcl(drifted, { ledgerNamespacePresent: true });
+  assert.equal(verdict.baselineSatisfied, false, "a re-owned auth schema was certified stock");
+  assert.deepEqual(verdict.matchingProfiles, [], "a re-owned auth schema still matched a profile");
+  assert.ok(verdict.problemCount >= 1, "a re-owned auth schema contributed no problems");
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_schema_acl: verdict.problemCount }).empty, false,
+    "DB_PUSH_REACHED — a re-owned auth schema certified as empty");
+});
+
+test("O4+O5: a re-owned NULL-ACL schema and a re-owned ledger are refused", () => {
+  // These are the schemas where ownership drift is completely invisible to an ACL-only
+  // control: `aclstate=default|acl=` has no aclitem at all, so no grantor can leak it.
+  const cases = [
+    ["O4 pgbouncer", "hosted-platform-stock", "pgbouncer", "postgres"],
+    ["O4 pgbouncer (local)", "local-cli-stock", "pgbouncer", "postgres"],
+    ["O5 ledger", "local-cli-stock", LEDGER_SCHEMA, "supabase_admin"],
+    ["O5 ledger (hosted)", "hosted-platform-stock", LEDGER_SCHEMA, "supabase_admin"],
+  ];
+  for (const [label, id, schema, owner] of cases) {
+    const entry = aclById(id).entries.find((e) => e.schema === schema);
+    assert.equal(entry.acl, "aclstate=default|acl=", `${label}: this schema no longer carries a NULL ACL, so the case is not the invisible one`);
+    assert.notEqual(entry.owner, owner, `${label}: the drifted owner equals the certified one`);
+    const verdict = classifyManagedSchemaAcl(withOwner(id, schema, owner), { ledgerNamespacePresent: true });
+    assert.equal(verdict.baselineSatisfied, false, `${label}: a re-owned schema with an identical ACL was certified stock`);
+    assert.deepEqual(verdict.matchingProfiles, [], `${label}: it still matched a profile`);
+    assert.ok(verdict.problemCount >= 1, `${label}: it contributed no problems`);
+  }
+});
+
+test("O6+O7: ANY one-schema owner drift refuses the WHOLE profile, in both platforms", () => {
+  for (const id of ACL_PLATFORMS) {
+    for (const entry of aclById(id).entries) {
+      const other = entry.owner === "postgres" ? "supabase_admin" : "postgres";
+      const verdict = classifyManagedSchemaAcl(withOwner(id, entry.schema, other), { ledgerNamespacePresent: true });
+      assert.equal(verdict.baselineSatisfied, false,
+        `${id}: re-owning ${entry.schema} to ${other} was certified stock`);
+      assert.deepEqual(verdict.matchingProfiles, [],
+        `${id}: re-owning ${entry.schema} still matched a profile`);
+      assert.ok(verdict.problemCount >= 1, `${id}: re-owning ${entry.schema} contributed no problems`);
+      assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_schema_acl: verdict.problemCount }).empty, false,
+        `${id}: DB_PUSH_REACHED after re-owning ${entry.schema}`);
+    }
+  }
+});
+
+test("O8: an owner Frankenstein across the two platforms is refused", () => {
+  // Owners happen to agree across the two platforms on every shared schema, so the
+  // sharpest owner-Frankenstein is a HOSTED surface that adopts a local-only schema
+  // together with its local owner, and a LOCAL surface that drops them.
+  const local = aclObservation(aclById("local-cli-stock"));
+  const hosted = aclObservation(aclById("hosted-platform-stock"));
+  const localOnly = local.filter((e) => ["_realtime", "supabase_functions"].includes(e.schema));
+  const cases = {
+    "hosted surface + local-only schemas with their local owners": [...hosted, ...localOnly],
+    "local surface minus the local-only schemas": local.filter((e) => !localOnly.find((l) => l.schema === e.schema)),
+    // Every entry below is certified in SOME profile, and each schema keeps an owner that
+    // is certified for THAT schema — the combination is what no platform ships.
+    "hosted owners over the local schema set": local.map((e) => {
+      const h = hosted.find((x) => x.schema === e.schema);
+      return h ? { ...e, owner: h.owner } : { ...e, owner: "supabase_admin" };
+    }).map((e) => (e.schema === "_realtime" ? { ...e, owner: "supabase_admin" } : e)),
+  };
+  for (const [label, observed] of Object.entries(cases)) {
+    const verdict = classifyManagedSchemaAcl(observed, { ledgerNamespacePresent: true });
+    assert.equal(verdict.baselineSatisfied, false, `${label}: an owner Frankenstein was certified stock`);
+    assert.deepEqual(verdict.matchingProfiles, [], `${label}: it matched a profile`);
+    assert.ok(verdict.problemCount >= 1, `${label}: it contributed no problems`);
+  }
+  // Control: the two honest surfaces still pass, so the refusals above are the mixing.
+  for (const id of ACL_PLATFORMS) {
+    assert.equal(classifyManagedSchemaAcl(aclObservation(aclById(id)), { ledgerNamespacePresent: true }).matchedProfile, id,
+      `${id}: the honest surface was refused, so this test proves nothing`);
+  }
+});
+
+test("O9: missing or malformed owner evidence fails CLOSED, never EMPTY", () => {
+  for (const bad of [undefined, null, "", "   ", 123, {}]) {
+    const observed = aclObservation(aclById("local-cli-stock")).map((e) => (e.schema === "auth" ? { ...e, owner: bad } : e));
+    const verdict = classifyManagedSchemaAcl(observed, { ledgerNamespacePresent: true });
+    assert.equal(verdict.baselineSatisfied, false, `owner=${JSON.stringify(bad)} was certified stock`);
+    assert.deepEqual(verdict.matchingProfiles, [], `owner=${JSON.stringify(bad)} matched a profile`);
+    assert.equal(verdict.malformedOwnerEvidence.length, 1, `owner=${JSON.stringify(bad)} was not reported as malformed evidence`);
+    assert.ok(verdict.problemCount >= 1, `owner=${JSON.stringify(bad)} contributed no problems`);
+    assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_schema_acl: verdict.problemCount }).empty, false,
+      `DB_PUSH_REACHED — unreadable owner evidence certified as empty`);
+  }
+  // Even a surface that is otherwise PERFECT cannot be rescued by an unreadable owner.
+  const stripped = aclObservation(aclById("hosted-platform-stock")).map(({ schema, acl }) => ({ schema, acl }));
+  const verdict = classifyManagedSchemaAcl(stripped, { ledgerNamespacePresent: true });
+  assert.equal(verdict.baselineSatisfied, false, "an owner-less observation was certified stock");
+  assert.equal(verdict.malformedOwnerEvidence.length, stripped.length, "not every owner-less row was reported");
+});
+
+test("O-WIRE: schema owner drift is refused through the REAL probe-to-classifier wire", () => {
+  // NOT a pure helper test. This drives probeHostedApplicationState(), so the actual SQL,
+  // the actual `~|~` wire format, the actual parser and the actual classifier all run.
+  const capture = {};
+
+  // 1. The probe must read ownership from CATALOG AUTHORITY, and only from there.
+  const stock = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ capture }));
+  assert.equal(stock.ok, true, `the probe failed on a stock target: ${stock.reason ?? JSON.stringify(stock.failure)}`);
+  assert.match(capture.schemaAclQuery, /pg_get_userbyid\(nspowner\)/,
+    "SCHEMA_OWNER_TRANSPORTED=NO — the probe never reads pg_namespace.nspowner");
+  for (const inferred of [/relowner/, /extowner/, /proowner/, /process\.env/, /projectRef/]) {
+    assert.doesNotMatch(capture.schemaAclQuery, inferred,
+      `the schema owner is inferred from ${inferred} rather than observed directly`);
+  }
+
+  // 2. Stock: the owner reaches the observation, and the target is EMPTY.
+  const authRow = stock.observedSchemaAcl.find((e) => e.schema === "auth");
+  assert.equal(authRow.owner, "supabase_admin", "the owner did not survive the probe wire");
+  assert.equal(stock.counts.user_schema_acl, 0, "a stock owner+ACL surface was flagged");
+  assert.equal(stock.matchedSchemaAclProfile, "local-cli-stock", "the stock surface did not resolve to a platform");
+  // The stub answers other subsystems minimally, so emptiness is attributed to THIS
+  // control alone: with a stock owner+ACL surface the category is clean and EMPTY stands.
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_schema_acl: stock.counts.user_schema_acl }).empty, true,
+    "the stock owner+ACL surface did not reach EMPTY, so the refusal below proves nothing");
+
+  // 3. THE LOAD-BEARING CASE. One schema re-owned; every ACL byte identical. This is the
+  //    state the PRE-R35 probe could not see at all, proven on a pristine local stack.
+  const driftedRows = STOCK_MANAGED_SCHEMA_ACL.map((a) =>
+    `${a.schema}~|~${a.schema === "auth" ? "postgres" : a.owner}~|~${a.acl}`);
+  const stockRows = STOCK_MANAGED_SCHEMA_ACL.map((a) => `${a.schema}~|~${a.owner}~|~${a.acl}`);
+  // Precondition: the ONLY difference is the owner field.
+  assert.equal(driftedRows.length, stockRows.length);
+  assert.deepEqual(driftedRows.map((r) => `${r.split("~|~")[0]}|${r.split("~|~")[2]}`),
+    stockRows.map((r) => `${r.split("~|~")[0]}|${r.split("~|~")[2]}`),
+    "precondition: schema names and ACLs must be untouched");
+  // And the PRE-R35 two-field projection of both is byte-identical — the reported bypass.
+  const preR35 = (rows) => rows.map((r) => { const f = r.split("~|~"); return `${f[0]}~|~${f[2]}`; }).join("\n");
+  assert.equal(preR35(driftedRows), preR35(stockRows),
+    "PRE_R35_SCHEMA_OWNER_DRIFT_UNOBSERVED=NO — the drift was already visible without the owner column");
+
+  const drifted = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ schemaAclRows: driftedRows }));
+  assert.equal(drifted.ok, true, `the probe failed on the drifted target: ${drifted.reason ?? JSON.stringify(drifted.failure)}`);
+  assert.ok(drifted.counts.user_schema_acl > 0,
+    "POST_R35_SCHEMA_OWNER_DRIFT_REFUSED=NO — a re-owned schema reached the verdict as stock");
+  assert.equal(drifted.matchedSchemaAclProfile, null, "a re-owned schema still resolved to a platform");
+  assert.deepEqual(drifted.matchingSchemaAclProfiles, [], "a re-owned schema still matched a profile");
+  // APPLICATION_EMPTINESS=NOT_EMPTY attributable to the schema subsystem ALONE: the same
+  // control set that was EMPTY above is now refused, and ownership is the only change.
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_schema_acl: drifted.counts.user_schema_acl }).empty, false,
+    "DB_PUSH_REACHED — APPLICATION_EMPTINESS=EMPTY with a re-owned managed schema");
+  // Attributable: the refusal names the schema whose ownership moved.
+  assert.ok((drifted.nonStockSchemaAcl ?? []).some((p) => p.startsWith("auth~|~postgres~|~")),
+    `the refusal did not name the re-owned schema: ${JSON.stringify(drifted.nonStockSchemaAcl)}`);
+  // Whole-platform coherence loses the schema subsystem: it matched before, not after.
+  assert.deepEqual(stock.matchingSchemaAclProfiles, ["local-cli-stock"],
+    "the stock surface did not contribute a profile to the intersection");
+  assert.deepEqual(drifted.commonPlatformProfiles, [], "a re-owned schema still yielded a coherent platform");
+
+  // 4. A probe that LOST the owner column fails closed rather than certifying on two fields.
+  const legacy = probeHostedApplicationState("postgresql://stub",
+    stubbedStockRunner({ schemaAclRows: STOCK_MANAGED_SCHEMA_ACL.map((a) => `${a.schema}~|~${a.acl}`) }));
+  assert.equal(legacy.ok, false, "the pre-R35 two-field wire format was still accepted");
+  assert.match(String(legacy.reason), /unrecognized row/, `unexpected refusal reason: ${legacy.reason}`);
+  // And an empty owner field is refused too.
+  const blank = probeHostedApplicationState("postgresql://stub",
+    stubbedStockRunner({ schemaAclRows: STOCK_MANAGED_SCHEMA_ACL.map((a) => `${a.schema}~|~~|~${a.acl}`) }));
+  assert.equal(blank.ok, false, "a row with an empty owner was accepted");
+  assert.match(String(blank.reason), /no owner for schema/, `unexpected refusal reason: ${blank.reason}`);
+});
+
+test("O10: a duplicated schema observation fails closed", () => {
+  for (const id of ACL_PLATFORMS) {
+    const observed = aclObservation(aclById(id));
+    for (const dup of [observed[0], observed[observed.length - 1]]) {
+      const verdict = classifyManagedSchemaAcl([...observed, { ...dup }], { ledgerNamespacePresent: true });
+      assert.equal(verdict.baselineSatisfied, false, `${id}: a duplicated ${dup.schema} observation was certified stock`);
+      assert.deepEqual(verdict.matchingProfiles, [], `${id}: a duplicated ${dup.schema} matched a profile`);
+      assert.ok(verdict.problemCount >= 1, `${id}: a duplicated ${dup.schema} contributed no problems`);
+    }
+  }
 });
