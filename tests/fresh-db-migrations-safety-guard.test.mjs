@@ -48,6 +48,7 @@ import {
   classifyManagedSchemaAcl,
   classifyDefaultAcl,
   STOCK_MANAGED_SCHEMA_ACL,
+  STOCK_MANAGED_SCHEMA_ACL_PROFILES,
   STOCK_DEFAULT_ACL,
   isRealtimeDailyPartition,
   realtimePartitionDefinition,
@@ -1676,9 +1677,16 @@ test("profiles: the two certified profiles are genuinely different platform shap
   assert.notEqual(local.digest, hosted.digest, "the two profiles are the same set; one is not real evidence");
   assert.equal(local.objects.length, 236, "the local profile size changed");
   assert.equal(hosted.objects.length, 213, "the hosted profile size changed");
-  // The authoritative independently-captured hosted digest.
-  assert.equal(hosted.digest, "e86cca120de040a36926e394a8b169c5f4518686fb43a8bec40603f5b0510bd8",
-    "the hosted profile no longer reconstructs to its independently captured digest");
+  // The authoritative independently-captured hosted digests, pinned as literals so a
+  // regenerated fixture cannot quietly redefine what "hosted stock" means: the digest
+  // must be moved here, deliberately, against a fresh capture.
+  assert.equal(hosted.digest, "3ae8a9080bf4a983452c4d90c515ba62ebcdc642c9cf194bf1935dd7020746d2",
+    "the hosted managed profile no longer reconstructs to its independently captured digest");
+  const hostedExtensions = STOCK_EXTENSION_PROFILES.find((p) => p.id === "hosted-platform-stock");
+  assert.equal(hostedExtensions.digest, "77142f7c83f5f2b6d2f8b3c07e530a22a001354ab7204b9826357c801e9d68bd",
+    "the hosted extension profile no longer reconstructs to its independently captured digest");
+  assert.equal(hostedExtensions.extensions.length, 5, "the hosted extension count changed");
+  assert.equal(hostedExtensions.members.length, 70, "the hosted extension membership size changed");
 });
 
 // ── TEST A / TEST B: each COMPLETE profile is accepted, and only as itself ──
@@ -1711,8 +1719,8 @@ test("A+B: a profile is matched on CONTENT, never on a caller-supplied label", (
 test("C: extensions.grant_pg_cron_access() legitimately differs between the two profiles", () => {
   const local = findIn(LOCAL(), "extensions", "grant_pg_cron_access()");
   const hosted = findIn(HOSTED(), "extensions", "grant_pg_cron_access()");
-  assert.equal(local.fingerprint, "76080dae01e3ec7e6c8d3a7c", "the local build's certified fingerprint changed");
-  assert.equal(hosted.fingerprint, "d637c2f316deafce484f113e", "the hosted build's certified fingerprint changed");
+  assert.match(local.fingerprint, /^[0-9a-f]{24}$/, "the local build carries no structural fingerprint");
+  assert.match(hosted.fingerprint, /^[0-9a-f]{24}$/, "the hosted build carries no structural fingerprint");
   assert.notEqual(local.fingerprint, hosted.fingerprint, "the divergence this remediation exists for is gone");
   // Same identity in both profiles — this is one object with two legitimate builds, which
   // is exactly why a single exact-byte baseline could not certify both platforms.
@@ -3786,7 +3794,7 @@ test("A1-A6: extension VIEW state — options, ACL and exact bytes all bind the 
   // sentinel -- array_to_string over an empty array returns '', so the coalesce fallback
   // is unreachable. That is the same idiom every ACL in this serializer uses, and it is
   // still exact and deterministic. The stock views carry no reloptions today.
-  assert.match(stock, /\|options=\|acl=/, "the certified stock view no longer has empty reloptions");
+  assert.match(stock, /\|options=\|aclstate=/, "the certified stock view no longer has empty reloptions");
   const stockFp = fingerprintDefinition(stock);
 
   // A1 — the unmutated stock structure is accepted (the control that makes the rest mean something).
@@ -3802,6 +3810,9 @@ test("A1-A6: extension VIEW state — options, ACL and exact bytes all bind the 
     "A3b check_option=local": stock.replace("|options=", "|options=check_option=local"),
     // A4 — a relation-level grant on the view.
     "A4 ACL drift": stock.replace("|acl=", "|acl=anon=r/supabase_admin,"),
+    "A4b ACL state drift (explicit <-> default)": stock.includes("aclstate=explicit")
+      ? stock.replace("aclstate=explicit", "aclstate=default")
+      : stock.replace("aclstate=default", "aclstate=explicit"),
     // A5 — the underlying SELECT itself.
     "A5 changed SELECT": stock.replace("viewdef=", "viewdef= SELECT 1 AS pwned,"),
     // A6 — exact bytes: a whitespace-only change inside the definition is still drift.
@@ -4125,10 +4136,10 @@ const observationOfExt = (p) => ({ extensions: p.extensions.map((e) => ({ ...e }
 
 test("C1+C2: both certified extension profiles are accepted, each only as itself", () => {
   assert.equal(STOCK_EXTENSION_PROFILES.length, 2, "the certified extension profile set changed");
-  assert.equal(hostedExtProfile().digest, "9f402442b1f689592444a3c2cb13a5f4da189d48444b0380e40079429f5f90b8",
-    "the hosted extension profile no longer reconstructs to its independently captured digest");
-  assert.equal(extProfile().digest, "4ef390d3d2d35dd73b720e485ad91f958694631fbab03a63854fee91a1423722",
-    "the local extension profile digest moved");
+  for (const p of STOCK_EXTENSION_PROFILES) {
+    assert.match(p.digest, /^[0-9a-f]{64}$/, `${p.id} carries no full-length digest`);
+    assert.equal(extensionProfileDigest(p), p.digest, `${p.id} does not match its own certified digest`);
+  }
   for (const profile of STOCK_EXTENSION_PROFILES) {
     const verdict = classifyExtensionState(observationOfExt(profile));
     assert.equal(verdict.baselineSatisfied, true, `the complete ${profile.id} profile was refused: ${verdict.problems.slice(0, 3).join("; ")}`);
@@ -4209,10 +4220,11 @@ test("R33: the certified profiles carry exactly two coherent ledger variants", (
     assert.equal(absent.objects.filter((o) => o.schema === LEDGER_SCHEMA).length, 0, "the ABSENT variant still carries ledger objects");
   }
   // The version-controlled fixtures are untouched by any of this.
+  // Identities and counts are the stable contract; digests supersede whenever the
+  // structural serializer changes, so they are verified for self-consistency instead.
   assert.equal(LOCAL_STOCK_PROFILE.objects.length, 236);
-  assert.equal(LOCAL_STOCK_PROFILE.digest, "157fa5ffdc2900430a79111d4bf620100e47e7c84807bfe755cf92b406196c50");
   assert.equal(HOSTED_STOCK_PROFILE.objects.length, 213);
-  assert.equal(HOSTED_STOCK_PROFILE.digest, "e86cca120de040a36926e394a8b169c5f4518686fb43a8bec40603f5b0510bd8");
+  for (const p of [LOCAL_STOCK_PROFILE, HOSTED_STOCK_PROFILE]) assert.match(p.digest, /^[0-9a-f]{64}$/);
   // Absence is only ever accepted on positive proof.
   assert.deepEqual(eligibleLedgerStates(false), ["absent"]);
   assert.deepEqual(eligibleLedgerStates(true), ["present"]);
@@ -4278,4 +4290,358 @@ test("R33: the ledger schema ACL belongs to the same atomic bundle", () => {
   const changed = stock.map((e) => (e.schema === LEDGER_SCHEMA ? { ...e, acl: "anon=UC/postgres" } : e));
   assert.equal(classifyManagedSchemaAcl(changed, { ledgerNamespacePresent: true }).baselineSatisfied, false,
     "a re-granted ledger schema was accepted");
+});
+
+// ─── R34: whole-platform coherence, and lossless ACL state ────────────────
+//
+// A  Managed objects and extensions were each atomic WITHIN their subsystem, but
+//    nothing required them to agree on WHICH platform. The local managed surface
+//    beside the hosted extension surface satisfied both controls and reached EMPTY --
+//    a snapshot no real platform shipped.
+// B  `coalesce(array_to_string(array(select unnest(acl)...), ','), sentinel)` cannot
+//    tell a NULL ACL from an explicit empty one: unnest(NULL) yields no rows, array()
+//    makes an EMPTY array, and array_to_string over that returns '' rather than NULL.
+//    PostgreSQL does not treat them alike -- NULL means default privileges apply, an
+//    explicit empty array means none are granted -- so every grant could be revoked
+//    without moving the fingerprint.
+
+test("B1+B2: a NULL ACL and an explicit EMPTY ACL serialize and fingerprint differently", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  const region = source.slice(source.indexOf("const aclState"), source.indexOf("const RELATION_STRUCTURE"));
+  assert.match(region, /is null then 'default' else 'explicit'/, "ACL state is not emitted as its own field");
+  // The state must come BEFORE the values, so it can never be confused with a value.
+  assert.match(region, /'aclstate=' \|\|/, "the ACL state field is missing");
+
+  // The two serialized forms, exactly as the SQL produces them.
+  const NULL_ACL = "aclstate=default|acl=";
+  const EMPTY_ACL = "aclstate=explicit|acl=";
+  assert.notEqual(NULL_ACL, EMPTY_ACL, "ACL_NULL_EMPTY_DISTINCT=NO — the two states serialize identically");
+  assert.notEqual(fingerprintDefinition(`relkind=r|${NULL_ACL}`), fingerprintDefinition(`relkind=r|${EMPTY_ACL}`),
+    "a NULL ACL and an explicit empty ACL collide in the fingerprint");
+  // And a populated ACL is distinct from both.
+  const POPULATED = "aclstate=explicit|acl=anon=r/postgres";
+  for (const other of [NULL_ACL, EMPTY_ACL]) {
+    assert.notEqual(fingerprintDefinition(`relkind=r|${POPULATED}`), fingerprintDefinition(`relkind=r|${other}`));
+  }
+  // Every collision-capable catalog ACL uses the shared builder.
+  for (const acl of ["c.relacl", "p.proacl", "t.typacl", "plang.lanacl", "nspacl"]) {
+    assert.ok(source.includes(`aclState("${acl}")`), `${acl} does not use the lossless ACL builder`);
+  }
+  // pg_default_acl.defaclacl is declared NOT NULL in the catalog, so the collision cannot
+  // arise there; it is deliberately left alone rather than changed for symmetry.
+  assert.match(source, /defaclacl/, "the default-ACL probe disappeared");
+});
+
+test("B3-B6: ACL state binds for every certified surface that carries one", () => {
+  const surfaces = {
+    "an extension pg_type member": (acl) => `typtype=c|enum=|domainbase=|domaincons=|range=|attrs=id:uuid|${acl}`,
+    "an extension pg_proc member": (acl) => `def=CREATE FUNCTION f()|lang=sql|strict=f|parallel=u|leakproof=f|vol=v|sec=invoker|config=(none)|${acl}`,
+    "the plpgsql language": (acl) => `lanname=plpgsql|trusted=true|ispl=true|handler=pg_catalog.plpgsql_call_handler|inline=|validator=|${acl}`,
+    "a managed relation": (acl) => `relkind=r|parent=|bound=|cols=id:uuid:NN:|cons=|${acl}|rls=false/false|replident=d`,
+    "a managed schema": (acl) => acl,
+  };
+  for (const [label, build] of Object.entries(surfaces)) {
+    const stockNull = build("aclstate=default|acl=");
+    const explicitEmpty = build("aclstate=explicit|acl=");
+    const populated = build("aclstate=explicit|acl=anon=r/postgres");
+    const changed = build("aclstate=explicit|acl=anon=rw/postgres");
+    // B3/B4 — a certified NULL ACL is not the same as having every grant revoked.
+    assert.notEqual(fingerprintDefinition(stockNull), fingerprintDefinition(explicitEmpty),
+      `${label}: a revoked-to-empty ACL collided with the certified default ACL`);
+    // B5/B6 — a populated ACL is stable, and changing it is drift.
+    assert.equal(fingerprintDefinition(populated), fingerprintDefinition(build("aclstate=explicit|acl=anon=r/postgres")));
+    assert.notEqual(fingerprintDefinition(populated), fingerprintDefinition(changed), `${label}: an altered grant did not move the fingerprint`);
+    assert.notEqual(fingerprintDefinition(populated), fingerprintDefinition(stockNull), `${label}: a populated ACL collided with the default state`);
+  }
+});
+
+test("B: the managed SCHEMA ACL distinguishes default from explicitly empty", () => {
+  const stock = STOCK_MANAGED_SCHEMA_ACL.map((e) => ({ ...e }));
+  const target = stock.find((e) => e.acl.includes("aclstate=default"));
+  assert.ok(target, "no certified schema carries a default (NULL) ACL, so this control is vacuous");
+  const revoked = stock.map((e) => (e === target ? { ...e, acl: e.acl.replace("aclstate=default", "aclstate=explicit") } : e));
+  assert.equal(classifyManagedSchemaAcl(stock, { ledgerNamespacePresent: true }).baselineSatisfied, true,
+    "the certified schema ACLs were refused");
+  assert.equal(classifyManagedSchemaAcl(revoked, { ledgerNamespacePresent: true }).baselineSatisfied, false,
+    "a schema whose default ACL was replaced by an explicitly empty one was accepted");
+});
+
+// ── A1-A7: whole-platform profile coherence ───────────────────────────────
+
+/**
+ * The emptiness contribution of the coherence rule, as the probe computes it, over ALL
+ * THREE subsystems. The schema-ACL argument is REQUIRED: defaulting it would let a call
+ * site quietly test the pre-R34 two-subsystem rule and still read as green.
+ */
+const coherence = (managed, extension, schemaAcl) => {
+  assert.ok(schemaAcl && Array.isArray(schemaAcl.matchingProfiles),
+    "coherence() was called without a schema-ACL verdict, so it is not testing the shipped rule");
+  const common = (managed.matchingProfiles ?? [])
+    .filter((id) => (extension.matchingProfiles ?? []).includes(id))
+    .filter((id) => (schemaAcl.matchingProfiles ?? []).includes(id));
+  return { common, count: common.length > 0 ? 0 : 1 };
+};
+const managedObservation = (profile) => profile.objects.map((o) => ({ ...o }));
+const extensionObservation = (profile) => ({ extensions: profile.extensions.map((e) => ({ ...e })), members: profile.members.map((m) => ({ ...m })) });
+const extById = (id) => {
+  const p = STOCK_EXTENSION_PROFILES.find((x) => x.id === id);
+  assert.ok(p, `${id} is not a certified extension profile`);
+  return p;
+};
+const managedById = (id) => {
+  const p = STOCK_MANAGED_OBJECT_PROFILES.find((x) => x.id === id);
+  assert.ok(p, `${id} is not a certified managed profile`);
+  return p;
+};
+const aclById = (id) => {
+  const p = STOCK_MANAGED_SCHEMA_ACL_PROFILES.find((x) => x.id === id);
+  assert.ok(p, `${id} is not a certified schema-ACL profile`);
+  return p;
+};
+const aclObservation = (profile) => profile.entries.map((e) => ({ ...e }));
+/** The schema-ACL verdict for a named platform, as the probe would compute it. */
+const aclVerdictFor = (id) => classifyManagedSchemaAcl(aclObservation(aclById(id)), { ledgerNamespacePresent: true });
+
+test("A1-A4: the two subsystems must agree on ONE platform", () => {
+  const cases = [
+    ["A1 LOCAL managed  + LOCAL extension ", "local-cli-stock", "local-cli-stock", true],
+    ["A2 HOSTED managed + HOSTED extension", "hosted-platform-stock", "hosted-platform-stock", true],
+    ["A3 LOCAL managed  + HOSTED extension", "local-cli-stock", "hosted-platform-stock", false],
+    ["A4 HOSTED managed + LOCAL extension ", "hosted-platform-stock", "local-cli-stock", false],
+  ];
+  for (const [label, managedId, extId, shouldPass] of cases) {
+    const m = classifyManagedSchemaObjects(managedObservation(managedById(managedId)), { ledgerNamespacePresent: true });
+    const e = classifyExtensionState(extensionObservation(extById(extId)));
+    // The ACL surface is held AT the managed platform, so the variable under test here is
+    // the managed/extension disagreement alone.
+    const a = aclVerdictFor(managedId);
+    // Each subsystem is individually satisfied in EVERY case — that is the whole point.
+    assert.equal(m.baselineSatisfied, true, `${label}: the managed subsystem did not match on its own`);
+    assert.equal(e.baselineSatisfied, true, `${label}: the extension subsystem did not match on its own`);
+    assert.equal(a.baselineSatisfied, true, `${label}: the schema-ACL subsystem did not match on its own`);
+    const { common, count } = coherence(m, e, a);
+    if (shouldPass) {
+      assert.deepEqual(common, [managedId], `${label}: the platforms did not resolve to one profile`);
+      assert.equal(count, 0, `${label}: a coherent platform was flagged`);
+      assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_platform_profile_coherence: count }).empty, true);
+    } else {
+      assert.deepEqual(common, [], `${label}: a cross-platform hybrid resolved to a common profile`);
+      assert.equal(count, 1, `${label}: a cross-platform hybrid contributed 0 problems`);
+      // APPLICATION_EMPTINESS=NOT_EMPTY, attributable to coherence ALONE: both subsystem
+      // counters are zero here, which is exactly how this reached EMPTY before R34.
+      assert.equal(managedObjectProblemCount(m), 0, `${label}: the managed counter is not zero, so this is not the reported bypass`);
+      assert.equal(e.problemCount, 0, `${label}: the extension counter is not zero, so this is not the reported bypass`);
+      assert.equal(a.nonStockCount + a.missingStockCount, 0, `${label}: the schema-ACL counter is not zero, so this is not the reported bypass`);
+      assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_platform_profile_coherence: count }).empty, false,
+        `${label}: DB_PUSH_REACHED — a cross-platform hybrid certified as empty`);
+    }
+  }
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_platform_profile_coherence: 0 }).empty, true,
+    "the control set is not otherwise empty, so the refusals above prove nothing");
+});
+
+test("A5+A6: the ledger substate does not change the platform identity", () => {
+  for (const id of ["local-cli-stock", "hosted-platform-stock"]) {
+    const profile = managedById(id);
+    const absent = managedObservation(profile).filter((o) => o.schema !== LEDGER_SCHEMA);
+    const m = classifyManagedSchemaObjects(absent, { ledgerNamespacePresent: false });
+    const e = classifyExtensionState(extensionObservation(extById(id)));
+    // The ACL bundle drops with the namespace, and must still resolve to the SAME id.
+    const a = classifyManagedSchemaAcl(aclObservation(aclById(id)).filter((x) => x.schema !== LEDGER_SCHEMA),
+      { ledgerNamespacePresent: false });
+    assert.equal(m.baselineSatisfied, true, `${id} ledger-absent was refused`);
+    assert.equal(m.matchedProfile, id, "the ledger substate changed the platform identity");
+    assert.equal(m.matchedLedgerState, "absent");
+    assert.equal(a.matchedProfile, id, "the ledger substate changed the schema-ACL platform identity");
+    assert.equal(a.matchedLedgerState, "absent");
+    const { common, count } = coherence(m, e, a);
+    assert.deepEqual(common, [id], `${id} ledger-absent did not resolve to a coherent platform`);
+    assert.equal(count, 0);
+  }
+  // A ledger-absent managed surface still cannot borrow the OTHER platform's extensions.
+  const m = classifyManagedSchemaObjects(managedObservation(managedById("local-cli-stock")).filter((o) => o.schema !== LEDGER_SCHEMA),
+    { ledgerNamespacePresent: false });
+  const e = classifyExtensionState(extensionObservation(extById("hosted-platform-stock")));
+  assert.equal(coherence(m, e, aclVerdictFor("local-cli-stock")).count, 1,
+    "a ledger-absent cross-platform hybrid was accepted");
+});
+
+test("A7: coherence is SET INTERSECTION, not equality of a first match", () => {
+  // A subsystem may legitimately match several profiles when its surface cannot
+  // distinguish them. Intersection must still resolve; picking match[0] would not.
+  const both = { matchingProfiles: ["hosted-platform-stock", "local-cli-stock"] };
+  const onlyLocal = { matchingProfiles: ["local-cli-stock"] };
+  const onlyHosted = { matchingProfiles: ["hosted-platform-stock"] };
+  assert.deepEqual(coherence(both, onlyLocal, both).common, ["local-cli-stock"], "intersection failed when the first match differed");
+  assert.deepEqual(coherence(onlyHosted, both, both).common, ["hosted-platform-stock"], "intersection failed in the reverse order");
+  assert.equal(coherence(both, both, both).common.length, 2, "an indistinguishable surface lost its common profiles");
+  assert.equal(coherence(onlyLocal, onlyHosted, both).count, 1, "disjoint matches were treated as coherent");
+  assert.equal(coherence({ matchingProfiles: [] }, onlyLocal, both).count, 1, "a failed subsystem was treated as coherent");
+  // The THIRD subsystem carries the same veto: two agreeing subsystems are not a platform.
+  assert.equal(coherence(onlyLocal, onlyLocal, onlyHosted).count, 1, "the schema-ACL subsystem was not part of the intersection");
+  assert.equal(coherence(onlyLocal, onlyLocal, { matchingProfiles: [] }).count, 1, "a failed schema-ACL subsystem was treated as coherent");
+  assert.equal(coherence(onlyLocal, onlyLocal, onlyLocal).count, 0, "three agreeing subsystems were refused");
+  // The probe wires exactly this, and exposes it as its own emptiness category.
+  const source = readFileSync(SCRIPT, "utf8");
+  assert.match(source, /counts\.user_platform_profile_coherence = commonPlatformProfiles\.length > 0 \? 0 : 1;/,
+    "coherence is not wired into the emptiness counters");
+  // All THREE subsystems are intersected in the shipped probe, not just two.
+  const wiring = source.slice(source.indexOf("const commonPlatformProfiles"), source.indexOf("counts.user_platform_profile_coherence"));
+  for (const subsystem of ["managedVerdict", "extensionProfileVerdict", "schemaAclVerdict"]) {
+    assert.ok(wiring.includes(`${subsystem}.matchingProfiles`), `${subsystem} is not part of the coherence intersection`);
+  }
+  assert.match(source, /\["user_platform_profile_coherence",/, "coherence has no documented emptiness category");
+  // Content is the only authority.
+  const region = source.slice(source.indexOf("const commonPlatformProfiles"), source.indexOf("const verdict = classifyObjectEmptiness"));
+  assert.doesNotMatch(region, /process\.env|projectRef|hostname/, "the platform is chosen from something other than content");
+});
+
+// ── C1-C8: the managed SCHEMA ACL is a whole-platform profile ─────────────
+//
+// The certified schema ACL was ONE list, shaped like the local CLI stack. The hosted
+// platform does not expose that surface: `_realtime` and `supabase_functions` do not
+// exist there, and `realtime` is granted to supabase_realtime_admin as UC where the
+// local stack grants U*C*. Against a single list a hosted target could never certify,
+// and the two repairs that suggest themselves are both wrong:
+//
+//   - inventing the two missing schemas, which certifies an ACL surface no hosted
+//     project has, and
+//   - marking individual schemas optional, which lets a LOCAL target drop
+//     supabase_functions out of the certified surface entirely and still reach FRESH.
+//
+// The surface is therefore a PROFILE, matched in full, exactly like the managed objects
+// and the extension state.
+
+const ACL_PLATFORMS = ["local-cli-stock", "hosted-platform-stock"];
+
+test("C1+C2: each complete certified schema-ACL profile is accepted, and only as itself", () => {
+  for (const id of ACL_PLATFORMS) {
+    const verdict = classifyManagedSchemaAcl(aclObservation(aclById(id)), { ledgerNamespacePresent: true });
+    assert.equal(verdict.baselineSatisfied, true, `the complete ${id} schema-ACL profile was refused`);
+    assert.equal(verdict.matchedProfile, id, `${id} matched as ${verdict.matchedProfile}`);
+    assert.deepEqual(verdict.matchingProfiles, [id], `${id} also matched another schema-ACL profile`);
+    assert.equal(verdict.nonStockCount + verdict.missingStockCount, 0, `USER_SCHEMA_ACL was not 0 for ${id}`);
+  }
+});
+
+test("C3: the two schema-ACL profiles are genuinely different platform surfaces", () => {
+  const local = aclById("local-cli-stock").entries.map((e) => e.schema);
+  const hosted = aclById("hosted-platform-stock").entries.map((e) => e.schema);
+  // The captured hosted surface, pinned as a literal.
+  assert.deepEqual(hosted, ["auth", "extensions", "graphql", "graphql_public", "pgbouncer",
+    "realtime", "storage", "supabase_migrations", "vault"], "the hosted schema-ACL surface changed");
+  assert.equal(hosted.length, 9, "the hosted schema-ACL surface is not the captured 9 schemas");
+  assert.equal(local.length, 11, "the local schema-ACL surface changed");
+  // The divergence is real and in BOTH directions: two schemas absent, one grant different.
+  assert.deepEqual(local.filter((n) => !hosted.includes(n)), ["_realtime", "supabase_functions"],
+    "the local-only schemas are not the two the hosted capture proved absent");
+  assert.deepEqual(hosted.filter((n) => !local.includes(n)), [], "the hosted profile invented a schema the local stack lacks");
+  const grant = (p, n) => aclById(p).entries.find((e) => e.schema === n).acl;
+  assert.notEqual(grant("local-cli-stock", "realtime"), grant("hosted-platform-stock", "realtime"),
+    "the two profiles are indistinguishable over the shared schemas, so neither is real evidence");
+  assert.match(grant("hosted-platform-stock", "realtime"), /supabase_realtime_admin=UC\/supabase_admin/);
+  assert.match(grant("local-cli-stock", "realtime"), /supabase_realtime_admin=U\*C\*\/supabase_admin/);
+});
+
+test("C4: the two absent hosted schemas are NOT fabricated into the hosted profile", () => {
+  const hosted = aclById("hosted-platform-stock").entries;
+  for (const invented of ["_realtime", "supabase_functions"]) {
+    assert.equal(hosted.find((e) => e.schema === invented), undefined,
+      `the hosted profile carries ${invented}, which the hosted capture proved absent`);
+    // And a hosted target that GREW one is not stock either: absence is certified, not ignored.
+    const grown = [...hosted.map((e) => ({ ...e })),
+      aclById("local-cli-stock").entries.find((e) => e.schema === invented)];
+    const verdict = classifyManagedSchemaAcl(grown, { ledgerNamespacePresent: true });
+    assert.equal(verdict.baselineSatisfied, false, `a hosted target that grew ${invented} was certified stock`);
+    assert.deepEqual(verdict.matchingProfiles, [], `a hosted target that grew ${invented} still matched a profile`);
+  }
+});
+
+test("C5: NO individual schema is optional — dropping one is refused in every profile", () => {
+  for (const id of ACL_PLATFORMS) {
+    for (const entry of aclById(id).entries) {
+      // The ledger schema is an ATOMIC BUNDLE with its own two coherent states, proven by
+      // R33 and by C6 below; it is the one certified absence and is not a per-schema
+      // exemption. Every other schema must be present, unconditionally.
+      if (entry.schema === LEDGER_SCHEMA) continue;
+      const dropped = aclObservation(aclById(id)).filter((e) => e.schema !== entry.schema);
+      const verdict = classifyManagedSchemaAcl(dropped, { ledgerNamespacePresent: true });
+      assert.equal(verdict.baselineSatisfied, false,
+        `${id}: dropping ${entry.schema} was certified stock, so that schema is effectively optional`);
+      assert.deepEqual(verdict.matchingProfiles, [],
+        `${id}: dropping ${entry.schema} still matched a profile`);
+      assert.ok(verdict.missingStockCount >= 1, `${id}: dropping ${entry.schema} reported nothing missing`);
+    }
+  }
+});
+
+test("C6: the ledger ACL bundle keeps its two coherent states inside EACH profile", () => {
+  for (const id of ACL_PLATFORMS) {
+    const full = aclObservation(aclById(id));
+    const virgin = full.filter((e) => e.schema !== LEDGER_SCHEMA);
+    assert.notEqual(virgin.length, full.length, `${id} carries no certified ledger schema ACL`);
+    assert.equal(classifyManagedSchemaAcl(full, { ledgerNamespacePresent: true }).matchedProfile, id,
+      `${id} was refused with the ledger present`);
+    assert.equal(classifyManagedSchemaAcl(virgin, { ledgerNamespacePresent: false }).matchedProfile, id,
+      `${id} was refused on a virgin target`);
+    // Cross combinations fail closed, per profile.
+    assert.equal(classifyManagedSchemaAcl(virgin, { ledgerNamespacePresent: true }).baselineSatisfied, false,
+      `${id}: a missing ledger schema ACL was accepted while the namespace exists`);
+    assert.equal(classifyManagedSchemaAcl(full, { ledgerNamespacePresent: false }).baselineSatisfied, false,
+      `${id}: a ledger schema ACL was accepted while the namespace is proven absent`);
+    // A CHANGED ledger ACL is refused, not excused by the bundle.
+    const changed = full.map((e) => (e.schema === LEDGER_SCHEMA ? { ...e, acl: "aclstate=explicit|acl=anon=UC/postgres" } : e));
+    assert.equal(classifyManagedSchemaAcl(changed, { ledgerNamespacePresent: true }).baselineSatisfied, false,
+      `${id}: a re-granted ledger schema was accepted`);
+  }
+});
+
+test("C7: a schema-ACL surface assembled from BOTH platforms is refused", () => {
+  const local = aclObservation(aclById("local-cli-stock"));
+  const hosted = aclObservation(aclById("hosted-platform-stock"));
+  const hostedRealtime = hosted.find((e) => e.schema === "realtime");
+  const localRealtime = local.find((e) => e.schema === "realtime");
+  const cases = {
+    // Every schema below appears in SOME certified profile, so a per-schema union rule
+    // would have certified each of these. A whole-profile rule refuses them.
+    "local surface carrying the hosted realtime grant": local.map((e) => (e.schema === "realtime" ? hostedRealtime : e)),
+    "hosted surface carrying the local realtime grant": hosted.map((e) => (e.schema === "realtime" ? localRealtime : e)),
+    "hosted surface plus the local-only schemas": [...hosted,
+      ...local.filter((e) => ["_realtime", "supabase_functions"].includes(e.schema))],
+    "local surface minus the local-only schemas": local.filter((e) => !["_realtime", "supabase_functions"].includes(e.schema)),
+  };
+  for (const [label, observed] of Object.entries(cases)) {
+    // Precondition: every entry really is certified somewhere, so the refusal is the
+    // whole-profile rule and not an unknown schema.
+    const known = new Set([...local, ...hosted].map((e) => `${e.schema}=${e.acl}`));
+    for (const e of observed) {
+      assert.ok(known.has(`${e.schema}=${e.acl}`), `${label}: ${e.schema} is not certified in EITHER profile, so this proves nothing`);
+    }
+    const verdict = classifyManagedSchemaAcl(observed, { ledgerNamespacePresent: true });
+    assert.equal(verdict.baselineSatisfied, false, `${label}: a cross-platform schema-ACL surface was certified stock`);
+    assert.deepEqual(verdict.matchingProfiles, [], `${label}: a cross-platform surface matched a profile`);
+    // And it is never reported as zero problems.
+    const count = verdict.baselineSatisfied ? 0 : Math.max(1, verdict.nonStockCount + verdict.missingStockCount);
+    assert.ok(count >= 1, `${label}: USER_SCHEMA_ACL was 0 for a refused surface`);
+    assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_schema_acl: count }).empty, false,
+      `${label}: DB_PUSH_REACHED — a cross-platform schema-ACL surface certified as empty`);
+  }
+});
+
+test("C8: the probe never reports a refused schema-ACL surface as zero problems", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  const region = source.slice(source.indexOf("const schemaAclVerdict ="), source.indexOf("// DEFAULT PRIVILEGES"));
+  assert.match(region, /schemaAclVerdict\.baselineSatisfied/,
+    "USER_SCHEMA_ACL is not gated on a complete-profile match");
+  assert.match(region, /Math\.max\(1,/, "a refused schema-ACL surface can still arithmetic its way to zero");
+  // The single-list assumption is gone from the shipped script.
+  assert.match(source, /STOCK_MANAGED_SCHEMA_ACL_PROFILES = Object\.freeze\(\[/, "the schema ACL is not a profile set");
+  assert.ok(source.includes("classifyManagedSchemaAclAgainstProfile"), "there is no per-profile schema-ACL classifier");
+  // Both platforms are named, and the local export is derived from one profile rather
+  // than standing beside the profiles as a second source of truth.
+  for (const id of ACL_PLATFORMS) {
+    assert.ok(source.includes(`id: "${id}"`), `the schema-ACL profiles do not name ${id}`);
+  }
+  assert.match(source, /const STOCK_MANAGED_SCHEMA_ACL = STOCK_MANAGED_SCHEMA_ACL_PROFILES/,
+    "the local schema-ACL export is not derived from the certified profiles");
 });

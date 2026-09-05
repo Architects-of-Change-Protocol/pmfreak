@@ -774,10 +774,11 @@ function classifyObjectEmptiness(counts) {
     ["user_triggers", "triggers that do not exactly match the certified stock platform baseline (extra, altered, or MISSING)"],
     ["user_event_triggers", "database-level event triggers that do not exactly match the certified stock set (extra, altered, re-owned, disabled, re-tagged, or MISSING)"],
     ["user_managed_schema_objects", "relations/indexes/functions/types inside managed schemas that do not exactly match ONE complete certified stock profile (extra, altered, re-owned, MISSING, or a hybrid of two profiles)"],
-    ["user_schema_acl", "managed schema ACLs (pg_namespace.nspacl) that are not the certified stock grants (added, removed, or an unknown managed schema)"],
+    ["user_schema_acl", "managed schema ACLs (pg_namespace.nspacl) that do not match ONE complete certified schema-ACL profile (an added grant, a removed certified privilege, an unknown managed schema, or a surface assembled from more than one platform)"],
     ["user_default_acl", "ALTER DEFAULT PRIVILEGES rules (pg_default_acl) outside the certified stock set — these grant rights on objects the migration chain is about to create"],
     ["user_extensions", "certified extension STATE mismatch: installed extensions that are not the certified stock set at the certified versions, or an extension installation, membership graph or member structure that does not match ONE complete certified extension profile"],
     ["user_managed_table_rows", "managed platform tables whose row state is not the certified pristine one (extra rows, missing bootstrap rows, altered stable content, or rows in a table a pristine project leaves empty)"],
+    ["user_platform_profile_coherence", "the managed-object and extension subsystems do not agree on ONE certified platform: each matched a complete profile, but not the SAME profile, which is a combination no real platform ever shipped"],
     ["migration_rows", "PMFreak migration-history rows"],
     ["auth_users", "auth.users identities"],
     ["storage_buckets", "storage buckets"],
@@ -1144,7 +1145,7 @@ function fingerprintDefinition(definition) {
 }
 
 /**
- * CERTIFIED MANAGED SCHEMA ACL BASELINE.
+ * CERTIFIED MANAGED SCHEMA ACL PROFILES.
  *
  * The seventeenth remediation fingerprinted ACLs on relations, functions and types —
  * but not on the SCHEMAS containing them. `pg_namespace.nspacl` was read nowhere, so
@@ -1152,46 +1153,137 @@ function fingerprintDefinition(definition) {
  * every object fingerprint stayed byte-identical and the gate still certified it stock.
  * Reproduced before this fix, not inferred.
  *
+ * WHY THIS IS A PROFILE AND NOT ONE LIST. The two Supabase builds do not expose the same
+ * managed schema SURFACE. The local CLI stack ships `_realtime` and `supabase_functions`;
+ * the hosted platform ships neither, and grants `realtime` to supabase_realtime_admin as
+ * `UC` where the local stack grants `U*C*`. A single list could certify only one of them.
+ *
+ * The divergence is answered the same way remediations 28 and 32 answered it for managed
+ * objects and extensions: a target matches ONE profile IN FULL, or it matches nothing.
+ * Specifically NOT by marking `_realtime` and `supabase_functions` optional — "this schema
+ * may be absent" would let a local target drop `supabase_functions` entirely, taking its
+ * ACL out of the certified surface, and still reach FRESH. Absence here is a property of
+ * the WHOLE hosted profile, never a per-schema exemption.
+ *
  * Versioned source, never learned from the target. Drift in either direction refuses
  * FRESH: an added grant, a removed certified privilege, or an unknown managed schema.
  */
-const STOCK_MANAGED_SCHEMA_ACL = Object.freeze([
-  { schema: "_realtime", acl: "" },
-  { schema: "auth", acl: "anon=U/supabase_admin,authenticated=U/supabase_admin,dashboard_user=UC/supabase_admin,postgres=U/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_auth_admin=UC/supabase_admin" },
-  { schema: "extensions", acl: "anon=U/postgres,authenticated=U/postgres,dashboard_user=UC/postgres,postgres=UC/postgres,service_role=U/postgres" },
-  { schema: "graphql", acl: "anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
-  { schema: "graphql_public", acl: "anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
-  { schema: "pgbouncer", acl: "" },
-  { schema: "realtime", acl: "anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_realtime_admin=U*C*/supabase_admin" },
-  { schema: "storage", acl: "anon=U/supabase_admin,authenticated=U/supabase_admin,dashboard_user=UC/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_storage_admin=U*C*/supabase_admin" },
-  { schema: "supabase_functions", acl: "anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_functions_admin=UC/supabase_admin" },
-  { schema: "supabase_migrations", acl: "" },
-  { schema: "vault", acl: "postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
+const STOCK_MANAGED_SCHEMA_ACL_PROFILES = Object.freeze([
+  Object.freeze({
+    id: "local-cli-stock",
+    source: "Supabase CLI local development stack (supabase start)",
+    entries: Object.freeze([
+      { schema: "_realtime", acl: "aclstate=default|acl=" },
+      { schema: "auth", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,dashboard_user=UC/supabase_admin,postgres=U/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_auth_admin=UC/supabase_admin" },
+      { schema: "extensions", acl: "aclstate=explicit|acl=anon=U/postgres,authenticated=U/postgres,dashboard_user=UC/postgres,postgres=UC/postgres,service_role=U/postgres" },
+      { schema: "graphql", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
+      { schema: "graphql_public", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
+      { schema: "pgbouncer", acl: "aclstate=default|acl=" },
+      { schema: "realtime", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_realtime_admin=U*C*/supabase_admin" },
+      { schema: "storage", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,dashboard_user=UC/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_storage_admin=U*C*/supabase_admin" },
+      { schema: "supabase_functions", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_functions_admin=UC/supabase_admin" },
+      { schema: "supabase_migrations", acl: "aclstate=default|acl=" },
+      { schema: "vault", acl: "aclstate=explicit|acl=postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
+    ]),
+  }),
+  Object.freeze({
+    id: "hosted-platform-stock",
+    source: "hosted Supabase validation project (independent read-only capture)",
+    // `_realtime` and `supabase_functions` are ABSENT from the hosted managed schema
+    // surface. They are not omitted here as "optional"; this profile is the complete
+    // hosted surface, and a hosted target that grew either schema matches no profile.
+    entries: Object.freeze([
+      { schema: "auth", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,dashboard_user=UC/supabase_admin,postgres=U/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_auth_admin=UC/supabase_admin" },
+      { schema: "extensions", acl: "aclstate=explicit|acl=anon=U/postgres,authenticated=U/postgres,dashboard_user=UC/postgres,postgres=UC/postgres,service_role=U/postgres" },
+      { schema: "graphql", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
+      { schema: "graphql_public", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
+      { schema: "pgbouncer", acl: "aclstate=default|acl=" },
+      { schema: "realtime", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_realtime_admin=UC/supabase_admin" },
+      { schema: "storage", acl: "aclstate=explicit|acl=anon=U/supabase_admin,authenticated=U/supabase_admin,dashboard_user=UC/supabase_admin,postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin,supabase_storage_admin=U*C*/supabase_admin" },
+      { schema: "supabase_migrations", acl: "aclstate=default|acl=" },
+      { schema: "vault", acl: "aclstate=explicit|acl=postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
+    ]),
+  }),
 ]);
 
-function classifyManagedSchemaAcl(observed, { ledgerNamespacePresent } = {}) {
-  // The ledger schema's ACL belongs to the same atomic bundle as its table and index: a
-  // virgin target has no supabase_migrations namespace, so it has no ACL to certify.
-  const certified = ledgerNamespacePresent === false
-    ? STOCK_MANAGED_SCHEMA_ACL.filter((e) => !ledgerBundleAcl(e))
-    : STOCK_MANAGED_SCHEMA_ACL;
-  const remaining = certified.map((e) => `${e.schema}=${e.acl}`);
+/**
+ * The local surface, kept as a named export because it is what a local-stack regression
+ * observes. It is ONE profile's entries, never "the" certified set: reading it as the
+ * whole truth is exactly the single-list assumption this remediation removed.
+ */
+const STOCK_MANAGED_SCHEMA_ACL = STOCK_MANAGED_SCHEMA_ACL_PROFILES
+  .find((p) => p.id === "local-cli-stock").entries;
+
+const schemaAclKey = (e) => `${e.schema}=${e.acl}`;
+
+/**
+ * The certified ACL profiles, each in its LEDGER_PRESENT and LEDGER_ABSENT variant. The
+ * ledger schema's ACL belongs to the same atomic bundle as its table and index: a virgin
+ * target has no supabase_migrations namespace, so it has no ACL to certify. The variant
+ * is a SUBSTATE of a profile and never changes its id.
+ */
+function managedSchemaAclProfileVariants() {
+  return STOCK_MANAGED_SCHEMA_ACL_PROFILES.flatMap((profile) => [
+    { id: profile.id, ledger: "present", entries: profile.entries },
+    { id: profile.id, ledger: "absent", entries: profile.entries.filter((e) => !ledgerBundleAcl(e)) },
+  ]);
+}
+
+function classifyManagedSchemaAclAgainstProfile(observed, profile) {
+  // Consumed as they match, so a DUPLICATED observation is still an extra and a certified
+  // schema never observed is still missing. Drift in either direction counts.
+  const remaining = profile.entries.map(schemaAclKey);
   const nonStock = [];
   for (const s of observed ?? []) {
-    const key = `${s.schema}=${s.acl}`;
-    const index = remaining.indexOf(key);
+    const index = remaining.indexOf(schemaAclKey(s));
     if (index === -1) {
-      nonStock.push(key);
+      nonStock.push(schemaAclKey(s));
       continue;
     }
     remaining.splice(index, 1);
   }
   return {
+    profileId: profile.id,
     nonStockCount: nonStock.length,
     nonStock,
     missingStockCount: remaining.length,
     missingStock: remaining,
     baselineSatisfied: nonStock.length === 0 && remaining.length === 0,
+  };
+}
+
+/**
+ * COMPLETE, ATOMIC schema-ACL certification — the same anti-Frankenstein rule the managed
+ * objects and extensions already enforce:
+ *
+ *   MATCH(local) OR MATCH(hosted)
+ *
+ * NOT "every observed schema ACL appears in some profile". That weaker union would certify
+ * a target carrying the hosted `realtime` grant beside the local `supabase_functions`
+ * schema — a managed schema surface no real platform ever shipped.
+ */
+function classifyManagedSchemaAcl(observed, { ledgerNamespacePresent } = {}) {
+  const eligible = eligibleLedgerStates(ledgerNamespacePresent);
+  const profileResults = managedSchemaAclProfileVariants()
+    .filter((variant) => eligible.includes(variant.ledger))
+    .map((variant) => ({ ...classifyManagedSchemaAclAgainstProfile(observed, variant), ledger: variant.ledger }));
+  const matching = profileResults.filter((r) => r.baselineSatisfied);
+  // Diagnostics come from the CLOSEST profile so a refusal is attributable. This NEVER
+  // softens the verdict: `baselineSatisfied` is a complete-profile match, and the counts
+  // reported are that one profile's own, never a per-schema minimum across profiles.
+  const closest = matching[0] ?? profileResults.reduce((best, r) =>
+    (r.nonStockCount + r.missingStockCount) < (best.nonStockCount + best.missingStockCount) ? r : best);
+  return {
+    baselineSatisfied: matching.length > 0,
+    matchedProfile: matching.length > 0 ? matching[0].profileId : null,
+    matchedLedgerState: matching.length > 0 ? matching[0].ledger : null,
+    matchingProfiles: matching.map((r) => r.profileId),
+    closestProfile: closest.profileId,
+    profileResults,
+    nonStockCount: closest.nonStockCount,
+    nonStock: closest.nonStock,
+    missingStockCount: closest.missingStockCount,
+    missingStock: closest.missingStock,
   };
 }
 
@@ -1321,7 +1413,7 @@ const STOCK_MANAGED_OBJECT_BASELINE = LOCAL_STOCK_PROFILE.objects;
 // definition is not the service's index and is refused.
 const REALTIME_PARTITION_NAME = /^messages_(20\d{2})_(\d{2})_(\d{2})(_pkey|_inserted_at_topic_idx)?$/;
 const REALTIME_PARTITION_TEMPLATES = Object.freeze({
-  relation: "relkind=r|parent=realtime.messages|bound=FOR VALUES FROM ('<DATE> 00:00:00') TO ('<NEXT> 00:00:00')|cols=topic:text:NN:,extension:text:NN:,payload:jsonb:NULL:,event:text:NULL:,private:boolean:NULL:false,updated_at:timestamp without time zone:NN:now(),inserted_at:timestamp without time zone:NN:now(),id:uuid:NN:gen_random_uuid(),binary_payload:bytea:NULL:|cons=p:messages_<DATE_US>_pkey:PRIMARY KEY (id, inserted_at):NOTDEFERRABLE:INITIMMEDIATE:VALIDATED:,c:messages_payload_exclusive:CHECK (payload IS NULL OR binary_payload IS NULL):NOTDEFERRABLE:INITIMMEDIATE:VALIDATED:|acl=dashboard_user=arwdDxtm/supabase_realtime_admin,postgres=arwdDxtm/supabase_realtime_admin,supabase_realtime_admin=arwdDxtm/supabase_realtime_admin|rls=false/false|replident=d",
+  relation: "relkind=r|parent=realtime.messages|bound=FOR VALUES FROM ('<DATE> 00:00:00') TO ('<NEXT> 00:00:00')|cols=topic:text:NN:,extension:text:NN:,payload:jsonb:NULL:,event:text:NULL:,private:boolean:NULL:false,updated_at:timestamp without time zone:NN:now(),inserted_at:timestamp without time zone:NN:now(),id:uuid:NN:gen_random_uuid(),binary_payload:bytea:NULL:|cons=p:messages_<DATE_US>_pkey:PRIMARY KEY (id, inserted_at):NOTDEFERRABLE:INITIMMEDIATE:VALIDATED:,c:messages_payload_exclusive:CHECK (payload IS NULL OR binary_payload IS NULL):NOTDEFERRABLE:INITIMMEDIATE:VALIDATED:|aclstate=explicit|acl=dashboard_user=arwdDxtm/supabase_realtime_admin,postgres=arwdDxtm/supabase_realtime_admin,supabase_realtime_admin=arwdDxtm/supabase_realtime_admin|rls=false/false|replident=d",
   index: "indexdef=CREATE UNIQUE INDEX messages_<DATE_US>_pkey ON realtime.messages_<DATE_US> USING btree (id, inserted_at)|indexparent=realtime.messages_pkey",
   topicIndex: "indexdef=CREATE INDEX messages_<DATE_US>_inserted_at_topic_idx ON realtime.messages_<DATE_US> USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))|indexparent=realtime.messages_inserted_at_topic_index",
 });
@@ -1621,6 +1713,18 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   const notExtensionOwned = (cls, alias) =>
     `not exists (select 1 from pg_depend d where d.classid = '${cls}'::regclass and d.objid = ${alias}.oid and d.deptype = 'e')`;
 
+  // LOSSLESS ACL STATE. `coalesce(array_to_string(array(select unnest(acl)...), ','), s)`
+  // cannot tell a NULL ACL from an explicit empty one: unnest(NULL) yields no rows, the
+  // array() wrapper makes an EMPTY array, and array_to_string over an empty array returns
+  // '' rather than NULL -- so the sentinel is unreachable and both states serialize
+  // identically. PostgreSQL does not treat them alike: NULL means the built-in default
+  // privileges apply, an explicit empty array means NO privileges are granted. The state
+  // is therefore emitted as its own field, before the values, so revoking every grant can
+  // never leave the fingerprint unchanged.
+  const aclState = (expr) =>
+    `'aclstate=' || (case when ${expr} is null then 'default' else 'explicit' end) || '|acl=' || ` +
+    `coalesce(array_to_string(array(select unnest(${expr})::text order by 1), ','), '')`;
+
   // STRUCTURAL BUILDERS, shared by the managed-object inventory and the certified
   // extension profile. One definition of what "the exact structure of this object" means,
   // so an extension member and a managed object are held to the same standard and cannot
@@ -1648,10 +1752,10 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
               -- so both are bound into the structure.
               when c.relkind = 'v' then 'viewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
                    || '|options=' || coalesce(array_to_string(array(select unnest(c.reloptions) order by 1), ','), '(none)')
-                   || '|acl=' || coalesce(array_to_string(array(select unnest(c.relacl)::text order by 1), ','), '(default)')
+                   || '|' || ${aclState("c.relacl")}
               when c.relkind = 'm' then 'matviewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
                    || '|options=' || coalesce(array_to_string(array(select unnest(c.reloptions) order by 1), ','), '(none)')
-                   || '|acl=' || coalesce(array_to_string(array(select unnest(c.relacl)::text order by 1), ','), '(default)')
+                   || '|' || ${aclState("c.relacl")}
               when c.relkind = 'S' then 'sequence'
                    || '|increment=' || coalesce((select s.seqincrement::text from pg_sequence s where s.seqrelid = c.oid), '')
                    || '|start=' || coalesce((select s.seqstart::text from pg_sequence s where s.seqrelid = c.oid), '')
@@ -1659,7 +1763,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
                    || '|max=' || coalesce((select s.seqmax::text from pg_sequence s where s.seqrelid = c.oid), '')
                    || '|cache=' || coalesce((select s.seqcache::text from pg_sequence s where s.seqrelid = c.oid), '')
                    || '|cycle=' || coalesce((select s.seqcycle::text from pg_sequence s where s.seqrelid = c.oid), '')
-                   || '|acl=' || coalesce(array_to_string(array(select unnest(c.relacl)::text order by 1), ','), '(default)')
+                   || '|' || ${aclState("c.relacl")}
               else 'relkind=' || c.relkind::text
                    || '|parent=' || coalesce((select pn.nspname || '.' || pc.relname from pg_inherits i
                         join pg_class pc on pc.oid = i.inhparent join pg_namespace pn on pn.oid = pc.relnamespace
@@ -1680,7 +1784,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
                         ',' order by con.conname)
                         from pg_constraint con where con.conrelid = c.oid
                           and not exists (select 1 from pg_depend d2 where d2.classid = 'pg_constraint'::regclass and d2.objid = con.oid and d2.deptype = 'e')), '')
-                   || '|acl=' || coalesce(array_to_string(array(select unnest(c.relacl)::text order by 1), ','), '(default)')
+                   || '|' || ${aclState("c.relacl")}
         || '|rls=' || c.relrowsecurity::text || '/' || c.relforcerowsecurity::text
         || '|replident=' || c.relreplident::text
             end)`;
@@ -1689,7 +1793,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
              '|leakproof=' || p.proleakproof::text || '|vol=' || p.provolatile::text ||
              '|sec=' || (case when p.prosecdef then 'definer' else 'invoker' end) ||
              '|config=' || coalesce(array_to_string(array(select unnest(p.proconfig) order by 1), ','), '(none)') ||
-             '|acl=' || coalesce(array_to_string(array(select unnest(p.proacl)::text order by 1), ','), '(default)')`;
+             '|' || ${aclState("p.proacl")}`;
   const TYPE_STRUCTURE = `'typtype=' || t.typtype::text ||
            '|enum=' || coalesce((select string_agg(e.enumlabel, ',' order by e.enumsortorder) from pg_enum e where e.enumtypid = t.oid), '') ||
            '|domainbase=' || coalesce((select format_type(t.typbasetype, t.typtypmod) where t.typtype = 'd'), '') ||
@@ -1698,7 +1802,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
            '|range=' || coalesce((select format_type(r.rngsubtype, null) from pg_range r where r.rngtypid = t.oid), '') ||
            '|attrs=' || coalesce((select string_agg(a.attname || ':' || format_type(a.atttypid, a.atttypmod), ',' order by a.attnum)
                 from pg_attribute a where a.attrelid = t.typrelid and a.attnum > 0 and not a.attisdropped), '') ||
-           '|acl=' || coalesce(array_to_string(array(select unnest(t.typacl)::text order by 1), ','), '(default)')`;
+           '|' || ${aclState("t.typacl")}`;
   // pg_language is an extension-member class with no managed-object equivalent, so it has
   // no existing builder to reuse. Trust and the three handler functions are the security
   // relevant parts: a trusted language, or a re-pointed handler, changes who can run what.
@@ -1709,7 +1813,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
         || '|handler=' || coalesce((select hn.nspname || '.' || h.proname from pg_proc h join pg_namespace hn on hn.oid = h.pronamespace where h.oid = plang.lanplcallfoid), '')
         || '|inline=' || coalesce((select hn.nspname || '.' || h.proname from pg_proc h join pg_namespace hn on hn.oid = h.pronamespace where h.oid = plang.laninline), '')
         || '|validator=' || coalesce((select hn.nspname || '.' || h.proname from pg_proc h join pg_namespace hn on hn.oid = h.pronamespace where h.oid = plang.lanvalidator), '')
-        || '|acl=' || coalesce(array_to_string(array(select unnest(plang.lanacl)::text order by 1), ','), '(default)')`;
+        || '|' || ${aclState("plang.lanacl")}`;
   // OPTIONAL RELATIONS. `to_regclass(...) is null then 0 else (select count(*) from x)`
   // does NOT protect x: PostgreSQL resolves the relation at PARSE time, so on a virgin
   // target -- one never pushed to, with no migration ledger yet -- the whole counts query
@@ -2038,7 +2142,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   // SCHEMA ACLs. Object-level grants were proven; the schemas holding them were not, so
   // `GRANT CREATE ON SCHEMA storage TO anon` changed the security posture invisibly.
   const schemaAclResult = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c",
-    "select nspname || '~|~' || coalesce(array_to_string(array(select unnest(nspacl)::text order by 1), ','), '(default)') " +
+    "select nspname || '~|~' || " + aclState("nspacl") + " " +
     "from pg_namespace where " + PLATFORM_SCHEMA_ACL_PREDICATE + " order by 1;"]);
   if (schemaAclResult.status !== 0) {
     return { ok: false, failure: describeSpawnResult(schemaAclResult, "psql (managed schema ACL probe)"), stderr: schemaAclResult.stderr };
@@ -2053,7 +2157,12 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     observedSchemaAcl.push({ schema: f[0], acl: f[1] });
   }
   const schemaAclVerdict = classifyManagedSchemaAcl(observedSchemaAcl, { ledgerNamespacePresent });
-  counts.user_schema_acl = schemaAclVerdict.nonStockCount + schemaAclVerdict.missingStockCount;
+  // Zero ONLY on a complete-profile match. The closest profile's counts are diagnostics,
+  // so a target that missed every profile can never report 0 just because its drift
+  // happened to cancel out in the arithmetic.
+  counts.user_schema_acl = schemaAclVerdict.baselineSatisfied
+    ? 0
+    : Math.max(1, schemaAclVerdict.nonStockCount + schemaAclVerdict.missingStockCount);
 
   // DEFAULT PRIVILEGES. These grant rights on objects the migration chain is about to
   // create, while every existing object stays identical.
@@ -2145,6 +2254,20 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   // Drift in EITHER direction defeats fresh certification.
   counts.user_triggers = triggers.nonStockCount + triggers.missingStockCount;
 
+  // WHOLE-PLATFORM COHERENCE. Managed objects, extensions and managed schema ACLs are each
+  // atomic WITHIN their own subsystem, but nothing required them to agree on WHICH platform
+  // this is. A target carrying the local managed surface beside the hosted extension surface
+  // satisfied both controls independently and reached EMPTY -- a snapshot no real platform
+  // ever shipped. Certification needs at least one profile id COMMON to ALL THREE. Set
+  // intersection, not equality of a first match, so a subsystem that legitimately matches
+  // several profiles over an indistinguishable surface still resolves correctly. Content
+  // remains the only authority: nothing here consults an environment, ref or label. The
+  // ledger present/absent state is a SUBSTATE of a profile and never changes its id.
+  const commonPlatformProfiles = (managedVerdict.matchingProfiles ?? [])
+    .filter((id) => (extensionProfileVerdict.matchingProfiles ?? []).includes(id))
+    .filter((id) => (schemaAclVerdict.matchingProfiles ?? []).includes(id));
+  counts.user_platform_profile_coherence = commonPlatformProfiles.length > 0 ? 0 : 1;
+
   const verdict = classifyObjectEmptiness(counts);
   return {
     ok: true, counts, observedTriggers: observed,
@@ -2156,8 +2279,11 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     closestManagedProfile: managedVerdict.closestProfile, managedProfileResults: managedVerdict.profileResults,
     installedExtensions, nonStockExtensions, missingStockExtensions: extensionVerdict.missingStock,
     observedExtensionState, extensionProfile: extensionProfileVerdict,
+    commonPlatformProfiles, platformProfile: commonPlatformProfiles[0] ?? null,
     observedRowState, populatedManagedTables,
     observedSchemaAcl, nonStockSchemaAcl: schemaAclVerdict.nonStock, missingStockSchemaAcl: schemaAclVerdict.missingStock,
+    matchedSchemaAclProfile: schemaAclVerdict.matchedProfile, matchingSchemaAclProfiles: schemaAclVerdict.matchingProfiles,
+    closestSchemaAclProfile: schemaAclVerdict.closestProfile,
     observedDefaultAcl, nonStockDefaultAcl: defaultAclVerdict.nonStock, missingStockDefaultAcl: defaultAclVerdict.missingStock,
     verdict,
   };
@@ -2509,8 +2635,11 @@ export {
   classifyInstalledExtensions,
   classifyManagedRowState,
   classifyManagedSchemaAcl,
+  classifyManagedSchemaAclAgainstProfile,
+  managedSchemaAclProfileVariants,
   classifyDefaultAcl,
   STOCK_MANAGED_SCHEMA_ACL,
+  STOCK_MANAGED_SCHEMA_ACL_PROFILES,
   STOCK_DEFAULT_ACL,
   isRealtimeDailyPartition,
   realtimePartitionDefinition,
