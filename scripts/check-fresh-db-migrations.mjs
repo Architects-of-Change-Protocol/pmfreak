@@ -37,6 +37,7 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { STOCK_MANAGED_OBJECT_PROFILES } from "./fixtures/managed-object-profiles.mjs";
 import { STOCK_EXTENSION_PROFILES } from "./fixtures/extension-profiles.mjs";
+import { STOCK_AUTHORIZATION_PROFILES, authorizationStateLines } from "./fixtures/authorization-profiles.mjs";
 
 const ROOT = process.cwd();
 const MIGRATIONS_DIR = path.join(ROOT, "supabase/migrations");
@@ -772,12 +773,13 @@ function classifyObjectEmptiness(counts) {
     ["user_types", "user-defined types (composite, domain, enum)"],
     ["user_policies", "RLS policies that are not platform/extension-owned (including on managed relations such as storage.objects)"],
     ["user_triggers", "triggers that do not exactly match the certified stock platform baseline (extra, altered, or MISSING)"],
-    ["user_event_triggers", "database-level event triggers that do not exactly match the certified stock set (extra, altered, re-owned, disabled, re-tagged, or MISSING)"],
+    ["user_event_triggers", "database-level event triggers that do not exactly match the certified stock set (extra, altered, re-owned — the trigger's own owner or its function's — disabled, re-tagged, MISSING, or carrying unreadable owner evidence)"],
     ["user_managed_schema_objects", "relations/indexes/functions/types inside managed schemas that do not exactly match ONE complete certified stock profile (extra, altered, re-owned, MISSING, or a hybrid of two profiles)"],
     ["user_schema_acl", "managed schema OWNERSHIP and ACLs (pg_namespace.nspowner/nspacl) that do not match ONE complete certified schema profile (a re-owned schema, an added grant, a removed certified privilege, an unknown managed schema, unreadable owner evidence, or a surface assembled from more than one platform)"],
     ["user_default_acl", "ALTER DEFAULT PRIVILEGES rules (pg_default_acl) outside the certified stock set — these grant rights on objects the migration chain is about to create"],
     ["user_extensions", "certified extension STATE mismatch: installed extensions that are not the certified stock set at the certified versions, or an extension installation, membership graph or member structure that does not match ONE complete certified extension profile"],
     ["user_managed_table_rows", "managed platform tables whose row state is not the certified pristine one (extra rows, missing bootstrap rows, altered stable content, or rows in a table a pristine project leaves empty)"],
+    ["user_authorization", "platform AUTHORIZATION state (pg_roles, pg_auth_members and the current database's owner/ACL) that does not match ONE complete certified authorization profile — a drifted role attribute such as service_role gaining LOGIN, an extra or missing role, an extra/missing membership edge, ADMIN/INHERIT/SET option drift, a re-owned or re-granted database, unreadable evidence, or a surface assembled from more than one platform"],
     ["user_platform_profile_coherence", "the managed-object and extension subsystems do not agree on ONE certified platform: each matched a complete profile, but not the SAME profile, which is a combination no real platform ever shipped"],
     ["migration_rows", "PMFreak migration-history rows"],
     ["auth_users", "auth.users identities"],
@@ -834,25 +836,42 @@ function classifyObjectEmptiness(counts) {
  * it and `enabled` decides WHETHER it fires, so both bind. The six functions these fire
  * are independently certified by the managed-object profiles; this baseline certifies the
  * TRIGGERS, and neither stands in for the other.
+ *
+ * TWO OWNERS, BOTH BOUND. `pg_event_trigger.evtowner` is maintained INDEPENDENTLY of the
+ * owner of the function the trigger fires, and only the function's owner was certified --
+ * so an event trigger could be handed to a different role while its name, event, enabled
+ * state, tags and function ownership all stayed identical. The event trigger's own owner
+ * is `event_trigger_owner`; the owner of the function it fires is `function_owner`. They
+ * are different facts and neither stands in for the other. Audited on a pristine local
+ * stack and independently confirmed on the hosted platform: all six are supabase_admin in
+ * both, and the local value was measured rather than assumed from the hosted evidence.
  */
 const STOCK_EVENT_TRIGGER_BASELINE = Object.freeze([
-  { name: "issue_graphql_placeholder", event: "sql_drop", enabled: "O",
+  { name: "issue_graphql_placeholder", event_trigger_owner: "supabase_admin", event: "sql_drop", enabled: "O",
     function_schema: "extensions", function_name: "set_graphql_placeholder", function_owner: "supabase_admin", tags: "DROP EXTENSION" },
-  { name: "issue_pg_cron_access", event: "ddl_command_end", enabled: "O",
+  { name: "issue_pg_cron_access", event_trigger_owner: "supabase_admin", event: "ddl_command_end", enabled: "O",
     function_schema: "extensions", function_name: "grant_pg_cron_access", function_owner: "supabase_admin", tags: "CREATE EXTENSION" },
-  { name: "issue_pg_graphql_access", event: "ddl_command_end", enabled: "O",
+  { name: "issue_pg_graphql_access", event_trigger_owner: "supabase_admin", event: "ddl_command_end", enabled: "O",
     function_schema: "extensions", function_name: "grant_pg_graphql_access", function_owner: "supabase_admin", tags: "CREATE EXTENSION" },
-  { name: "issue_pg_net_access", event: "ddl_command_end", enabled: "O",
+  { name: "issue_pg_net_access", event_trigger_owner: "supabase_admin", event: "ddl_command_end", enabled: "O",
     function_schema: "extensions", function_name: "grant_pg_net_access", function_owner: "supabase_admin", tags: "CREATE EXTENSION" },
-  { name: "pgrst_ddl_watch", event: "ddl_command_end", enabled: "O",
+  { name: "pgrst_ddl_watch", event_trigger_owner: "supabase_admin", event: "ddl_command_end", enabled: "O",
     function_schema: "extensions", function_name: "pgrst_ddl_watch", function_owner: "supabase_admin", tags: "(none)" },
-  { name: "pgrst_drop_watch", event: "sql_drop", enabled: "O",
+  { name: "pgrst_drop_watch", event_trigger_owner: "supabase_admin", event: "sql_drop", enabled: "O",
     function_schema: "extensions", function_name: "pgrst_drop_watch", function_owner: "supabase_admin", tags: "(none)" },
 ]);
 
 /** The canonical line an event trigger is compared on. Every mutable field binds. */
 const eventTriggerLine = (t) =>
-  `${t.name}|${t.event}|${t.enabled}|${t.function_schema}|${t.function_name}|${t.function_owner}|${t.tags}`;
+  `${t.name}|${t.event}|${t.enabled}|${t.event_trigger_owner}|${t.function_schema}|${t.function_name}|${t.function_owner}|${t.tags}`;
+
+/**
+ * Owner evidence must be present and well-formed before an event trigger can be certified.
+ * A missing or empty owner is refused outright rather than keyed as the string "undefined":
+ * unreadable ownership must never collide with a certified record, nor read as "no problem".
+ */
+const eventTriggerOwnerMissing = (t) =>
+  typeof t?.event_trigger_owner !== "string" || t.event_trigger_owner.trim() === "";
 
 /**
  * Classifies observed (non extension-owned) event triggers against the certified set.
@@ -860,6 +879,10 @@ const eventTriggerLine = (t) =>
  * either direction refuses FRESH.
  */
 function classifyObservedEventTriggers(observed) {
+  // Unreadable ownership is refused before any comparison: it is evidence failure, not a
+  // clean trigger.
+  const malformed = (observed ?? []).filter(eventTriggerOwnerMissing)
+    .map((t) => `${t?.name ?? "(unnamed event trigger)"} (event-trigger owner evidence missing or malformed)`);
   const remaining = STOCK_EVENT_TRIGGER_BASELINE.map(eventTriggerLine);
   const nonStock = [];
   for (const t of observed ?? []) {
@@ -871,7 +894,12 @@ function classifyObservedEventTriggers(observed) {
   return {
     nonStockCount: nonStock.length, nonStock,
     missingStockCount: missingStock.length, missingStock,
-    baselineSatisfied: nonStock.length === 0 && missingStock.length === 0,
+    malformedOwnerEvidence: malformed,
+    problemCount: Math.max(
+      nonStock.length + missingStock.length + malformed.length,
+      malformed.length > 0 ? 1 : 0,
+    ),
+    baselineSatisfied: nonStock.length === 0 && missingStock.length === 0 && malformed.length === 0,
   };
 }
 
@@ -1325,6 +1353,126 @@ function classifyManagedSchemaAcl(observed, { ledgerNamespacePresent } = {}) {
     problemCount: matching.length > 0
       ? 0
       : Math.max(1, closest.nonStockCount + closest.missingStockCount + malformed.length),
+  };
+}
+
+/**
+ * COMPLETE, ATOMIC PLATFORM AUTHORIZATION certification.
+ *
+ * Everything certified up to R35 describes what the database CONTAINS. None of it reads
+ * the plane that decides WHO may act on it: `pg_roles`, `pg_auth_members`, and the current
+ * database's own owner and ACL were read nowhere. A target could therefore carry role-level
+ * authorization drift with every object, extension, schema and ACL fingerprint exact.
+ *
+ * `ALTER ROLE service_role LOGIN` is the concrete case. service_role exists to be assumed
+ * through `authenticator`, never to hold its own session; giving it LOGIN moves no object
+ * fingerprint anywhere. PostgreSQL lets a CREATEROLE holder with ADMIN OPTION over a
+ * non-superuser, non-replication role make exactly that change, and `postgres` holds both.
+ *
+ * ROLES, MEMBERSHIPS AND THE DATABASE ARE ONE PROFILE. Matched IN FULL, or not at all --
+ * the same anti-Frankenstein rule R29/R32/R34/R35 apply to their own subsystems. A local
+ * role graph beside a hosted database ACL is a combination no platform ever shipped, and
+ * per-role optionality would let a target drop a role out of the certified surface
+ * entirely and still reach FRESH.
+ *
+ * Membership edges bind ADMIN, INHERIT and SET independently, because PostgreSQL 17 records
+ * them independently and each changes what the member may do. An edge is never reduced to
+ * "member = yes".
+ *
+ * NO CREDENTIAL MATERIAL is read, stored or digested -- see the fixture module.
+ */
+function classifyAuthorizationStateAgainstProfile(observed, profile) {
+  // Consumed as they match, so a DUPLICATED role or edge is still an extra and a certified
+  // one never observed is still missing. Drift in either direction counts.
+  const remaining = authorizationStateLines(profile);
+  const extra = [];
+  for (const line of authorizationStateLines(observed)) {
+    const index = remaining.indexOf(line);
+    if (index === -1) { extra.push(line); continue; }
+    remaining.splice(index, 1);
+  }
+  return {
+    profileId: profile.id,
+    extra,
+    missing: remaining,
+    problemCount: extra.length + remaining.length,
+    baselineSatisfied: extra.length === 0 && remaining.length === 0,
+  };
+}
+
+/** A role record is unusable evidence unless every certified attribute is present. */
+const AUTHORIZATION_ROLE_FIELDS = Object.freeze(
+  ["rolname", "super", "inherit", "createrole", "createdb", "canlogin", "replication", "connlimit", "bypassrls", "validuntil"]);
+const AUTHORIZATION_MEMBERSHIP_FIELDS = Object.freeze(["granted", "member", "grantor", "admin", "inherit", "set"]);
+const blankField = (v) => v === undefined || v === null || String(v).trim() === "";
+
+function malformedAuthorizationEvidence(observed) {
+  const problems = [];
+  for (const r of observed?.roles ?? []) {
+    const missing = AUTHORIZATION_ROLE_FIELDS.filter((k) => blankField(r?.[k]));
+    if (missing.length > 0) problems.push(`role ${r?.rolname ?? "(unnamed)"}: missing ${missing.join(", ")}`);
+  }
+  for (const m of observed?.memberships ?? []) {
+    const missing = AUTHORIZATION_MEMBERSHIP_FIELDS.filter((k) => blankField(m?.[k]));
+    if (missing.length > 0) problems.push(`membership ${m?.granted ?? "?"}<-${m?.member ?? "?"}: missing ${missing.join(", ")}`);
+  }
+  const db = observed?.database;
+  if (!db) problems.push("the current database's owner/ACL evidence is absent");
+  else {
+    const missing = ["name", "owner", "acl"].filter((k) => blankField(db[k]));
+    if (missing.length > 0) problems.push(`database ${db.name ?? "(unnamed)"}: missing ${missing.join(", ")}`);
+  }
+  return problems;
+}
+
+function classifyAuthorizationState(observed) {
+  // Evidence failure is decided BEFORE any profile is consulted: "unreadable" must never
+  // read as "trusted", and must never be able to collide with a certified record.
+  const malformed = malformedAuthorizationEvidence(observed);
+
+  const profileResults = STOCK_AUTHORIZATION_PROFILES.map((profile) =>
+    classifyAuthorizationStateAgainstProfile(observed, profile));
+  const matching = malformed.length > 0 ? [] : profileResults.filter((r) => r.baselineSatisfied);
+  const closest = matching[0] ?? profileResults.reduce((best, r) => (r.problemCount < best.problemCount ? r : best),
+    profileResults[0] ?? { profileId: null, extra: [], missing: [], problemCount: 1, baselineSatisfied: false });
+
+  // Attributable diagnostics: an extra and a missing line sharing one identity is drift in
+  // place, not an unrelated pair of records.
+  const diagnostics = [...malformed];
+  const key = (line) => {
+    const f = line.split("|");
+    if (f[0] === "ROLE") return `ROLE|${f[1]}`;
+    if (f[0] === "MEMBER") return `MEMBER|${f[1]}|${f[2]}`;
+    return `DB|${f[1]}`;
+  };
+  const missingByKey = new Map((closest.missing ?? []).map((l) => [key(l), l]));
+  const paired = new Set();
+  for (const line of closest.extra ?? []) {
+    const counterpart = missingByKey.get(key(line));
+    if (!counterpart) { diagnostics.push(`unknown authorization record: ${line}`); continue; }
+    paired.add(counterpart);
+    const a = line.split("|"), b = counterpart.split("|");
+    const names = a[0] === "ROLE" ? AUTHORIZATION_ROLE_FIELDS
+      : a[0] === "MEMBER" ? AUTHORIZATION_MEMBERSHIP_FIELDS
+        : ["name", "owner", "acl"];
+    const drifted = names.filter((_, i) => a[i + 1] !== b[i + 1]);
+    diagnostics.push(`${a[0] === "ROLE" ? "role" : a[0] === "MEMBER" ? "membership" : "database"} ${key(line).split("|").slice(1).join(" <- ")} drift: ${drifted.join(", ") || "identity"}`);
+  }
+  for (const line of closest.missing ?? []) {
+    if (paired.has(line)) continue;
+    diagnostics.push(`missing certified authorization record: ${line}`);
+  }
+
+  return {
+    baselineSatisfied: matching.length > 0,
+    matchedProfile: matching.length > 0 ? matching[0].profileId : null,
+    matchingProfiles: matching.map((r) => r.profileId),
+    closestProfile: closest.profileId,
+    profileResults,
+    malformedEvidence: malformed,
+    problems: diagnostics,
+    // Zero ONLY on a complete-profile match with well-formed evidence throughout.
+    problemCount: matching.length > 0 ? 0 : Math.max(1, closest.problemCount + malformed.length),
   };
 }
 
@@ -1964,14 +2112,20 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   }
   // EVENT TRIGGERS are database-level and live in pg_event_trigger, entirely outside
   // pg_trigger — so every counter above can read zero while a user event trigger sits
-  // ready to fire during the migration DDL itself and rewrite or block the push. The
-  // measured stock project carries ZERO of them, so no structural baseline is needed and
-  // no schema exemption applies: anything not positively extension-owned refuses FRESH.
+  // ready to fire during the migration DDL itself and rewrite or block the push. A stock
+  // project carries SIX of them, none extension-owned, so they are certified against the
+  // structural baseline above rather than counted as user objects; anything that is not
+  // positively extension-owned and not certified stock refuses FRESH. The trigger's OWN
+  // owner is transported alongside the owner of the function it fires: PostgreSQL keeps
+  // pg_event_trigger.evtowner independently, so certifying only the function owner left a
+  // re-owned event trigger byte-identical on every other field.
   const eventQuery = `
     -- evtenabled is a "char" and evtevent a name; both need an explicit cast, or
     -- PostgreSQL cannot choose a concatenation operator and this probe errors on
     -- EVERY database -- which is how it behaved until a live run exposed it.
     select evt.evtname::text || '~|~' || evt.evtevent::text || '~|~' || evt.evtenabled::text || '~|~' ||
+           -- The EVENT TRIGGER's own owner, from catalog authority. Never the function's.
+           pg_get_userbyid(evt.evtowner)::text || '~|~' ||
            fn.nspname || '~|~' || pr.proname || '~|~' || pg_get_userbyid(pr.proowner)::text || '~|~' ||
            -- Command tags decide WHEN the trigger fires. Canonically sorted so the same
            -- stock trigger renders identically on every target.
@@ -1991,21 +2145,24 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   for (const line of (evt.stdout ?? "").split(/\r?\n/)) {
     if (line.trim() === "") continue;
     const f = line.split("~|~");
-    if (f.length !== 8) {
+    if (f.length !== 9) {
       return { ok: false, reason: `the event-trigger probe returned an unrecognized row (${f.length} field(s)); refusing to infer emptiness.` };
+    }
+    if (f[3].trim() === "") {
+      return { ok: false, reason: `the event-trigger probe returned no owner for event trigger ${f[0]}; refusing to infer emptiness.` };
     }
     // Extension ownership is the ONLY exemption, and only when pg_depend proves it. A
     // platform-owned trigger FUNCTION never launders the event trigger's own provenance.
-    if (f[7] === "ext") continue;
+    if (f[8] === "ext") continue;
     eventTriggers.push({
-      name: f[0], event: f[1], enabled: f[2], function_schema: f[3], function_name: f[4],
-      function_owner: f[5], tags: f[6], provenance: f[7],
+      name: f[0], event: f[1], enabled: f[2], event_trigger_owner: f[3],
+      function_schema: f[4], function_name: f[5], function_owner: f[6], tags: f[7], provenance: f[8],
     });
   }
   // Drift in EITHER direction: a target MISSING certified platform event triggers is not
   // pristine either, and a stock target carrying all six is not six user objects.
   const eventVerdict = classifyObservedEventTriggers(eventTriggers);
-  counts.user_event_triggers = eventVerdict.nonStockCount + eventVerdict.missingStockCount;
+  counts.user_event_triggers = eventVerdict.problemCount;
 
   // MANAGED-SCHEMA INVENTORY. One row per non-extension-owned relation, function and
   // type inside a managed schema, carrying the OWNER — the positive evidence the
@@ -2213,6 +2370,86 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   // cancel out in the arithmetic.
   counts.user_schema_acl = schemaAclVerdict.problemCount;
 
+  // PLATFORM AUTHORIZATION. Roles, membership edges, and the current database's own owner
+  // and ACL -- the plane that decides WHO may act on everything certified above. Read from
+  // catalog authority in ONE query so the three parts cannot drift apart between probes.
+  //
+  // rolpassword is NEVER selected. No SCRAM/MD5 verifier, connection password, JWT secret,
+  // service key or API token is read, and none may be added here: certification is over
+  // authorization structure and non-secret attributes only.
+  const authorizationQuery = `
+    select 'ROLE|' || r.rolname || '|' || r.rolsuper::text || '|' || r.rolinherit::text || '|' ||
+           r.rolcreaterole::text || '|' || r.rolcreatedb::text || '|' || r.rolcanlogin::text || '|' ||
+           r.rolreplication::text || '|' || r.rolconnlimit::text || '|' || r.rolbypassrls::text || '|' ||
+           -- The semantic value: NULL means the role never expires. Gaining an expiry is drift.
+           (case when r.rolvaliduntil is null then 'infinity' else r.rolvaliduntil::text end)
+      from pg_roles r
+    union all
+    -- PostgreSQL 17 records ADMIN, INHERIT and SET independently on every edge, and each is
+    -- security-semantic on its own, so all three are transported.
+    select 'MEMBER|' || g.rolname || '|' || m.rolname || '|' || gr.rolname || '|' ||
+           a.admin_option::text || '|' || a.inherit_option::text || '|' || a.set_option::text
+      from pg_auth_members a
+      join pg_roles g  on g.oid  = a.roleid
+      join pg_roles m  on m.oid  = a.member
+      join pg_roles gr on gr.oid = a.grantor
+    union all
+    -- The database CONTAINING every certified schema, with the same NULL-vs-explicit ACL
+    -- state semantics R34 introduced: a revoked-to-empty ACL is not a default ACL.
+    select 'DB|' || d.datname || '|' || pg_get_userbyid(d.datdba) || '|aclstate=' ||
+           (case when d.datacl is null then 'default' else 'explicit' end) || '|acl=' ||
+           coalesce(array_to_string(array(select unnest(d.datacl)::text order by 1), ','), '')
+      from pg_database d
+     where d.datname = current_database()
+     order by 1;
+  `;
+  const authResult = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c", authorizationQuery]);
+  if (authResult.status !== 0) {
+    return { ok: false, failure: describeSpawnResult(authResult, "psql (platform authorization probe)"), stderr: authResult.stderr };
+  }
+  const observedAuthorization = { roles: [], memberships: [], database: null };
+  for (const line of (authResult.stdout ?? "").split(/\r?\n/)) {
+    if (line.trim() === "") continue;
+    const f = line.split("|");
+    if (f[0] === "ROLE") {
+      if (f.length !== 11) {
+        return { ok: false, reason: `the authorization probe returned an unrecognized ROLE row (${f.length} field(s)); refusing to infer emptiness.` };
+      }
+      observedAuthorization.roles.push({
+        rolname: f[1], super: f[2], inherit: f[3], createrole: f[4], createdb: f[5],
+        canlogin: f[6], replication: f[7], connlimit: f[8], bypassrls: f[9], validuntil: f[10],
+      });
+      continue;
+    }
+    if (f[0] === "MEMBER") {
+      if (f.length !== 7) {
+        return { ok: false, reason: `the authorization probe returned an unrecognized MEMBER row (${f.length} field(s)); refusing to infer emptiness.` };
+      }
+      observedAuthorization.memberships.push({
+        granted: f[1], member: f[2], grantor: f[3], admin: f[4], inherit: f[5], set: f[6],
+      });
+      continue;
+    }
+    if (f[0] === "DB") {
+      // The ACL itself contains no '|', but its aclstate field does, so the row is split on
+      // a fixed prefix rather than on field count.
+      const m = /^DB\|([^|]*)\|([^|]*)\|(aclstate=.*)$/.exec(line);
+      if (!m) {
+        return { ok: false, reason: "the authorization probe returned an unrecognized DB row; refusing to infer emptiness." };
+      }
+      if (observedAuthorization.database !== null) {
+        return { ok: false, reason: "the authorization probe returned more than one current-database row; refusing to infer emptiness." };
+      }
+      observedAuthorization.database = { name: m[1], owner: m[2], acl: m[3] };
+      continue;
+    }
+    // A row tag this parser does not implement is refused rather than dropped: silently
+    // skipping an unknown record is how an unobserved surface becomes a false EMPTY.
+    return { ok: false, reason: `the authorization probe returned an unrecognized row tag (${String(f[0]).slice(0, 24)}); refusing to infer emptiness.` };
+  }
+  const authorizationVerdict = classifyAuthorizationState(observedAuthorization);
+  counts.user_authorization = authorizationVerdict.problemCount;
+
   // DEFAULT PRIVILEGES. These grant rights on objects the migration chain is about to
   // create, while every existing object stays identical.
   const defaultAclResult = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c",
@@ -2303,18 +2540,21 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   // Drift in EITHER direction defeats fresh certification.
   counts.user_triggers = triggers.nonStockCount + triggers.missingStockCount;
 
-  // WHOLE-PLATFORM COHERENCE. Managed objects, extensions and managed schema ACLs are each
-  // atomic WITHIN their own subsystem, but nothing required them to agree on WHICH platform
+  // WHOLE-PLATFORM COHERENCE. Managed objects, extensions, managed schema owner/ACLs and the
+  // platform AUTHORIZATION plane are each atomic WITHIN their own subsystem, but nothing
+  // required them to agree on WHICH platform
   // this is. A target carrying the local managed surface beside the hosted extension surface
   // satisfied both controls independently and reached EMPTY -- a snapshot no real platform
   // ever shipped. Certification needs at least one profile id COMMON to ALL THREE. Set
   // intersection, not equality of a first match, so a subsystem that legitimately matches
   // several profiles over an indistinguishable surface still resolves correctly. Content
-  // remains the only authority: nothing here consults an environment, ref or label. The
-  // ledger present/absent state is a SUBSTATE of a profile and never changes its id.
+  // remains the only authority: nothing here consults a mode, project ref, URL, hostname or
+  // environment variable. The ledger present/absent state is a SUBSTATE of a profile and
+  // never changes its id.
   const commonPlatformProfiles = (managedVerdict.matchingProfiles ?? [])
     .filter((id) => (extensionProfileVerdict.matchingProfiles ?? []).includes(id))
-    .filter((id) => (schemaAclVerdict.matchingProfiles ?? []).includes(id));
+    .filter((id) => (schemaAclVerdict.matchingProfiles ?? []).includes(id))
+    .filter((id) => (authorizationVerdict.matchingProfiles ?? []).includes(id));
   counts.user_platform_profile_coherence = commonPlatformProfiles.length > 0 ? 0 : 1;
 
   const verdict = classifyObjectEmptiness(counts);
@@ -2330,6 +2570,9 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     observedExtensionState, extensionProfile: extensionProfileVerdict,
     commonPlatformProfiles, platformProfile: commonPlatformProfiles[0] ?? null,
     observedRowState, populatedManagedTables,
+    observedAuthorization, authorizationProfile: authorizationVerdict,
+    matchedAuthorizationProfile: authorizationVerdict.matchedProfile,
+    matchingAuthorizationProfiles: authorizationVerdict.matchingProfiles,
     observedSchemaAcl, nonStockSchemaAcl: schemaAclVerdict.nonStock, missingStockSchemaAcl: schemaAclVerdict.missingStock,
     matchedSchemaAclProfile: schemaAclVerdict.matchedProfile, matchingSchemaAclProfiles: schemaAclVerdict.matchingProfiles,
     closestSchemaAclProfile: schemaAclVerdict.closestProfile,
@@ -2683,6 +2926,10 @@ export {
   STOCK_MANAGED_ROW_RULES,
   classifyInstalledExtensions,
   classifyManagedRowState,
+  classifyAuthorizationState,
+  classifyAuthorizationStateAgainstProfile,
+  STOCK_AUTHORIZATION_PROFILES,
+  authorizationStateLines,
   classifyManagedSchemaAcl,
   classifyManagedSchemaAclAgainstProfile,
   managedSchemaAclProfileVariants,

@@ -49,6 +49,9 @@ import {
   classifyDefaultAcl,
   STOCK_MANAGED_SCHEMA_ACL,
   STOCK_MANAGED_SCHEMA_ACL_PROFILES,
+  STOCK_AUTHORIZATION_PROFILES,
+  authorizationStateLines,
+  classifyAuthorizationState,
   STOCK_DEFAULT_ACL,
   isRealtimeDailyPartition,
   realtimePartitionDefinition,
@@ -629,6 +632,26 @@ test("classifyObjectEmptiness: an empty ledger with application state is NOT fre
     assert.equal(v.nonEmpty[0].category, key, "the refusal must name the non-empty category");
     assert.match(v.reason, /NOT application-empty/);
   }
+});
+
+test("classifyObjectEmptiness: EVERY declared category defeats certification", () => {
+  // The list above is hand-maintained, so a NEW emptiness category could be added to the
+  // gate and never exercised. This enumerates the categories the shipped script actually
+  // declares and asserts each one refuses on its own — including user_authorization.
+  const source = readFileSync(SCRIPT, "utf8");
+  const region = source.slice(source.indexOf("function classifyObjectEmptiness"), source.indexOf("function fingerprintDefinition"));
+  const categories = [...region.matchAll(/\["([a-z_]+)",\s*"/g)].map((m) => m[1]);
+  assert.ok(categories.length >= 12, `only ${categories.length} emptiness categories were discovered`);
+  assert.ok(categories.includes("user_authorization"), "the authorization category is not declared in the gate");
+  for (const key of categories) {
+    const v = classifyObjectEmptiness({ ...EMPTY_COUNTS, [key]: 3 });
+    assert.equal(v.empty, false, `${key} does not defeat a fresh-apply certification`);
+    assert.equal(v.nonEmpty[0].category, key, `${key} was not named in the refusal`);
+  }
+  // And all-zero across every declared category is still EMPTY.
+  const allZero = Object.fromEntries(categories.map((k) => [k, 0]));
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, ...allZero }).empty, true,
+    "a target clean on every declared category was refused");
 });
 
 test("classifyObjectEmptiness: normal Supabase platform state alone does not make a new project non-fresh", () => {
@@ -2083,7 +2106,7 @@ const certifiedRowLines = () =>
  * is what makes this load-bearing — against the pre-R31 query the row is invisible
  * exactly as a real database would make it invisible.
  */
-function stubbedStockRunner({ vaultSecretRows = 0, extensions, triggerRows, eventTriggerRows, presence, counts, schemaAclRows, capture = {} } = {}) {
+function stubbedStockRunner({ vaultSecretRows = 0, extensions, triggerRows, eventTriggerRows, presence, counts, schemaAclRows, authorizationRows, capture = {} } = {}) {
   const EXTENSION_FILTER = /deptype = 'e'/;
   return (_cmd, args) => {
     const sql = String(args[args.length - 1]);
@@ -2103,8 +2126,13 @@ function stubbedStockRunner({ vaultSecretRows = 0, extensions, triggerRows, even
         `${t.relation_schema}~|~${t.relation_name}~|~${t.trigger_name}~|~${t.function_schema}~|~${t.function_name}~|~${t.function_owner}~|~${t.definition}~|~${t.enabled}~|~user`)).join("\n") + "\n");
     }
     if (sql.includes("pg_event_trigger")) {
+      capture.eventTriggerQuery = sql;
       return ok((eventTriggerRows ?? STOCK_EVENT_TRIGGER_BASELINE.map((t) =>
-        `${t.name}~|~${t.event}~|~${t.enabled}~|~${t.function_schema}~|~${t.function_name}~|~${t.function_owner}~|~${t.tags}~|~user`)).join("\n") + "\n");
+        `${t.name}~|~${t.event}~|~${t.enabled}~|~${t.event_trigger_owner}~|~${t.function_schema}~|~${t.function_name}~|~${t.function_owner}~|~${t.tags}~|~user`)).join("\n") + "\n");
+    }
+    if (sql.includes("pg_auth_members")) {
+      capture.authorizationQuery = sql;
+      return ok((authorizationRows ?? stockAuthorizationRows()).join("\n") + "\n");
     }
     // Dispatched BEFORE the managed-object branch: the certified extension profile query
     // also carries pg_get_functiondef, through the shared structural builder.
@@ -3970,15 +3998,25 @@ test("R33: malformed trigger evidence fails closed on the new wire format", () =
 // migrations and independently confirmed on the hosted platform. Certified structurally:
 // `tags` decides WHICH commands fire it and `enabled` decides WHETHER it fires.
 
+/** The stock authorization wire, in the exact form the probe's SQL emits. */
+const AUTH_LOCAL = () => STOCK_AUTHORIZATION_PROFILES.find((p) => p.id === "local-cli-stock");
+const AUTH_HOSTED = () => STOCK_AUTHORIZATION_PROFILES.find((p) => p.id === "hosted-platform-stock");
+const stockAuthorizationRows = (profile = AUTH_LOCAL()) => authorizationStateLines(profile);
+const authObservation = (profile = AUTH_LOCAL()) => ({
+  roles: profile.roles.map((r) => ({ ...r })),
+  memberships: profile.memberships.map((m) => ({ ...m })),
+  database: { ...profile.database },
+});
+
 const eventRows = (patch = {}, targetName = null) =>
   STOCK_EVENT_TRIGGER_BASELINE.map((t) => {
     const row = { ...t, provenance: "user", ...((targetName === null || t.name === targetName) ? patch : {}) };
-    return `${row.name}~|~${row.event}~|~${row.enabled}~|~${row.function_schema}~|~${row.function_name}~|~${row.function_owner}~|~${row.tags}~|~${row.provenance}`;
+    return `${row.name}~|~${row.event}~|~${row.enabled}~|~${row.event_trigger_owner}~|~${row.function_schema}~|~${row.function_name}~|~${row.function_owner}~|~${row.tags}~|~${row.provenance}`;
   });
 const observedEventsFrom = (rows) => rows.map((l) => {
   const f = l.split("~|~");
-  return { name: f[0], event: f[1], enabled: f[2], function_schema: f[3], function_name: f[4],
-    function_owner: f[5], tags: f[6], provenance: f[7] };
+  return { name: f[0], event: f[1], enabled: f[2], event_trigger_owner: f[3], function_schema: f[4],
+    function_name: f[5], function_owner: f[6], tags: f[7], provenance: f[8] };
 });
 
 test("R33: the event-trigger probe transports owner and canonical tags", () => {
@@ -4883,4 +4921,603 @@ test("O10: a duplicated schema observation fails closed", () => {
       assert.ok(verdict.problemCount >= 1, `${id}: a duplicated ${dup.schema} contributed no problems`);
     }
   }
+});
+
+// ═══ R36: the platform AUTHORIZATION plane, and event-trigger ownership ═══
+//
+// Everything R28-R35 certifies describes what the database CONTAINS. None of it read the
+// plane deciding WHO may act on it: pg_roles, pg_auth_members, and the current database's
+// own owner and ACL. Proven on a pristine local stack against head 10a606a0:
+// `ALTER ROLE service_role LOGIN` left EVERY pre-R36 counter identical and the target
+// APPLICATION_EMPTINESS=EMPTY. Separately, pg_event_trigger.evtowner was never read, so
+// re-owning a stock event trigger (verified with a real ALTER EVENT TRIGGER ... OWNER TO
+// on scratch) also left user_event_triggers=0 and the target EMPTY.
+
+const AUTH_PLATFORMS = () => STOCK_AUTHORIZATION_PROFILES.map((p) => p.id);
+const authDrift = (mutate, profile = AUTH_LOCAL()) => {
+  const o = authObservation(profile);
+  mutate(o);
+  return classifyAuthorizationState(o);
+};
+
+test("A1/A2: each complete certified authorization profile is accepted, and only as itself", () => {
+  assert.ok(STOCK_AUTHORIZATION_PROFILES.length >= 1, "there are no certified authorization profiles at all");
+  for (const profile of STOCK_AUTHORIZATION_PROFILES) {
+    const verdict = classifyAuthorizationState(authObservation(profile));
+    assert.equal(verdict.baselineSatisfied, true, `the complete ${profile.id} authorization profile was refused`);
+    assert.deepEqual(verdict.matchingProfiles, [profile.id], `${profile.id} also matched another authorization profile`);
+    assert.equal(verdict.problemCount, 0, `USER_AUTHORIZATION was not 0 for ${profile.id}`);
+    // The profile is real evidence: roles, edges and a database, all non-empty.
+    assert.ok(profile.roles.length > 0 && profile.memberships.length > 0 && profile.database,
+      `${profile.id} is not a complete authorization profile`);
+    assert.equal(profile.roles.length, profile.roleCount);
+    assert.equal(profile.memberships.length, profile.membershipCount);
+  }
+});
+
+test("A3-A5: stock ROLE ATTRIBUTE drift is refused, with the object surface untouched", () => {
+  // A3 — the reported bypass. service_role exists to be assumed through `authenticator`.
+  const login = authDrift((o) => { o.roles.find((r) => r.rolname === "service_role").canlogin = "true"; });
+  assert.equal(login.baselineSatisfied, false, "POST_R36_SERVICE_ROLE_LOGIN_DRIFT_REFUSED=NO");
+  assert.deepEqual(login.matchingProfiles, [], "service_role LOGIN still matched a profile");
+  assert.ok(login.problems.some((p) => /service_role.*canlogin/.test(p)),
+    `the refusal did not attribute the drift: ${JSON.stringify(login.problems)}`);
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_authorization: login.problemCount }).empty, false,
+    "DB_PUSH_REACHED — service_role gaining LOGIN certified as empty");
+
+  // A4/A5 — the other two attribute drifts the hosted evidence makes realizable.
+  const cases = [
+    ["A4 service_role BYPASSRLS", "service_role", "bypassrls"],
+    ["A5 postgres CREATEROLE", "postgres", "createrole"],
+  ];
+  for (const [label, rolname, field] of cases) {
+    const verdict = authDrift((o) => {
+      const r = o.roles.find((x) => x.rolname === rolname);
+      r[field] = r[field] === "true" ? "false" : "true";
+    });
+    assert.equal(verdict.baselineSatisfied, false, `${label}: drift was certified stock`);
+    assert.ok(verdict.problems.some((p) => p.includes(rolname) && p.includes(field)), `${label}: not attributed`);
+  }
+
+  // EXHAUSTIVE: no certified role is insensitive to any of its boolean attributes.
+  let accepted = 0, checked = 0;
+  for (const profile of STOCK_AUTHORIZATION_PROFILES) {
+    for (const role of profile.roles) {
+      for (const field of ["super", "inherit", "createrole", "createdb", "canlogin", "replication", "bypassrls"]) {
+        const verdict = authDrift((o) => {
+          const r = o.roles.find((x) => x.rolname === role.rolname);
+          r[field] = r[field] === "true" ? "false" : "true";
+        }, profile);
+        checked++;
+        if (verdict.baselineSatisfied || verdict.problemCount < 1) accepted++;
+      }
+    }
+  }
+  assert.ok(checked > 200, `only ${checked} role attributes were exercised`);
+  assert.equal(accepted, 0, `${accepted} of ${checked} role-attribute drifts were certified stock`);
+});
+
+test("A6+A7: an extra LOGIN role and a missing certified role are refused", () => {
+  const extra = authDrift((o) => o.roles.push({
+    rolname: "r36_impostor", super: "false", inherit: "true", createrole: "false", createdb: "false",
+    canlogin: "true", replication: "false", connlimit: "-1", bypassrls: "false", validuntil: "infinity",
+  }));
+  assert.equal(extra.baselineSatisfied, false, "EXTRA_LOGIN_ROLE_REFUSED=NO");
+  assert.ok(extra.problems.some((p) => p.includes("r36_impostor")), "the extra role was not named");
+
+  for (const victim of ["anon", "service_role", "postgres", "pg_read_all_data"]) {
+    const missing = authDrift((o) => { o.roles = o.roles.filter((r) => r.rolname !== victim); });
+    assert.equal(missing.baselineSatisfied, false, `a target missing ${victim} was certified stock`);
+    assert.ok(missing.problems.some((p) => p.includes(victim)), `${victim} was not named as missing`);
+  }
+});
+
+test("A8-A11: membership EDGES and their ADMIN/INHERIT/SET options all bind", () => {
+  // A8 — an extra edge into a privileged role.
+  const extra = authDrift((o) => o.memberships.push({
+    granted: "service_role", member: "anon", grantor: "supabase_admin",
+    admin: "false", inherit: "true", set: "true",
+  }));
+  assert.equal(extra.baselineSatisfied, false, "EXTRA_MEMBERSHIP_REFUSED=NO");
+
+  // A missing edge is drift in the other direction.
+  const missing = authDrift((o) => { o.memberships = o.memberships.slice(1); });
+  assert.equal(missing.baselineSatisfied, false, "a missing membership edge was certified stock");
+
+  // A9/A10/A11 — PostgreSQL 17 records the three options independently and each is
+  // security-semantic, so an edge is never reduced to "member = yes". EXHAUSTIVE.
+  let accepted = 0, checked = 0;
+  for (const profile of STOCK_AUTHORIZATION_PROFILES) {
+    for (const edge of profile.memberships) {
+      for (const field of ["admin", "inherit", "set"]) {
+        const verdict = authDrift((o) => {
+          const e = o.memberships.find((x) => x.granted === edge.granted && x.member === edge.member && x.grantor === edge.grantor);
+          e[field] = e[field] === "true" ? "false" : "true";
+        }, profile);
+        checked++;
+        if (verdict.baselineSatisfied || verdict.problemCount < 1) accepted++;
+      }
+    }
+  }
+  assert.ok(checked > 60, `only ${checked} membership options were exercised`);
+  assert.equal(accepted, 0, `MEMBERSHIP_OPTION_DRIFT_REFUSED=NO — ${accepted} of ${checked} accepted`);
+
+  // The GRANTOR binds too: the same edge granted by someone else is a different edge.
+  const grantor = authDrift((o) => { o.memberships[0].grantor = "postgres"; });
+  assert.equal(grantor.baselineSatisfied, false, "a re-granted membership edge was certified stock");
+});
+
+test("A12+A13: duplicate role and duplicate membership observations fail closed", () => {
+  for (const profile of STOCK_AUTHORIZATION_PROFILES) {
+    const dupRole = authDrift((o) => o.roles.push({ ...o.roles[0] }), profile);
+    assert.equal(dupRole.baselineSatisfied, false, `${profile.id}: a duplicated role was certified stock`);
+    assert.ok(dupRole.problemCount >= 1);
+    const dupEdge = authDrift((o) => o.memberships.push({ ...o.memberships[0] }), profile);
+    assert.equal(dupEdge.baselineSatisfied, false, `${profile.id}: a duplicated membership edge was certified stock`);
+    assert.ok(dupEdge.problemCount >= 1);
+  }
+});
+
+test("A14+A15: malformed role and membership evidence fails CLOSED, never EMPTY", () => {
+  const bad = [undefined, null, "", "   "];
+  for (const value of bad) {
+    for (const field of ["rolname", "super", "canlogin", "bypassrls", "connlimit", "validuntil"]) {
+      const verdict = authDrift((o) => { o.roles.find((r) => r.rolname === "anon")[field] = value; });
+      assert.equal(verdict.baselineSatisfied, false, `role ${field}=${JSON.stringify(value)} was certified stock`);
+      assert.ok(verdict.malformedEvidence.length >= 1, `role ${field}=${JSON.stringify(value)} was not reported as malformed`);
+      assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_authorization: verdict.problemCount }).empty, false,
+        "DB_PUSH_REACHED — unreadable role evidence certified as empty");
+    }
+    for (const field of ["granted", "member", "grantor", "admin", "inherit", "set"]) {
+      const verdict = authDrift((o) => { o.memberships[0][field] = value; });
+      assert.equal(verdict.baselineSatisfied, false, `membership ${field}=${JSON.stringify(value)} was certified stock`);
+      assert.ok(verdict.malformedEvidence.length >= 1, `membership ${field}=${JSON.stringify(value)} was not reported`);
+    }
+  }
+  // A wholly absent surface is evidence failure, not an empty one.
+  for (const shape of [{}, { roles: [], memberships: [], database: null }]) {
+    const verdict = classifyAuthorizationState(shape);
+    assert.equal(verdict.baselineSatisfied, false, "an absent authorization surface was certified stock");
+    assert.ok(verdict.problemCount >= 1);
+  }
+});
+
+test("B1-B7: the current database's OWNER and ACL are certified", () => {
+  for (const profile of STOCK_AUTHORIZATION_PROFILES) {
+    // B1/B2 — exact owner+ACL is accepted.
+    assert.equal(classifyAuthorizationState(authObservation(profile)).matchedProfile, profile.id);
+    // B3 — same ACL, different owner.
+    const owner = authDrift((o) => { o.database.owner = o.database.owner === "postgres" ? "supabase_admin" : "postgres"; }, profile);
+    assert.equal(owner.baselineSatisfied, false, `${profile.id}: DATABASE_OWNER_CERTIFIED=NO`);
+    assert.ok(owner.problems.some((p) => /database .*owner/.test(p)), `${profile.id}: owner drift not attributed`);
+    // B4 — an added CREATE grant on the database itself.
+    const added = authDrift((o) => { o.database.acl = `${o.database.acl},anon=C/postgres`; }, profile);
+    assert.equal(added.baselineSatisfied, false, `${profile.id}: DATABASE_CREATE_GRANT_DRIFT_REFUSED=NO`);
+    // B5 — a removed certified grant.
+    const first = profile.database.acl.split(",").pop();
+    const removed = authDrift((o) => { o.database.acl = o.database.acl.replace(`,${first}`, ""); }, profile);
+    assert.equal(removed.baselineSatisfied, false, `${profile.id}: a removed database grant was certified stock`);
+    // B6 — NULL and explicitly-empty database ACLs are distinct states, and both are drift.
+    const nullAcl = authDrift((o) => { o.database.acl = "aclstate=default|acl="; }, profile);
+    const emptyAcl = authDrift((o) => { o.database.acl = "aclstate=explicit|acl="; }, profile);
+    assert.equal(nullAcl.baselineSatisfied, false, `${profile.id}: a NULL database ACL was certified stock`);
+    assert.equal(emptyAcl.baselineSatisfied, false, `${profile.id}: an empty database ACL was certified stock`);
+    assert.notDeepEqual(nullAcl.problems, emptyAcl.problems,
+      `${profile.id}: a NULL database ACL and a revoked-to-empty one are indistinguishable`);
+    // B7 — malformed ACL evidence.
+    for (const value of [undefined, null, "", "  "]) {
+      const verdict = authDrift((o) => { o.database.acl = value; }, profile);
+      assert.equal(verdict.baselineSatisfied, false, `${profile.id}: database acl=${JSON.stringify(value)} was certified stock`);
+      assert.ok(verdict.malformedEvidence.length >= 1, `${profile.id}: malformed database ACL not reported`);
+    }
+  }
+});
+
+test("A/B: roles, memberships and the database are ONE atomic profile", () => {
+  // Pair-wise cross-platform mixing, stated as the invariant that is actually true.
+  //
+  // "Every cross-profile mix is refused" is NOT that invariant, and asserting it would be
+  // asserting an accident of the fixtures. The two certified platforms' DATABASE records
+  // are byte-identical (same owner, same explicit ACL — measured, see the fixture), so
+  // local roles beside the hosted database record ARE the complete local surface. Nothing
+  // observable distinguishes them, and content is the only authority the gate has; refusing
+  // that would require trusting a label, which is precisely what R29/R32/R34/R35 forbid.
+  //
+  // The real rule is ATOMICITY: a surface may be certified only when it equals ONE
+  // certified profile IN FULL. So every mix must either be refused outright, or be
+  // line-for-line identical to a certified profile — in which case it was never a hybrid.
+  // That holds no matter which components happen to coincide, and it is strictly stronger
+  // than the blanket refusal, because it also forbids matching a profile the mix does not
+  // equal.
+  const certifiedLineSets = STOCK_AUTHORIZATION_PROFILES.map((p) => ({
+    id: p.id, lines: [...authorizationStateLines(p)].sort().join("\n"),
+  }));
+  const equalsACertifiedProfile = (surface) => {
+    const lines = [...authorizationStateLines(surface)].sort().join("\n");
+    return certifiedLineSets.find((p) => p.lines === lines) ?? null;
+  };
+  // A mix whose components genuinely DIFFER must be refused. Counted, so this test can
+  // never quietly go vacuous if the certified surfaces drift toward each other.
+  let genuinelyMixed = 0;
+  const atomic = (surface, label) => {
+    const verdict = classifyAuthorizationState(surface);
+    const identical = equalsACertifiedProfile(surface);
+    if (identical) {
+      // Not a hybrid at all: it must certify, and as exactly that profile and no other.
+      assert.equal(verdict.baselineSatisfied, true, `${label}: a surface equal to ${identical.id} was refused`);
+      assert.deepEqual(verdict.matchingProfiles, [identical.id], `${label}: matched something other than ${identical.id}`);
+      return;
+    }
+    genuinelyMixed++;
+    assert.equal(verdict.baselineSatisfied, false, `AUTHORIZATION_FRANKENSTEIN_REFUSED=NO — ${label} certified stock`);
+    assert.deepEqual(verdict.matchingProfiles, [], `${label}: a cross-platform surface matched a profile`);
+  };
+
+  for (const a of STOCK_AUTHORIZATION_PROFILES) {
+    for (const b of STOCK_AUTHORIZATION_PROFILES) {
+      if (a.id === b.id) continue;
+      // B8 — one platform's role graph beside the other's database authorization.
+      atomic({ roles: a.roles.map((r) => ({ ...r })), memberships: a.memberships.map((m) => ({ ...m })), database: { ...b.database } },
+        `${a.id} roles beside ${b.id} database`);
+      // B8b — one platform's roles beside the other's membership edges. These DO differ
+      // between the certified platforms, so this arm is always load-bearing.
+      atomic({ roles: a.roles.map((r) => ({ ...r })), memberships: b.memberships.map((m) => ({ ...m })), database: { ...a.database } },
+        `${a.id} roles beside ${b.id} membership edges`);
+      // C5 — a role graph assembled from individually-certified pieces of both.
+      const half = Math.floor(a.roles.length / 2);
+      atomic({
+        roles: [...a.roles.slice(0, half).map((r) => ({ ...r })), ...b.roles.slice(half).map((r) => ({ ...r }))],
+        memberships: a.memberships.map((m) => ({ ...m })), database: { ...a.database },
+      }, `a role graph halved from ${a.id} and ${b.id}`);
+    }
+  }
+  // With both certified platforms present this must have exercised real hybrids. If a
+  // future fixture makes every mix coincide, that is a fixture problem, not a pass.
+  if (STOCK_AUTHORIZATION_PROFILES.length > 1) {
+    assert.ok(genuinelyMixed > 0,
+      "AUTHORIZATION_FRANKENSTEIN_REFUSED is vacuous — no cross-profile mix actually differed from a certified profile");
+  }
+  // The database record cannot be dropped to dodge certification.
+  for (const profile of STOCK_AUTHORIZATION_PROFILES) {
+    const dropped = authDrift((o) => { o.database = null; }, profile);
+    assert.equal(dropped.baselineSatisfied, false, `${profile.id}: an absent database record was certified stock`);
+  }
+});
+
+test("D1-D8: the EVENT TRIGGER's own owner binds, distinctly from its function's owner", () => {
+  // D7 — all six certified stock triggers are accepted, each carrying its own owner.
+  assert.equal(STOCK_EVENT_TRIGGER_BASELINE.length, 6, "the certified stock event-trigger count changed");
+  for (const t of STOCK_EVENT_TRIGGER_BASELINE) {
+    assert.equal(typeof t.event_trigger_owner, "string", `${t.name} carries no certified event-trigger owner`);
+    assert.notEqual(t.event_trigger_owner.trim(), "", `${t.name} carries an empty event-trigger owner`);
+  }
+  assert.deepEqual(STOCK_EVENT_TRIGGER_BASELINE.map((t) => `${t.name}=${t.event_trigger_owner}`), [
+    "issue_graphql_placeholder=supabase_admin", "issue_pg_cron_access=supabase_admin",
+    "issue_pg_graphql_access=supabase_admin", "issue_pg_net_access=supabase_admin",
+    "pgrst_ddl_watch=supabase_admin", "pgrst_drop_watch=supabase_admin",
+  ], "the certified event-trigger owners changed");
+  // D1 — the honest six are stock.
+  const clean = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({}));
+  assert.equal(clean.ok, true, `the probe failed on stock event triggers: ${clean.reason}`);
+  assert.equal(clean.counts.user_event_triggers, 0, "the certified stock event triggers were counted as drift");
+
+  // D2/D3 — the EVENT trigger's owner moves while everything else, including the FUNCTION
+  // owner, stays identical. This is the state a real ALTER EVENT TRIGGER ... OWNER TO
+  // produced on scratch, and it was invisible before R36.
+  for (const target of ["pgrst_ddl_watch", "issue_graphql_placeholder"]) {
+    const rows = eventRows({ event_trigger_owner: "r36_impostor" }, target);
+    // Precondition: only the event-trigger owner field differs from stock.
+    const stockRows = eventRows();
+    assert.equal(rows.length, stockRows.length);
+    assert.deepEqual(
+      rows.map((r) => { const f = r.split("~|~"); return [f[0], f[1], f[2], f[4], f[5], f[6], f[7]].join("|"); }),
+      stockRows.map((r) => { const f = r.split("~|~"); return [f[0], f[1], f[2], f[4], f[5], f[6], f[7]].join("|"); }),
+      "precondition: every field except the event-trigger owner must be untouched");
+    const out = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ eventTriggerRows: rows }));
+    assert.equal(out.ok, true, `the probe failed for a re-owned ${target}: ${out.reason}`);
+    assert.ok(out.counts.user_event_triggers > 0,
+      `EVENT_TRIGGER_OWNER_DRIFT_REFUSED=NO — a re-owned ${target} was invisible`);
+    assert.ok(out.nonStockEventTriggers.includes(target), `${target} was not named: ${JSON.stringify(out.nonStockEventTriggers)}`);
+    assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_event_triggers: out.counts.user_event_triggers }).empty, false,
+      `DB_PUSH_REACHED — a re-owned ${target} certified as empty`);
+  }
+
+  // D4 — the converse: correct event owner, wrong FUNCTION owner. Both bind independently.
+  const fnDrift = probeHostedApplicationState("postgresql://stub",
+    stubbedStockRunner({ eventTriggerRows: eventRows({ function_owner: "postgres" }, "pgrst_ddl_watch") }));
+  assert.ok(fnDrift.counts.user_event_triggers > 0, "a re-owned trigger FUNCTION was invisible");
+
+  // D5/D6 — missing and empty owner evidence fail closed at the probe.
+  const shortRow = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({
+    eventTriggerRows: STOCK_EVENT_TRIGGER_BASELINE.map((t) =>
+      `${t.name}~|~${t.event}~|~${t.enabled}~|~${t.function_schema}~|~${t.function_name}~|~${t.function_owner}~|~${t.tags}~|~user`),
+  }));
+  assert.equal(shortRow.ok, false, "the pre-R36 eight-field event-trigger wire was still accepted");
+  assert.match(String(shortRow.reason), /unrecognized row/, `unexpected reason: ${shortRow.reason}`);
+  const blank = probeHostedApplicationState("postgresql://stub",
+    stubbedStockRunner({ eventTriggerRows: eventRows({ event_trigger_owner: "" }, "pgrst_ddl_watch") }));
+  assert.equal(blank.ok, false, "an event trigger with an empty owner was accepted");
+  assert.match(String(blank.reason), /no owner for event trigger/, `unexpected reason: ${blank.reason}`);
+
+  // The probe reads the EVENT trigger's owner from catalog authority, not the function's.
+  const capture = {};
+  probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ capture }));
+  assert.match(capture.eventTriggerQuery, /pg_get_userbyid\(evt\.evtowner\)/,
+    "EVENT_TRIGGER_OWNER_TRANSPORTED=NO — the probe never reads pg_event_trigger.evtowner");
+  assert.match(capture.eventTriggerQuery, /pg_get_userbyid\(pr\.proowner\)/, "the function owner is no longer transported");
+});
+
+test("R36-WIRE: authorization drift is refused through the REAL probe-to-classifier wire", () => {
+  // NOT a pure helper test: this drives probeHostedApplicationState(), so the real SQL, the
+  // real wire format, the real parser and the real classifier all run.
+  const capture = {};
+  const stock = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ capture }));
+  assert.equal(stock.ok, true, `the probe failed on a stock target: ${stock.reason}`);
+
+  // Catalog authority, and NO credential material may ever be selected here.
+  assert.match(capture.authorizationQuery, /from pg_roles/, "roles are not probed");
+  assert.match(capture.authorizationQuery, /pg_auth_members/, "membership edges are not probed");
+  assert.match(capture.authorizationQuery, /admin_option[\s\S]*inherit_option[\s\S]*set_option/,
+    "the three PostgreSQL 17 membership options are not all transported");
+  assert.match(capture.authorizationQuery, /pg_get_userbyid\(d\.datdba\)/, "the current database owner is not probed");
+  assert.match(capture.authorizationQuery, /d\.datname = current_database\(\)/, "the database is not scoped to the current one");
+  for (const secret of [/rolpassword/i, /passwd/i, /scram/i, /\bmd5\b/i, /verifier/i, /jwt/i, /service_key/i, /api[_ ]?token/i]) {
+    assert.doesNotMatch(capture.authorizationQuery, secret,
+      `PASSWORD_MATERIAL_CAPTURED=YES — the authorization probe selects ${secret}`);
+  }
+  // Content is the only authority.
+  for (const inferred of [/process\.env/, /projectRef/, /hostname/]) {
+    assert.doesNotMatch(capture.authorizationQuery, inferred, "the authorization profile is inferred from something other than content");
+  }
+
+  // Stock: the surface survives the wire and the target is clean on this control.
+  assert.equal(stock.observedAuthorization.roles.length, AUTH_LOCAL().roleCount, "roles did not survive the wire");
+  assert.equal(stock.observedAuthorization.memberships.length, AUTH_LOCAL().membershipCount, "edges did not survive the wire");
+  assert.equal(stock.observedAuthorization.database.owner, AUTH_LOCAL().database.owner, "the database owner did not survive the wire");
+  assert.equal(stock.counts.user_authorization, 0, "a stock authorization surface was flagged");
+  assert.equal(stock.matchedAuthorizationProfile, "local-cli-stock", "the stock surface did not resolve to a platform");
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_authorization: stock.counts.user_authorization }).empty, true,
+    "the stock authorization surface did not reach EMPTY, so the refusal below proves nothing");
+
+  // THE LOAD-BEARING CASE: service_role gains LOGIN, nothing else changes.
+  const drifted = stockAuthorizationRows().map((l) =>
+    l.startsWith("ROLE|service_role|") ? l.replace("|false|false|false|", "|false|false|true|") : l);
+  assert.notDeepEqual(drifted, stockAuthorizationRows(), "precondition: the drifted wire must differ");
+  assert.equal(drifted.filter((l, i) => l !== stockAuthorizationRows()[i]).length, 1, "precondition: exactly one row may differ");
+  const out = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ authorizationRows: drifted }));
+  assert.equal(out.ok, true, `the probe failed on the drifted target: ${out.reason}`);
+  assert.ok(out.counts.user_authorization > 0,
+    "POST_R36_SERVICE_ROLE_LOGIN_DRIFT_REFUSED=NO — service_role LOGIN reached the verdict as stock");
+  assert.equal(out.matchedAuthorizationProfile, null, "a drifted role graph still resolved to a platform");
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_authorization: out.counts.user_authorization }).empty, false,
+    "DB_PUSH_REACHED — service_role gaining LOGIN certified as empty");
+  assert.ok((out.authorizationProfile?.problems ?? []).some((p) => /service_role.*canlogin/.test(p)),
+    `the refusal did not name the drifted attribute: ${JSON.stringify(out.authorizationProfile?.problems)}`);
+  // Every OTHER counter is untouched: this is exactly why the pre-R36 gate could not see it.
+  for (const k of ["user_managed_schema_objects", "user_schema_acl", "user_extensions", "user_event_triggers", "user_managed_table_rows"]) {
+    assert.equal(out.counts[k], stock.counts[k], `${k} moved, so this is not the reported authorization-only bypass`);
+  }
+  // Whole-platform coherence loses the authorization subsystem.
+  assert.deepEqual(stock.matchingAuthorizationProfiles, ["local-cli-stock"], "the stock surface contributed no profile");
+  assert.deepEqual(out.commonPlatformProfiles, [], "a drifted role graph still yielded a coherent platform");
+
+  // Malformed wire fails closed rather than certifying on a short row.
+  for (const [label, rows, pattern] of [
+    ["a short ROLE row", stockAuthorizationRows().map((l) => l.startsWith("ROLE|") ? l.split("|").slice(0, 9).join("|") : l), /unrecognized ROLE row/],
+    ["a short MEMBER row", stockAuthorizationRows().map((l) => l.startsWith("MEMBER|") ? l.split("|").slice(0, 5).join("|") : l), /unrecognized MEMBER row/],
+    ["an unknown row tag", [...stockAuthorizationRows(), "SETTING|log_statement|all"], /unrecognized row tag/],
+    ["two database rows", [...stockAuthorizationRows(), `DB|postgres|postgres|${AUTH_LOCAL().database.acl}`], /more than one current-database row/],
+  ]) {
+    const bad = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ authorizationRows: rows }));
+    assert.equal(bad.ok, false, `${label} was accepted`);
+    assert.match(String(bad.reason), pattern, `${label}: unexpected reason ${bad.reason}`);
+  }
+});
+
+test("R36-WIRE-HOSTED: the hosted authorization plane certifies, and never launders a local platform", () => {
+  // The hosted profile drives the REAL SQL, wire format, parser and classifier — the same
+  // path the local surface takes. Reconstructed strictly from the hosted read-only capture.
+  const hostedRows = stockAuthorizationRows(AUTH_HOSTED());
+  assert.equal(hostedRows.filter((l) => l.startsWith("ROLE|")).length, 30, "the hosted wire does not carry 30 roles");
+  assert.equal(hostedRows.filter((l) => l.startsWith("MEMBER|")).length, 21, "the hosted wire does not carry 21 edges");
+  assert.equal(hostedRows.filter((l) => l.startsWith("DB|")).length, 1, "the hosted wire does not carry the database record");
+
+  const out = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ authorizationRows: hostedRows }));
+  assert.equal(out.ok, true, `the probe failed on the hosted authorization surface: ${out.reason}`);
+  // HOSTED_COMPLETE_AUTHORIZATION_PROFILE=PASS — the whole plane survives the wire.
+  assert.equal(out.observedAuthorization.roles.length, 30, "the hosted roles did not survive the wire");
+  assert.equal(out.observedAuthorization.memberships.length, 21, "the hosted edges did not survive the wire");
+  assert.equal(out.observedAuthorization.database.name, "postgres", "the hosted database name did not survive the wire");
+  assert.equal(out.observedAuthorization.database.owner, "postgres", "the hosted database owner did not survive the wire");
+  assert.equal(out.counts.user_authorization, 0, "the hosted authorization surface was flagged as drift");
+  assert.equal(out.matchedAuthorizationProfile, "hosted-platform-stock", "the hosted surface did not resolve to the hosted platform");
+  assert.deepEqual(out.matchingAuthorizationProfiles, ["hosted-platform-stock"], "the hosted surface matched more than itself");
+
+  // Every certified hosted role and edge is present on the wire, individually.
+  const wire = new Set(hostedRows);
+  for (const r of AUTH_HOSTED().roles) {
+    assert.ok(wire.has(`ROLE|${r.rolname}|${r.super}|${r.inherit}|${r.createrole}|${r.createdb}|${r.canlogin}|${r.replication}|${r.connlimit}|${r.bypassrls}|${r.validuntil}`),
+      `hosted role ${r.rolname} is not on the wire`);
+  }
+  for (const m of AUTH_HOSTED().memberships) {
+    assert.ok(wire.has(`MEMBER|${m.granted}|${m.member}|${m.grantor}|${m.admin}|${m.inherit}|${m.set}`),
+      `hosted edge ${m.granted}<-${m.member} is not on the wire`);
+  }
+
+  // Drift on the hosted plane is refused exactly as it is on the local one: the reported
+  // bypass, re-run against the hosted capture.
+  const driftedHosted = hostedRows.map((l) =>
+    l.startsWith("ROLE|service_role|") ? l.replace("|false|false|false|", "|false|false|true|") : l);
+  assert.equal(driftedHosted.filter((l, i) => l !== hostedRows[i]).length, 1, "precondition: exactly one hosted row may differ");
+  const hostedDrift = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ authorizationRows: driftedHosted }));
+  assert.equal(hostedDrift.ok, true, `the probe failed on the drifted hosted target: ${hostedDrift.reason}`);
+  assert.ok(hostedDrift.counts.user_authorization > 0,
+    "POST_R36_SERVICE_ROLE_LOGIN_DRIFT_REFUSED=NO — service_role LOGIN reached the verdict as stock on hosted");
+  assert.equal(hostedDrift.matchedAuthorizationProfile, null, "a drifted hosted role graph still resolved to a platform");
+  assert.deepEqual(hostedDrift.matchingAuthorizationProfiles, [], "a drifted hosted role graph still matched a profile");
+});
+
+test("R36-COHERENCE: all FOUR subsystems, on real certified data, agree only within one platform", () => {
+  // The C1/C6/C7 test drives the intersection with synthetic verdict objects. This one
+  // drives it with the REAL classifiers over the REAL certified profiles of all four
+  // subsystems, so the platform ids being intersected are ones the classifiers actually
+  // produced rather than ones the test asserted.
+  const four = (m, e, s2, a) => (m.matchingProfiles ?? [])
+    .filter((id) => (e.matchingProfiles ?? []).includes(id))
+    .filter((id) => (s2.matchingProfiles ?? []).includes(id))
+    .filter((id) => (a.matchingProfiles ?? []).includes(id));
+
+  const subsystems = (id) => ({
+    managed: classifyManagedSchemaObjects(managedObservation(managedById(id))),
+    extension: classifyExtensionState(extensionObservation(extById(id))),
+    acl: classifyManagedSchemaAcl(aclObservation(aclById(id))),
+    authorization: classifyAuthorizationState(authObservation(STOCK_AUTHORIZATION_PROFILES.find((p) => p.id === id))),
+  });
+
+  // Each platform is coherent with itself across all four subsystems, and each subsystem
+  // independently resolves to that platform.
+  const built = {};
+  for (const id of ["local-cli-stock", "hosted-platform-stock"]) {
+    const v = built[id] = subsystems(id);
+    for (const [name, verdict] of Object.entries(v)) {
+      assert.equal(verdict.baselineSatisfied, true, `${id}: the ${name} subsystem refused its own certified surface`);
+      assert.ok((verdict.matchingProfiles ?? []).includes(id), `${id}: the ${name} subsystem did not resolve to its own platform`);
+    }
+    assert.deepEqual(four(v.managed, v.extension, v.acl, v.authorization), [id],
+      `${id}: MANAGED+EXTENSION+SCHEMA+AUTHORIZATION did not resolve to exactly one platform`);
+  }
+  // LOCAL_COMPLETE_AUTHORIZATION_PROFILE / HOSTED_COMPLETE_AUTHORIZATION_PROFILE.
+  assert.equal(built["local-cli-stock"].authorization.matchedProfile, "local-cli-stock");
+  assert.equal(built["hosted-platform-stock"].authorization.matchedProfile, "hosted-platform-stock");
+
+  // WHOLE-PLATFORM FRANKENSTEIN. Swap exactly one subsystem across platforms and the
+  // intersection must empty out, in both directions, for every one of the four.
+  const names = ["managed", "extension", "acl", "authorization"];
+  for (const [base, other] of [["local-cli-stock", "hosted-platform-stock"], ["hosted-platform-stock", "local-cli-stock"]]) {
+    for (const swap of names) {
+      const v = { ...built[base], [swap]: built[other][swap] };
+      assert.deepEqual(four(v.managed, v.extension, v.acl, v.authorization), [],
+        `PLATFORM_FRANKENSTEIN_REFUSED=NO — a ${other} ${swap} surface beside a ${base} platform resolved coherently`);
+      assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_platform_profile_coherence: 1 }).empty, false,
+        "DB_PUSH_REACHED — an incoherent platform certified as empty");
+    }
+  }
+});
+
+test("C1/C6/C7: whole-platform coherence is the intersection of FOUR subsystems", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  const wiring = source.slice(source.indexOf("const commonPlatformProfiles"), source.indexOf("counts.user_platform_profile_coherence"));
+  for (const subsystem of ["managedVerdict", "extensionProfileVerdict", "schemaAclVerdict", "authorizationVerdict"]) {
+    assert.ok(wiring.includes(`${subsystem}.matchingProfiles`), `${subsystem} is not part of the coherence intersection`);
+  }
+  // Still SET INTERSECTION, never one arbitrary matchedProfile.
+  assert.ok(!/matchedProfile\s*===/.test(wiring), "coherence compares a single matched profile rather than intersecting");
+
+  // C1 — all four agreeing resolves to one platform; the fourth carries a veto (C3/C4).
+  const four = (m, e, s, a) => (m.matchingProfiles ?? [])
+    .filter((id) => (e.matchingProfiles ?? []).includes(id))
+    .filter((id) => (s.matchingProfiles ?? []).includes(id))
+    .filter((id) => (a.matchingProfiles ?? []).includes(id));
+  const local = { matchingProfiles: ["local-cli-stock"] };
+  const hosted = { matchingProfiles: ["hosted-platform-stock"] };
+  const none = { matchingProfiles: [] };
+  assert.deepEqual(four(local, local, local, local), ["local-cli-stock"], "four agreeing subsystems were refused");
+  assert.deepEqual(four(local, local, local, hosted), [], "C3: a hosted authorization plane beside a local platform was accepted");
+  assert.deepEqual(four(hosted, hosted, hosted, local), [], "C4: a local authorization plane beside a hosted platform was accepted");
+  assert.deepEqual(four(local, local, local, none), [], "a failed authorization subsystem was treated as coherent");
+
+  // C6/C7 — the ledger substate is a managed/schema substate and never changes platform id.
+  for (const ledgerNamespacePresent of [true, false]) {
+    const objects = managedObservation(managedById("local-cli-stock"))
+      .filter((o) => ledgerNamespacePresent || o.schema !== LEDGER_SCHEMA);
+    const m = classifyManagedSchemaObjects(objects, { ledgerNamespacePresent });
+    const aclObs = aclObservation(aclById("local-cli-stock")).filter((e) => ledgerNamespacePresent || e.schema !== LEDGER_SCHEMA);
+    const s2 = classifyManagedSchemaAcl(aclObs, { ledgerNamespacePresent });
+    const e = classifyExtensionState(extensionObservation(extById("local-cli-stock")));
+    const a = classifyAuthorizationState(authObservation());
+    assert.equal(m.matchedProfile, "local-cli-stock", `ledger present=${ledgerNamespacePresent}: managed identity changed`);
+    assert.equal(s2.matchedProfile, "local-cli-stock", `ledger present=${ledgerNamespacePresent}: schema identity changed`);
+    assert.equal(a.matchedProfile, "local-cli-stock", "the ledger substate changed the authorization identity");
+    assert.deepEqual(four(m, e, s2, a), ["local-cli-stock"],
+      `ledger present=${ledgerNamespacePresent}: the platform did not resolve coherently`);
+  }
+});
+
+test("R36 fixtures: authorization profiles are certified evidence, and carry no secrets", () => {
+  const source = readFileSync(new URL("../scripts/fixtures/authorization-profiles.mjs", import.meta.url), "utf8");
+  // No credential material may appear in the certified DATA. The prose above the data
+  // deliberately names these fields to document the prohibition, so the check is scoped to
+  // the records themselves rather than to the comments that forbid them.
+  const certifiedData = JSON.stringify(STOCK_AUTHORIZATION_PROFILES) +
+    STOCK_AUTHORIZATION_PROFILES.flatMap(authorizationStateLines).join("\n");
+  for (const secret of [/rolpassword/i, /scram/i, /\bmd5\b/i, /verifier/i, /\bjwt\b/i, /secret/i, /service[_ ]key/i, /api[_ ]?token/i, /password/i]) {
+    assert.doesNotMatch(certifiedData, secret, `PASSWORD_MATERIAL_CAPTURED=YES — a certified record contains ${secret}`);
+  }
+  // And the fixture must still carry the written prohibition.
+  assert.match(source, /rolpassword` is never selected/, "the fixture no longer documents the credential prohibition");
+  // Each profile reconstructs to its certified digest, independently of construction order.
+  for (const profile of STOCK_AUTHORIZATION_PROFILES) {
+    const lines = authorizationStateLines(profile);
+    const digest = createHash("sha256").update([...lines].sort().join("\n"), "utf8").digest("hex");
+    assert.equal(digest, profile.digest, `${profile.id} does not match its certified digest`);
+    const shuffled = [...lines].sort(() => (Math.random() < 0.5 ? -1 : 1));
+    assert.equal(createHash("sha256").update([...shuffled].sort().join("\n"), "utf8").digest("hex"), profile.digest,
+      `${profile.id}'s digest depends on construction order`);
+    assert.equal(new Set(lines).size, lines.length, `${profile.id} carries a duplicate record`);
+    // Every value is the wire STRING the probe emits, never a JS boolean.
+    for (const r of profile.roles) for (const [k, v] of Object.entries(r)) {
+      assert.equal(typeof v, "string", `${profile.id}: role ${r.rolname} field ${k} is not a wire string`);
+    }
+    for (const m of profile.memberships) for (const [k, v] of Object.entries(m)) {
+      assert.equal(typeof v, "string", `${profile.id}: membership field ${k} is not a wire string`);
+    }
+  }
+  // The local profile is the audited pristine capture, pinned.
+  const local = AUTH_LOCAL();
+  assert.equal(local.roleCount, 31, "the captured LOCAL role count changed");
+  assert.equal(local.membershipCount, 25, "the captured LOCAL membership count changed");
+  assert.equal(local.digest, "5606507490ce723951a6c66fec66cc139d7d5a5b7ef5b71911527347026f8ec5",
+    "the LOCAL authorization profile no longer reconstructs to its captured digest");
+  assert.equal(local.database.owner, "postgres", "the captured LOCAL database owner changed");
+  // Roles are certified across the WHOLE cluster, not a name-prefixed subset: the
+  // PostgreSQL predefined roles carry real privilege and their edges deliver it.
+  assert.ok(local.roles.some((r) => r.rolname.startsWith("pg_")), "no pg_* predefined role is certified");
+  assert.ok(local.memberships.some((m) => m.granted.startsWith("pg_")), "no pg_* membership edge is certified");
+
+  // The HOSTED profile is the authoritative read-only capture from the validation project,
+  // pinned to exactly what that capture contained: 30 roles, 21 membership edges, and the
+  // current database's own owner and ACL.
+  const hosted = AUTH_HOSTED();
+  assert.ok(hosted, "the hosted authorization profile is absent — R36 is not complete");
+  assert.equal(hosted.roleCount, 30, "the captured HOSTED role count changed");
+  assert.equal(hosted.membershipCount, 21, "the captured HOSTED membership count changed");
+  assert.equal(hosted.roles.length, 30, "the hosted profile does not carry 30 role records");
+  assert.equal(hosted.memberships.length, 21, "the hosted profile does not carry 21 membership edges");
+  assert.equal(hosted.digest, "4aaa2140a8cbf26d4ebff4c812a9e634b8d9e450158fdd75222d82e167b9a9e5",
+    "the HOSTED authorization profile no longer reconstructs to its captured digest");
+  assert.equal(hosted.database.name, "postgres", "the captured HOSTED database name changed");
+  assert.equal(hosted.database.owner, "postgres", "the captured HOSTED database owner changed");
+  assert.match(hosted.database.acl, /^aclstate=explicit\|acl=/, "the captured HOSTED database ACL state changed");
+  assert.ok(hosted.roles.some((r) => r.rolname.startsWith("pg_")), "no pg_* predefined role is certified on hosted");
+  assert.ok(hosted.memberships.some((m) => m.granted.startsWith("pg_")), "no pg_* membership edge is certified on hosted");
+  assert.equal(hosted.cli, null, "the hosted capture is not a CLI capture");
+
+  // The hosted profile was reconstructed from the hosted capture, NOT derived from local.
+  // The measured delta is pinned so a later edit cannot quietly converge the two.
+  const lNames = local.roles.map((r) => r.rolname), hNames = hosted.roles.map((r) => r.rolname);
+  assert.deepEqual(lNames.filter((n) => !hNames.includes(n)), ["supabase_functions_admin"],
+    "the certified local-only role set changed");
+  assert.deepEqual(hNames.filter((n) => !lNames.includes(n)), [],
+    "the hosted capture gained a role local does not have");
+  const edgeKey = (m) => `${m.granted}<-${m.member}<-${m.grantor}`;
+  const lEdges = local.memberships.map(edgeKey), hEdges = hosted.memberships.map(edgeKey);
+  assert.deepEqual(lEdges.filter((e) => !hEdges.includes(e)), [
+    "anon<-supabase_realtime_admin<-supabase_admin",
+    "authenticated<-supabase_realtime_admin<-supabase_admin",
+    "service_role<-supabase_realtime_admin<-supabase_admin",
+    "supabase_functions_admin<-postgres<-supabase_admin",
+  ], "the certified local-only membership edges changed");
+  assert.deepEqual(hEdges.filter((e) => !lEdges.includes(e)), [],
+    "the hosted capture gained a membership edge local does not have");
+  assert.notEqual(local.digest, hosted.digest, "the two certified platforms digest identically");
 });
