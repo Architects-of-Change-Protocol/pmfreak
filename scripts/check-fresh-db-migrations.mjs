@@ -772,7 +772,7 @@ function classifyObjectEmptiness(counts) {
     ["user_types", "user-defined types (composite, domain, enum)"],
     ["user_policies", "RLS policies that are not platform/extension-owned (including on managed relations such as storage.objects)"],
     ["user_triggers", "triggers that do not exactly match the certified stock platform baseline (extra, altered, or MISSING)"],
-    ["user_event_triggers", "database-level event triggers that are not platform/extension-owned"],
+    ["user_event_triggers", "database-level event triggers that do not exactly match the certified stock set (extra, altered, re-owned, disabled, re-tagged, or MISSING)"],
     ["user_managed_schema_objects", "relations/indexes/functions/types inside managed schemas that do not exactly match ONE complete certified stock profile (extra, altered, re-owned, MISSING, or a hybrid of two profiles)"],
     ["user_schema_acl", "managed schema ACLs (pg_namespace.nspacl) that are not the certified stock grants (added, removed, or an unknown managed schema)"],
     ["user_default_acl", "ALTER DEFAULT PRIVILEGES rules (pg_default_acl) outside the certified stock set — these grant rights on objects the migration chain is about to create"],
@@ -818,25 +818,92 @@ function classifyObjectEmptiness(counts) {
  * a false EMPTY followed by a destructive push. The baseline is versioned source and is
  * NEVER learned from the target under inspection.
  */
+/**
+ * CERTIFIED STOCK EVENT TRIGGERS.
+ *
+ * A stock Supabase project is NOT free of event triggers. It carries six, none of them
+ * extension-owned, so the gate -- which exempted only extension-owned ones -- counted all
+ * six as user objects and a genuinely pristine target could never certify FRESH. That was
+ * an over-refusal, not a false-EMPTY, but it blocked the gate's entire purpose. Measured
+ * on a pristine CLI stack with zero migrations and independently confirmed on the hosted
+ * validation platform.
+ *
+ * Certified STRUCTURALLY, not by name: an allowlist of names would let a re-pointed or
+ * disabled event trigger keep its certified identity. `tags` decides WHICH commands fire
+ * it and `enabled` decides WHETHER it fires, so both bind. The six functions these fire
+ * are independently certified by the managed-object profiles; this baseline certifies the
+ * TRIGGERS, and neither stands in for the other.
+ */
+const STOCK_EVENT_TRIGGER_BASELINE = Object.freeze([
+  { name: "issue_graphql_placeholder", event: "sql_drop", enabled: "O",
+    function_schema: "extensions", function_name: "set_graphql_placeholder", function_owner: "supabase_admin", tags: "DROP EXTENSION" },
+  { name: "issue_pg_cron_access", event: "ddl_command_end", enabled: "O",
+    function_schema: "extensions", function_name: "grant_pg_cron_access", function_owner: "supabase_admin", tags: "CREATE EXTENSION" },
+  { name: "issue_pg_graphql_access", event: "ddl_command_end", enabled: "O",
+    function_schema: "extensions", function_name: "grant_pg_graphql_access", function_owner: "supabase_admin", tags: "CREATE EXTENSION" },
+  { name: "issue_pg_net_access", event: "ddl_command_end", enabled: "O",
+    function_schema: "extensions", function_name: "grant_pg_net_access", function_owner: "supabase_admin", tags: "CREATE EXTENSION" },
+  { name: "pgrst_ddl_watch", event: "ddl_command_end", enabled: "O",
+    function_schema: "extensions", function_name: "pgrst_ddl_watch", function_owner: "supabase_admin", tags: "(none)" },
+  { name: "pgrst_drop_watch", event: "sql_drop", enabled: "O",
+    function_schema: "extensions", function_name: "pgrst_drop_watch", function_owner: "supabase_admin", tags: "(none)" },
+]);
+
+/** The canonical line an event trigger is compared on. Every mutable field binds. */
+const eventTriggerLine = (t) =>
+  `${t.name}|${t.event}|${t.enabled}|${t.function_schema}|${t.function_name}|${t.function_owner}|${t.tags}`;
+
+/**
+ * Classifies observed (non extension-owned) event triggers against the certified set.
+ * Consumed as they match, so a DUPLICATE observation is still an extra, and drift in
+ * either direction refuses FRESH.
+ */
+function classifyObservedEventTriggers(observed) {
+  const remaining = STOCK_EVENT_TRIGGER_BASELINE.map(eventTriggerLine);
+  const nonStock = [];
+  for (const t of observed ?? []) {
+    const index = remaining.indexOf(eventTriggerLine(t));
+    if (index === -1) { nonStock.push(t.name); continue; }
+    remaining.splice(index, 1);
+  }
+  const missingStock = remaining.map((line) => line.split("|")[0]);
+  return {
+    nonStockCount: nonStock.length, nonStock,
+    missingStockCount: missingStock.length, missingStock,
+    baselineSatisfied: nonStock.length === 0 && missingStock.length === 0,
+  };
+}
+
 const STOCK_PLATFORM_TRIGGER_BASELINE = Object.freeze([
   {
+    // Certified on STRUCTURAL evidence, not on its name: it exists on pristine local CLI
+    // stock, it exists independently on the hosted platform with identical fields, and the
+    // function it fires -- realtime.subscription_check_filters() -- is itself a certified
+    // stock managed object in BOTH managed profiles. Omitting it made a genuinely pristine
+    // target report one non-stock trigger and never certify FRESH: an over-refusal, the
+    // opposite polarity to a false-EMPTY, but a release blocker all the same.
+    relation_schema: "realtime", relation_name: "subscription", trigger_name: "tr_check_filters",
+    function_schema: "realtime", function_name: "subscription_check_filters", function_owner: "supabase_realtime_admin", enabled: "O",
+    definition: 'CREATE TRIGGER tr_check_filters BEFORE INSERT OR UPDATE ON realtime.subscription FOR EACH ROW EXECUTE FUNCTION realtime.subscription_check_filters()',
+  },
+  {
     relation_schema: "storage", relation_name: "buckets", trigger_name: "enforce_bucket_name_length_trigger",
-    function_schema: "storage", function_name: "enforce_bucket_name_length", function_owner: "supabase_storage_admin",
+    function_schema: "storage", function_name: "enforce_bucket_name_length", function_owner: "supabase_storage_admin", enabled: "O",
     definition: 'CREATE TRIGGER enforce_bucket_name_length_trigger BEFORE INSERT OR UPDATE OF name ON storage.buckets FOR EACH ROW EXECUTE FUNCTION storage.enforce_bucket_name_length()',
   },
   {
     relation_schema: "storage", relation_name: "buckets", trigger_name: "protect_buckets_delete",
-    function_schema: "storage", function_name: "protect_delete", function_owner: "supabase_storage_admin",
+    function_schema: "storage", function_name: "protect_delete", function_owner: "supabase_storage_admin", enabled: "O",
     definition: 'CREATE TRIGGER protect_buckets_delete BEFORE DELETE ON storage.buckets FOR EACH STATEMENT EXECUTE FUNCTION storage.protect_delete()',
   },
   {
     relation_schema: "storage", relation_name: "objects", trigger_name: "protect_objects_delete",
-    function_schema: "storage", function_name: "protect_delete", function_owner: "supabase_storage_admin",
+    function_schema: "storage", function_name: "protect_delete", function_owner: "supabase_storage_admin", enabled: "O",
     definition: 'CREATE TRIGGER protect_objects_delete BEFORE DELETE ON storage.objects FOR EACH STATEMENT EXECUTE FUNCTION storage.protect_delete()',
   },
   {
     relation_schema: "storage", relation_name: "objects", trigger_name: "update_objects_updated_at",
-    function_schema: "storage", function_name: "update_updated_at_column", function_owner: "supabase_storage_admin",
+    function_schema: "storage", function_name: "update_updated_at_column", function_owner: "supabase_storage_admin", enabled: "O",
     definition: 'CREATE TRIGGER update_objects_updated_at BEFORE UPDATE ON storage.objects FOR EACH ROW EXECUTE FUNCTION storage.update_updated_at_column()',
   },
 ]);
@@ -862,6 +929,7 @@ function classifyObservedTriggers(observed) {
       relation_schema: t.relation_schema, relation_name: t.relation_name, trigger_name: t.trigger_name,
       function_schema: t.function_schema, function_name: t.function_name, function_owner: t.function_owner,
       definition: normalizeTriggerDefinition(t.definition),
+      enabled: t.enabled,
     };
     const idx = remaining.findIndex((b) =>
       b.relation_schema === fingerprint.relation_schema &&
@@ -870,7 +938,8 @@ function classifyObservedTriggers(observed) {
       b.function_schema === fingerprint.function_schema &&
       b.function_name === fingerprint.function_name &&
       b.function_owner === fingerprint.function_owner &&
-      b.definition === fingerprint.definition);
+      b.definition === fingerprint.definition &&
+      b.enabled === fingerprint.enabled);
     if (idx === -1) {
       nonStock.push(`${fingerprint.relation_schema}.${fingerprint.relation_name}:${fingerprint.trigger_name}`);
       continue;
@@ -1100,8 +1169,13 @@ const STOCK_MANAGED_SCHEMA_ACL = Object.freeze([
   { schema: "vault", acl: "postgres=U*/supabase_admin,service_role=U/supabase_admin,supabase_admin=UC/supabase_admin" },
 ]);
 
-function classifyManagedSchemaAcl(observed) {
-  const remaining = STOCK_MANAGED_SCHEMA_ACL.map((e) => `${e.schema}=${e.acl}`);
+function classifyManagedSchemaAcl(observed, { ledgerNamespacePresent } = {}) {
+  // The ledger schema's ACL belongs to the same atomic bundle as its table and index: a
+  // virgin target has no supabase_migrations namespace, so it has no ACL to certify.
+  const certified = ledgerNamespacePresent === false
+    ? STOCK_MANAGED_SCHEMA_ACL.filter((e) => !ledgerBundleAcl(e))
+    : STOCK_MANAGED_SCHEMA_ACL;
+  const remaining = certified.map((e) => `${e.schema}=${e.acl}`);
   const nonStock = [];
   for (const s of observed ?? []) {
     const key = `${s.schema}=${s.acl}`;
@@ -1393,6 +1467,47 @@ function classifyExtensionState(observed) {
   };
 }
 
+/**
+ * THE MIGRATION-LEDGER BUNDLE.
+ *
+ * `supabase_migrations` is not present on every stock target. A virgin project -- one that
+ * has never been pushed to -- has no such namespace at all, and `supabase migration up`
+ * with zero migrations does not create one. A CLI-initialized project has the namespace,
+ * the ledger table, its primary key and the certified schema ACL, with zero rows.
+ *
+ * BOTH are legitimate stock. Nothing in between is. So the ledger is certified as an
+ * ATOMIC BUNDLE with exactly two states, never as individually optional objects: "these
+ * two objects may be missing" would let a target drop the table while keeping the schema,
+ * or keep the table while losing its ACL, and still certify.
+ *
+ * The ABSENT variant is eligible ONLY on positive catalog evidence that the whole
+ * namespace is gone. If the namespace exists, only the PRESENT variant may match, so a
+ * partially initialized ledger matches neither and fails closed.
+ */
+const LEDGER_SCHEMA = "supabase_migrations";
+const ledgerBundleObject = (o) => o.schema === LEDGER_SCHEMA;
+const ledgerBundleAcl = (a) => a.schema === LEDGER_SCHEMA;
+
+/**
+ * The certified managed profiles, each in its LEDGER_PRESENT and LEDGER_ABSENT variant.
+ * The version-controlled fixtures are untouched: the ABSENT variant is the same certified
+ * set with the whole bundle removed, which is why removing part of it can never match.
+ */
+function managedProfileVariants() {
+  return STOCK_MANAGED_OBJECT_PROFILES.flatMap((profile) => [
+    { id: profile.id, ledger: "present", objects: profile.objects },
+    { id: profile.id, ledger: "absent", objects: profile.objects.filter((o) => !ledgerBundleObject(o)) },
+  ]);
+}
+
+/** Which ledger variants may be considered, given positive catalog evidence. */
+function eligibleLedgerStates(ledgerNamespacePresent) {
+  // Unknown (an offline observation that carries no catalog evidence) keeps the historical
+  // meaning: the ledger is expected. Absence is only ever accepted on positive proof.
+  if (ledgerNamespacePresent === false) return ["absent"];
+  return ["present"];
+}
+
 function managedObjectProblemCount(verdict) {
   if (verdict.baselineSatisfied) return 0;
   return Math.max(1, verdict.nonStockCount + verdict.missingStockCount);
@@ -1447,9 +1562,11 @@ function classifyManagedSchemaObjectsAgainstProfile(observed, profile) {
  * platform ever shipped. Each profile is evaluated independently, and the verdict is a
  * complete match or nothing.
  */
-function classifyManagedSchemaObjects(observed) {
-  const profileResults = STOCK_MANAGED_OBJECT_PROFILES.map((profile) =>
-    classifyManagedSchemaObjectsAgainstProfile(observed, profile));
+function classifyManagedSchemaObjects(observed, { ledgerNamespacePresent } = {}) {
+  const eligible = eligibleLedgerStates(ledgerNamespacePresent);
+  const profileResults = managedProfileVariants()
+    .filter((variant) => eligible.includes(variant.ledger))
+    .map((variant) => ({ ...classifyManagedSchemaObjectsAgainstProfile(observed, variant), ledger: variant.ledger }));
   const matching = profileResults.filter((r) => r.baselineSatisfied);
   // Diagnostics come from the CLOSEST profile so a refusal is attributable to something a
   // maintainer can act on. This NEVER softens the verdict: `baselineSatisfied` below is a
@@ -1463,6 +1580,8 @@ function classifyManagedSchemaObjects(observed) {
     // label or an environment name — a target that claims to be hosted but carries the
     // local build is not hosted.
     matchedProfile: matching.length > 0 ? matching[0].profileId : null,
+    // Which of the two coherent ledger states the target is in, when one matched.
+    matchedLedgerState: matching.length > 0 ? matching[0].ledger : null,
     // Explicit when profiles are indistinguishable over the observed surface, rather than
     // silently picking one.
     matchingProfiles: matching.map((r) => r.profileId),
@@ -1520,8 +1639,19 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
                                   join pg_class pc on pc.oid = ii.inhparent
                                   join pg_namespace pn on pn.oid = pc.relnamespace
                                  where ii.inhrelid = c.oid), '')
+              -- pg_get_viewdef reconstructs the SELECT and nothing else. A view's SECURITY
+              -- semantics live in reloptions -- security_invoker decides whether privileges
+              -- and policies are evaluated as the caller or the view owner, and
+              -- security_barrier and check_option are equally mutable -- and its
+              -- relation-level grants live in relacl. Both can move while the identity,
+              -- owner, extension membership and reconstructed SELECT all stay identical,
+              -- so both are bound into the structure.
               when c.relkind = 'v' then 'viewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
+                   || '|options=' || coalesce(array_to_string(array(select unnest(c.reloptions) order by 1), ','), '(none)')
+                   || '|acl=' || coalesce(array_to_string(array(select unnest(c.relacl)::text order by 1), ','), '(default)')
               when c.relkind = 'm' then 'matviewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
+                   || '|options=' || coalesce(array_to_string(array(select unnest(c.reloptions) order by 1), ','), '(none)')
+                   || '|acl=' || coalesce(array_to_string(array(select unnest(c.relacl)::text order by 1), ','), '(default)')
               when c.relkind = 'S' then 'sequence'
                    || '|increment=' || coalesce((select s.seqincrement::text from pg_sequence s where s.seqrelid = c.oid), '')
                    || '|start=' || coalesce((select s.seqstart::text from pg_sequence s where s.seqrelid = c.oid), '')
@@ -1580,6 +1710,32 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
         || '|inline=' || coalesce((select hn.nspname || '.' || h.proname from pg_proc h join pg_namespace hn on hn.oid = h.pronamespace where h.oid = plang.laninline), '')
         || '|validator=' || coalesce((select hn.nspname || '.' || h.proname from pg_proc h join pg_namespace hn on hn.oid = h.pronamespace where h.oid = plang.lanvalidator), '')
         || '|acl=' || coalesce(array_to_string(array(select unnest(plang.lanacl)::text order by 1), ','), '(default)')`;
+  // OPTIONAL RELATIONS. `to_regclass(...) is null then 0 else (select count(*) from x)`
+  // does NOT protect x: PostgreSQL resolves the relation at PARSE time, so on a virgin
+  // target -- one never pushed to, with no migration ledger yet -- the whole counts query
+  // errored and the gate could never certify the very target class it exists for.
+  // Existence is probed FIRST, via to_regclass over a string literal the parser never has
+  // to resolve, and each count is issued only for a relation that actually exists. Absent
+  // yields an exact zero; a FAILED probe is still a refusal below, never a zero.
+  const OPTIONAL_COUNTED_RELATIONS = ["supabase_migrations.schema_migrations", "auth.users", "storage.buckets", "storage.objects"];
+  // The ledger NAMESPACE is probed alongside the relations: it is the positive evidence
+  // that decides which ledger variant of the certified profiles is even eligible.
+  const presenceQuery = `select array_to_string(array[${
+    OPTIONAL_COUNTED_RELATIONS.map((r) => `(to_regclass('${r}') is not null)::text`).join(", ")
+  }, (to_regnamespace('${LEDGER_SCHEMA}') is not null)::text], ',');`;
+  const presence = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c", presenceQuery]);
+  if (presence.status !== 0) {
+    return { ok: false, failure: describeSpawnResult(presence, "psql (optional-relation presence probe)"), stderr: presence.stderr };
+  }
+  const presenceFields = (presence.stdout ?? "").trim().split(/\r?\n/).pop()?.split(",") ?? [];
+  if (presenceFields.length !== OPTIONAL_COUNTED_RELATIONS.length + 1 || presenceFields.some((f) => !/^(true|false)$/.test(f.trim()))) {
+    return { ok: false, reason: `the optional-relation presence probe returned unrecognized output (${presenceFields.length} field(s)); refusing to infer emptiness.` };
+  }
+  const relationExists = Object.fromEntries(OPTIONAL_COUNTED_RELATIONS.map((r, i) => [r, presenceFields[i].trim() === "true"]));
+  const ledgerNamespacePresent = presenceFields[OPTIONAL_COUNTED_RELATIONS.length].trim() === "true";
+  /** An exact count when the relation exists, an exact literal zero when it does not. */
+  const optionalCount = (qualified) => (relationExists[qualified] ? `(select count(*) from ${qualified})` : "0");
+
   const query = `
     select
       (select count(*) from pg_namespace n where ${PLATFORM_SCHEMA_PREDICATE}) as user_schemas,
@@ -1602,14 +1758,10 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
       (select count(*) from pg_policy pol
          where not exists (select 1 from pg_depend d
                              where d.classid = 'pg_policy'::regclass and d.objid = pol.oid and d.deptype = 'e')) as user_policies,
-      (select case when to_regclass('supabase_migrations.schema_migrations') is null then 0
-                   else (select count(*) from supabase_migrations.schema_migrations) end) as migration_rows,
-      (select case when to_regclass('auth.users') is null then 0
-                   else (select count(*) from auth.users) end) as auth_users,
-      (select case when to_regclass('storage.buckets') is null then 0
-                   else (select count(*) from storage.buckets) end) as storage_buckets,
-      (select case when to_regclass('storage.objects') is null then 0
-                   else (select count(*) from storage.objects) end) as storage_objects;
+      ${optionalCount("supabase_migrations.schema_migrations")} as migration_rows,
+      ${optionalCount("auth.users")} as auth_users,
+      ${optionalCount("storage.buckets")} as storage_buckets,
+      ${optionalCount("storage.objects")} as storage_objects;
   `;
   const result = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", ",", dbUrl, "-c", query]);
   if (result.status !== 0) {
@@ -1631,6 +1783,12 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     select n.nspname || '~|~' || c.relname || '~|~' || t.tgname || '~|~' || fn.nspname || '~|~' ||
            pr.proname || '~|~' || pg_get_userbyid(pr.proowner) || '~|~' ||
            replace(replace(pg_get_triggerdef(t.oid), chr(10), ' '), chr(13), ' ') || '~|~' ||
+           -- Firing state is stored in pg_trigger, NOT in the reconstructed definition, and
+           -- is changed independently of it. A certified protective trigger can be turned
+           -- off while its table, name, function, owner and definition all stay identical.
+           -- O origin/local, D disabled, R replica, A always: carried exactly, never
+           -- flattened to a boolean, because replica and always are not "enabled".
+           t.tgenabled::text || '~|~' ||
            case when exists (select 1 from pg_depend d
                                where d.classid = 'pg_trigger'::regclass and d.objid = t.oid and d.deptype = 'e')
                 then 'ext' else 'user' end
@@ -1650,13 +1808,13 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   for (const line of (trig.stdout ?? "").split(/\r?\n/)) {
     if (line.trim() === "") continue;
     const f = line.split("~|~");
-    if (f.length !== 8) {
+    if (f.length !== 9) {
       return { ok: false, reason: `the trigger-fingerprint probe returned an unrecognized row (${f.length} field(s)); refusing to infer emptiness.` };
     }
     observed.push({
       relation_schema: f[0], relation_name: f[1], trigger_name: f[2],
       function_schema: f[3], function_name: f[4], function_owner: f[5],
-      definition: f[6], is_internal: false, extension_owned: f[7] === "ext",
+      definition: f[6], enabled: f[7], is_internal: false, extension_owned: f[8] === "ext",
     });
   }
   // EVENT TRIGGERS are database-level and live in pg_event_trigger, entirely outside
@@ -1669,7 +1827,10 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     -- PostgreSQL cannot choose a concatenation operator and this probe errors on
     -- EVERY database -- which is how it behaved until a live run exposed it.
     select evt.evtname::text || '~|~' || evt.evtevent::text || '~|~' || evt.evtenabled::text || '~|~' ||
-           fn.nspname || '~|~' || pr.proname || '~|~' ||
+           fn.nspname || '~|~' || pr.proname || '~|~' || pg_get_userbyid(pr.proowner)::text || '~|~' ||
+           -- Command tags decide WHEN the trigger fires. Canonically sorted so the same
+           -- stock trigger renders identically on every target.
+           coalesce(nullif(array_to_string(array(select unnest(evt.evttags) order by 1), ','), ''), '(none)') || '~|~' ||
            case when exists (select 1 from pg_depend d
                                where d.classid = 'pg_event_trigger'::regclass and d.objid = evt.oid and d.deptype = 'e')
                 then 'ext' else 'user' end
@@ -1685,15 +1846,21 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   for (const line of (evt.stdout ?? "").split(/\r?\n/)) {
     if (line.trim() === "") continue;
     const f = line.split("~|~");
-    if (f.length !== 6) {
+    if (f.length !== 8) {
       return { ok: false, reason: `the event-trigger probe returned an unrecognized row (${f.length} field(s)); refusing to infer emptiness.` };
     }
     // Extension ownership is the ONLY exemption, and only when pg_depend proves it. A
     // platform-owned trigger FUNCTION never launders the event trigger's own provenance.
-    if (f[5] === "ext") continue;
-    eventTriggers.push({ name: f[0], event: f[1], enabled: f[2], function_schema: f[3], function_name: f[4] });
+    if (f[7] === "ext") continue;
+    eventTriggers.push({
+      name: f[0], event: f[1], enabled: f[2], function_schema: f[3], function_name: f[4],
+      function_owner: f[5], tags: f[6], provenance: f[7],
+    });
   }
-  counts.user_event_triggers = eventTriggers.length;
+  // Drift in EITHER direction: a target MISSING certified platform event triggers is not
+  // pristine either, and a stock target carrying all six is not six user objects.
+  const eventVerdict = classifyObservedEventTriggers(eventTriggers);
+  counts.user_event_triggers = eventVerdict.nonStockCount + eventVerdict.missingStockCount;
 
   // MANAGED-SCHEMA INVENTORY. One row per non-extension-owned relation, function and
   // type inside a managed schema, carrying the OWNER — the positive evidence the
@@ -1754,7 +1921,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     }
     managedObjects.push({ schema: f[0], kind: f[1], name: f[2], owner: f[3], definition });
   }
-  const managedVerdict = classifyManagedSchemaObjects(managedObjects);
+  const managedVerdict = classifyManagedSchemaObjects(managedObjects, { ledgerNamespacePresent });
   // Drift in EITHER direction defeats fresh certification, exactly as for triggers: a
   // target MISSING certified platform objects is not pristine either. Zero requires a
   // COMPLETE profile match — never merely that every object was found somewhere across the
@@ -1885,7 +2052,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     }
     observedSchemaAcl.push({ schema: f[0], acl: f[1] });
   }
-  const schemaAclVerdict = classifyManagedSchemaAcl(observedSchemaAcl);
+  const schemaAclVerdict = classifyManagedSchemaAcl(observedSchemaAcl, { ledgerNamespacePresent });
   counts.user_schema_acl = schemaAclVerdict.nonStockCount + schemaAclVerdict.missingStockCount;
 
   // DEFAULT PRIVILEGES. These grant rights on objects the migration chain is about to
@@ -1982,7 +2149,8 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   return {
     ok: true, counts, observedTriggers: observed,
     nonStockTriggers: triggers.nonStock, missingStockTriggers: triggers.missingStock,
-    eventTriggers, managedObjects,
+    eventTriggers, nonStockEventTriggers: eventVerdict.nonStock, missingStockEventTriggers: eventVerdict.missingStock,
+    managedObjects,
     nonStockManagedObjects: managedVerdict.nonStock, missingStockManagedObjects: managedVerdict.missingStock,
     matchedManagedProfile: managedVerdict.matchedProfile, matchingManagedProfiles: managedVerdict.matchingProfiles,
     closestManagedProfile: managedVerdict.closestProfile, managedProfileResults: managedVerdict.profileResults,
@@ -2327,6 +2495,9 @@ export {
   HOSTED_STOCK_PROFILE,
   classifyManagedSchemaObjectsAgainstProfile,
   classifyExtensionState,
+  managedProfileVariants,
+  eligibleLedgerStates,
+  LEDGER_SCHEMA,
   classifyExtensionStateAgainstProfile,
   extensionStateLines,
   extensionProfileDigest,
@@ -2354,6 +2525,8 @@ export {
   classifyObservedTriggers,
   normalizeTriggerDefinition,
   STOCK_PLATFORM_TRIGGER_BASELINE,
+  STOCK_EVENT_TRIGGER_BASELINE,
+  classifyObservedEventTriggers,
   probeHostedApplicationState,
   extractSupabaseProjectRefFromDbUrl,
   verifyHostedTargetBinding,

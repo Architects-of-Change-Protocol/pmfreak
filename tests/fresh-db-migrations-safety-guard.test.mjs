@@ -30,6 +30,14 @@ import {
   extensionProfileDigest,
   STOCK_EXTENSION_PROFILES,
   SUPPORTED_EXTENSION_MEMBER_CLASSES,
+  STOCK_EVENT_TRIGGER_BASELINE,
+  classifyObservedEventTriggers,
+  LOCAL_STOCK_PROFILE,
+  managedProfileVariants,
+  eligibleLedgerStates,
+  LEDGER_SCHEMA,
+  HOSTED_STOCK_PROFILE,
+  extensionStateLines,
   STOCK_MANAGED_OBJECT_BASELINE,
   STOCK_MANAGED_OBJECT_PROFILES,
   managedObjectProblemCount,
@@ -1151,7 +1159,9 @@ test("trigger baseline: a custom trigger INVOKING A PLATFORM-OWNED FUNCTION is s
 
 test("trigger baseline: a stock NAME with a changed DEFINITION is NON_EMPTY", () => {
   const tampered = stock();
-  tampered[3] = { ...tampered[3], definition: tampered[3].definition.replace("BEFORE UPDATE", "AFTER UPDATE") };
+  const i = tampered.findIndex((t) => t.trigger_name === "update_objects_updated_at");
+  assert.ok(i >= 0 && tampered[i].definition.includes("BEFORE UPDATE"), "the fixture no longer targets a BEFORE UPDATE trigger");
+  tampered[i] = { ...tampered[i], definition: tampered[i].definition.replace("BEFORE UPDATE", "AFTER UPDATE") };
   assert.equal(classifyObservedTriggers(tampered).nonStockCount, 1, "a redefined stock trigger must not pass as stock");
 });
 
@@ -1192,7 +1202,7 @@ test("trigger baseline: an UNKNOWN trigger under a managed schema fails closed",
 
 test("trigger baseline: it is versioned SOURCE, never learned from the target under test", () => {
   const source = readFileSync(SCRIPT, "utf8");
-  assert.equal(STOCK_PLATFORM_TRIGGER_BASELINE.length, 4, "the certified baseline is the four measured stock triggers");
+  assert.equal(STOCK_PLATFORM_TRIGGER_BASELINE.length, 5, "the certified baseline is the five measured stock triggers");
   assert.ok(Object.isFrozen(STOCK_PLATFORM_TRIGGER_BASELINE), "the baseline must be immutable");
   for (const b of STOCK_PLATFORM_TRIGGER_BASELINE) {
     for (const field of ["relation_schema", "relation_name", "trigger_name", "function_schema", "function_name", "function_owner", "definition"]) {
@@ -1222,20 +1232,20 @@ test("trigger baseline: ZERO observed triggers is DRIFT, not emptiness", () => {
   // The original classifier reported nonStockCount 0 here, so a wiped or partially
   // initialised project read as pristine and could reach the destructive push.
   const r = classifyObservedTriggers([]);
-  assert.equal(r.missingStockCount, 4, "every certified stock trigger must be reported missing");
+  assert.equal(r.missingStockCount, STOCK_PLATFORM_TRIGGER_BASELINE.length, "every certified stock trigger must be reported missing");
   assert.equal(r.baselineSatisfied, false);
   assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_triggers: r.nonStockCount + r.missingStockCount }).empty, false);
 });
 
-test("trigger baseline: THREE of four stock triggers is DRIFT", () => {
-  const r = classifyObservedTriggers(stock().slice(0, 3));
+test("trigger baseline: ONE SHORT of the certified stock set is DRIFT", () => {
+  const r = classifyObservedTriggers(stock().slice(0, -1));
   assert.equal(r.missingStockCount, 1);
   assert.equal(r.baselineSatisfied, false);
   assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_triggers: r.nonStockCount + r.missingStockCount }).empty, false);
 });
 
-test("trigger baseline: the exact four in ANY ORDER satisfy the baseline", () => {
-  const shuffled = [stock()[2], stock()[0], stock()[3], stock()[1]];
+test("trigger baseline: the exact certified set in ANY ORDER satisfies the baseline", () => {
+  const shuffled = [...stock()].reverse();
   const r = classifyObservedTriggers(shuffled);
   assert.equal(r.baselineSatisfied, true, "ordering alone must not be treated as drift");
   assert.equal(r.nonStockCount + r.missingStockCount, 0);
@@ -2065,18 +2075,29 @@ const certifiedRowLines = () =>
  * is what makes this load-bearing — against the pre-R31 query the row is invisible
  * exactly as a real database would make it invisible.
  */
-function stubbedStockRunner({ vaultSecretRows = 0, extensions, capture = {} } = {}) {
+function stubbedStockRunner({ vaultSecretRows = 0, extensions, triggerRows, eventTriggerRows, presence, counts, capture = {} } = {}) {
   const EXTENSION_FILTER = /deptype = 'e'/;
   return (_cmd, args) => {
     const sql = String(args[args.length - 1]);
     const ok = (stdout) => ({ status: 0, stdout, stderr: "" });
-    if (sql.includes("as user_schemas")) return ok("0,0,0,0,0,0,0,0,0,0\n");
+    if (sql.includes("to_regclass(") && sql.includes("array_to_string(array[")) {
+      capture.presenceQuery = sql;
+      return ok((presence ?? "true,true,true,true,true") + "\n");
+    }
+    if (sql.includes("as user_schemas")) {
+      capture.countsQuery = sql;
+      return ok((counts ?? "0,0,0,0,0,0,0,0,0,0") + "\n");
+    }
     if (sql.includes("pg_get_triggerdef")) {
       capture.triggerQuery = sql;
-      return ok(STOCK_PLATFORM_TRIGGER_BASELINE.map((t) =>
-        `${t.schema}~|~${t.table}~|~${t.trigger}~|~${t.functionSchema}~|~${t.functionName}~|~${t.functionOwner}~|~${t.definition}~|~${t.provenance}`).join("\n") + "\n");
+      // The real certified field names, and the firing state the probe now requires.
+      return ok((triggerRows ?? STOCK_PLATFORM_TRIGGER_BASELINE.map((t) =>
+        `${t.relation_schema}~|~${t.relation_name}~|~${t.trigger_name}~|~${t.function_schema}~|~${t.function_name}~|~${t.function_owner}~|~${t.definition}~|~${t.enabled}~|~user`)).join("\n") + "\n");
     }
-    if (sql.includes("pg_event_trigger")) return ok("");
+    if (sql.includes("pg_event_trigger")) {
+      return ok((eventTriggerRows ?? STOCK_EVENT_TRIGGER_BASELINE.map((t) =>
+        `${t.name}~|~${t.event}~|~${t.enabled}~|~${t.function_schema}~|~${t.function_name}~|~${t.function_owner}~|~${t.tags}~|~user`)).join("\n") + "\n");
+    }
     // Dispatched BEFORE the managed-object branch: the certified extension profile query
     // also carries pg_get_functiondef, through the shared structural builder.
     if (sql.includes("pg_identify_object")) return ok(localExtensionWire().join("\n") + "\n");
@@ -3593,8 +3614,9 @@ test("N: an unsupported extension-member class fails closed", () => {
 // ── PROBE-LEVEL: the real probe-to-classifier handoff ─────────────────────
 
 /** Extends the R31 stock stub with the certified extension-state capture. */
-function stubbedExtensionRunner({ extraMemberLine = null, appFunctions = 0, mutateWire = (l) => l } = {}) {
-  const base = stubbedStockRunner({});
+function stubbedExtensionRunner({ extraMemberLine = null, appFunctions = 0, mutateWire = (l) => l, ...stock } = {}) {
+  // Forward the stock-stub options, or presence/counts overrides would be silently dropped.
+  const base = stubbedStockRunner(stock);
   return (cmd, args) => {
     const sql = String(args[args.length - 1]);
     if (sql.includes("pg_identify_object")) {
@@ -3602,9 +3624,10 @@ function stubbedExtensionRunner({ extraMemberLine = null, appFunctions = 0, muta
       if (extraMemberLine) lines.push(extraMemberLine);
       return { status: 0, stdout: lines.join("\n") + "\n", stderr: "" };
     }
-    if (sql.includes("as user_schemas")) {
+    if (sql.includes("as user_schemas") && stock.counts === undefined) {
       // user_functions is the 4th counter. This models the GENERIC application inventory,
       // which by design no longer sees an object once it carries extension membership.
+      if (stock.capture) stock.capture.countsQuery = sql;
       return { status: 0, stdout: `0,0,0,${appFunctions},0,0,0,0,0,0\n`, stderr: "" };
     }
     return base(cmd, args);
@@ -3712,4 +3735,547 @@ test("R32: extension exemptions in the object inventories are justified by the p
   assert.doesNotMatch(region, /nspname IN \('extensions'|nspname = 'extensions'/, "the member graph is filtered by schema convention");
   assert.match(region, /extconfig/, "extconfig is not certified");
   assert.match(region, /encode\(convert_to\(/, "member structures are not transported losslessly");
+});
+
+// ─── R33: complete MUTABLE structural state ───────────────────────────────
+//
+// Two gaps of the same family: state that PostgreSQL stores OUTSIDE the
+// reconstructed definition, and changes independently of it.
+//
+//  1  A view's security semantics live in reloptions -- security_invoker decides
+//     whether privileges and policies are evaluated as the caller or the view owner --
+//     and its grants live in relacl. R32 fingerprinted only pg_get_viewdef, so both
+//     could move while identity, owner, membership and the reconstructed SELECT were
+//     all unchanged.
+//  2  A trigger's firing state lives in pg_trigger.tgenabled. A certified protective
+//     trigger could be DISABLED with its table, name, function, owner and
+//     pg_get_triggerdef all identical.
+
+/** A certified extension VIEW member's transported structure, from the real capture. */
+const viewMemberStructure = (identity) => {
+  // `vault.decrypted_secrets` is BOTH a pg_class view and a pg_type row type, so the
+  // catalog must disambiguate or the lookup silently returns the type.
+  const line = localExtensionWire().find((l) =>
+    l.startsWith("MEM~|~") && l.split("~|~")[2] === "pg_class" && l.split("~|~")[5] === identity);
+  assert.ok(line, `${identity} is not in the captured extension state`);
+  const f = line.split("~|~");
+  return Buffer.from(f.slice(7).join("~|~"), "base64").toString("utf8");
+};
+
+test("R33: the view serializer binds reloptions and relacl, not just the SELECT", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  const region = source.slice(source.indexOf("const RELATION_STRUCTURE"), source.indexOf("const FUNCTION_STRUCTURE"));
+  for (const kind of ["'v'", "'m'"]) {
+    const branch = region.slice(region.indexOf(`when c.relkind = ${kind} then`));
+    const body = branch.slice(0, branch.indexOf("when c.relkind =", 10) === -1 ? 600 : branch.indexOf("when c.relkind =", 10));
+    assert.match(body, /reloptions/, `the relkind ${kind} branch does not bind reloptions`);
+    assert.match(body, /relacl/, `the relkind ${kind} branch does not bind the relation ACL`);
+    assert.match(body, /order by 1/, `the relkind ${kind} branch does not canonically sort them`);
+  }
+  // Exact bytes, never normalised.
+  assert.doesNotMatch(region, /replace\([^)]*\\s/, "the relation structure normalises whitespace");
+});
+
+test("A1-A6: extension VIEW state — options, ACL and exact bytes all bind the fingerprint", () => {
+  const identity = "vault.decrypted_secrets";
+  const stock = viewMemberStructure(identity);
+  assert.ok(stock.startsWith("viewdef="), "the captured view structure is not a viewdef");
+  assert.match(stock, /\|options=/, "the captured structure carries no reloptions");
+  assert.match(stock, /\|acl=/, "the captured structure carries no ACL");
+  // NOTE: an empty reloptions array renders as the empty string, not the `(none)`
+  // sentinel -- array_to_string over an empty array returns '', so the coalesce fallback
+  // is unreachable. That is the same idiom every ACL in this serializer uses, and it is
+  // still exact and deterministic. The stock views carry no reloptions today.
+  assert.match(stock, /\|options=\|acl=/, "the certified stock view no longer has empty reloptions");
+  const stockFp = fingerprintDefinition(stock);
+
+  // A1 — the unmutated stock structure is accepted (the control that makes the rest mean something).
+  const certified = extProfile().members.find((m) => m.classCatalog === "pg_class" && m.identity === identity);
+  assert.ok(certified, `${identity} is not a certified member`);
+  assert.equal(stockFp, certified.fingerprint, "the captured view structure does not match its certified fingerprint");
+
+  const mutations = {
+    // A2 — THE reported defect: security_invoker changes whose privileges and policies
+    // are evaluated, and pg_get_viewdef does not mention it.
+    "A2 security_invoker=true": stock.replace("|options=", "|options=security_invoker=true"),
+    "A3 security_barrier=true": stock.replace("|options=", "|options=security_barrier=true"),
+    "A3b check_option=local": stock.replace("|options=", "|options=check_option=local"),
+    // A4 — a relation-level grant on the view.
+    "A4 ACL drift": stock.replace("|acl=", "|acl=anon=r/supabase_admin,"),
+    // A5 — the underlying SELECT itself.
+    "A5 changed SELECT": stock.replace("viewdef=", "viewdef= SELECT 1 AS pwned,"),
+    // A6 — exact bytes: a whitespace-only change inside the definition is still drift.
+    "A6 doubled space in the SELECT": stock.replace("viewdef= SELECT", "viewdef= SELECT "),
+  };
+  for (const [label, mutated] of Object.entries(mutations)) {
+    assert.notEqual(mutated, stock, `${label} did not actually mutate the structure`);
+    assert.notEqual(fingerprintDefinition(mutated), stockFp, `${label} collided with the certified view fingerprint`);
+  }
+});
+
+test("A2: view security drift is refused through the REAL probe", () => {
+  const identity = "vault.decrypted_secrets";
+  const drifted = probeHostedApplicationState("postgresql://stub", stubbedExtensionRunner({
+    mutateWire: (lines) => lines.map((l) => {
+      const f = l.split("~|~");
+      if (f[0] !== "MEM" || f[2] !== "pg_class" || f[5] !== identity) return l;
+      const structure = Buffer.from(f.slice(7).join("~|~"), "base64").toString("utf8");
+      // The exact mutation the reproduction targets: default -> security_invoker=true.
+      f[7] = Buffer.from(structure.replace("|options=", "|options=security_invoker=true"), "utf8").toString("base64");
+      return f.slice(0, 8).join("~|~");
+    }),
+  }));
+  assert.equal(drifted.ok, true, "the probe failed on the drifted target");
+  assert.equal(drifted.extensionProfile.baselineSatisfied, false, "a view's security semantics changed and the profile still matched");
+  assert.ok(drifted.counts.user_extensions > 0, "view security drift contributed nothing to emptiness");
+  assert.ok(
+    drifted.extensionProfile.problems.some((p) => p.includes("structure drift") && p.includes(identity)),
+    `the drift was not attributed to ${identity}: ${drifted.extensionProfile.problems.join("; ")}`,
+  );
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_extensions: drifted.counts.user_extensions }).empty, false,
+    "DB_PUSH_REACHED — a view whose privileges are now evaluated as the caller certified the target as empty");
+});
+
+// ── TRIGGER firing state ──────────────────────────────────────────────────
+
+/** The four certified stock triggers, as the probe now transports them. */
+const stockTriggerRows = (patch = {}, targetIndex = 0) =>
+  STOCK_PLATFORM_TRIGGER_BASELINE.map((t, i) => {
+    const row = { ...t, provenance: "user", ...(i === targetIndex ? patch : {}) };
+    return `${row.relation_schema}~|~${row.relation_name}~|~${row.trigger_name}~|~${row.function_schema}~|~${row.function_name}~|~${row.function_owner}~|~${row.definition}~|~${row.enabled}~|~${row.provenance}`;
+  });
+const observedTriggersFrom = (rows) => rows.map((l) => {
+  const f = l.split("~|~");
+  return { relation_schema: f[0], relation_name: f[1], trigger_name: f[2], function_schema: f[3],
+    function_name: f[4], function_owner: f[5], definition: f[6], enabled: f[7], is_internal: false,
+    extension_owned: f[8] === "ext" };
+});
+
+test("R33: the trigger probe transports tgenabled and the baseline certifies it", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  const region = source.slice(source.indexOf("const triggerQuery"), source.indexOf("const trig = runner"));
+  assert.match(region, /t\.tgenabled::text/, "the trigger probe does not transport the firing state");
+  // Never inferred from the reconstructed definition.
+  assert.doesNotMatch(region, /pg_get_triggerdef[\s\S]{0,80}tgenabled/, "firing state is derived from the definition");
+  assert.equal(STOCK_PLATFORM_TRIGGER_BASELINE.length, 5, "the certified stock trigger set changed");
+  for (const t of STOCK_PLATFORM_TRIGGER_BASELINE) {
+    assert.equal(t.enabled, "O", `${t.relation_schema}.${t.relation_name}:${t.trigger_name} does not certify its firing state`);
+  }
+});
+
+test("B1-B8: stock trigger firing state, definition, owner, absence and duplication", () => {
+  // B1 — the certified set, enabled for origin, is exactly stock.
+  const stock = classifyObservedTriggers(observedTriggersFrom(stockTriggerRows()));
+  assert.equal(stock.nonStockCount, 0, `the certified trigger set was refused: ${stock.nonStock.join(", ")}`);
+  assert.equal(stock.missingStockCount, 0, `certified triggers were reported missing: ${stock.missingStock.join(", ")}`);
+
+  // B2-B4 — every other firing state is drift. D/R/A are NOT normalised to a boolean:
+  // a replica-only or always-fire trigger is not the certified stock behaviour.
+  // Every certified trigger, every non-origin firing state. The realtime trigger added in
+  // R33 is exercised alongside the storage ones rather than assumed to behave the same.
+  for (let i = 0; i < STOCK_PLATFORM_TRIGGER_BASELINE.length; i += 1) {
+    const target = STOCK_PLATFORM_TRIGGER_BASELINE[i];
+    const name = `${target.relation_schema}.${target.relation_name}:${target.trigger_name}`;
+    for (const enabled of ["D", "R", "A"]) {
+      const verdict = classifyObservedTriggers(observedTriggersFrom(stockTriggerRows({ enabled }, i)));
+      assert.ok(verdict.nonStockCount > 0, `${name} with tgenabled=${enabled} was accepted as stock`);
+      assert.ok(verdict.missingStockCount > 0, `${name} was not reported missing for tgenabled=${enabled}`);
+    }
+  }
+  // The newly certified realtime trigger is genuinely in the set being exercised.
+  assert.ok(STOCK_PLATFORM_TRIGGER_BASELINE.some((t) =>
+    t.relation_schema === "realtime" && t.trigger_name === "tr_check_filters" && t.enabled === "O"),
+    "realtime.subscription:tr_check_filters is not certified");
+
+  // B5-B6 — definition and function owner still bind, as before.
+  for (const [label, patch] of [
+    ["B5 changed definition", { definition: "CREATE TRIGGER enforce_bucket_name_length_trigger AFTER DELETE ON storage.buckets FOR EACH ROW EXECUTE FUNCTION storage.enforce_bucket_name_length()" }],
+    ["B6 changed function owner", { function_owner: "postgres" }],
+  ]) {
+    const verdict = classifyObservedTriggers(observedTriggersFrom(stockTriggerRows(patch)));
+    assert.ok(verdict.nonStockCount > 0, `${label} was accepted as stock`);
+  }
+
+  // B7 — a missing certified trigger is drift in the other direction.
+  assert.ok(classifyObservedTriggers(observedTriggersFrom(stockTriggerRows()).slice(1)).missingStockCount > 0,
+    "B7 a missing stock trigger was not reported");
+  // B8 — a duplicated certified trigger is an extra.
+  const dup = observedTriggersFrom(stockTriggerRows());
+  assert.ok(classifyObservedTriggers([...dup, { ...dup[0] }]).nonStockCount > 0, "B8 a duplicated stock trigger was accepted");
+});
+
+test("B2: a DISABLED stock trigger is refused through the REAL probe", () => {
+  const clean = probeHostedApplicationState("postgresql://stub", stubbedExtensionRunner({}));
+  assert.equal(clean.counts.user_triggers, 0, "the certified trigger set was counted as drift");
+
+  // Both a storage trigger and the realtime trigger certified in R33, through the real probe.
+  for (const name of ["enforce_bucket_name_length_trigger", "tr_check_filters"]) {
+    const index = STOCK_PLATFORM_TRIGGER_BASELINE.findIndex((t) => t.trigger_name === name);
+    assert.ok(index >= 0, `${name} is not certified`);
+    for (const enabled of ["D", "R", "A"]) {
+      const out = probeHostedApplicationState("postgresql://stub", (cmd, args) => {
+        const sql = String(args[args.length - 1]);
+        if (sql.includes("pg_get_triggerdef")) {
+          return { status: 0, stdout: stockTriggerRows({ enabled }, index).join("\n") + "\n", stderr: "" };
+        }
+        return stubbedExtensionRunner({})(cmd, args);
+      });
+      assert.equal(out.ok, true, `the probe failed for ${name} tgenabled=${enabled}`);
+      assert.ok(out.counts.user_triggers > 0,
+        `${name} tgenabled=${enabled} — a protective trigger that no longer fires was invisible to the emptiness probe`);
+      assert.ok(out.nonStockTriggers.some((t) => t.includes(name)),
+        `the ${enabled} ${name} was not named: ${JSON.stringify(out.nonStockTriggers)}`);
+      assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_triggers: out.counts.user_triggers }).empty, false,
+        `DB_PUSH_REACHED — a target with a ${enabled} ${name} certified as empty`);
+    }
+  }
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_triggers: 0 }).empty, true,
+    "the control set is not otherwise empty, so the refusals above prove nothing");
+});
+
+test("R33: malformed trigger evidence fails closed on the new wire format", () => {
+  const out = probeHostedApplicationState("postgresql://stub", (cmd, args) => {
+    const sql = String(args[args.length - 1]);
+    // The pre-R33 eight-field row: no firing state at all.
+    if (sql.includes("pg_get_triggerdef")) {
+      return { status: 0, stdout: "storage~|~buckets~|~t~|~storage~|~f~|~o~|~CREATE TRIGGER t~|~user\n", stderr: "" };
+    }
+    return stubbedExtensionRunner({})(cmd, args);
+  });
+  assert.equal(out.ok, false, "a trigger row without firing state was accepted");
+  assert.match(out.reason ?? "", /refusing to infer emptiness/, "it did not fail closed");
+});
+
+// ─── R33: certified stock EVENT TRIGGERS ──────────────────────────────────
+//
+// A stock Supabase project carries SIX event triggers, none extension-owned. The gate
+// exempted only extension-owned ones, so a genuinely pristine target reported six user
+// objects and could never certify FRESH. Measured on a pristine CLI stack with zero
+// migrations and independently confirmed on the hosted platform. Certified structurally:
+// `tags` decides WHICH commands fire it and `enabled` decides WHETHER it fires.
+
+const eventRows = (patch = {}, targetName = null) =>
+  STOCK_EVENT_TRIGGER_BASELINE.map((t) => {
+    const row = { ...t, provenance: "user", ...((targetName === null || t.name === targetName) ? patch : {}) };
+    return `${row.name}~|~${row.event}~|~${row.enabled}~|~${row.function_schema}~|~${row.function_name}~|~${row.function_owner}~|~${row.tags}~|~${row.provenance}`;
+  });
+const observedEventsFrom = (rows) => rows.map((l) => {
+  const f = l.split("~|~");
+  return { name: f[0], event: f[1], enabled: f[2], function_schema: f[3], function_name: f[4],
+    function_owner: f[5], tags: f[6], provenance: f[7] };
+});
+
+test("R33: the event-trigger probe transports owner and canonical tags", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  const region = source.slice(source.indexOf("const eventQuery"), source.indexOf("const evt = runner"));
+  assert.match(region, /pg_get_userbyid\(pr\.proowner\)/, "the event-trigger probe does not transport the function owner");
+  assert.match(region, /unnest\(evt\.evttags\) order by 1/, "command tags are not canonically sorted");
+  // array_to_string over an EMPTY array returns '', so the sentinel needs nullif or an
+  // untagged trigger and an empty-string tag would be indistinguishable.
+  assert.match(region, /nullif\(array_to_string\(array\(select unnest\(evt\.evttags\)/, "the (none) tag sentinel is unreachable");
+  assert.equal(STOCK_EVENT_TRIGGER_BASELINE.length, 6, "the certified stock event-trigger set changed");
+  for (const t of STOCK_EVENT_TRIGGER_BASELINE) assert.equal(t.enabled, "O", `${t.name} does not certify its enable state`);
+  // The certified comment claiming stock carries ZERO event triggers must be gone.
+  assert.doesNotMatch(source, /ZERO non-extension-owned event triggers/, "the false zero-event-trigger claim survives");
+});
+
+test("R33: the six certified event triggers, and every mutable field, bind", () => {
+  // Stock exact set -> PASS.
+  const stock = classifyObservedEventTriggers(observedEventsFrom(eventRows()));
+  assert.equal(stock.baselineSatisfied, true, `the certified event triggers were refused: ${stock.nonStock.join(", ")}`);
+  assert.equal(stock.nonStockCount + stock.missingStockCount, 0);
+
+  // Every mutable field, exercised on BOTH an issue_* and a pgrst_* trigger.
+  for (const target of ["issue_pg_cron_access", "pgrst_ddl_watch"]) {
+    const cases = {
+      "changed event": { event: "table_rewrite" },
+      "disabled": { enabled: "D" },
+      "replica": { enabled: "R" },
+      "always": { enabled: "A" },
+      "changed function identity": { function_name: "exfiltrate", function_schema: "public" },
+      "changed function owner": { function_owner: "postgres" },
+      "changed tags": { tags: "DROP TABLE" },
+    };
+    for (const [label, patch] of Object.entries(cases)) {
+      const verdict = classifyObservedEventTriggers(observedEventsFrom(eventRows(patch, target)));
+      assert.ok(verdict.nonStockCount > 0, `${target} with a ${label} was accepted as stock`);
+      assert.ok(verdict.missingStockCount > 0, `${target} with a ${label} did not leave its certified entry missing`);
+    }
+  }
+  // Missing, extra and duplicate.
+  assert.ok(classifyObservedEventTriggers(observedEventsFrom(eventRows()).slice(1)).missingStockCount > 0, "a missing stock event trigger was not reported");
+  const extra = [...observedEventsFrom(eventRows()), { name: "rogue", event: "ddl_command_end", enabled: "O",
+    function_schema: "public", function_name: "rogue", function_owner: "postgres", tags: "(none)", provenance: "user" }];
+  assert.ok(classifyObservedEventTriggers(extra).nonStockCount > 0, "an extra event trigger was accepted");
+  const dup = observedEventsFrom(eventRows());
+  assert.ok(classifyObservedEventTriggers([...dup, { ...dup[0] }]).nonStockCount > 0, "a duplicated event trigger was accepted");
+  // Order is not semantic.
+  assert.equal(classifyObservedEventTriggers([...dup].reverse()).baselineSatisfied, true, "ordering alone was treated as drift");
+});
+
+test("R33: event-trigger drift defeats emptiness through the REAL probe", () => {
+  const clean = probeHostedApplicationState("postgresql://stub", stubbedExtensionRunner({}));
+  assert.equal(clean.counts.user_event_triggers, 0, "the certified stock event triggers were counted as drift");
+
+  for (const target of ["issue_graphql_placeholder", "pgrst_drop_watch"]) {
+    const out = probeHostedApplicationState("postgresql://stub", (cmd, args) => {
+      const sql = String(args[args.length - 1]);
+      if (sql.includes("pg_event_trigger")) {
+        return { status: 0, stdout: eventRows({ enabled: "D" }, target).join("\n") + "\n", stderr: "" };
+      }
+      return stubbedExtensionRunner({})(cmd, args);
+    });
+    assert.equal(out.ok, true, `the probe failed for a disabled ${target}`);
+    assert.ok(out.counts.user_event_triggers > 0, `a DISABLED ${target} was invisible to the emptiness probe`);
+    assert.ok(out.nonStockEventTriggers.includes(target), `${target} was not named: ${JSON.stringify(out.nonStockEventTriggers)}`);
+    assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_event_triggers: out.counts.user_event_triggers }).empty, false,
+      `DB_PUSH_REACHED — a target with a disabled ${target} certified as empty`);
+  }
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_event_triggers: 0 }).empty, true,
+    "the control set is not otherwise empty, so the refusals above prove nothing");
+  // The six functions stay independently certified by the managed profiles.
+  for (const t of STOCK_EVENT_TRIGGER_BASELINE) {
+    assert.ok(LOCAL_STOCK_PROFILE.objects.some((o) => o.schema === t.function_schema && o.kind === "function" && o.name.startsWith(`${t.function_name}(`)),
+      `${t.function_schema}.${t.function_name} is no longer certified as a managed object`);
+  }
+});
+
+// ─── R33: a VIRGIN target's optional relations ────────────────────────────
+//
+// `to_regclass(x) is null then 0 else (select count(*) from x)` does not protect x:
+// PostgreSQL resolves it at PARSE time. On a target that has never been pushed to, and
+// therefore has no migration ledger, the entire counts query errored -- so the gate could
+// never certify the exact target class it exists for. Reproduced on a real virgin stack.
+
+test("R33: optional relations are probed for existence before they are counted", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  const region = source.slice(source.indexOf("const OPTIONAL_COUNTED_RELATIONS"), source.indexOf("const result = runner"));
+  // The broken pattern is gone for EVERY optional relation, not just the ledger.
+  assert.doesNotMatch(region, /to_regclass\('[^']+'\) is null then 0/, "the parse-time-unsafe guard survives");
+  assert.match(region, /to_regclass\('\$\{r\}'\) is not null/, "existence is not probed over a string literal");
+  for (const rel of ["supabase_migrations.schema_migrations", "auth.users", "storage.buckets", "storage.objects"]) {
+    assert.ok(region.includes(rel), `${rel} is not covered by the presence probe`);
+  }
+  // A failed presence probe is a refusal, never an assumed zero.
+  assert.match(region, /optional-relation presence probe/, "a failed presence probe is not attributable");
+  assert.match(region, /refusing to infer emptiness/, "malformed presence output does not fail closed");
+});
+
+test("R33: an ABSENT optional relation counts zero; a PRESENT one counts exactly", () => {
+  // ABSENT — the virgin case. The probe must SUCCEED and report an exact zero.
+  const capture = {};
+  const virgin = probeHostedApplicationState("postgresql://stub",
+    stubbedExtensionRunner({ presence: "false,false,false,false,false", capture }));
+  assert.equal(virgin.ok, true, `a virgin target failed the probe: ${virgin.reason ?? JSON.stringify(virgin.failure)}`);
+  assert.equal(virgin.counts.migration_rows, 0, "an absent ledger did not count zero");
+  assert.equal(virgin.counts.auth_users, 0);
+  assert.equal(virgin.counts.storage_buckets, 0);
+  assert.equal(virgin.counts.storage_objects, 0);
+  // The counts query must not REFERENCE an absent relation, or the parser resolves it and
+  // the whole query errors. Comments are stripped first: prose naming a relation is not a
+  // reference, and asserting on the raw text would fail on an explanatory comment.
+  const executable = capture.countsQuery.split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+  for (const rel of ["supabase_migrations.schema_migrations", "auth.users", "storage.buckets", "storage.objects"]) {
+    assert.ok(!new RegExp(`from\\s+${rel.replace(".", "\\.")}`, "i").test(executable),
+      `the counts query still references the absent ${rel}`);
+  }
+
+  // PRESENT and empty -> zero. PRESENT and populated -> the exact value, not a boolean.
+  const present = probeHostedApplicationState("postgresql://stub",
+    stubbedExtensionRunner({ presence: "true,true,true,true,true", counts: "0,0,0,0,0,0,7,3,1,0", capture }));
+  assert.equal(present.ok, true);
+  assert.equal(present.counts.migration_rows, 7, "a populated ledger was not counted exactly");
+  assert.equal(present.counts.auth_users, 3);
+  assert.equal(present.counts.storage_buckets, 1);
+  assert.equal(present.counts.storage_objects, 0, "a present-but-empty relation did not count zero");
+  const presentExecutable = capture.countsQuery.split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+  for (const rel of ["supabase_migrations.schema_migrations", "auth.users", "storage.buckets", "storage.objects"]) {
+    assert.match(presentExecutable, new RegExp(`from\\s+${rel.replace(".", "\\.")}`, "i"), `the counts query omits the present ${rel}`);
+  }
+});
+
+test("R33: a failed or malformed presence probe is a refusal, never zero", () => {
+  const failed = probeHostedApplicationState("postgresql://stub", (cmd, args) => {
+    const sql = String(args[args.length - 1]);
+    if (sql.includes("to_regclass(") && sql.includes("array_to_string(array[")) {
+      return { status: 1, stdout: "", stderr: "connection lost" };
+    }
+    return stubbedExtensionRunner({})(cmd, args);
+  });
+  assert.equal(failed.ok, false, "a failed presence probe was treated as a success");
+  for (const [label, presence] of Object.entries({
+    "too few fields": "true,true,true,true",
+    "a non-boolean": "true,true,yes,true,true",
+    "empty output": "",
+  })) {
+    const out = probeHostedApplicationState("postgresql://stub", stubbedExtensionRunner({ presence }));
+    assert.equal(out.ok, false, `${label} was accepted`);
+    assert.match(out.reason ?? "", /refusing to infer emptiness/, `${label} did not fail closed`);
+  }
+});
+
+// ─── R33: the HOSTED extension profile, and profile atomicity ─────────────
+
+const hostedExtProfile = () => {
+  const p = STOCK_EXTENSION_PROFILES.find((x) => x.id === "hosted-platform-stock");
+  assert.ok(p, "the certified hosted extension profile is missing");
+  return p;
+};
+const observationOfExt = (p) => ({ extensions: p.extensions.map((e) => ({ ...e })), members: p.members.map((m) => ({ ...m })) });
+
+test("C1+C2: both certified extension profiles are accepted, each only as itself", () => {
+  assert.equal(STOCK_EXTENSION_PROFILES.length, 2, "the certified extension profile set changed");
+  assert.equal(hostedExtProfile().digest, "9f402442b1f689592444a3c2cb13a5f4da189d48444b0380e40079429f5f90b8",
+    "the hosted extension profile no longer reconstructs to its independently captured digest");
+  assert.equal(extProfile().digest, "4ef390d3d2d35dd73b720e485ad91f958694631fbab03a63854fee91a1423722",
+    "the local extension profile digest moved");
+  for (const profile of STOCK_EXTENSION_PROFILES) {
+    const verdict = classifyExtensionState(observationOfExt(profile));
+    assert.equal(verdict.baselineSatisfied, true, `the complete ${profile.id} profile was refused: ${verdict.problems.slice(0, 3).join("; ")}`);
+    assert.equal(verdict.matchedProfile, profile.id);
+    assert.deepEqual(verdict.matchingProfiles, [profile.id], `${profile.id} also matched another profile`);
+    assert.equal(profile.extensionCount, 5);
+    assert.equal(profile.memberCount, 70);
+    assert.deepEqual(profile.byExtension, { "pg_stat_statements": 9, pgcrypto: 36, plpgsql: 4, supabase_vault: 11, "uuid-ossp": 10 });
+    assert.deepEqual(profile.byClass, { pg_class: 4, pg_language: 1, pg_proc: 57, pg_type: 8 });
+  }
+  // The two platforms genuinely differ, so the atomicity below is not vacuous.
+  assert.notEqual(extProfile().digest, hostedExtProfile().digest, "the two extension profiles are identical");
+});
+
+test("C3: an extension profile hybrid of LOCAL and HOSTED is refused, both directions", () => {
+  const local = extProfile(), hosted = hostedExtProfile();
+  // Real divergences, not invented ones: pgcrypto is owned by supabase_admin locally and
+  // by postgres on the hosted platform, and member owners and structures differ with it.
+  const localPgcrypto = local.extensions.find((e) => e.extname === "pgcrypto");
+  const hostedPgcrypto = hosted.extensions.find((e) => e.extname === "pgcrypto");
+  assert.notEqual(localPgcrypto.owner, hostedPgcrypto.owner, "the real pgcrypto owner divergence is gone");
+  const divergentMember = local.members.find((m) => {
+    const h = hosted.members.find((x) => x.extname === m.extname && x.classCatalog === m.classCatalog && x.identity === m.identity);
+    return h && (h.owner !== m.owner || h.fingerprint !== m.fingerprint);
+  });
+  assert.ok(divergentMember, "no genuinely divergent member exists to build a hybrid from");
+
+  const cases = {
+    "hosted base + the LOCAL pgcrypto installation": {
+      ...observationOfExt(hosted),
+      extensions: hosted.extensions.map((e) => (e.extname === "pgcrypto" ? { ...localPgcrypto } : { ...e })),
+    },
+    "local base + the HOSTED pgcrypto installation": {
+      ...observationOfExt(local),
+      extensions: local.extensions.map((e) => (e.extname === "pgcrypto" ? { ...hostedPgcrypto } : { ...e })),
+    },
+    "hosted base + one LOCAL member": {
+      ...observationOfExt(hosted),
+      members: hosted.members.map((m) =>
+        (m.extname === divergentMember.extname && m.classCatalog === divergentMember.classCatalog && m.identity === divergentMember.identity)
+          ? { ...divergentMember } : { ...m }),
+    },
+  };
+  const union = new Set(STOCK_EXTENSION_PROFILES.flatMap((p) => extensionStateLines(p)));
+  for (const [label, observed] of Object.entries(cases)) {
+    // Every element of the hybrid IS certified somewhere: a per-record union would accept it.
+    for (const line of extensionStateLines(observed)) {
+      assert.ok(union.has(line), `${label}: ${line} is not certified anywhere, so this is not a pure union case`);
+    }
+    const verdict = classifyExtensionState(observed);
+    assert.equal(verdict.baselineSatisfied, false, `${label} was certified stock`);
+    assert.equal(verdict.matchedProfile, null, `${label} matched a profile`);
+    assert.deepEqual(verdict.matchingProfiles, [], `${label} matched a profile`);
+    assert.ok(verdict.problemCount > 0, `${label} contributed 0 problems`);
+  }
+});
+
+// ─── R33: the ATOMIC two-state migration-ledger bundle ────────────────────
+//
+// `supabase_migrations` is absent on a virgin project and present on a CLI-initialized
+// one. Both are stock; nothing in between is. Certified as one atomic bundle -- schema
+// ACL, ledger table and its primary key together -- so a target cannot drop part of it
+// and still certify. The ABSENT variant is eligible ONLY on positive catalog evidence
+// that the whole namespace is gone.
+
+const ledgerObjects = () => LOCAL_STOCK_PROFILE.objects.filter((o) => o.schema === LEDGER_SCHEMA);
+const withoutLedger = (objects) => objects.filter((o) => o.schema !== LEDGER_SCHEMA);
+
+test("R33: the certified profiles carry exactly two coherent ledger variants", () => {
+  const variants = managedProfileVariants();
+  assert.equal(variants.length, STOCK_MANAGED_OBJECT_PROFILES.length * 2, "each profile must have exactly two ledger variants");
+  for (const profile of STOCK_MANAGED_OBJECT_PROFILES) {
+    const present = variants.find((v) => v.id === profile.id && v.ledger === "present");
+    const absent = variants.find((v) => v.id === profile.id && v.ledger === "absent");
+    assert.ok(present && absent, `${profile.id} lacks a ledger variant`);
+    assert.equal(present.objects.length, profile.objects.length, "the PRESENT variant is not the certified set");
+    assert.equal(absent.objects.length, profile.objects.length - 2, "the ABSENT variant did not drop exactly the ledger bundle");
+    assert.equal(absent.objects.filter((o) => o.schema === LEDGER_SCHEMA).length, 0, "the ABSENT variant still carries ledger objects");
+  }
+  // The version-controlled fixtures are untouched by any of this.
+  assert.equal(LOCAL_STOCK_PROFILE.objects.length, 236);
+  assert.equal(LOCAL_STOCK_PROFILE.digest, "157fa5ffdc2900430a79111d4bf620100e47e7c84807bfe755cf92b406196c50");
+  assert.equal(HOSTED_STOCK_PROFILE.objects.length, 213);
+  assert.equal(HOSTED_STOCK_PROFILE.digest, "e86cca120de040a36926e394a8b169c5f4518686fb43a8bec40603f5b0510bd8");
+  // Absence is only ever accepted on positive proof.
+  assert.deepEqual(eligibleLedgerStates(false), ["absent"]);
+  assert.deepEqual(eligibleLedgerStates(true), ["present"]);
+  assert.deepEqual(eligibleLedgerStates(undefined), ["present"], "an unproven ledger state must not unlock the ABSENT variant");
+});
+
+test("R33: both ledger states are stock, and every partial combination fails closed", () => {
+  const full = LOCAL_STOCK_PROFILE.objects.map((o) => ({ ...o }));
+  const bundle = ledgerObjects();
+  assert.equal(bundle.length, 2, "the ledger bundle is no longer exactly two managed objects");
+
+  // STATE B — namespace present, complete bundle -> stock.
+  const present = classifyManagedSchemaObjects(full, { ledgerNamespacePresent: true });
+  assert.equal(present.baselineSatisfied, true, "LEDGER_PRESENT_EMPTY was refused");
+  assert.equal(present.matchedProfile, "local-cli-stock");
+  assert.equal(present.matchedLedgerState, "present");
+
+  // STATE A — namespace absent, no bundle at all -> stock.
+  const absent = classifyManagedSchemaObjects(withoutLedger(full), { ledgerNamespacePresent: false });
+  assert.equal(absent.baselineSatisfied, true, "LEDGER_ABSENT was refused");
+  assert.equal(absent.matchedProfile, "local-cli-stock");
+  assert.equal(absent.matchedLedgerState, "absent");
+
+  // EVERY partial or contradictory combination refuses.
+  const partials = {
+    "namespace present, whole bundle missing": [withoutLedger(full), { ledgerNamespacePresent: true }],
+    "namespace absent, whole bundle present": [full, { ledgerNamespacePresent: false }],
+    "namespace present, table kept but pkey dropped": [full.filter((o) => !(o.schema === LEDGER_SCHEMA && o.kind === "index")), { ledgerNamespacePresent: true }],
+    "namespace present, pkey kept but table dropped": [full.filter((o) => !(o.schema === LEDGER_SCHEMA && o.kind === "relation")), { ledgerNamespacePresent: true }],
+    "namespace absent, but one ledger object survives": [withoutLedger(full).concat([{ ...bundle[0] }]), { ledgerNamespacePresent: false }],
+    "unproven namespace, bundle absent": [withoutLedger(full), {}],
+  };
+  for (const [label, [observed, options]] of Object.entries(partials)) {
+    const verdict = classifyManagedSchemaObjects(observed, options);
+    assert.equal(verdict.baselineSatisfied, false, `a partial ledger state was certified stock: ${label}`);
+    assert.equal(verdict.matchedProfile, null, `${label} matched a profile`);
+    assert.ok(managedObjectProblemCount(verdict) > 0, `${label} contributed 0 problems`);
+  }
+  // A rewritten ledger table is still refused when the namespace is present: the ABSENT
+  // variant is not a way to launder a tampered ledger.
+  const tampered = full.map((o) => (o.schema === LEDGER_SCHEMA && o.kind === "relation" ? { ...o, fingerprint: "0".repeat(24) } : o));
+  assert.equal(classifyManagedSchemaObjects(tampered, { ledgerNamespacePresent: true }).baselineSatisfied, false,
+    "a tampered ledger table was accepted");
+  assert.equal(classifyManagedSchemaObjects(tampered, { ledgerNamespacePresent: false }).baselineSatisfied, false,
+    "a tampered ledger table was laundered through the ABSENT variant");
+});
+
+test("R33: the ledger schema ACL belongs to the same atomic bundle", () => {
+  const stock = STOCK_MANAGED_SCHEMA_ACL.map((e) => ({ ...e }));
+  const withoutLedgerAcl = stock.filter((e) => e.schema !== LEDGER_SCHEMA);
+  assert.notEqual(withoutLedgerAcl.length, stock.length, "the ledger schema carries no certified ACL");
+
+  assert.equal(classifyManagedSchemaAcl(stock, { ledgerNamespacePresent: true }).baselineSatisfied, true,
+    "the certified schema ACLs were refused with the ledger present");
+  assert.equal(classifyManagedSchemaAcl(withoutLedgerAcl, { ledgerNamespacePresent: false }).baselineSatisfied, true,
+    "a virgin target's schema ACLs were refused");
+  // Cross combinations fail closed.
+  assert.equal(classifyManagedSchemaAcl(withoutLedgerAcl, { ledgerNamespacePresent: true }).baselineSatisfied, false,
+    "a missing ledger schema ACL was accepted while the namespace exists");
+  assert.equal(classifyManagedSchemaAcl(stock, { ledgerNamespacePresent: false }).baselineSatisfied, false,
+    "a ledger schema ACL was accepted while the namespace is proven absent");
+  // A CHANGED ledger ACL is refused, not excused by the bundle.
+  const changed = stock.map((e) => (e.schema === LEDGER_SCHEMA ? { ...e, acl: "anon=UC/postgres" } : e));
+  assert.equal(classifyManagedSchemaAcl(changed, { ledgerNamespacePresent: true }).baselineSatisfied, false,
+    "a re-granted ledger schema was accepted");
 });
