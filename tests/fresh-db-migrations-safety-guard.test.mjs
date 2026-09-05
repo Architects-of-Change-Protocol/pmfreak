@@ -26,6 +26,10 @@ import {
   recognizeMigrationListRows,
   classifyManagedSchemaObjects,
   probeHostedApplicationState,
+  classifyExtensionState,
+  extensionProfileDigest,
+  STOCK_EXTENSION_PROFILES,
+  SUPPORTED_EXTENSION_MEMBER_CLASSES,
   STOCK_MANAGED_OBJECT_BASELINE,
   STOCK_MANAGED_OBJECT_PROFILES,
   managedObjectProblemCount,
@@ -1912,7 +1916,7 @@ const dailyIndexDefinition = (suffix) => {
 
 test("R30: the probe transports an index parent ONLY when one exists", () => {
   const source = readFileSync(SCRIPT, "utf8");
-  const region = source.slice(source.indexOf("const managedQuery"), source.indexOf("const managed = runner"));
+  const region = source.slice(source.indexOf("const RELATION_STRUCTURE"), source.indexOf("const managed = runner"));
   // Positive parent evidence, read from pg_inherits — never inferred from the child name.
   assert.match(region, /'\|indexparent=' \|\| pn\.nspname \|\| '\.' \|\| pc\.relname/, "the index parent is not transported");
   assert.match(region, /from pg_inherits ii[\s\S]{0,200}where ii\.inhrelid = c\.oid/, "the parent is not read from pg_inherits on the index itself");
@@ -2073,6 +2077,9 @@ function stubbedStockRunner({ vaultSecretRows = 0, extensions, capture = {} } = 
         `${t.schema}~|~${t.table}~|~${t.trigger}~|~${t.functionSchema}~|~${t.functionName}~|~${t.functionOwner}~|~${t.definition}~|~${t.provenance}`).join("\n") + "\n");
     }
     if (sql.includes("pg_event_trigger")) return ok("");
+    // Dispatched BEFORE the managed-object branch: the certified extension profile query
+    // also carries pg_get_functiondef, through the shared structural builder.
+    if (sql.includes("pg_identify_object")) return ok(localExtensionWire().join("\n") + "\n");
     if (sql.includes("pg_get_functiondef")) return ok("");            // managed objects
     if (sql.includes("pg_extension e join pg_namespace")) {
       return ok((extensions ?? STOCK_EXTENSION_BASELINE.map((e) => `${e.name}~|~${e.version}~|~${e.schema}`)).join("\n") + "\n");
@@ -2101,6 +2108,9 @@ test("R31: the managed-table ROW probe no longer exempts extension-owned tables"
   const objectRegion = source.slice(source.indexOf("const managedQuery"), source.indexOf("const managed = runner"));
   assert.equal((objectRegion.match(/notExtensionOwned\(/g) ?? []).length, 3,
     "the managed-object inventory lost its extension-ownership exemption");
+  // Those exemptions are only sound because the certified extension profile independently
+  // proves the whole membership graph and every member's structure.
+  assert.match(source, /classifyExtensionState\(/, "nothing independently certifies extension provenance");
 });
 
 // ── REGRESSION A / B: the real probe-to-classifier handoff ─────────────────
@@ -3399,4 +3409,307 @@ test("CASE G (bare) — a normal REPEATABILITY table is unchanged", () => {
   assert.deepEqual(parsed.malformedMigrationRows, []);
   const { rows: _r, ...evidence } = parsed;
   assert.equal(classifyHostedTarget(LOCALS, LOCALS, { ...evidence, localMigrationCount: 2 }).mode, "repeatability", "REPEATABILITY was lost");
+});
+
+// ─── R32: certified extension provenance ──────────────────────────────────
+//
+// The defect: extension membership was treated as sufficient provenance. The gate
+// excluded pg_depend deptype='e' objects from its application inventories while
+// certifying only name/version/schema. PostgreSQL lets the owner of an extension
+// attach an EXISTING object to it without changing the version, so a custom
+// application object could acquire membership and vanish while the extension
+// baseline still read stock — a false-EMPTY before `supabase db push`.
+//
+// Both halves were reproduced on a disposable scratch PostgreSQL 17 before this
+// code existed:
+//   A  a custom public function went from 1 visible application function to 0 after
+//      `pgcrypto ADD FUNCTION`, with pgcrypto still 1.3 in schema extensions;
+//   B  extensions.digest(text,text) gained SECURITY DEFINER in place — prosecdef
+//      false -> true, functiondef hash changed — with extension, version and
+//      membership identity untouched.
+//
+// So membership identity alone is not enough either. A target must match ONE
+// complete certified profile: installation metadata + the whole membership graph +
+// every member's exact structure.
+
+/** The certified local extension capture, replayed in the probe's own wire format. */
+const localExtensionWire = () =>
+  Buffer.from(
+    readFileSync(new URL("./fixtures/local-extension-state.base64", import.meta.url), "utf8").replace(/\s+/g, ""),
+    "base64",
+  ).toString("utf8").split("\n");
+
+const extProfile = () => {
+  const p = STOCK_EXTENSION_PROFILES.find((x) => x.id === "local-cli-stock");
+  assert.ok(p, "the certified local extension profile is missing");
+  return p;
+};
+/** The certified profile as an observation the classifier can be driven with. */
+const extObservation = () => ({
+  extensions: extProfile().extensions.map((e) => ({ ...e })),
+  members: extProfile().members.map((m) => ({ ...m })),
+});
+
+test("R32: the certified extension profile verifies its own digest, counts and uniqueness", () => {
+  for (const profile of STOCK_EXTENSION_PROFILES) {
+    assert.ok(profile.source, `${profile.id} carries no provenance`);
+    assert.match(profile.capturedAt, /^\d{4}-\d{2}-\d{2}$/, `${profile.id} carries no capture date`);
+    assert.ok(profile.server, `${profile.id} records no server version`);
+    assert.equal(profile.extensions.length, profile.extensionCount);
+    assert.equal(profile.members.length, profile.memberCount);
+    assert.equal(extensionProfileDigest(profile), profile.digest, `${profile.id} does not match its certified digest`);
+    // Order is not semantic.
+    const shuffled = { extensions: [...profile.extensions].reverse(), members: [...profile.members].reverse() };
+    assert.equal(extensionProfileDigest(shuffled), profile.digest, `${profile.id}'s digest depends on order`);
+    // Every member carries a structural fingerprint and a supported class.
+    for (const m of profile.members) {
+      assert.match(m.fingerprint, /^[0-9a-f]{24}$/, `${m.identity} carries no structural fingerprint`);
+      assert.ok(SUPPORTED_EXTENSION_MEMBER_CLASSES.includes(m.classCatalog), `${m.identity} has an uncertifiable class`);
+      assert.ok(m.owner, `${m.identity} carries no owner`);
+    }
+    // Extension owner is provenance, not decoration: it controls who may change membership.
+    for (const e of profile.extensions) assert.ok(e.owner, `${e.extname} carries no owner`);
+  }
+});
+
+test("R32: the certified local profile matches the independently captured hosted distribution", () => {
+  const p = extProfile();
+  assert.equal(p.extensionCount, 5, "the local extension count changed");
+  assert.equal(p.memberCount, 70, "the local extension member count changed");
+  assert.deepEqual(p.byExtension, { "pg_stat_statements": 9, pgcrypto: 36, plpgsql: 4, supabase_vault: 11, "uuid-ossp": 10 });
+  assert.deepEqual(p.byClass, { pg_class: 4, pg_language: 1, pg_proc: 57, pg_type: 8 });
+  assert.equal(Object.values(p.byClass).reduce((a, b) => a + b, 0), 70, "the by-class counts do not sum to the member count");
+});
+
+// ── A: the complete certified profile is accepted, atomically ──────────────
+
+test("A: the complete certified extension profile is accepted and matches only itself", () => {
+  const verdict = classifyExtensionState(extObservation());
+  assert.equal(verdict.baselineSatisfied, true, `the certified profile was refused: ${verdict.problems.slice(0, 3).join("; ")}`);
+  assert.equal(verdict.matchedProfile, "local-cli-stock");
+  assert.deepEqual(verdict.matchingProfiles, ["local-cli-stock"]);
+  assert.equal(verdict.problemCount, 0);
+  assert.deepEqual(verdict.unsupportedMemberClasses, []);
+});
+
+// ── C–G: extension installation metadata ──────────────────────────────────
+
+test("C-G: extra, missing, wrong version, wrong schema and wrong OWNER are all refused", () => {
+  const base = extObservation();
+  const target = base.extensions.find((e) => e.extname === "pgcrypto");
+  assert.ok(target, "pgcrypto is not certified");
+  const cases = {
+    "C extra extension": { ...base, extensions: [...base.extensions, { ...target, extname: "postgis", extversion: "3.4" }] },
+    "D missing extension": { ...base, extensions: base.extensions.filter((e) => e.extname !== "pgcrypto") },
+    "E wrong version": { ...base, extensions: base.extensions.map((e) => e.extname === "pgcrypto" ? { ...e, extversion: "1.2" } : e) },
+    "F wrong schema": { ...base, extensions: base.extensions.map((e) => e.extname === "pgcrypto" ? { ...e, schema: "public" } : e) },
+    "G wrong owner": { ...base, extensions: base.extensions.map((e) => e.extname === "pgcrypto" ? { ...e, owner: "postgres" } : e) },
+    "relocatable drift": { ...base, extensions: base.extensions.map((e) => e.extname === "pgcrypto" ? { ...e, relocatable: "false" } : e) },
+    "extconfig drift": { ...base, extensions: base.extensions.map((e) => e.extname === "supabase_vault" ? { ...e, config: "(none)" } : e) },
+  };
+  for (const [label, observed] of Object.entries(cases)) {
+    const verdict = classifyExtensionState(observed);
+    assert.equal(verdict.baselineSatisfied, false, `${label} was certified stock`);
+    assert.equal(verdict.matchedProfile, null, `${label} matched a profile`);
+    assert.ok(verdict.problemCount > 0, `${label} contributed 0 problems`);
+  }
+});
+
+// ── H: the load-bearing membership-laundering refusal ──────────────────────
+
+test("H: a custom object attached to a certified extension is refused as an extra member", () => {
+  const observed = extObservation();
+  // Exactly reproduction A: a custom public function attached to stock pgcrypto. Note the
+  // schema is `public`, not extensions.* — enumerating members by schema convention is
+  // precisely what would keep this invisible.
+  observed.members.push({
+    extname: "pgcrypto", classCatalog: "pg_proc", objectType: "function", schema: "public",
+    identity: "public.r32_extension_member_probe()", owner: "postgres", fingerprint: "0".repeat(24),
+  });
+  const verdict = classifyExtensionState(observed);
+  assert.equal(verdict.baselineSatisfied, false, "a laundered application object was certified as platform state");
+  assert.equal(verdict.matchedProfile, null);
+  assert.ok(verdict.problemCount > 0, "the laundered member contributed 0 problems");
+  assert.ok(
+    verdict.problems.some((p) => p.includes("r32_extension_member_probe")),
+    `the laundered member was not named: ${verdict.problems.join("; ")}`,
+  );
+  // The extension's own metadata is untouched, exactly as in the scratch reproduction.
+  assert.deepEqual(
+    observed.extensions.find((e) => e.extname === "pgcrypto"),
+    extProfile().extensions.find((e) => e.extname === "pgcrypto"),
+    "the reproduction changed extension metadata, so it does not model the real bypass",
+  );
+});
+
+// ── I–M: the membership graph and member structure ────────────────────────
+
+test("I-M: missing, re-homed, re-owned, structurally drifted and duplicated members are refused", () => {
+  const base = extObservation();
+  const member = base.members.find((m) => m.extname === "pgcrypto" && m.identity.includes("digest"));
+  assert.ok(member, "the pgcrypto digest member is not certified");
+  const swap = (patch) => ({ ...base, members: base.members.map((m) => m === member ? { ...m, ...patch } : m) });
+  const cases = {
+    "I missing certified member": { ...base, members: base.members.filter((m) => m !== member) },
+    "J member moved to another extension": swap({ extname: "uuid-ossp" }),
+    "K member owner drift": swap({ owner: "mallory" }),
+    // L — reproduction B: SECURITY DEFINER in place. Extension, identity, owner and
+    // membership all unchanged; only the exact structure moved.
+    "L member structural drift": swap({ fingerprint: "f".repeat(24) }),
+    "M duplicate member evidence": { ...base, members: [...base.members, { ...member }] },
+  };
+  for (const [label, observed] of Object.entries(cases)) {
+    const verdict = classifyExtensionState(observed);
+    assert.equal(verdict.baselineSatisfied, false, `${label} was certified stock`);
+    assert.ok(verdict.problemCount > 0, `${label} contributed 0 problems`);
+  }
+  // Structural drift is diagnosed AS structural drift, not as an unrelated extra/missing pair.
+  const drift = classifyExtensionState(swap({ fingerprint: "f".repeat(24) }));
+  assert.ok(drift.problems.some((p) => p.includes("structure drift")), `structural drift was not attributed: ${drift.problems.join("; ")}`);
+  const owner = classifyExtensionState(swap({ owner: "mallory" }));
+  assert.ok(owner.problems.some((p) => p.includes("owner drift")), `owner drift was not attributed: ${owner.problems.join("; ")}`);
+});
+
+// ── N: an unimplemented catalog class is never a trusted object ────────────
+
+test("N: an unsupported extension-member class fails closed", () => {
+  for (const cls of ["pg_operator", "pg_cast", "pg_collation", "pg_event_trigger", "pg_policy"]) {
+    const observed = extObservation();
+    observed.members.push({
+      extname: "pgcrypto", classCatalog: cls, objectType: "operator", schema: "public",
+      identity: `public.=== (unknown)`, owner: "postgres", fingerprint: "0".repeat(24),
+    });
+    const verdict = classifyExtensionState(observed);
+    assert.equal(verdict.baselineSatisfied, false, `an unsupported ${cls} member was certified`);
+    assert.deepEqual(verdict.unsupportedMemberClasses.length > 0, true, `${cls} was not reported unsupported`);
+    assert.ok(verdict.problems.some((p) => p.includes("unsupported extension-member class")), `${cls} was not diagnosed`);
+    assert.ok(verdict.problemCount > 0);
+  }
+  // The SQL emits a marker rather than silently producing an empty structure.
+  const source = readFileSync(SCRIPT, "utf8");
+  assert.match(source, /unsupported-member-class/, "the probe does not mark unimplemented member classes");
+});
+
+// ── PROBE-LEVEL: the real probe-to-classifier handoff ─────────────────────
+
+/** Extends the R31 stock stub with the certified extension-state capture. */
+function stubbedExtensionRunner({ extraMemberLine = null, appFunctions = 0, mutateWire = (l) => l } = {}) {
+  const base = stubbedStockRunner({});
+  return (cmd, args) => {
+    const sql = String(args[args.length - 1]);
+    if (sql.includes("pg_identify_object")) {
+      const lines = mutateWire([...localExtensionWire()]);
+      if (extraMemberLine) lines.push(extraMemberLine);
+      return { status: 0, stdout: lines.join("\n") + "\n", stderr: "" };
+    }
+    if (sql.includes("as user_schemas")) {
+      // user_functions is the 4th counter. This models the GENERIC application inventory,
+      // which by design no longer sees an object once it carries extension membership.
+      return { status: 0, stdout: `0,0,0,${appFunctions},0,0,0,0,0,0\n`, stderr: "" };
+    }
+    return base(cmd, args);
+  };
+}
+
+test("PROBE: a laundered extension member defeats emptiness through the REAL probe", () => {
+  // Baseline: the certified capture replayed verbatim is exactly stock.
+  const clean = probeHostedApplicationState("postgresql://stub", stubbedExtensionRunner({}));
+  assert.equal(clean.ok, true, `the probe failed on the certified capture: ${clean.reason ?? JSON.stringify(clean.failure)}`);
+  assert.equal(clean.extensionProfile.baselineSatisfied, true,
+    `the certified capture was refused: ${clean.extensionProfile.problems.slice(0, 3).join("; ")}`);
+  assert.equal(clean.counts.user_extensions, 0, "the certified extension state was counted as a problem");
+
+  // Now the bypass, exactly as reproduced on scratch PostgreSQL: the custom function is
+  // GONE from the generic application counter because it now carries deptype='e' ...
+  const laundered = probeHostedApplicationState("postgresql://stub", stubbedExtensionRunner({
+    appFunctions: 0,
+    extraMemberLine: `MEM~|~pgcrypto~|~pg_proc~|~function~|~public~|~public.r32_extension_member_probe()~|~postgres~|~${Buffer.from("def=CREATE OR REPLACE FUNCTION public.r32_extension_member_probe()", "utf8").toString("base64")}`,
+  }));
+  assert.equal(laundered.ok, true, "the probe failed on the laundered target");
+  // APP_GENERIC_COUNTER_AFTER_MEMBERSHIP = 0 — the OLD control sees nothing.
+  assert.equal(laundered.counts.user_functions, 0, "the fixture does not model the bypass: the old counter still sees the object");
+  // EXTENSION_PROFILE_PROBLEM > 0 — the NEW control catches it.
+  assert.ok(laundered.extensionProfile.problemCount > 0, "the extension profile did not observe the laundered member");
+  assert.ok(laundered.counts.user_extensions > 0, "the laundered member contributed nothing to emptiness");
+  assert.ok(
+    laundered.extensionProfile.problems.some((p) => p.includes("r32_extension_member_probe")),
+    `the laundered member was not named: ${laundered.extensionProfile.problems.join("; ")}`,
+  );
+  // APPLICATION_EMPTINESS = NOT_EMPTY, attributable to the extension category ALONE.
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_extensions: laundered.counts.user_extensions }).empty, false,
+    "DB_PUSH_REACHED — a laundered application object certified the target as empty");
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_extensions: 0 }).empty, true,
+    "the control set is not otherwise empty, so the refusal above proves nothing");
+});
+
+test("PROBE: member STRUCTURAL drift defeats emptiness through the REAL probe", () => {
+  // Reproduction B through the probe: one certified member's transported structure is
+  // rewritten, its identity, owner, extension and membership untouched.
+  const drifted = probeHostedApplicationState("postgresql://stub", stubbedExtensionRunner({
+    mutateWire: (lines) => lines.map((l) => {
+      if (!l.startsWith("MEM~|~pgcrypto~|~pg_proc~|~function~|~extensions~|~extensions.digest(")) return l;
+      const f = l.split("~|~");
+      const structure = Buffer.from(f.slice(7).join("~|~"), "base64").toString("utf8");
+      // The exact mutation proven on scratch: invoker -> definer.
+      f[7] = Buffer.from(structure.replace("|sec=invoker", "|sec=definer"), "utf8").toString("base64");
+      return f.slice(0, 8).join("~|~");
+    }),
+  }));
+  assert.equal(drifted.ok, true, "the probe failed on the drifted target");
+  assert.equal(drifted.extensionProfile.baselineSatisfied, false, "SECURITY DEFINER drift on a certified member was accepted");
+  assert.ok(drifted.counts.user_extensions > 0, "member structural drift contributed nothing to emptiness");
+  assert.ok(
+    drifted.extensionProfile.problems.some((p) => p.includes("structure drift")),
+    `structural drift was not attributed: ${drifted.extensionProfile.problems.join("; ")}`,
+  );
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_extensions: drifted.counts.user_extensions }).empty, false,
+    "a certified member with changed security semantics still certified the target as empty");
+});
+
+test("O: malformed extension-member evidence is a probe failure, never EMPTY", () => {
+  const cases = {
+    "an unknown row tag": (lines) => [...lines, "WAT~|~pgcrypto~|~x"],
+    "a short extension row": (lines) => lines.map((l) => l.startsWith("EXT~|~") ? "EXT~|~pgcrypto~|~1.3" : l),
+    "a short member row": (lines) => [...lines, "MEM~|~pgcrypto~|~pg_proc~|~function"],
+  };
+  for (const [label, mutateWire] of Object.entries(cases)) {
+    const out = probeHostedApplicationState("postgresql://stub", stubbedExtensionRunner({ mutateWire }));
+    assert.equal(out.ok, false, `${label} did not fail the probe`);
+    assert.match(out.reason ?? "", /refusing to infer emptiness/, `${label} did not fail closed`);
+  }
+});
+
+test("Q+R: R31 extension-owned ROW inspection is not reopened by extension certification", () => {
+  // Even with an EXACTLY certified supabase_vault extension profile, vault.secrets rows
+  // are still application state. Certifying the extension must not re-exempt its tables.
+  const zero = probeHostedApplicationState("postgresql://stub", stubbedExtensionRunner({}));
+  assert.equal(zero.extensionProfile.baselineSatisfied, true, "the certified extension state was refused");
+  assert.equal(zero.counts.user_managed_table_rows, 0, "R — a zero-row stock vault.secrets was flagged");
+
+  const populated = probeHostedApplicationState("postgresql://stub", (cmd, args) => {
+    const sql = String(args[args.length - 1]);
+    if (sql.includes("query_to_xml")) {
+      const r = stubbedStockRunner({ vaultSecretRows: 1 })(cmd, args);
+      return r;
+    }
+    return stubbedExtensionRunner({})(cmd, args);
+  });
+  assert.equal(populated.extensionProfile.baselineSatisfied, true, "the extension state should still be stock");
+  assert.ok(populated.counts.user_managed_table_rows > 0,
+    "R31 REOPENED — vault.secrets rows were exempted again once the extension was certified");
+  assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_managed_table_rows: populated.counts.user_managed_table_rows }).empty, false);
+});
+
+test("R32: extension exemptions in the object inventories are justified by the profile", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  // The exemptions REMAIN — deleting them would make stock extension objects look like
+  // application state — but the comment must record what now justifies them.
+  assert.ok((source.match(/notExtensionOwned\(/g) ?? []).length >= 5, "the object-inventory exemptions were deleted wholesale");
+  assert.match(source, /pg_depend[\s\S]{0,400}deptype = 'e'/, "the membership graph is not read from pg_depend");
+  assert.match(source, /pg_identify_object/, "member identity does not come from PostgreSQL's own naming authority");
+  // Membership must not be enumerated by schema convention.
+  const region = source.slice(source.indexOf("const extensionProfileQuery"), source.indexOf("const extProfileResult"));
+  assert.doesNotMatch(region, /nspname IN \('extensions'|nspname = 'extensions'/, "the member graph is filtered by schema convention");
+  assert.match(region, /extconfig/, "extconfig is not certified");
+  assert.match(region, /encode\(convert_to\(/, "member structures are not transported losslessly");
 });

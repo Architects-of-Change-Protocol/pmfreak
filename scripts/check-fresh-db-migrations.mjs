@@ -36,6 +36,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { STOCK_MANAGED_OBJECT_PROFILES } from "./fixtures/managed-object-profiles.mjs";
+import { STOCK_EXTENSION_PROFILES } from "./fixtures/extension-profiles.mjs";
 
 const ROOT = process.cwd();
 const MIGRATIONS_DIR = path.join(ROOT, "supabase/migrations");
@@ -775,7 +776,7 @@ function classifyObjectEmptiness(counts) {
     ["user_managed_schema_objects", "relations/indexes/functions/types inside managed schemas that do not exactly match ONE complete certified stock profile (extra, altered, re-owned, MISSING, or a hybrid of two profiles)"],
     ["user_schema_acl", "managed schema ACLs (pg_namespace.nspacl) that are not the certified stock grants (added, removed, or an unknown managed schema)"],
     ["user_default_acl", "ALTER DEFAULT PRIVILEGES rules (pg_default_acl) outside the certified stock set — these grant rights on objects the migration chain is about to create"],
-    ["user_extensions", "installed PostgreSQL extensions that are not the certified stock set at the certified versions (extra, missing, or wrong version)"],
+    ["user_extensions", "certified extension STATE mismatch: installed extensions that are not the certified stock set at the certified versions, or an extension installation, membership graph or member structure that does not match ONE complete certified extension profile"],
     ["user_managed_table_rows", "managed platform tables whose row state is not the certified pristine one (extra rows, missing bootstrap rows, altered stable content, or rows in a table a pristine project leaves empty)"],
     ["migration_rows", "PMFreak migration-history rows"],
     ["auth_users", "auth.users identities"],
@@ -1298,6 +1299,100 @@ function isRealtimeDailyPartition(object) {
  * application-empty because its objects were individually findable across the union of
  * profiles.
  */
+/** Catalog classes this gate knows how to fingerprint. Anything else fails closed. */
+const SUPPORTED_EXTENSION_MEMBER_CLASSES = Object.freeze(["pg_class", "pg_proc", "pg_type", "pg_language"]);
+
+/** The canonical, order-independent line form a certified extension profile is compared on. */
+function extensionStateLines(state) {
+  return [
+    ...(state.extensions ?? []).map((e) =>
+      `EXT|${e.extname}|${e.extversion}|${e.schema}|${e.owner}|${e.relocatable}|${e.config}|${e.condition}`),
+    ...(state.members ?? []).map((m) =>
+      `MEM|${m.extname}|${m.classCatalog}|${m.objectType}|${m.schema}|${m.identity}|${m.owner}|${m.fingerprint}`),
+  ];
+}
+
+/** The documented whole-profile digest: canonical lines, stable-sorted, LF, no trailing LF. */
+function extensionProfileDigest(state) {
+  return createHash("sha256").update(extensionStateLines(state).sort().join("\n"), "utf8").digest("hex");
+}
+
+function classifyExtensionStateAgainstProfile(observed, profile) {
+  const extra = [];
+  // Consumed as they match, so a DUPLICATED member observation is still an extra and a
+  // certified member never observed is still missing. Drift in either direction counts.
+  const remaining = extensionStateLines(profile);
+  for (const line of extensionStateLines(observed)) {
+    const index = remaining.indexOf(line);
+    if (index === -1) { extra.push(line); continue; }
+    remaining.splice(index, 1);
+  }
+  return {
+    profileId: profile.id,
+    extra,
+    missing: remaining,
+    problemCount: extra.length + remaining.length,
+    baselineSatisfied: extra.length === 0 && remaining.length === 0,
+  };
+}
+
+/**
+ * COMPLETE, ATOMIC extension certification.
+ *
+ * A target's extension state is stock when it matches ONE certified profile IN FULL --
+ * installation metadata, the entire membership graph, and every member's exact structure
+ * together. Never a per-extension, per-member or per-field union across profiles: that
+ * would accept a combination no real platform ever shipped, exactly as the managed-object
+ * union would have. Same anti-Frankenstein rule as the managed profiles.
+ */
+function classifyExtensionState(observed) {
+  // An unimplemented catalog class is refused before any profile is consulted. "Unknown
+  // extension-member class" must never read as "trusted extension object".
+  const unsupported = [...new Set((observed?.members ?? [])
+    .filter((m) => !SUPPORTED_EXTENSION_MEMBER_CLASSES.includes(m.classCatalog))
+    .map((m) => `${m.classCatalog} (${m.extname}: ${m.identity})`))];
+
+  const profileResults = STOCK_EXTENSION_PROFILES.map((profile) =>
+    classifyExtensionStateAgainstProfile(observed, profile));
+  const matching = unsupported.length > 0 ? [] : profileResults.filter((r) => r.baselineSatisfied);
+  const closest = profileResults.reduce((best, r) => (r.problemCount < best.problemCount ? r : best),
+    profileResults[0] ?? { profileId: null, extra: [], missing: [], problemCount: 1, baselineSatisfied: false });
+
+  // Attributable diagnostics: an extra and a missing line sharing one member identity is
+  // drift in place, not an unrelated pair of objects.
+  const diagnostics = [];
+  for (const cls of unsupported) diagnostics.push(`unsupported extension-member class ${cls}`);
+  const key = (line) => line.split("|").slice(0, 6).join("|");
+  const missingByKey = new Map(closest.missing.map((l) => [key(l), l]));
+  const pairedMissing = new Set();
+  for (const line of closest.extra) {
+    const counterpart = missingByKey.get(key(line));
+    if (!counterpart) { diagnostics.push(`extra ${line.startsWith("EXT|") ? "extension" : "extension member"}: ${line}`); continue; }
+    pairedMissing.add(counterpart);
+    const [a, b] = [line.split("|"), counterpart.split("|")];
+    const field = a[0] === "EXT"
+      ? ["", "name", "version", "schema", "owner", "relocatable", "config", "condition"][a.findIndex((v, i) => v !== b[i])] ?? "metadata"
+      : (a[6] !== b[6] ? "owner" : a[7] !== b[7] ? "structure" : "identity");
+    diagnostics.push(`${a[0] === "EXT" ? "extension" : "extension member"} ${field} drift: ${a[0] === "EXT" ? a[1] : `${a[1]} ${a[5]}`}`);
+  }
+  for (const line of closest.missing) {
+    if (pairedMissing.has(line)) continue;
+    diagnostics.push(`missing certified ${line.startsWith("EXT|") ? "extension" : "extension member"}: ${line}`);
+  }
+
+  return {
+    baselineSatisfied: matching.length > 0,
+    matchedProfile: matching.length > 0 ? matching[0].profileId : null,
+    matchingProfiles: matching.map((r) => r.profileId),
+    closestProfile: closest.profileId,
+    profileResults,
+    unsupportedMemberClasses: unsupported,
+    problems: diagnostics,
+    // Zero ONLY on a complete profile match; never because each piece existed somewhere.
+    problemCount: matching.length > 0 ? 0 : Math.max(1, closest.problemCount + unsupported.length),
+  };
+}
+
 function managedObjectProblemCount(verdict) {
   if (verdict.baselineSatisfied) return 0;
   return Math.max(1, verdict.nonStockCount + verdict.missingStockCount);
@@ -1406,6 +1501,85 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   // (pg_depend deptype 'e') rather than a hand-maintained list that would rot.
   const notExtensionOwned = (cls, alias) =>
     `not exists (select 1 from pg_depend d where d.classid = '${cls}'::regclass and d.objid = ${alias}.oid and d.deptype = 'e')`;
+
+  // STRUCTURAL BUILDERS, shared by the managed-object inventory and the certified
+  // extension profile. One definition of what "the exact structure of this object" means,
+  // so an extension member and a managed object are held to the same standard and cannot
+  // drift apart. Aliases are fixed: c = pg_class, p = pg_proc with its language l,
+  // t = pg_type, plang = a pg_language member.
+  const RELATION_STRUCTURE = `(case
+              -- An attached partition index carries its PARENT identity. An exact
+              -- pg_get_indexdef does not prove attachment: a standalone index on the same
+              -- partition may carry an equivalent definition, and equivalence is exactly
+              -- what attaching one requires -- so the definition alone cannot distinguish
+              -- a certified service index from a look-alike. The suffix is emitted ONLY
+              -- when a parent exists, so no unattached index's fingerprint changes.
+              when c.relkind in ('i','I') then 'indexdef=' || coalesce(pg_get_indexdef(c.oid), '')
+                   || coalesce((select '|indexparent=' || pn.nspname || '.' || pc.relname
+                                  from pg_inherits ii
+                                  join pg_class pc on pc.oid = ii.inhparent
+                                  join pg_namespace pn on pn.oid = pc.relnamespace
+                                 where ii.inhrelid = c.oid), '')
+              when c.relkind = 'v' then 'viewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
+              when c.relkind = 'm' then 'matviewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
+              when c.relkind = 'S' then 'sequence'
+                   || '|increment=' || coalesce((select s.seqincrement::text from pg_sequence s where s.seqrelid = c.oid), '')
+                   || '|start=' || coalesce((select s.seqstart::text from pg_sequence s where s.seqrelid = c.oid), '')
+                   || '|min=' || coalesce((select s.seqmin::text from pg_sequence s where s.seqrelid = c.oid), '')
+                   || '|max=' || coalesce((select s.seqmax::text from pg_sequence s where s.seqrelid = c.oid), '')
+                   || '|cache=' || coalesce((select s.seqcache::text from pg_sequence s where s.seqrelid = c.oid), '')
+                   || '|cycle=' || coalesce((select s.seqcycle::text from pg_sequence s where s.seqrelid = c.oid), '')
+                   || '|acl=' || coalesce(array_to_string(array(select unnest(c.relacl)::text order by 1), ','), '(default)')
+              else 'relkind=' || c.relkind::text
+                   || '|parent=' || coalesce((select pn.nspname || '.' || pc.relname from pg_inherits i
+                        join pg_class pc on pc.oid = i.inhparent join pg_namespace pn on pn.oid = pc.relnamespace
+                        where i.inhrelid = c.oid), '')
+                   || '|bound=' || coalesce(pg_get_expr(c.relpartbound, c.oid), '')
+                   || '|cols=' || coalesce((select string_agg(a.attname || ':' || format_type(a.atttypid, a.atttypmod) || ':' ||
+                        (case when a.attnotnull then 'NN' else 'NULL' end) || ':' ||
+                        coalesce(pg_get_expr(ad.adbin, ad.adrelid), ''), ',' order by a.attnum)
+                        from pg_attribute a left join pg_attrdef ad on ad.adrelid = a.attrelid and ad.adnum = a.attnum
+                        where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped), '')
+                   || '|cons=' || coalesce((select string_agg(con.contype::text || ':' || con.conname || ':' ||
+                        pg_get_constraintdef(con.oid, true) || ':' ||
+                        (case when con.condeferrable then 'DEFERRABLE' else 'NOTDEFERRABLE' end) || ':' ||
+                        (case when con.condeferred then 'INITDEFERRED' else 'INITIMMEDIATE' end) || ':' ||
+                        (case when con.convalidated then 'VALIDATED' else 'NOTVALIDATED' end) || ':' ||
+                        coalesce((select rn.nspname || '.' || rc.relname from pg_class rc join pg_namespace rn on rn.oid = rc.relnamespace
+                                  where rc.oid = con.confrelid), ''),
+                        ',' order by con.conname)
+                        from pg_constraint con where con.conrelid = c.oid
+                          and not exists (select 1 from pg_depend d2 where d2.classid = 'pg_constraint'::regclass and d2.objid = con.oid and d2.deptype = 'e')), '')
+                   || '|acl=' || coalesce(array_to_string(array(select unnest(c.relacl)::text order by 1), ','), '(default)')
+        || '|rls=' || c.relrowsecurity::text || '/' || c.relforcerowsecurity::text
+        || '|replident=' || c.relreplident::text
+            end)`;
+  const FUNCTION_STRUCTURE = `'def=' || coalesce(pg_get_functiondef(p.oid), 'ret=' || pg_catalog.format_type(p.prorettype, null) || '|kind=' || p.prokind::text) ||
+             '|lang=' || l.lanname || '|strict=' || p.proisstrict::text || '|parallel=' || p.proparallel::text ||
+             '|leakproof=' || p.proleakproof::text || '|vol=' || p.provolatile::text ||
+             '|sec=' || (case when p.prosecdef then 'definer' else 'invoker' end) ||
+             '|config=' || coalesce(array_to_string(array(select unnest(p.proconfig) order by 1), ','), '(none)') ||
+             '|acl=' || coalesce(array_to_string(array(select unnest(p.proacl)::text order by 1), ','), '(default)')`;
+  const TYPE_STRUCTURE = `'typtype=' || t.typtype::text ||
+           '|enum=' || coalesce((select string_agg(e.enumlabel, ',' order by e.enumsortorder) from pg_enum e where e.enumtypid = t.oid), '') ||
+           '|domainbase=' || coalesce((select format_type(t.typbasetype, t.typtypmod) where t.typtype = 'd'), '') ||
+           '|domaincons=' || coalesce((select string_agg(con.conname || ':' || pg_get_constraintdef(con.oid, true), ',' order by con.conname)
+                from pg_constraint con where con.contypid = t.oid), '') ||
+           '|range=' || coalesce((select format_type(r.rngsubtype, null) from pg_range r where r.rngtypid = t.oid), '') ||
+           '|attrs=' || coalesce((select string_agg(a.attname || ':' || format_type(a.atttypid, a.atttypmod), ',' order by a.attnum)
+                from pg_attribute a where a.attrelid = t.typrelid and a.attnum > 0 and not a.attisdropped), '') ||
+           '|acl=' || coalesce(array_to_string(array(select unnest(t.typacl)::text order by 1), ','), '(default)')`;
+  // pg_language is an extension-member class with no managed-object equivalent, so it has
+  // no existing builder to reuse. Trust and the three handler functions are the security
+  // relevant parts: a trusted language, or a re-pointed handler, changes who can run what.
+  const LANGUAGE_STRUCTURE = `
+           'lanname=' || plang.lanname
+        || '|trusted=' || plang.lanpltrusted::text
+        || '|ispl=' || plang.lanispl::text
+        || '|handler=' || coalesce((select hn.nspname || '.' || h.proname from pg_proc h join pg_namespace hn on hn.oid = h.pronamespace where h.oid = plang.lanplcallfoid), '')
+        || '|inline=' || coalesce((select hn.nspname || '.' || h.proname from pg_proc h join pg_namespace hn on hn.oid = h.pronamespace where h.oid = plang.laninline), '')
+        || '|validator=' || coalesce((select hn.nspname || '.' || h.proname from pg_proc h join pg_namespace hn on hn.oid = h.pronamespace where h.oid = plang.lanvalidator), '')
+        || '|acl=' || coalesce(array_to_string(array(select unnest(plang.lanacl)::text order by 1), ','), '(default)')`;
   const query = `
     select
       (select count(*) from pg_namespace n where ${PLATFORM_SCHEMA_PREDICATE}) as user_schemas,
@@ -1530,53 +1704,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   const managedQuery = `
     select n.nspname || '~|~' || (case when c.relkind in ('i','I') then 'index' else 'relation' end) || '~|~' ||
            c.relname || '~|~' || pg_get_userbyid(c.relowner) || '~|~' ||
-           translate(encode(convert_to((case
-              -- An attached partition index carries its PARENT identity. An exact
-              -- pg_get_indexdef does not prove attachment: a standalone index on the same
-              -- partition may carry an equivalent definition, and equivalence is exactly
-              -- what attaching one requires -- so the definition alone cannot distinguish
-              -- a certified service index from a look-alike. The suffix is emitted ONLY
-              -- when a parent exists, so no unattached index's fingerprint changes.
-              when c.relkind in ('i','I') then 'indexdef=' || coalesce(pg_get_indexdef(c.oid), '')
-                   || coalesce((select '|indexparent=' || pn.nspname || '.' || pc.relname
-                                  from pg_inherits ii
-                                  join pg_class pc on pc.oid = ii.inhparent
-                                  join pg_namespace pn on pn.oid = pc.relnamespace
-                                 where ii.inhrelid = c.oid), '')
-              when c.relkind = 'v' then 'viewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
-              when c.relkind = 'm' then 'matviewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
-              when c.relkind = 'S' then 'sequence'
-                   || '|increment=' || coalesce((select s.seqincrement::text from pg_sequence s where s.seqrelid = c.oid), '')
-                   || '|start=' || coalesce((select s.seqstart::text from pg_sequence s where s.seqrelid = c.oid), '')
-                   || '|min=' || coalesce((select s.seqmin::text from pg_sequence s where s.seqrelid = c.oid), '')
-                   || '|max=' || coalesce((select s.seqmax::text from pg_sequence s where s.seqrelid = c.oid), '')
-                   || '|cache=' || coalesce((select s.seqcache::text from pg_sequence s where s.seqrelid = c.oid), '')
-                   || '|cycle=' || coalesce((select s.seqcycle::text from pg_sequence s where s.seqrelid = c.oid), '')
-                   || '|acl=' || coalesce(array_to_string(array(select unnest(c.relacl)::text order by 1), ','), '(default)')
-              else 'relkind=' || c.relkind::text
-                   || '|parent=' || coalesce((select pn.nspname || '.' || pc.relname from pg_inherits i
-                        join pg_class pc on pc.oid = i.inhparent join pg_namespace pn on pn.oid = pc.relnamespace
-                        where i.inhrelid = c.oid), '')
-                   || '|bound=' || coalesce(pg_get_expr(c.relpartbound, c.oid), '')
-                   || '|cols=' || coalesce((select string_agg(a.attname || ':' || format_type(a.atttypid, a.atttypmod) || ':' ||
-                        (case when a.attnotnull then 'NN' else 'NULL' end) || ':' ||
-                        coalesce(pg_get_expr(ad.adbin, ad.adrelid), ''), ',' order by a.attnum)
-                        from pg_attribute a left join pg_attrdef ad on ad.adrelid = a.attrelid and ad.adnum = a.attnum
-                        where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped), '')
-                   || '|cons=' || coalesce((select string_agg(con.contype::text || ':' || con.conname || ':' ||
-                        pg_get_constraintdef(con.oid, true) || ':' ||
-                        (case when con.condeferrable then 'DEFERRABLE' else 'NOTDEFERRABLE' end) || ':' ||
-                        (case when con.condeferred then 'INITDEFERRED' else 'INITIMMEDIATE' end) || ':' ||
-                        (case when con.convalidated then 'VALIDATED' else 'NOTVALIDATED' end) || ':' ||
-                        coalesce((select rn.nspname || '.' || rc.relname from pg_class rc join pg_namespace rn on rn.oid = rc.relnamespace
-                                  where rc.oid = con.confrelid), ''),
-                        ',' order by con.conname)
-                        from pg_constraint con where con.conrelid = c.oid
-                          and not exists (select 1 from pg_depend d2 where d2.classid = 'pg_constraint'::regclass and d2.objid = con.oid and d2.deptype = 'e')), '')
-                   || '|acl=' || coalesce(array_to_string(array(select unnest(c.relacl)::text order by 1), ','), '(default)')
-        || '|rls=' || c.relrowsecurity::text || '/' || c.relforcerowsecurity::text
-        || '|replident=' || c.relreplident::text
-            end), 'UTF8'), 'base64'), chr(10) || chr(13), '')
+           translate(encode(convert_to(${RELATION_STRUCTURE}, 'UTF8'), 'base64'), chr(10) || chr(13), '')
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where c.relkind in ('r','p','v','m','S','f','i','I') and (${MANAGED})
        and ${notExtensionOwned("pg_class", "c")}
@@ -1585,27 +1713,14 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
            p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' || '~|~' ||
            pg_get_userbyid(p.proowner) || '~|~' ||
            translate(encode(convert_to(
-             'def=' || coalesce(pg_get_functiondef(p.oid), 'ret=' || pg_catalog.format_type(p.prorettype, null) || '|kind=' || p.prokind::text) ||
-             '|lang=' || l.lanname || '|strict=' || p.proisstrict::text || '|parallel=' || p.proparallel::text ||
-             '|leakproof=' || p.proleakproof::text || '|vol=' || p.provolatile::text ||
-             '|sec=' || (case when p.prosecdef then 'definer' else 'invoker' end) ||
-             '|config=' || coalesce(array_to_string(array(select unnest(p.proconfig) order by 1), ','), '(none)') ||
-             '|acl=' || coalesce(array_to_string(array(select unnest(p.proacl)::text order by 1), ','), '(default)')
+             ${FUNCTION_STRUCTURE}
            , 'UTF8'), 'base64'), chr(10) || chr(13), '')
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace join pg_language l on l.oid = p.prolang
      where (${MANAGED}) and ${notExtensionOwned("pg_proc", "p")}
     union all
     select n.nspname || '~|~' || 'type' || '~|~' || t.typname || '~|~' || pg_get_userbyid(t.typowner) || '~|~' ||
            translate(encode(convert_to(
-           'typtype=' || t.typtype::text ||
-           '|enum=' || coalesce((select string_agg(e.enumlabel, ',' order by e.enumsortorder) from pg_enum e where e.enumtypid = t.oid), '') ||
-           '|domainbase=' || coalesce((select format_type(t.typbasetype, t.typtypmod) where t.typtype = 'd'), '') ||
-           '|domaincons=' || coalesce((select string_agg(con.conname || ':' || pg_get_constraintdef(con.oid, true), ',' order by con.conname)
-                from pg_constraint con where con.contypid = t.oid), '') ||
-           '|range=' || coalesce((select format_type(r.rngsubtype, null) from pg_range r where r.rngtypid = t.oid), '') ||
-           '|attrs=' || coalesce((select string_agg(a.attname || ':' || format_type(a.atttypid, a.atttypmod), ',' order by a.attnum)
-                from pg_attribute a where a.attrelid = t.typrelid and a.attnum > 0 and not a.attisdropped), '') ||
-           '|acl=' || coalesce(array_to_string(array(select unnest(t.typacl)::text order by 1), ','), '(default)')
+           ${TYPE_STRUCTURE}
            , 'UTF8'), 'base64'), chr(10) || chr(13), '')
       from pg_type t join pg_namespace n on n.oid = t.typnamespace
      where (${MANAGED}) and t.typtype in ('c','d','e','r','m')
@@ -1662,6 +1777,97 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     }
     installedExtensions.push({ name: f[0], version: f[1], schema: f[2] });
   }
+  // CERTIFIED EXTENSION PROFILE. name/version/schema is not provenance. PostgreSQL lets
+  // the owner of an extension attach an existing object to it without touching the
+  // version, so a custom application object could acquire extension membership and vanish
+  // from every inventory that treats membership as platform provenance -- while the
+  // extension baseline above still read stock. Reproduced on a scratch PostgreSQL 17: a
+  // custom public function went from 1 visible application function to 0 with pgcrypto
+  // still 1.3 in schema extensions. Membership identity alone is not enough either: a
+  // certified member can gain SECURITY DEFINER in place, also reproduced, with its
+  // extension, version and membership untouched.
+  //
+  // So the complete graph is observed -- every pg_depend deptype 'e' edge, whatever schema
+  // it lives in -- and every member carries its exact structure, built by the same shared
+  // builders the managed inventory uses. pg_identify_object is the naming authority, not a
+  // schema convention, because assuming members live under extensions.* or vault.* is
+  // precisely what would keep laundering possible.
+  const extensionProfileQuery = `
+    select 'EXT~|~' || e.extname || '~|~' || e.extversion || '~|~' || n.nspname || '~|~' ||
+           pg_get_userbyid(e.extowner) || '~|~' || e.extrelocatable::text || '~|~' ||
+           -- extconfig is an oid array, and oids are per-database. Certify the RESOLVED
+           -- identities instead, or the same stock profile would never match twice.
+           coalesce((select string_agg(cn.nspname || '.' || cc.relname, ',' order by cn.nspname || '.' || cc.relname)
+                       from unnest(e.extconfig) cfg
+                       join pg_class cc on cc.oid = cfg
+                       join pg_namespace cn on cn.oid = cc.relnamespace), '(none)') || '~|~' ||
+           coalesce(array_to_string(e.extcondition, ','), '(none)')
+      from pg_extension e join pg_namespace n on n.oid = e.extnamespace
+    union all
+    select 'MEM~|~' || e.extname || '~|~' || cat.relname || '~|~' || i.type || '~|~' ||
+           coalesce(i.schema, '') || '~|~' || i.identity || '~|~' ||
+           coalesce(case
+             when cat.relname = 'pg_proc' then pg_get_userbyid(p.proowner)
+             when cat.relname = 'pg_class' then pg_get_userbyid(c.relowner)
+             when cat.relname = 'pg_type' then pg_get_userbyid(t.typowner)
+             when cat.relname = 'pg_language' then pg_get_userbyid(plang.lanowner)
+           end, '') || '~|~' ||
+           translate(encode(convert_to((case
+             when cat.relname = 'pg_proc' then ${FUNCTION_STRUCTURE}
+             when cat.relname = 'pg_class' then ${RELATION_STRUCTURE}
+             when cat.relname = 'pg_type' then ${TYPE_STRUCTURE}
+             when cat.relname = 'pg_language' then ${LANGUAGE_STRUCTURE}
+             -- An unimplemented catalog class is never a trusted object.
+             else 'unsupported-member-class=' || cat.relname
+           end), 'UTF8'), 'base64'), chr(10) || chr(13), '')
+      from pg_depend d
+      join pg_extension e on e.oid = d.refobjid
+      join pg_class cat on cat.oid = d.classid
+      cross join lateral pg_identify_object(d.classid, d.objid, d.objsubid) i
+      left join pg_proc p on cat.relname = 'pg_proc' and p.oid = d.objid
+      left join pg_language l on l.oid = p.prolang
+      left join pg_class c on cat.relname = 'pg_class' and c.oid = d.objid
+      left join pg_type t on cat.relname = 'pg_type' and t.oid = d.objid
+      left join pg_language plang on cat.relname = 'pg_language' and plang.oid = d.objid
+     where d.refclassid = 'pg_extension'::regclass and d.deptype = 'e';
+  `;
+  const extProfileResult = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c", extensionProfileQuery]);
+  if (extProfileResult.status !== 0) {
+    return { ok: false, failure: describeSpawnResult(extProfileResult, "psql (certified extension profile probe)"), stderr: extProfileResult.stderr };
+  }
+  const observedExtensionState = { extensions: [], members: [] };
+  for (const line of (extProfileResult.stdout ?? "").split(/\r?\n/)) {
+    if (line.trim() === "") continue;
+    const f = line.split("~|~");
+    if (f[0] === "EXT") {
+      if (f.length !== 8) {
+        return { ok: false, reason: `the extension profile probe returned an unrecognized extension row (${f.length} field(s)); refusing to infer emptiness.` };
+      }
+      observedExtensionState.extensions.push({
+        extname: f[1], extversion: f[2], schema: f[3], owner: f[4], relocatable: f[5], config: f[6], condition: f[7],
+      });
+      continue;
+    }
+    if (f[0] === "MEM") {
+      if (f.length < 8) {
+        return { ok: false, reason: `the extension profile probe returned an unrecognized member row (${f.length} field(s)); refusing to infer emptiness.` };
+      }
+      let structure;
+      try {
+        structure = Buffer.from(f.slice(7).join("~|~"), "base64").toString("utf8");
+      } catch {
+        return { ok: false, reason: "the extension profile probe returned an undecodable member structure; refusing to infer emptiness." };
+      }
+      observedExtensionState.members.push({
+        extname: f[1], classCatalog: f[2], objectType: f[3], schema: f[4], identity: f[5], owner: f[6],
+        fingerprint: fingerprintDefinition(structure), structure,
+      });
+      continue;
+    }
+    return { ok: false, reason: `the extension profile probe returned an unrecognized row tag (${(f[0] ?? "").slice(0, 24)}); refusing to infer emptiness.` };
+  }
+  const extensionProfileVerdict = classifyExtensionState(observedExtensionState);
+
   // SCHEMA ACLs. Object-level grants were proven; the schemas holding them were not, so
   // `GRANT CREATE ON SCHEMA storage TO anon` changed the security posture invisibly.
   const schemaAclResult = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c",
@@ -1705,7 +1911,11 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
 
   const extensionVerdict = classifyInstalledExtensions(installedExtensions);
   // Drift in EITHER direction: an extra extension, a missing one, or a wrong version.
-  counts.user_extensions = extensionVerdict.nonStockCount + extensionVerdict.missingStockCount;
+  // Certified extension STATE, not merely the installed name/version/schema set: the
+  // complete profile subsumes the identity check, so the two are combined into one
+  // category rather than left able to zero each other out.
+  counts.user_extensions = extensionVerdict.nonStockCount + extensionVerdict.missingStockCount
+    + extensionProfileVerdict.problemCount;
   const nonStockExtensions = extensionVerdict.nonStock;
 
   // ROWS IN STOCK MANAGED TABLES. `query_to_xml` runs one count per table inside a single
@@ -1777,6 +1987,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
     matchedManagedProfile: managedVerdict.matchedProfile, matchingManagedProfiles: managedVerdict.matchingProfiles,
     closestManagedProfile: managedVerdict.closestProfile, managedProfileResults: managedVerdict.profileResults,
     installedExtensions, nonStockExtensions, missingStockExtensions: extensionVerdict.missingStock,
+    observedExtensionState, extensionProfile: extensionProfileVerdict,
     observedRowState, populatedManagedTables,
     observedSchemaAcl, nonStockSchemaAcl: schemaAclVerdict.nonStock, missingStockSchemaAcl: schemaAclVerdict.missingStock,
     observedDefaultAcl, nonStockDefaultAcl: defaultAclVerdict.nonStock, missingStockDefaultAcl: defaultAclVerdict.missingStock,
@@ -2115,6 +2326,12 @@ export {
   LOCAL_STOCK_PROFILE,
   HOSTED_STOCK_PROFILE,
   classifyManagedSchemaObjectsAgainstProfile,
+  classifyExtensionState,
+  classifyExtensionStateAgainstProfile,
+  extensionStateLines,
+  extensionProfileDigest,
+  STOCK_EXTENSION_PROFILES,
+  SUPPORTED_EXTENSION_MEMBER_CLASSES,
   managedObjectProblemCount,
   STOCK_EXTENSION_BASELINE,
   STOCK_MANAGED_ROW_RULES,
