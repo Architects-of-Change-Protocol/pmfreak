@@ -35,7 +35,7 @@ import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { STOCK_MANAGED_OBJECT_PROFILES } from "./fixtures/managed-object-profiles.mjs";
+import { STOCK_MANAGED_OBJECT_PROFILES, MANAGED_OBJECT_SERIALIZER_REVISION } from "./fixtures/managed-object-profiles.mjs";
 import { STOCK_EXTENSION_PROFILES } from "./fixtures/extension-profiles.mjs";
 import { STOCK_AUTHORIZATION_PROFILES, authorizationStateLines } from "./fixtures/authorization-profiles.mjs";
 
@@ -2024,9 +2024,9 @@ const STOCK_MANAGED_OBJECT_BASELINE = LOCAL_STOCK_PROFILE.objects;
 // definition is not the service's index and is refused.
 const REALTIME_PARTITION_NAME = /^messages_(20\d{2})_(\d{2})_(\d{2})(_pkey|_inserted_at_topic_idx)?$/;
 const REALTIME_PARTITION_TEMPLATES = Object.freeze({
-  relation: "relkind=r|parent=realtime.messages|bound=FOR VALUES FROM ('<DATE> 00:00:00') TO ('<NEXT> 00:00:00')|cols=topic:text:NN:,extension:text:NN:,payload:jsonb:NULL:,event:text:NULL:,private:boolean:NULL:false,updated_at:timestamp without time zone:NN:now(),inserted_at:timestamp without time zone:NN:now(),id:uuid:NN:gen_random_uuid(),binary_payload:bytea:NULL:|cons=p:messages_<DATE_US>_pkey:PRIMARY KEY (id, inserted_at):NOTDEFERRABLE:INITIMMEDIATE:VALIDATED:,c:messages_payload_exclusive:CHECK (payload IS NULL OR binary_payload IS NULL):NOTDEFERRABLE:INITIMMEDIATE:VALIDATED:|aclstate=explicit|acl=dashboard_user=arwdDxtm/supabase_realtime_admin,postgres=arwdDxtm/supabase_realtime_admin,supabase_realtime_admin=arwdDxtm/supabase_realtime_admin|rls=false/false|replident=d",
-  index: "indexdef=CREATE UNIQUE INDEX messages_<DATE_US>_pkey ON realtime.messages_<DATE_US> USING btree (id, inserted_at)|indexparent=realtime.messages_pkey",
-  topicIndex: "indexdef=CREATE INDEX messages_<DATE_US>_inserted_at_topic_idx ON realtime.messages_<DATE_US> USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))|indexparent=realtime.messages_inserted_at_topic_index",
+  relation: "relkind=r|parent=realtime.messages|bound=FOR VALUES FROM ('<DATE> 00:00:00') TO ('<NEXT> 00:00:00')|cols=topic:text:NN::identity=none:aclstate=default|acl=,extension:text:NN::identity=none:aclstate=default|acl=,payload:jsonb:NULL::identity=none:aclstate=default|acl=,event:text:NULL::identity=none:aclstate=default|acl=,private:boolean:NULL:false:identity=none:aclstate=default|acl=,updated_at:timestamp without time zone:NN:now():identity=none:aclstate=default|acl=,inserted_at:timestamp without time zone:NN:now():identity=none:aclstate=default|acl=,id:uuid:NN:gen_random_uuid():identity=none:aclstate=default|acl=,binary_payload:bytea:NULL::identity=none:aclstate=default|acl=|cons=p:messages_<DATE_US>_pkey:PRIMARY KEY (id, inserted_at):NOTDEFERRABLE:INITIMMEDIATE:VALIDATED:,c:messages_payload_exclusive:CHECK (payload IS NULL OR binary_payload IS NULL):NOTDEFERRABLE:INITIMMEDIATE:VALIDATED:|aclstate=explicit|acl=dashboard_user=arwdDxtm/supabase_realtime_admin,postgres=arwdDxtm/supabase_realtime_admin,supabase_realtime_admin=arwdDxtm/supabase_realtime_admin|rls=false/false|replident=d|persistence=p",
+  index: "indexdef=CREATE UNIQUE INDEX messages_<DATE_US>_pkey ON realtime.messages_<DATE_US> USING btree (id, inserted_at)|indexparent=realtime.messages_pkey|persistence=p",
+  topicIndex: "indexdef=CREATE INDEX messages_<DATE_US>_inserted_at_topic_idx ON realtime.messages_<DATE_US> USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))|indexparent=realtime.messages_inserted_at_topic_index|persistence=p",
 });
 
 /** The certified definition for a partition of a given date, or null if it is not one. */
@@ -2197,6 +2197,14 @@ const ledgerBundleAcl = (a) => a.schema === LEDGER_SCHEMA;
  * set with the whole bundle removed, which is why removing part of it can never match.
  */
 function managedProfileVariants() {
+  // Every certified profile is offered, including one captured under a superseded
+  // serializer. That is safe WITHOUT an explicit revision filter, and deliberately has
+  // none: a stale profile cannot falsely certify anything, because a target probed with
+  // the current serializer produces fingerprints that changed for every relation the
+  // moment the serializer gained a field. Such a profile therefore matches nothing and the
+  // target is refused -- fail-closed by construction rather than by a filter that would
+  // have to be remembered. `serializerRevision` records which serializer produced each
+  // profile so a stale one is visible to a maintainer; it does not gate this function.
   return STOCK_MANAGED_OBJECT_PROFILES.flatMap((profile) => [
     { id: profile.id, ledger: "present", objects: profile.objects },
     { id: profile.id, ledger: "absent", objects: profile.objects.filter((o) => !ledgerBundleObject(o)) },
@@ -2310,121 +2318,223 @@ const PLATFORM_SCHEMA_PREDICATE =
   "'_analytics','_realtime','_supavisor','_timescaledb_cache','_timescaledb_catalog','_timescaledb_config'," +
   "'_timescaledb_internal','timescaledb_experimental','timescaledb_information')";
 
+// SHARED STRUCTURAL SERIALIZERS.
+//
+// These were function-local to probeHostedApplicationState, which meant the ONLY way to
+// re-certify a stock profile was to hand-copy the SQL into a capture tool -- and a copy
+// that drifts produces fingerprints the gate can never match. They are module scope so
+// the gate and scripts/capture-managed-object-profile.mjs share ONE definition of what
+// "the exact structure of this object" means.
+// Application schemas = public, plus any schema outside the Supabase platform set.
+// MANAGED schemas are NOT exempt — they are inventoried separately below, by ownership
+// rather than by schema name, because a custom object in `storage` is still custom.
+const APP = `(n.nspname = 'public' OR (${PLATFORM_SCHEMA_PREDICATE}))`;
+const MANAGED = `NOT (n.nspname = 'public' OR (${PLATFORM_SCHEMA_PREDICATE})) AND n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'`;
+// Extension-owned objects are NOT application state. A stock Supabase project ships
+// plenty of them, so they are excluded through PostgreSQL's own dependency metadata
+// (pg_depend deptype 'e') rather than a hand-maintained list that would rot.
+const notExtensionOwned = (cls, alias) =>
+  `not exists (select 1 from pg_depend d where d.classid = '${cls}'::regclass and d.objid = ${alias}.oid and d.deptype = 'e')`;
+
+// LOSSLESS ACL STATE. `coalesce(array_to_string(array(select unnest(acl)...), ','), s)`
+// cannot tell a NULL ACL from an explicit empty one: unnest(NULL) yields no rows, the
+// array() wrapper makes an EMPTY array, and array_to_string over an empty array returns
+// '' rather than NULL -- so the sentinel is unreachable and both states serialize
+// identically. PostgreSQL does not treat them alike: NULL means the built-in default
+// privileges apply, an explicit empty array means NO privileges are granted. The state
+// is therefore emitted as its own field, before the values, so revoking every grant can
+// never leave the fingerprint unchanged.
+const aclState = (expr) =>
+  `'aclstate=' || (case when ${expr} is null then 'default' else 'explicit' end) || '|acl=' || ` +
+  `coalesce(array_to_string(array(select unnest(${expr})::text order by 1), ','), '')`;
+
+// STRUCTURAL BUILDERS, shared by the managed-object inventory and the certified
+// extension profile. One definition of what "the exact structure of this object" means,
+// so an extension member and a managed object are held to the same standard and cannot
+// drift apart. Aliases are fixed: c = pg_class, p = pg_proc with its language l,
+// t = pg_type, plang = a pg_language member.
+const RELATION_STRUCTURE = `(case
+            -- An attached partition index carries its PARENT identity. An exact
+            -- pg_get_indexdef does not prove attachment: a standalone index on the same
+            -- partition may carry an equivalent definition, and equivalence is exactly
+            -- what attaching one requires -- so the definition alone cannot distinguish
+            -- a certified service index from a look-alike. The suffix is emitted ONLY
+            -- when a parent exists, so no unattached index's fingerprint changes.
+            when c.relkind in ('i','I') then 'indexdef=' || coalesce(pg_get_indexdef(c.oid), '')
+                 || coalesce((select '|indexparent=' || pn.nspname || '.' || pc.relname
+                                from pg_inherits ii
+                                join pg_class pc on pc.oid = ii.inhparent
+                                join pg_namespace pn on pn.oid = pc.relnamespace
+                               where ii.inhrelid = c.oid), '')
+                 || '|persistence=' || c.relpersistence::text
+            -- pg_get_viewdef reconstructs the SELECT and nothing else. A view's SECURITY
+            -- semantics live in reloptions -- security_invoker decides whether privileges
+            -- and policies are evaluated as the caller or the view owner, and
+            -- security_barrier and check_option are equally mutable -- and its
+            -- relation-level grants live in relacl. Both can move while the identity,
+            -- owner, extension membership and reconstructed SELECT all stay identical,
+            -- so both are bound into the structure.
+            when c.relkind = 'v' then 'viewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
+                 || '|options=' || coalesce(array_to_string(array(select unnest(c.reloptions) order by 1), ','), '(none)')
+                 || '|' || ${aclState("c.relacl")}
+                 || '|persistence=' || c.relpersistence::text
+            when c.relkind = 'm' then 'matviewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
+                 || '|options=' || coalesce(array_to_string(array(select unnest(c.reloptions) order by 1), ','), '(none)')
+                 || '|' || ${aclState("c.relacl")}
+                 || '|persistence=' || c.relpersistence::text
+            when c.relkind = 'S' then 'sequence'
+                 || '|increment=' || coalesce((select s.seqincrement::text from pg_sequence s where s.seqrelid = c.oid), '')
+                 || '|start=' || coalesce((select s.seqstart::text from pg_sequence s where s.seqrelid = c.oid), '')
+                 || '|min=' || coalesce((select s.seqmin::text from pg_sequence s where s.seqrelid = c.oid), '')
+                 || '|max=' || coalesce((select s.seqmax::text from pg_sequence s where s.seqrelid = c.oid), '')
+                 || '|cache=' || coalesce((select s.seqcache::text from pg_sequence s where s.seqrelid = c.oid), '')
+                 || '|cycle=' || coalesce((select s.seqcycle::text from pg_sequence s where s.seqrelid = c.oid), '')
+                 || '|' || ${aclState("c.relacl")}
+                 || '|persistence=' || c.relpersistence::text
+            else 'relkind=' || c.relkind::text
+                 || '|parent=' || coalesce((select pn.nspname || '.' || pc.relname from pg_inherits i
+                      join pg_class pc on pc.oid = i.inhparent join pg_namespace pn on pn.oid = pc.relnamespace
+                      where i.inhrelid = c.oid), '')
+                 || '|bound=' || coalesce(pg_get_expr(c.relpartbound, c.oid), '')
+                 || '|cols=' || coalesce((select string_agg(a.attname || ':' || format_type(a.atttypid, a.atttypmod) || ':' ||
+                      (case when a.attnotnull then 'NN' else 'NULL' end) || ':' ||
+                      coalesce(pg_get_expr(ad.adbin, ad.adrelid), '') || ':identity=' ||
+                      (case a.attidentity when '' then 'none' when 'a' then 'always' when 'd' then 'by_default'
+                            else 'unknown(' || a.attidentity::text || ')' end) || ':' ||
+                      ${aclState("a.attacl")}, ',' order by a.attnum)
+                      from pg_attribute a left join pg_attrdef ad on ad.adrelid = a.attrelid and ad.adnum = a.attnum
+                      where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped), '')
+                 || '|cons=' || coalesce((select string_agg(con.contype::text || ':' || con.conname || ':' ||
+                      pg_get_constraintdef(con.oid, true) || ':' ||
+                      (case when con.condeferrable then 'DEFERRABLE' else 'NOTDEFERRABLE' end) || ':' ||
+                      (case when con.condeferred then 'INITDEFERRED' else 'INITIMMEDIATE' end) || ':' ||
+                      (case when con.convalidated then 'VALIDATED' else 'NOTVALIDATED' end) || ':' ||
+                      coalesce((select rn.nspname || '.' || rc.relname from pg_class rc join pg_namespace rn on rn.oid = rc.relnamespace
+                                where rc.oid = con.confrelid), ''),
+                      ',' order by con.conname)
+                      from pg_constraint con where con.conrelid = c.oid
+                        and not exists (select 1 from pg_depend d2 where d2.classid = 'pg_constraint'::regclass and d2.objid = con.oid and d2.deptype = 'e')), '')
+                 || '|' || ${aclState("c.relacl")}
+      || '|rls=' || c.relrowsecurity::text || '/' || c.relforcerowsecurity::text
+      || '|replident=' || c.relreplident::text
+      || '|persistence=' || c.relpersistence::text
+          end)`;
+const FUNCTION_STRUCTURE = `'def=' || coalesce(pg_get_functiondef(p.oid), 'ret=' || pg_catalog.format_type(p.prorettype, null) || '|kind=' || p.prokind::text) ||
+           '|lang=' || l.lanname || '|strict=' || p.proisstrict::text || '|parallel=' || p.proparallel::text ||
+           '|leakproof=' || p.proleakproof::text || '|vol=' || p.provolatile::text ||
+           '|sec=' || (case when p.prosecdef then 'definer' else 'invoker' end) ||
+           '|config=' || coalesce(array_to_string(array(select unnest(p.proconfig) order by 1), ','), '(none)') ||
+           '|' || ${aclState("p.proacl")}`;
+const TYPE_STRUCTURE = `'typtype=' || t.typtype::text ||
+         '|enum=' || coalesce((select string_agg(e.enumlabel, ',' order by e.enumsortorder) from pg_enum e where e.enumtypid = t.oid), '') ||
+         '|domainbase=' || coalesce((select format_type(t.typbasetype, t.typtypmod) where t.typtype = 'd'), '') ||
+         '|domaincons=' || coalesce((select string_agg(con.conname || ':' || pg_get_constraintdef(con.oid, true), ',' order by con.conname)
+              from pg_constraint con where con.contypid = t.oid), '') ||
+         '|range=' || coalesce((select format_type(r.rngsubtype, null) from pg_range r where r.rngtypid = t.oid), '') ||
+         '|attrs=' || coalesce((select string_agg(a.attname || ':' || format_type(a.atttypid, a.atttypmod), ',' order by a.attnum)
+              from pg_attribute a where a.attrelid = t.typrelid and a.attnum > 0 and not a.attisdropped), '') ||
+         '|' || ${aclState("t.typacl")}`;
+// pg_language is an extension-member class with no managed-object equivalent, so it has
+// no existing builder to reuse. Trust and the three handler functions are the security
+// relevant parts: a trusted language, or a re-pointed handler, changes who can run what.
+const LANGUAGE_STRUCTURE = `
+         'lanname=' || plang.lanname
+      || '|trusted=' || plang.lanpltrusted::text
+      || '|ispl=' || plang.lanispl::text
+      || '|handler=' || coalesce((select hn.nspname || '.' || h.proname from pg_proc h join pg_namespace hn on hn.oid = h.pronamespace where h.oid = plang.lanplcallfoid), '')
+      || '|inline=' || coalesce((select hn.nspname || '.' || h.proname from pg_proc h join pg_namespace hn on hn.oid = h.pronamespace where h.oid = plang.laninline), '')
+      || '|validator=' || coalesce((select hn.nspname || '.' || h.proname from pg_proc h join pg_namespace hn on hn.oid = h.pronamespace where h.oid = plang.lanvalidator), '')
+      || '|' || ${aclState("plang.lanacl")}`;
+
+/**
+ * The certified extension profile probe: every extension and every extension MEMBER,
+ * each member carrying the same structural definition the managed-object inventory
+ * uses. Exported for the same reason as buildManagedInventoryQuery -- a member of class
+ * pg_class is fingerprinted through RELATION_STRUCTURE, so a serializer change moves
+ * these fingerprints too and the capture must not use a divergent copy of the SQL.
+ */
+export function buildExtensionProfileQuery() {
+  return `
+    select 'EXT~|~' || e.extname || '~|~' || e.extversion || '~|~' || n.nspname || '~|~' ||
+           pg_get_userbyid(e.extowner) || '~|~' || e.extrelocatable::text || '~|~' ||
+           -- extconfig is an oid array, and oids are per-database. Certify the RESOLVED
+           -- identities instead, or the same stock profile would never match twice.
+           coalesce((select string_agg(cn.nspname || '.' || cc.relname, ',' order by cn.nspname || '.' || cc.relname)
+                       from unnest(e.extconfig) cfg
+                       join pg_class cc on cc.oid = cfg
+                       join pg_namespace cn on cn.oid = cc.relnamespace), '(none)') || '~|~' ||
+           coalesce(array_to_string(e.extcondition, ','), '(none)')
+      from pg_extension e join pg_namespace n on n.oid = e.extnamespace
+    union all
+    select 'MEM~|~' || e.extname || '~|~' || cat.relname || '~|~' || i.type || '~|~' ||
+           coalesce(i.schema, '') || '~|~' || i.identity || '~|~' ||
+           coalesce(case
+             when cat.relname = 'pg_proc' then pg_get_userbyid(p.proowner)
+             when cat.relname = 'pg_class' then pg_get_userbyid(c.relowner)
+             when cat.relname = 'pg_type' then pg_get_userbyid(t.typowner)
+             when cat.relname = 'pg_language' then pg_get_userbyid(plang.lanowner)
+           end, '') || '~|~' ||
+           translate(encode(convert_to((case
+             when cat.relname = 'pg_proc' then ${FUNCTION_STRUCTURE}
+             when cat.relname = 'pg_class' then ${RELATION_STRUCTURE}
+             when cat.relname = 'pg_type' then ${TYPE_STRUCTURE}
+             when cat.relname = 'pg_language' then ${LANGUAGE_STRUCTURE}
+             -- An unimplemented catalog class is never a trusted object.
+             else 'unsupported-member-class=' || cat.relname
+           end), 'UTF8'), 'base64'), chr(10) || chr(13), '')
+      from pg_depend d
+      join pg_extension e on e.oid = d.refobjid
+      join pg_class cat on cat.oid = d.classid
+      cross join lateral pg_identify_object(d.classid, d.objid, d.objsubid) i
+      left join pg_proc p on cat.relname = 'pg_proc' and p.oid = d.objid
+      left join pg_language l on l.oid = p.prolang
+      left join pg_class c on cat.relname = 'pg_class' and c.oid = d.objid
+      left join pg_type t on cat.relname = 'pg_type' and t.oid = d.objid
+      left join pg_language plang on cat.relname = 'pg_language' and plang.oid = d.objid
+     where d.refclassid = 'pg_extension'::regclass and d.deptype = 'e';
+  `;
+}
+
+/**
+ * The managed-schema inventory query: one row per non-extension-owned relation,
+ * function and type in a managed schema, each carrying its OWNER and its exact
+ * structural definition. Exported so a re-certification capture runs byte-identical
+ * SQL to the gate; a capture that serialized differently would produce a profile the
+ * gate could never match.
+ */
+export function buildManagedInventoryQuery() {
+  return `
+    select n.nspname || '~|~' || (case when c.relkind in ('i','I') then 'index' else 'relation' end) || '~|~' ||
+           c.relname || '~|~' || pg_get_userbyid(c.relowner) || '~|~' ||
+           translate(encode(convert_to(${RELATION_STRUCTURE}, 'UTF8'), 'base64'), chr(10) || chr(13), '')
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where c.relkind in ('r','p','v','m','S','f','i','I') and (${MANAGED})
+       and ${notExtensionOwned("pg_class", "c")}
+    union all
+    select n.nspname || '~|~' || 'function' || '~|~' ||
+           p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' || '~|~' ||
+           pg_get_userbyid(p.proowner) || '~|~' ||
+           translate(encode(convert_to(
+             ${FUNCTION_STRUCTURE}
+           , 'UTF8'), 'base64'), chr(10) || chr(13), '')
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace join pg_language l on l.oid = p.prolang
+     where (${MANAGED}) and ${notExtensionOwned("pg_proc", "p")}
+    union all
+    select n.nspname || '~|~' || 'type' || '~|~' || t.typname || '~|~' || pg_get_userbyid(t.typowner) || '~|~' ||
+           translate(encode(convert_to(
+           ${TYPE_STRUCTURE}
+           , 'UTF8'), 'base64'), chr(10) || chr(13), '')
+      from pg_type t join pg_namespace n on n.oid = t.typnamespace
+     where (${MANAGED}) and t.typtype in ('c','d','e','r','m')
+       and ${notExtensionOwned("pg_type", "t")}
+       and (t.typtype <> 'c' or not exists (
+             select 1 from pg_class rc where rc.oid = t.typrelid and rc.relkind <> 'c'));
+  `;
+}
+
 // Read-only probe over the already-required SUPABASE_DB_URL, through the existing psql
 // runner. Never mutates; used only to decide whether a fresh apply may proceed.
 function probeHostedApplicationState(dbUrl, runner = sh) {
-  // Application schemas = public, plus any schema outside the Supabase platform set.
-  // MANAGED schemas are NOT exempt — they are inventoried separately below, by ownership
-  // rather than by schema name, because a custom object in `storage` is still custom.
-  const APP = `(n.nspname = 'public' OR (${PLATFORM_SCHEMA_PREDICATE}))`;
-  const MANAGED = `NOT (n.nspname = 'public' OR (${PLATFORM_SCHEMA_PREDICATE})) AND n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'`;
-  // Extension-owned objects are NOT application state. A stock Supabase project ships
-  // plenty of them, so they are excluded through PostgreSQL's own dependency metadata
-  // (pg_depend deptype 'e') rather than a hand-maintained list that would rot.
-  const notExtensionOwned = (cls, alias) =>
-    `not exists (select 1 from pg_depend d where d.classid = '${cls}'::regclass and d.objid = ${alias}.oid and d.deptype = 'e')`;
-
-  // LOSSLESS ACL STATE. `coalesce(array_to_string(array(select unnest(acl)...), ','), s)`
-  // cannot tell a NULL ACL from an explicit empty one: unnest(NULL) yields no rows, the
-  // array() wrapper makes an EMPTY array, and array_to_string over an empty array returns
-  // '' rather than NULL -- so the sentinel is unreachable and both states serialize
-  // identically. PostgreSQL does not treat them alike: NULL means the built-in default
-  // privileges apply, an explicit empty array means NO privileges are granted. The state
-  // is therefore emitted as its own field, before the values, so revoking every grant can
-  // never leave the fingerprint unchanged.
-  const aclState = (expr) =>
-    `'aclstate=' || (case when ${expr} is null then 'default' else 'explicit' end) || '|acl=' || ` +
-    `coalesce(array_to_string(array(select unnest(${expr})::text order by 1), ','), '')`;
-
-  // STRUCTURAL BUILDERS, shared by the managed-object inventory and the certified
-  // extension profile. One definition of what "the exact structure of this object" means,
-  // so an extension member and a managed object are held to the same standard and cannot
-  // drift apart. Aliases are fixed: c = pg_class, p = pg_proc with its language l,
-  // t = pg_type, plang = a pg_language member.
-  const RELATION_STRUCTURE = `(case
-              -- An attached partition index carries its PARENT identity. An exact
-              -- pg_get_indexdef does not prove attachment: a standalone index on the same
-              -- partition may carry an equivalent definition, and equivalence is exactly
-              -- what attaching one requires -- so the definition alone cannot distinguish
-              -- a certified service index from a look-alike. The suffix is emitted ONLY
-              -- when a parent exists, so no unattached index's fingerprint changes.
-              when c.relkind in ('i','I') then 'indexdef=' || coalesce(pg_get_indexdef(c.oid), '')
-                   || coalesce((select '|indexparent=' || pn.nspname || '.' || pc.relname
-                                  from pg_inherits ii
-                                  join pg_class pc on pc.oid = ii.inhparent
-                                  join pg_namespace pn on pn.oid = pc.relnamespace
-                                 where ii.inhrelid = c.oid), '')
-              -- pg_get_viewdef reconstructs the SELECT and nothing else. A view's SECURITY
-              -- semantics live in reloptions -- security_invoker decides whether privileges
-              -- and policies are evaluated as the caller or the view owner, and
-              -- security_barrier and check_option are equally mutable -- and its
-              -- relation-level grants live in relacl. Both can move while the identity,
-              -- owner, extension membership and reconstructed SELECT all stay identical,
-              -- so both are bound into the structure.
-              when c.relkind = 'v' then 'viewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
-                   || '|options=' || coalesce(array_to_string(array(select unnest(c.reloptions) order by 1), ','), '(none)')
-                   || '|' || ${aclState("c.relacl")}
-              when c.relkind = 'm' then 'matviewdef=' || coalesce(pg_get_viewdef(c.oid, true), '')
-                   || '|options=' || coalesce(array_to_string(array(select unnest(c.reloptions) order by 1), ','), '(none)')
-                   || '|' || ${aclState("c.relacl")}
-              when c.relkind = 'S' then 'sequence'
-                   || '|increment=' || coalesce((select s.seqincrement::text from pg_sequence s where s.seqrelid = c.oid), '')
-                   || '|start=' || coalesce((select s.seqstart::text from pg_sequence s where s.seqrelid = c.oid), '')
-                   || '|min=' || coalesce((select s.seqmin::text from pg_sequence s where s.seqrelid = c.oid), '')
-                   || '|max=' || coalesce((select s.seqmax::text from pg_sequence s where s.seqrelid = c.oid), '')
-                   || '|cache=' || coalesce((select s.seqcache::text from pg_sequence s where s.seqrelid = c.oid), '')
-                   || '|cycle=' || coalesce((select s.seqcycle::text from pg_sequence s where s.seqrelid = c.oid), '')
-                   || '|' || ${aclState("c.relacl")}
-              else 'relkind=' || c.relkind::text
-                   || '|parent=' || coalesce((select pn.nspname || '.' || pc.relname from pg_inherits i
-                        join pg_class pc on pc.oid = i.inhparent join pg_namespace pn on pn.oid = pc.relnamespace
-                        where i.inhrelid = c.oid), '')
-                   || '|bound=' || coalesce(pg_get_expr(c.relpartbound, c.oid), '')
-                   || '|cols=' || coalesce((select string_agg(a.attname || ':' || format_type(a.atttypid, a.atttypmod) || ':' ||
-                        (case when a.attnotnull then 'NN' else 'NULL' end) || ':' ||
-                        coalesce(pg_get_expr(ad.adbin, ad.adrelid), ''), ',' order by a.attnum)
-                        from pg_attribute a left join pg_attrdef ad on ad.adrelid = a.attrelid and ad.adnum = a.attnum
-                        where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped), '')
-                   || '|cons=' || coalesce((select string_agg(con.contype::text || ':' || con.conname || ':' ||
-                        pg_get_constraintdef(con.oid, true) || ':' ||
-                        (case when con.condeferrable then 'DEFERRABLE' else 'NOTDEFERRABLE' end) || ':' ||
-                        (case when con.condeferred then 'INITDEFERRED' else 'INITIMMEDIATE' end) || ':' ||
-                        (case when con.convalidated then 'VALIDATED' else 'NOTVALIDATED' end) || ':' ||
-                        coalesce((select rn.nspname || '.' || rc.relname from pg_class rc join pg_namespace rn on rn.oid = rc.relnamespace
-                                  where rc.oid = con.confrelid), ''),
-                        ',' order by con.conname)
-                        from pg_constraint con where con.conrelid = c.oid
-                          and not exists (select 1 from pg_depend d2 where d2.classid = 'pg_constraint'::regclass and d2.objid = con.oid and d2.deptype = 'e')), '')
-                   || '|' || ${aclState("c.relacl")}
-        || '|rls=' || c.relrowsecurity::text || '/' || c.relforcerowsecurity::text
-        || '|replident=' || c.relreplident::text
-            end)`;
-  const FUNCTION_STRUCTURE = `'def=' || coalesce(pg_get_functiondef(p.oid), 'ret=' || pg_catalog.format_type(p.prorettype, null) || '|kind=' || p.prokind::text) ||
-             '|lang=' || l.lanname || '|strict=' || p.proisstrict::text || '|parallel=' || p.proparallel::text ||
-             '|leakproof=' || p.proleakproof::text || '|vol=' || p.provolatile::text ||
-             '|sec=' || (case when p.prosecdef then 'definer' else 'invoker' end) ||
-             '|config=' || coalesce(array_to_string(array(select unnest(p.proconfig) order by 1), ','), '(none)') ||
-             '|' || ${aclState("p.proacl")}`;
-  const TYPE_STRUCTURE = `'typtype=' || t.typtype::text ||
-           '|enum=' || coalesce((select string_agg(e.enumlabel, ',' order by e.enumsortorder) from pg_enum e where e.enumtypid = t.oid), '') ||
-           '|domainbase=' || coalesce((select format_type(t.typbasetype, t.typtypmod) where t.typtype = 'd'), '') ||
-           '|domaincons=' || coalesce((select string_agg(con.conname || ':' || pg_get_constraintdef(con.oid, true), ',' order by con.conname)
-                from pg_constraint con where con.contypid = t.oid), '') ||
-           '|range=' || coalesce((select format_type(r.rngsubtype, null) from pg_range r where r.rngtypid = t.oid), '') ||
-           '|attrs=' || coalesce((select string_agg(a.attname || ':' || format_type(a.atttypid, a.atttypmod), ',' order by a.attnum)
-                from pg_attribute a where a.attrelid = t.typrelid and a.attnum > 0 and not a.attisdropped), '') ||
-           '|' || ${aclState("t.typacl")}`;
-  // pg_language is an extension-member class with no managed-object equivalent, so it has
-  // no existing builder to reuse. Trust and the three handler functions are the security
-  // relevant parts: a trusted language, or a re-pointed handler, changes who can run what.
-  const LANGUAGE_STRUCTURE = `
-           'lanname=' || plang.lanname
-        || '|trusted=' || plang.lanpltrusted::text
-        || '|ispl=' || plang.lanispl::text
-        || '|handler=' || coalesce((select hn.nspname || '.' || h.proname from pg_proc h join pg_namespace hn on hn.oid = h.pronamespace where h.oid = plang.lanplcallfoid), '')
-        || '|inline=' || coalesce((select hn.nspname || '.' || h.proname from pg_proc h join pg_namespace hn on hn.oid = h.pronamespace where h.oid = plang.laninline), '')
-        || '|validator=' || coalesce((select hn.nspname || '.' || h.proname from pg_proc h join pg_namespace hn on hn.oid = h.pronamespace where h.oid = plang.lanvalidator), '')
-        || '|' || ${aclState("plang.lanacl")}`;
   // OPTIONAL RELATIONS. `to_regclass(...) is null then 0 else (select count(*) from x)`
   // does NOT protect x: PostgreSQL resolves the relation at PARSE time, so on a virgin
   // target -- one never pushed to, with no migration ledger yet -- the whole counts query
@@ -2733,33 +2843,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   // a stock project's pg_cron/pg_net/pgsodium content never reaches the classifier.
   // Each row carries the object's STRUCTURAL DEFINITION, which the classifier
   // fingerprints. Identity fields alone cannot detect a stock object rewritten in place.
-  const managedQuery = `
-    select n.nspname || '~|~' || (case when c.relkind in ('i','I') then 'index' else 'relation' end) || '~|~' ||
-           c.relname || '~|~' || pg_get_userbyid(c.relowner) || '~|~' ||
-           translate(encode(convert_to(${RELATION_STRUCTURE}, 'UTF8'), 'base64'), chr(10) || chr(13), '')
-      from pg_class c join pg_namespace n on n.oid = c.relnamespace
-     where c.relkind in ('r','p','v','m','S','f','i','I') and (${MANAGED})
-       and ${notExtensionOwned("pg_class", "c")}
-    union all
-    select n.nspname || '~|~' || 'function' || '~|~' ||
-           p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' || '~|~' ||
-           pg_get_userbyid(p.proowner) || '~|~' ||
-           translate(encode(convert_to(
-             ${FUNCTION_STRUCTURE}
-           , 'UTF8'), 'base64'), chr(10) || chr(13), '')
-      from pg_proc p join pg_namespace n on n.oid = p.pronamespace join pg_language l on l.oid = p.prolang
-     where (${MANAGED}) and ${notExtensionOwned("pg_proc", "p")}
-    union all
-    select n.nspname || '~|~' || 'type' || '~|~' || t.typname || '~|~' || pg_get_userbyid(t.typowner) || '~|~' ||
-           translate(encode(convert_to(
-           ${TYPE_STRUCTURE}
-           , 'UTF8'), 'base64'), chr(10) || chr(13), '')
-      from pg_type t join pg_namespace n on n.oid = t.typnamespace
-     where (${MANAGED}) and t.typtype in ('c','d','e','r','m')
-       and ${notExtensionOwned("pg_type", "t")}
-       and (t.typtype <> 'c' or not exists (
-             select 1 from pg_class rc where rc.oid = t.typrelid and rc.relkind <> 'c'));
-  `;
+  const managedQuery = buildManagedInventoryQuery();
   const managed = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c", managedQuery]);
   if (managed.status !== 0) {
     // Fail closed: an unprovable managed surface is never an empty one.
@@ -2824,45 +2908,7 @@ function probeHostedApplicationState(dbUrl, runner = sh) {
   // builders the managed inventory uses. pg_identify_object is the naming authority, not a
   // schema convention, because assuming members live under extensions.* or vault.* is
   // precisely what would keep laundering possible.
-  const extensionProfileQuery = `
-    select 'EXT~|~' || e.extname || '~|~' || e.extversion || '~|~' || n.nspname || '~|~' ||
-           pg_get_userbyid(e.extowner) || '~|~' || e.extrelocatable::text || '~|~' ||
-           -- extconfig is an oid array, and oids are per-database. Certify the RESOLVED
-           -- identities instead, or the same stock profile would never match twice.
-           coalesce((select string_agg(cn.nspname || '.' || cc.relname, ',' order by cn.nspname || '.' || cc.relname)
-                       from unnest(e.extconfig) cfg
-                       join pg_class cc on cc.oid = cfg
-                       join pg_namespace cn on cn.oid = cc.relnamespace), '(none)') || '~|~' ||
-           coalesce(array_to_string(e.extcondition, ','), '(none)')
-      from pg_extension e join pg_namespace n on n.oid = e.extnamespace
-    union all
-    select 'MEM~|~' || e.extname || '~|~' || cat.relname || '~|~' || i.type || '~|~' ||
-           coalesce(i.schema, '') || '~|~' || i.identity || '~|~' ||
-           coalesce(case
-             when cat.relname = 'pg_proc' then pg_get_userbyid(p.proowner)
-             when cat.relname = 'pg_class' then pg_get_userbyid(c.relowner)
-             when cat.relname = 'pg_type' then pg_get_userbyid(t.typowner)
-             when cat.relname = 'pg_language' then pg_get_userbyid(plang.lanowner)
-           end, '') || '~|~' ||
-           translate(encode(convert_to((case
-             when cat.relname = 'pg_proc' then ${FUNCTION_STRUCTURE}
-             when cat.relname = 'pg_class' then ${RELATION_STRUCTURE}
-             when cat.relname = 'pg_type' then ${TYPE_STRUCTURE}
-             when cat.relname = 'pg_language' then ${LANGUAGE_STRUCTURE}
-             -- An unimplemented catalog class is never a trusted object.
-             else 'unsupported-member-class=' || cat.relname
-           end), 'UTF8'), 'base64'), chr(10) || chr(13), '')
-      from pg_depend d
-      join pg_extension e on e.oid = d.refobjid
-      join pg_class cat on cat.oid = d.classid
-      cross join lateral pg_identify_object(d.classid, d.objid, d.objsubid) i
-      left join pg_proc p on cat.relname = 'pg_proc' and p.oid = d.objid
-      left join pg_language l on l.oid = p.prolang
-      left join pg_class c on cat.relname = 'pg_class' and c.oid = d.objid
-      left join pg_type t on cat.relname = 'pg_type' and t.oid = d.objid
-      left join pg_language plang on cat.relname = 'pg_language' and plang.oid = d.objid
-     where d.refclassid = 'pg_extension'::regclass and d.deptype = 'e';
-  `;
+  const extensionProfileQuery = buildExtensionProfileQuery();
   const extProfileResult = runner("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", dbUrl, "-c", extensionProfileQuery]);
   if (extProfileResult.status !== 0) {
     return { ok: false, failure: describeSpawnResult(extProfileResult, "psql (certified extension profile probe)"), stderr: extProfileResult.stderr };
@@ -3474,6 +3520,7 @@ export {
   classifyManagedSchemaObjects,
   STOCK_MANAGED_OBJECT_BASELINE,
   STOCK_MANAGED_OBJECT_PROFILES,
+  MANAGED_OBJECT_SERIALIZER_REVISION,
   LOCAL_STOCK_PROFILE,
   HOSTED_STOCK_PROFILE,
   classifyManagedSchemaObjectsAgainstProfile,

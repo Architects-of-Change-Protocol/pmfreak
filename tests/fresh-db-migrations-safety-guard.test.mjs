@@ -50,6 +50,7 @@ import {
   extensionStateLines,
   STOCK_MANAGED_OBJECT_BASELINE,
   STOCK_MANAGED_OBJECT_PROFILES,
+  MANAGED_OBJECT_SERIALIZER_REVISION,
   managedObjectProblemCount,
   STOCK_EXTENSION_BASELINE,
   STOCK_MANAGED_ROW_RULES,
@@ -1634,7 +1635,10 @@ test("the managed-object probe transports definitions losslessly and normalises 
     /function fingerprintDefinition\(definition\)\s*\{\s*return createHash\("sha256"\)\.update\(String\(definition \?\? ""\), "utf8"\)/,
     "fingerprintDefinition no longer hashes the raw definition",
   );
-  const region = source.slice(source.indexOf("const managedQuery"), source.indexOf("const managedVerdict"));
+  // The probe SQL now lives in the exported buildManagedInventoryQuery builder, which the
+  // re-certification capture shares with the gate, so the region spans the builder through
+  // the decode that consumes its rows.
+  const region = source.slice(source.indexOf("export function buildManagedInventoryQuery"), source.indexOf("const managedVerdict"));
   // No SQL-side whitespace flattening survives in the managed-object probe.
   assert.doesNotMatch(region, /replace\([^)]*chr\(10\)/, "the probe still flattens newlines in SQL");
   // All three branches (relation, function, type) transport base64, and the only
@@ -1889,7 +1893,7 @@ test("J: all THREE realtime daily shapes are dynamic stock, and belong to no sta
   // The third shape's definition is the attached broadcast index, not the primary key.
   assert.equal(
     realtimePartitionDefinition({ schema: "realtime", kind: "index", owner: "supabase_realtime_admin", name: `messages_${date}_inserted_at_topic_idx` }),
-    `indexdef=CREATE INDEX messages_${date}_inserted_at_topic_idx ON realtime.messages_${date} USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))|indexparent=realtime.messages_inserted_at_topic_index`,
+    `indexdef=CREATE INDEX messages_${date}_inserted_at_topic_idx ON realtime.messages_${date} USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))|indexparent=realtime.messages_inserted_at_topic_index|persistence=p`,
     "the broadcast partition index definition drifted",
   );
   assert.match(realtimePartitionDefinition({ schema: "realtime", kind: "relation", owner: "supabase_realtime_admin", name: `messages_${date}` }),
@@ -2001,8 +2005,12 @@ test("A+B: each daily index shape requires its OWN certified parent attachment",
   for (const [suffix, correctParent, otherParent] of shapes) {
     const object = dailyIndex(suffix);
     const certified = dailyIndexDefinition(suffix);
-    assert.ok(certified.endsWith(`|indexparent=${correctParent}`), `the ${suffix} template does not require ${correctParent}`);
-    const bare = certified.slice(0, certified.indexOf("|indexparent="));
+    const attachment = `|indexparent=${correctParent}`;
+    assert.ok(certified.includes(attachment), `the ${suffix} template does not require ${correctParent}`);
+    // Only the ATTACHMENT varies below: every other field the serializer binds -- including
+    // relation persistence -- is preserved, so a refusal is attributable to attachment
+    // alone rather than to a field the truncation happened to drop.
+    const bare = certified.replace(attachment, "");
 
     // CORRECT parent -> accepted as dynamic stock.
     assert.equal(isRealtimeDailyPartition({ ...object, definition: certified }), true,
@@ -2015,7 +2023,7 @@ test("A+B: each daily index shape requires its OWN certified parent attachment",
 
     // WRONG parent -> refused, including the other shape's genuine certified parent.
     for (const wrong of [otherParent, "realtime.some_other_index", "public.messages_pkey", "realtime.messages"]) {
-      assert.equal(isRealtimeDailyPartition({ ...object, definition: `${bare}|indexparent=${wrong}` }), false,
+      assert.equal(isRealtimeDailyPartition({ ...object, definition: certified.replace(attachment, `|indexparent=${wrong}`) }), false,
         `a ${suffix} index attached to ${wrong} was accepted`);
     }
 
@@ -2189,7 +2197,7 @@ test("R31: the managed-table ROW probe no longer exempts extension-owned tables"
   assert.doesNotMatch(region, /notExtensionOwned/, "the ROW probe still exempts extension-owned tables");
   // The OBJECT inventory must keep the exemption: this remediation separates the two
   // questions, it does not delete the object-side rule.
-  const objectRegion = source.slice(source.indexOf("const managedQuery"), source.indexOf("const managed = runner"));
+  const objectRegion = source.slice(source.indexOf("export function buildManagedInventoryQuery"), source.indexOf("function probeHostedApplicationState"));
   assert.equal((objectRegion.match(/notExtensionOwned\(/g) ?? []).length, 3,
     "the managed-object inventory lost its extension-ownership exemption");
   // Those exemptions are only sound because the certified extension profile independently
@@ -3794,7 +3802,9 @@ test("R32: extension exemptions in the object inventories are justified by the p
   assert.match(source, /pg_depend[\s\S]{0,400}deptype = 'e'/, "the membership graph is not read from pg_depend");
   assert.match(source, /pg_identify_object/, "member identity does not come from PostgreSQL's own naming authority");
   // Membership must not be enumerated by schema convention.
-  const region = source.slice(source.indexOf("const extensionProfileQuery"), source.indexOf("const extProfileResult"));
+  // The probe SQL now lives in the exported buildExtensionProfileQuery builder, which the
+  // re-certification capture shares with the gate.
+  const region = source.slice(source.indexOf("export function buildExtensionProfileQuery"), source.indexOf("const extProfileResult"));
   assert.doesNotMatch(region, /nspname IN \('extensions'|nspname = 'extensions'/, "the member graph is filtered by schema convention");
   assert.match(region, /extconfig/, "extconfig is not certified");
   assert.match(region, /encode\(convert_to\(/, "member structures are not transported losslessly");
@@ -6379,4 +6389,104 @@ test("T6-CONSISTENCY: the association rule can only refuse what the managed prof
   // relations, which is exactly why association is a union and identity is not.
   const ids = STOCK_MANAGED_OBJECT_PROFILES.map((p) => p.id);
   assert.ok(ids.includes("local-cli-stock") && ids.includes("hosted-platform-stock"), "a certified platform disappeared");
+});
+
+
+// ─── R38: relation PERSISTENCE and per-column IDENTITY and ACL are bound ────
+//
+// The defect: the structural serializer read pg_class.relpersistence not at all, and
+// pg_attribute.attidentity/attacl not at all. Three mutations of a certified managed
+// relation therefore left its fingerprint byte-identical and classified as stock:
+//
+//   * rewriting a table UNLOGGED -- its rows stop surviving a crash and stop being
+//     replicated, which is a durability change, not a cosmetic one;
+//   * promoting a column to GENERATED ALWAYS AS IDENTITY, which changes what the
+//     platform accepts as a write to that column;
+//   * a column-level GRANT, which widens who can read or write that column while the
+//     relation-level ACL -- the only ACL the fingerprint did read -- stays put.
+//
+// Bound empirically, not from documentation: every value asserted here was observed on
+// the certified local stock stack (PostgreSQL 17.6, Supabase CLI v2.116.0).
+
+test("R38: every relation branch of the serializer binds relpersistence", () => {
+  const source = readFileSync(SCRIPT, "utf8");
+  const region = source.slice(source.indexOf("const RELATION_STRUCTURE"), source.indexOf("const FUNCTION_STRUCTURE"));
+  // One per branch: index, view, matview, sequence and the table/partition default. A
+  // branch left unbound is a relation kind whose persistence can still move unseen.
+  assert.equal((region.match(/\|persistence='\s*\|\|\s*c\.relpersistence::text/g) ?? []).length, 5,
+    "a relation branch does not bind c.relpersistence");
+  // Columns carry their identity and ACL state as LABELLED fields, never as further
+  // unlabelled positions in the existing colon-separated column form.
+  assert.match(region, /':identity='/, "columns do not bind attidentity");
+  assert.match(region, /a\.attidentity when '' then 'none' when 'a' then 'always' when 'd' then 'by_default'/,
+    "attidentity is not mapped to its exact labelled vocabulary");
+  assert.match(region, /\$\{aclState\("a\.attacl"\)\}/, "columns do not bind attacl through the lossless ACL-state builder");
+});
+
+test("R38: the dynamic realtime template speaks the corrected structural vocabulary", () => {
+  const relation = { schema: "realtime", kind: "relation", owner: "supabase_realtime_admin", name: `messages_${DAILY}` };
+  const definition = realtimePartitionDefinition(relation);
+  assert.ok(definition, "the daily relation shape was lost");
+  // The dynamic path must not be left on the old vocabulary while ordinary relations
+  // moved to the new one: it bypasses the static profiles entirely, so a template that
+  // did not bind these fields would be the one remaining way in.
+  assert.ok(definition.endsWith("|persistence=p"), "the daily partition template does not bind persistence");
+  assert.equal((definition.match(/:identity=none:aclstate=default\|acl=/g) ?? []).length, 9,
+    "the daily partition template does not bind identity and ACL state on all nine columns");
+  for (const suffix of ["_pkey", "_inserted_at_topic_idx"]) {
+    assert.ok(dailyIndexDefinition(suffix).endsWith("|persistence=p"),
+      `the ${suffix} daily index template does not bind persistence`);
+  }
+});
+
+test("R38: a persistence, identity or column-ACL drift is refused, alone", () => {
+  const relation = { schema: "realtime", kind: "relation", owner: "supabase_realtime_admin", name: `messages_${DAILY}` };
+  const certified = realtimePartitionDefinition(relation);
+  const indexes = ["_pkey", "_inserted_at_topic_idx"].map((s) => ({ ...dailyIndex(s), definition: dailyIndexDefinition(s) }));
+  for (const [label, broken] of [
+    // Each mutation changes EXACTLY the field named, so a refusal is attributable to it.
+    ["an UNLOGGED rewrite", certified.replace("|persistence=p", "|persistence=u")],
+    ["a column promoted to GENERATED ALWAYS AS IDENTITY", certified.replace(":identity=none:", ":identity=always:")],
+    ["a column promoted to GENERATED BY DEFAULT AS IDENTITY", certified.replace(":identity=none:", ":identity=by_default:")],
+    ["a column-level GRANT", certified.replace(":aclstate=default|acl=,", ":aclstate=explicit|acl=anon=r/supabase_realtime_admin,")],
+  ]) {
+    assert.notEqual(broken, certified, `the ${label} control did not mutate the definition`);
+    assert.equal(isRealtimeDailyPartition({ ...relation, definition: broken }), false,
+      `a daily partition with ${label} was accepted as dynamic stock`);
+    // And it is not laundered into a complete profile match by its perfectly attached indexes.
+    const verdict = classifyManagedSchemaObjects([...observationOf(LOCAL()), { ...relation, definition: broken }, ...indexes]);
+    assert.equal(verdict.baselineSatisfied, false, `a daily partition with ${label} was certified stock`);
+  }
+  // The index shapes carry persistence too, and it is equally load-bearing there.
+  for (const suffix of ["_pkey", "_inserted_at_topic_idx"]) {
+    const object = dailyIndex(suffix);
+    assert.equal(isRealtimeDailyPartition({ ...object, definition: dailyIndexDefinition(suffix).replace("|persistence=p", "|persistence=u") }), false,
+      `an UNLOGGED ${suffix} daily index was accepted as dynamic stock`);
+  }
+});
+
+test("R38: every certified profile declares the serializer it was captured under", () => {
+  // A profile is only meaningful against the serializer that produced it: when the
+  // serializer gained these fields every fingerprint changed, so a profile captured
+  // before that describes stock through a serializer that could not see them.
+  for (const profile of STOCK_MANAGED_OBJECT_PROFILES) {
+    assert.equal(typeof profile.serializerRevision, "string",
+      `the certified profile ${profile.id} does not declare a serializer revision`);
+    assert.ok(profile.serializerRevision.length > 0, `the certified profile ${profile.id} declares an empty serializer revision`);
+  }
+  // The LOCAL profile is positively recaptured through the corrected serializer, so it is
+  // always on the current revision; a change to the serializer that does not recapture it
+  // fails here rather than silently certifying against superseded fingerprints.
+  assert.equal(LOCAL().serializerRevision, MANAGED_OBJECT_SERIALIZER_REVISION,
+    "the local profile was not recaptured through the current serializer");
+  // A profile that is NOT on the current revision must say so explicitly. The hosted
+  // profile cannot be recaptured from here -- it requires running the corrected probe
+  // against the hosted validation project -- so its staleness is recorded rather than
+  // hidden, and it is refused by the real gate because a hosted target probed with the
+  // corrected serializer cannot reproduce pre-correction fingerprints.
+  for (const profile of STOCK_MANAGED_OBJECT_PROFILES) {
+    if (profile.serializerRevision === MANAGED_OBJECT_SERIALIZER_REVISION) continue;
+    assert.match(profile.serializerRevision, /^\d{4}-\d{2}-\d{2}\./,
+      `the superseded profile ${profile.id} does not carry a dated serializer revision`);
+  }
 });
