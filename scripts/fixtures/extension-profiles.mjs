@@ -124,19 +124,19 @@ export const STOCK_EXTENSION_PROFILES = Object.freeze([
   Object.freeze({
     id: "hosted-platform-stock",
     source: "hosted Supabase validation project (independent read-only capture)",
-    capturedAt: "2026-09-05",
+    capturedAt: "2026-09-06",
     server: "PostgreSQL 17.6 (hosted platform image 17.6.1.141)",
     cli: null,
     extensionCount: 5,
     memberCount: 70,
     byExtension: Object.freeze({"pg_stat_statements":9,"pgcrypto":36,"plpgsql":4,"supabase_vault":11,"uuid-ossp":10}),
     byClass: Object.freeze({"pg_class":4,"pg_language":1,"pg_proc":57,"pg_type":8}),
-    // CAPTURED UNDER THE SUPERSEDED SERIALIZER. Its four pg_class members are
-    // fingerprinted through RELATION_STRUCTURE, which now binds relation persistence and
-    // per-column identity and ACL, so these values must be recaptured against the hosted
-    // validation project before they describe hosted stock again.
-    serializerRevision: "2026-09-04.pre-persistence",
-    digest: "77142f7c83f5f2b6d2f8b3c07e530a22a001354ab7204b9826357c801e9d68bd",
+    // Recertified against the hosted validation project under the corrected serializer. Its
+    // four pg_class members are fingerprinted through RELATION_STRUCTURE, which binds
+    // relation persistence and per-column identity and ACL, so these values describe hosted
+    // stock as the current probe observes it.
+    serializerRevision: MANAGED_OBJECT_SERIALIZER_REVISION,
+    digest: "98cef7ad3172cfef90f4d77553246a24bb830ccc7a17a503faee55f3680529f9",
     extensions: Object.freeze([
       { extname: "pg_stat_statements", extversion: "1.11", schema: "extensions", owner: "postgres", relocatable: "true", config: "(none)", condition: "(none)" },
       { extname: "pgcrypto", extversion: "1.3", schema: "extensions", owner: "postgres", relocatable: "true", config: "(none)", condition: "(none)" },
@@ -145,8 +145,8 @@ export const STOCK_EXTENSION_PROFILES = Object.freeze([
       { extname: "uuid-ossp", extversion: "1.1", schema: "extensions", owner: "postgres", relocatable: "true", config: "(none)", condition: "(none)" },
     ]),
     members: Object.freeze([
-      { extname: "pg_stat_statements", classCatalog: "pg_class", objectType: "view", schema: "extensions", identity: "extensions.pg_stat_statements", owner: "postgres", fingerprint: "8048bc152279dd4c10b5a2e9" },
-      { extname: "pg_stat_statements", classCatalog: "pg_class", objectType: "view", schema: "extensions", identity: "extensions.pg_stat_statements_info", owner: "postgres", fingerprint: "75a20c6187d6c6433ee1d195" },
+      { extname: "pg_stat_statements", classCatalog: "pg_class", objectType: "view", schema: "extensions", identity: "extensions.pg_stat_statements", owner: "postgres", fingerprint: "3cd1054c1f489801af63b832" },
+      { extname: "pg_stat_statements", classCatalog: "pg_class", objectType: "view", schema: "extensions", identity: "extensions.pg_stat_statements_info", owner: "postgres", fingerprint: "a68427d9fb8a0c6ed354a793" },
       { extname: "pg_stat_statements", classCatalog: "pg_proc", objectType: "function", schema: "extensions", identity: "extensions.pg_stat_statements(boolean)", owner: "postgres", fingerprint: "721422c0af7e434f6663c670" },
       { extname: "pg_stat_statements", classCatalog: "pg_proc", objectType: "function", schema: "extensions", identity: "extensions.pg_stat_statements_info()", owner: "postgres", fingerprint: "98c6c003fc567f4713af0a78" },
       { extname: "pg_stat_statements", classCatalog: "pg_proc", objectType: "function", schema: "extensions", identity: "extensions.pg_stat_statements_reset(pg_catalog.oid,pg_catalog.oid,bigint,boolean)", owner: "postgres", fingerprint: "2342b2e052eeb77d172192ea" },
@@ -194,8 +194,8 @@ export const STOCK_EXTENSION_PROFILES = Object.freeze([
       { extname: "plpgsql", classCatalog: "pg_proc", objectType: "function", schema: "pg_catalog", identity: "pg_catalog.plpgsql_call_handler()", owner: "supabase_admin", fingerprint: "2a320f00fd36c5f272ff1dd2" },
       { extname: "plpgsql", classCatalog: "pg_proc", objectType: "function", schema: "pg_catalog", identity: "pg_catalog.plpgsql_inline_handler(pg_catalog.internal)", owner: "supabase_admin", fingerprint: "196ce0198ca93f61b5e02641" },
       { extname: "plpgsql", classCatalog: "pg_proc", objectType: "function", schema: "pg_catalog", identity: "pg_catalog.plpgsql_validator(pg_catalog.oid)", owner: "supabase_admin", fingerprint: "ba596c6a0a44da3c8ddb9aa3" },
-      { extname: "supabase_vault", classCatalog: "pg_class", objectType: "table", schema: "vault", identity: "vault.secrets", owner: "supabase_admin", fingerprint: "d20760cc15cc0927157a5f08" },
-      { extname: "supabase_vault", classCatalog: "pg_class", objectType: "view", schema: "vault", identity: "vault.decrypted_secrets", owner: "supabase_admin", fingerprint: "d66a67acea7e958d06625b64" },
+      { extname: "supabase_vault", classCatalog: "pg_class", objectType: "table", schema: "vault", identity: "vault.secrets", owner: "supabase_admin", fingerprint: "84cd7bee81330eeb0b518e56" },
+      { extname: "supabase_vault", classCatalog: "pg_class", objectType: "view", schema: "vault", identity: "vault.decrypted_secrets", owner: "supabase_admin", fingerprint: "046ba1c2fee1f6fd8b144c2a" },
       { extname: "supabase_vault", classCatalog: "pg_proc", objectType: "function", schema: "vault", identity: "vault._crypto_aead_det_decrypt(pg_catalog.bytea,pg_catalog.bytea,bigint,pg_catalog.bytea,pg_catalog.bytea)", owner: "supabase_admin", fingerprint: "a8d9a9ff47c0f450c01efbf9" },
       { extname: "supabase_vault", classCatalog: "pg_proc", objectType: "function", schema: "vault", identity: "vault._crypto_aead_det_encrypt(pg_catalog.bytea,pg_catalog.bytea,bigint,pg_catalog.bytea,pg_catalog.bytea)", owner: "supabase_admin", fingerprint: "bd548f15658c0845c90fe81b" },
       { extname: "supabase_vault", classCatalog: "pg_proc", objectType: "function", schema: "vault", identity: "vault._crypto_aead_det_noncegen()", owner: "supabase_admin", fingerprint: "d1eb6e487077d8e754fd2563" },

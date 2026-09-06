@@ -1717,10 +1717,10 @@ test("profiles: the two certified profiles are genuinely different platform shap
   // The authoritative independently-captured hosted digests, pinned as literals so a
   // regenerated fixture cannot quietly redefine what "hosted stock" means: the digest
   // must be moved here, deliberately, against a fresh capture.
-  assert.equal(hosted.digest, "3ae8a9080bf4a983452c4d90c515ba62ebcdc642c9cf194bf1935dd7020746d2",
+  assert.equal(hosted.digest, "864b4018e47ef461342322a9fb29386ec89bccbf3cb4ecbbf3e4051641c01839",
     "the hosted managed profile no longer reconstructs to its independently captured digest");
   const hostedExtensions = STOCK_EXTENSION_PROFILES.find((p) => p.id === "hosted-platform-stock");
-  assert.equal(hostedExtensions.digest, "77142f7c83f5f2b6d2f8b3c07e530a22a001354ab7204b9826357c801e9d68bd",
+  assert.equal(hostedExtensions.digest, "98cef7ad3172cfef90f4d77553246a24bb830ccc7a17a503faee55f3680529f9",
     "the hosted extension profile no longer reconstructs to its independently captured digest");
   assert.equal(hostedExtensions.extensions.length, 5, "the hosted extension count changed");
   assert.equal(hostedExtensions.members.length, 70, "the hosted extension membership size changed");
