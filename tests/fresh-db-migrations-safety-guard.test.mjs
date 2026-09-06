@@ -6036,6 +6036,26 @@ test("T1-T8: every internal constraint trigger on the managed surface must fire 
     assert.ok(verdict.problemCount >= 1, "absent internal-trigger evidence produced no problem");
   }
 
+  // T8b — AND AN EMPTY SURFACE IS NOT A CLEAN ONE. This is the limit case of the vanished
+  // row the LEFT joins exist to prevent: completeness is decided over the sideGroups the
+  // OBSERVED rows build, so a surface with no rows at all forms no group, trips no per-row
+  // control, and would certify by falling through everything. Every certified platform
+  // ships foreign-key enforcement machinery (108 internal triggers over 27 constraints on
+  // the pristine local stack), so zero rows is a scoping regression or a lost probe result,
+  // never a clean target. The load-bearing assertion is baselineSatisfied === false.
+  const emptySurface = classifyInternalTriggerExecutionState([]);
+  assert.equal(emptySurface.observedCount, 0, "the empty surface did not report an empty observation");
+  assert.equal(emptySurface.baselineSatisfied, false,
+    "EMPTY_INTERNAL_TRIGGER_SURFACE_REFUSED=NO — a target with NO observed foreign-key enforcement machinery certified stock");
+  assert.ok(emptySurface.problemCount >= 1, "an empty internal-trigger surface produced no problem");
+  assert.ok(emptySurface.problems.some((p) => /internal constraint-trigger surface is empty/.test(p)),
+    `the refusal did not explain that the surface is empty: ${JSON.stringify(emptySurface.problems)}`);
+  // The empty case must stay distinguishable from the absent case, and neither may certify.
+  assert.notDeepEqual(emptySurface.problems, classifyInternalTriggerExecutionState(null).problems,
+    "the empty surface and absent evidence collapsed into one diagnostic");
+  assert.deepEqual(emptySurface.enabledDistribution, {}, "the empty surface reported a firing-state distribution");
+  assert.deepEqual(emptySurface.semanticKeys, [], "the empty surface reported semantic keys");
+
   // ASSOCIATION is positive evidence, never a schema-name exemption.
   assert.ok(CERTIFIED_MANAGED_RELATION_KEYS.has("auth.identities"), "the certified relation surface lost auth.identities");
   assert.equal(isCertifiedManagedTriggerRelation({ relation_schema: "auth", relation_name: "r38_impostor", relation_provenance: "user" }), false,
@@ -6046,6 +6066,81 @@ test("T1-T8: every internal constraint trigger on the managed surface must fire 
     "a certified dynamic realtime daily partition was not associated");
   assert.equal(isCertifiedManagedTriggerRelation({ relation_schema: "realtime", relation_name: "messages_not_a_date", relation_provenance: "user" }), false,
     "a look-alike realtime relation was associated");
+});
+
+// ── T-SELFREF: a self-referencing foreign key puts BOTH sides on ONE relation ──
+
+/**
+ * The completeness rule DERIVES the expected per-side trigger count rather than assuming
+ * two, precisely so a self-referencing foreign key is handled:
+ *
+ *   expected = (relation === referencing_relation ? 2 : 0)
+ *            + (relation === referenced_relation  ? 2 : 0)
+ *
+ * For auth.users -> auth.users both terms fire, so ONE relation legitimately carries all
+ * FOUR RI triggers. The pristine local stack has no self-referencing FK (all 27 constraints
+ * measured 2 per side), so this branch is otherwise unexercised: without this fixture a
+ * regression to a hard-coded `expected = 2` would refuse a legitimate self-referencing
+ * platform constraint, and no test would notice.
+ */
+const SELF_REFERENCING_FK_TRIGGERS = Object.freeze([
+  // Referencing side: the two checks that run when a row gains or changes its parent.
+  { relation_schema: "auth", relation_name: "users", trigger_name: "RI_ConstraintTrigger_c_20001", enabled: "O", constraint_schema: "auth", constraint_name: "users_parent_id_fkey", constraint_type: "f", referencing_relation: "auth.users", referenced_relation: "auth.users", function_schema: "pg_catalog", function_name: "RI_FKey_check_ins", tgtype: "5", relation_provenance: "user" },
+  { relation_schema: "auth", relation_name: "users", trigger_name: "RI_ConstraintTrigger_c_20002", enabled: "O", constraint_schema: "auth", constraint_name: "users_parent_id_fkey", constraint_type: "f", referencing_relation: "auth.users", referenced_relation: "auth.users", function_schema: "pg_catalog", function_name: "RI_FKey_check_upd", tgtype: "17", relation_provenance: "user" },
+  // Referenced side: the two actions that run when a parent row is deleted or re-keyed.
+  { relation_schema: "auth", relation_name: "users", trigger_name: "RI_ConstraintTrigger_a_20003", enabled: "O", constraint_schema: "auth", constraint_name: "users_parent_id_fkey", constraint_type: "f", referencing_relation: "auth.users", referenced_relation: "auth.users", function_schema: "pg_catalog", function_name: "RI_FKey_noaction_del", tgtype: "9", relation_provenance: "user" },
+  { relation_schema: "auth", relation_name: "users", trigger_name: "RI_ConstraintTrigger_a_20004", enabled: "O", constraint_schema: "auth", constraint_name: "users_parent_id_fkey", constraint_type: "f", referencing_relation: "auth.users", referenced_relation: "auth.users", function_schema: "pg_catalog", function_name: "RI_FKey_noaction_upd", tgtype: "17", relation_provenance: "user" },
+]);
+
+test("T-SELFREF: a self-referencing foreign key expects 2 + 2 = 4 triggers on ONE relation", () => {
+  // The fixture must actually be self-referencing, and on a CERTIFIED managed relation --
+  // otherwise the association rule, not the completeness rule, would decide the verdict.
+  assert.ok(CERTIFIED_MANAGED_RELATION_KEYS.has("auth.users"), "the certified relation surface lost auth.users");
+  for (const t of SELF_REFERENCING_FK_TRIGGERS) {
+    assert.equal(t.referencing_relation, t.referenced_relation, "precondition: the fixture is not self-referencing");
+    assert.equal(`${t.relation_schema}.${t.relation_name}`, t.referencing_relation,
+      "precondition: the trigger does not sit on the single relation that is both sides");
+  }
+
+  // 4/4 — all four enforcement roles on the one relation CERTIFY.
+  const full = classifyInternalTriggerExecutionState(SELF_REFERENCING_FK_TRIGGERS.map((t) => ({ ...t })));
+  assert.deepEqual(full.problems, [], `a complete self-referencing foreign key was refused: ${JSON.stringify(full.problems)}`);
+  assert.equal(full.baselineSatisfied, true,
+    "SELF_REFERENCING_FK_4_OF_4_CERTIFIES=NO — a legitimate self-referencing foreign key was refused");
+  assert.equal(full.observedCount, 4);
+  assert.equal(full.enabledOriginCount, 4);
+  assert.equal(full.nonOriginCount, 0);
+  assert.equal(full.problemCount, 0);
+  assert.deepEqual(full.enabledDistribution, { O: 4 });
+
+  // The four enforcement roles are distinct despite sharing constraint, relation AND both
+  // sides: only the function and the firing shape separate them here.
+  const keys = SELF_REFERENCING_FK_TRIGGERS.map(internalTriggerSemanticKey);
+  assert.equal(new Set(keys).size, 4, `the self-referencing enforcement roles collided: ${JSON.stringify(keys)}`);
+  assert.equal(new Set(full.semanticKeys).size, 4, "the classifier did not report four distinct self-referencing roles");
+
+  // 3/4 — removing ANY one of the four is a half-observed machinery graph and fails closed.
+  // A hard-coded `expected = 2` would wrongly certify the 3/4 surface here.
+  for (const dropped of SELF_REFERENCING_FK_TRIGGERS) {
+    const partial = SELF_REFERENCING_FK_TRIGGERS.filter((t) => t.trigger_name !== dropped.trigger_name).map((t) => ({ ...t }));
+    assert.equal(partial.length, 3, "precondition: exactly one enforcement role must be removed");
+    const verdict = classifyInternalTriggerExecutionState(partial);
+    assert.equal(verdict.baselineSatisfied, false,
+      `SELF_REFERENCING_FK_3_OF_4_REFUSED=NO — dropping ${dropped.function_name} left the foreign key certified`);
+    const incomplete = verdict.problems.find((p) => /incompletely observed/.test(p));
+    assert.ok(incomplete, `the refusal was not the incomplete-machinery diagnostic: ${JSON.stringify(verdict.problems)}`);
+    assert.ok(incomplete.includes("auth.users_parent_id_fkey"), `the refusal did not name the constraint: ${incomplete}`);
+    assert.match(incomplete, /presents 3 enforcement trigger\(s\) on auth\.users where PostgreSQL creates 4/,
+      `the refusal did not report 3 observed against 4 expected: ${incomplete}`);
+  }
+
+  // And a disabled role inside a complete self-referencing set still fails closed.
+  const disabled = SELF_REFERENCING_FK_TRIGGERS.map((t, i) => (i === 0 ? { ...t, enabled: "D" } : { ...t }));
+  const disabledVerdict = classifyInternalTriggerExecutionState(disabled);
+  assert.equal(disabledVerdict.baselineSatisfied, false, "a disabled self-referencing enforcement trigger certified stock");
+  assert.equal(disabledVerdict.nonOriginCount, 1, "exactly one disabled self-referencing role was expected");
+  assert.ok(disabledVerdict.problems.every((p) => !/incompletely observed/.test(p)),
+    "a DISABLED trigger was miscounted as a MISSING one; it is still observed and must be counted for completeness");
 });
 
 // ── T-WIRE: the REAL probe-to-classifier path ──────────────────────────────
@@ -6158,6 +6253,28 @@ test("T-WIRE: a DISABLED internal foreign-key trigger reaches the emptiness verd
     internalTriggerRows: stockInternalTriggerRows({ constraint_type: "u" }, "RI_ConstraintTrigger_c_16989"),
   }));
   assert.ok(nonFk.counts.user_internal_trigger_execution_state > 0, "a non-foreign-key internal trigger was generalized over");
+
+  // T8b THROUGH THE REAL WIRE — a probe that returns ZERO internal-trigger rows exits with
+  // status 0 and empty stdout, so it is NOT a probe failure and NOT a malformed row: it
+  // travels the ordinary success path all the way to the verdict. Proven here on the real
+  // probe, not by calling the classifier directly, because the fail-open only mattered
+  // because it survived that whole path:
+  //   ZERO_INTERNAL_TRIGGER_ROWS -> REFUSAL -> DB_PUSH_NOT_REACHABLE_AS_FRESH
+  const noRows = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ internalTriggerRows: [] }));
+  assert.equal(noRows.ok, true, "precondition: zero rows must reach the verdict as a SUCCESSFUL probe, not a probe failure");
+  assert.equal(noRows.internalTriggerExecutionState.observedCount, 0, "the empty surface did not survive the wire as empty");
+  assert.ok(noRows.counts.user_internal_trigger_execution_state > 0,
+    "EMPTY_INTERNAL_TRIGGER_WIRE_REFUSED=NO — zero internal-trigger rows became a clean zero objection");
+  assert.equal(classifyObjectEmptiness({
+    ...EMPTY_COUNTS,
+    user_internal_trigger_execution_state: noRows.counts.user_internal_trigger_execution_state,
+  }).empty, false,
+  "DB_PUSH_REACHED — a target with NO observed foreign-key enforcement machinery certified as empty");
+  // The refusal is attributable to the enforcement axis alone: nothing else moved.
+  for (const k of ["user_managed_schema_objects", "user_schema_acl", "user_extensions", "user_event_triggers",
+    "user_managed_table_rows", "user_authorization", "user_triggers", "user_session_execution_state"]) {
+    assert.equal(noRows.counts[k], stock.counts[k], `${k} moved, so the zero-row refusal is not attributable to the internal triggers alone`);
+  }
 
   // T8 — a probe failure is a refusal, never a zero.
   const failing = probeHostedApplicationState("postgresql://stub", (cmd, args) => {

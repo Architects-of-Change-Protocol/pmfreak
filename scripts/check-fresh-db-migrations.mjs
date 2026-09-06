@@ -1267,6 +1267,22 @@ function classifyInternalTriggerExecutionState(observed) {
       problemCount: 1, baselineSatisfied: false,
     };
   }
+  // TOTAL ABSENCE IS THE LIMIT CASE OF A VANISHED ROW, NOT A CLEAN SURFACE. Completeness
+  // below is decided over the sideGroups the OBSERVED rows build, so a constraint with no
+  // observed trigger forms no group and raises no problem: an empty surface would fall
+  // through every per-row control and certify. Every certified platform ships foreign-key
+  // enforcement machinery on the managed relation surface (the pristine local stack carries
+  // 108 internal triggers over 27 constraints), so zero rows is unreadable evidence -- a
+  // scoping regression or a probe that lost its result -- and must fail closed exactly as
+  // absent evidence does.
+  if (rows.length === 0) {
+    return {
+      observedCount: 0, enabledOriginCount: 0, nonOriginCount: 0,
+      enabledDistribution: {}, semanticKeys: [],
+      problems: ["the internal constraint-trigger surface is empty; refusing to infer that certified foreign-key enforcement machinery is present"],
+      problemCount: 1, baselineSatisfied: false,
+    };
+  }
   const problems = [];
   const enabledDistribution = {};
   const semanticKeys = [];
