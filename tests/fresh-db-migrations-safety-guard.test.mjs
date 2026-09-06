@@ -35,8 +35,12 @@ import {
   classifySessionExecutionState,
   classifyInternalTriggerExecutionState,
   isCertifiedManagedTriggerRelation,
+  internalTriggerSemanticKey,
   CERTIFIED_SESSION_REPLICATION_ROLE,
   CERTIFIED_INTERNAL_TRIGGER_ENABLED,
+  CERTIFIED_INTERNAL_TRIGGER_CONTYPE,
+  CERTIFIED_RI_ENFORCEMENT_FUNCTIONS,
+  TRIGGER_ENABLED_STATES,
   CERTIFIED_MANAGED_RELATION_KEYS,
   LOCAL_STOCK_PROFILE,
   managedProfileVariants,
@@ -5559,28 +5563,53 @@ test("R36 fixtures: authorization profiles are certified evidence, and carry no 
 
 /**
  * MEASURED internal constraint-trigger rows, in the probe's own wire format, captured from
- * the pristine disposable local stack (PostgreSQL 17.6, CLI v2.116.0). A REPRESENTATIVE
- * SAMPLE, deliberately not the full 108-row local (or 506-row hosted) surface: the
- * certified property is the INVARIANT — every internal trigger on the certified managed
- * relation surface fires in origin mode — never a frozen list of OID-derived names such as
- * RI_ConstraintTrigger_c_17230, which differ on every installation.
+ * a pristine disposable local stack (PostgreSQL 17.6, CLI v2.116.0).
  *
- * The sample covers both sides of a foreign key (the `_c_` triggers on the referencing
- * relation and the `_a_` triggers on the referenced one) and three managed schemas.
+ * THREE COMPLETE FOREIGN KEYS, not a scatter of rows: PostgreSQL creates exactly four RI
+ * triggers per foreign key -- two on the referencing relation, two on the referenced one --
+ * and the classifier checks that completeness, so a fixture of loose rows would fail its
+ * own invariant. The three cover both delete actions the local platform uses
+ * (RI_FKey_cascade_del and RI_FKey_noaction_del) across three managed schemas.
+ *
+ * The `trigger_name` values are cluster-generated (`RI_ConstraintTrigger_c_17230` is
+ * allocated in creation order by whichever installation built the database). They are here
+ * ONLY because the wire carries them as a diagnostics hint; NOTHING in the certified model
+ * keys on them, which is exactly what the semantic-key tests below assert.
+ *
+ * Cartography of that stack, in full: 108 internal triggers across the WHOLE database
+ * (auth 72, storage 32, _realtime 4); tgenabled O=108, D/R/A=0; tgconstraint=0 on none;
+ * contype 'f' on all 108 over 27 distinct constraints; exactly 4 triggers per constraint
+ * and 2 per constraint side; every trigger on one of its own constraint's two relations;
+ * five distinct RI functions, all in pg_catalog; zero extension-owned triggers,
+ * constraints or relations; zero non-FK internal triggers anywhere; and 108 rows produced
+ * 108 DISTINCT semantic keys.
  */
 const STOCK_INTERNAL_TRIGGERS = Object.freeze([
-  { relation_schema: "_realtime", relation_name: "extensions", trigger_name: "RI_ConstraintTrigger_c_16746", enabled: "O", constraint_name: "extensions_tenant_external_id_fkey", constraint_type: "f", referenced_relation: "_realtime.tenants", relation_provenance: "user" },
-  { relation_schema: "_realtime", relation_name: "extensions", trigger_name: "RI_ConstraintTrigger_c_16747", enabled: "O", constraint_name: "extensions_tenant_external_id_fkey", constraint_type: "f", referenced_relation: "_realtime.tenants", relation_provenance: "user" },
-  { relation_schema: "auth", relation_name: "identities", trigger_name: "RI_ConstraintTrigger_c_17230", enabled: "O", constraint_name: "identities_user_id_fkey", constraint_type: "f", referenced_relation: "auth.users", relation_provenance: "user" },
-  { relation_schema: "auth", relation_name: "identities", trigger_name: "RI_ConstraintTrigger_c_17231", enabled: "O", constraint_name: "identities_user_id_fkey", constraint_type: "f", referenced_relation: "auth.users", relation_provenance: "user" },
-  { relation_schema: "auth", relation_name: "users", trigger_name: "RI_ConstraintTrigger_a_17228", enabled: "O", constraint_name: "identities_user_id_fkey", constraint_type: "f", referenced_relation: "auth.users", relation_provenance: "user" },
-  { relation_schema: "auth", relation_name: "users", trigger_name: "RI_ConstraintTrigger_a_17229", enabled: "O", constraint_name: "identities_user_id_fkey", constraint_type: "f", referenced_relation: "auth.users", relation_provenance: "user" },
-  { relation_schema: "storage", relation_name: "objects", trigger_name: "RI_ConstraintTrigger_c_16989", enabled: "O", constraint_name: "objects_bucketId_fkey", constraint_type: "f", referenced_relation: "storage.buckets", relation_provenance: "user" },
-  { relation_schema: "storage", relation_name: "objects", trigger_name: "RI_ConstraintTrigger_c_16990", enabled: "O", constraint_name: "objects_bucketId_fkey", constraint_type: "f", referenced_relation: "storage.buckets", relation_provenance: "user" },
+  // _realtime.extensions -> _realtime.tenants (ON DELETE CASCADE)
+  { relation_schema: "_realtime", relation_name: "extensions", trigger_name: "RI_ConstraintTrigger_c_16746", enabled: "O", constraint_schema: "_realtime", constraint_name: "extensions_tenant_external_id_fkey", constraint_type: "f", referencing_relation: "_realtime.extensions", referenced_relation: "_realtime.tenants", function_schema: "pg_catalog", function_name: "RI_FKey_check_ins", tgtype: "5", relation_provenance: "user" },
+  { relation_schema: "_realtime", relation_name: "extensions", trigger_name: "RI_ConstraintTrigger_c_16747", enabled: "O", constraint_schema: "_realtime", constraint_name: "extensions_tenant_external_id_fkey", constraint_type: "f", referencing_relation: "_realtime.extensions", referenced_relation: "_realtime.tenants", function_schema: "pg_catalog", function_name: "RI_FKey_check_upd", tgtype: "17", relation_provenance: "user" },
+  { relation_schema: "_realtime", relation_name: "tenants", trigger_name: "RI_ConstraintTrigger_a_16744", enabled: "O", constraint_schema: "_realtime", constraint_name: "extensions_tenant_external_id_fkey", constraint_type: "f", referencing_relation: "_realtime.extensions", referenced_relation: "_realtime.tenants", function_schema: "pg_catalog", function_name: "RI_FKey_cascade_del", tgtype: "9", relation_provenance: "user" },
+  { relation_schema: "_realtime", relation_name: "tenants", trigger_name: "RI_ConstraintTrigger_a_16745", enabled: "O", constraint_schema: "_realtime", constraint_name: "extensions_tenant_external_id_fkey", constraint_type: "f", referencing_relation: "_realtime.extensions", referenced_relation: "_realtime.tenants", function_schema: "pg_catalog", function_name: "RI_FKey_noaction_upd", tgtype: "17", relation_provenance: "user" },
+  // auth.identities -> auth.users (ON DELETE CASCADE) — the load-bearing constraint
+  { relation_schema: "auth", relation_name: "identities", trigger_name: "RI_ConstraintTrigger_c_17230", enabled: "O", constraint_schema: "auth", constraint_name: "identities_user_id_fkey", constraint_type: "f", referencing_relation: "auth.identities", referenced_relation: "auth.users", function_schema: "pg_catalog", function_name: "RI_FKey_check_ins", tgtype: "5", relation_provenance: "user" },
+  { relation_schema: "auth", relation_name: "identities", trigger_name: "RI_ConstraintTrigger_c_17231", enabled: "O", constraint_schema: "auth", constraint_name: "identities_user_id_fkey", constraint_type: "f", referencing_relation: "auth.identities", referenced_relation: "auth.users", function_schema: "pg_catalog", function_name: "RI_FKey_check_upd", tgtype: "17", relation_provenance: "user" },
+  { relation_schema: "auth", relation_name: "users", trigger_name: "RI_ConstraintTrigger_a_17228", enabled: "O", constraint_schema: "auth", constraint_name: "identities_user_id_fkey", constraint_type: "f", referencing_relation: "auth.identities", referenced_relation: "auth.users", function_schema: "pg_catalog", function_name: "RI_FKey_cascade_del", tgtype: "9", relation_provenance: "user" },
+  { relation_schema: "auth", relation_name: "users", trigger_name: "RI_ConstraintTrigger_a_17229", enabled: "O", constraint_schema: "auth", constraint_name: "identities_user_id_fkey", constraint_type: "f", referencing_relation: "auth.identities", referenced_relation: "auth.users", function_schema: "pg_catalog", function_name: "RI_FKey_noaction_upd", tgtype: "17", relation_provenance: "user" },
+  // storage.objects -> storage.buckets (NO ACTION on delete — the other action shape)
+  { relation_schema: "storage", relation_name: "buckets", trigger_name: "RI_ConstraintTrigger_a_16987", enabled: "O", constraint_schema: "storage", constraint_name: "objects_bucketId_fkey", constraint_type: "f", referencing_relation: "storage.objects", referenced_relation: "storage.buckets", function_schema: "pg_catalog", function_name: "RI_FKey_noaction_del", tgtype: "9", relation_provenance: "user" },
+  { relation_schema: "storage", relation_name: "buckets", trigger_name: "RI_ConstraintTrigger_a_16988", enabled: "O", constraint_schema: "storage", constraint_name: "objects_bucketId_fkey", constraint_type: "f", referencing_relation: "storage.objects", referenced_relation: "storage.buckets", function_schema: "pg_catalog", function_name: "RI_FKey_noaction_upd", tgtype: "17", relation_provenance: "user" },
+  { relation_schema: "storage", relation_name: "objects", trigger_name: "RI_ConstraintTrigger_c_16989", enabled: "O", constraint_schema: "storage", constraint_name: "objects_bucketId_fkey", constraint_type: "f", referencing_relation: "storage.objects", referenced_relation: "storage.buckets", function_schema: "pg_catalog", function_name: "RI_FKey_check_ins", tgtype: "5", relation_provenance: "user" },
+  { relation_schema: "storage", relation_name: "objects", trigger_name: "RI_ConstraintTrigger_c_16990", enabled: "O", constraint_schema: "storage", constraint_name: "objects_bucketId_fkey", constraint_type: "f", referencing_relation: "storage.objects", referenced_relation: "storage.buckets", function_schema: "pg_catalog", function_name: "RI_FKey_check_upd", tgtype: "17", relation_provenance: "user" },
 ]);
 
-const internalTriggerLine = (t) =>
-  `${t.relation_schema}~|~${t.relation_name}~|~${t.trigger_name}~|~${t.enabled}~|~${t.constraint_name}~|~${t.constraint_type}~|~${t.referenced_relation}~|~${t.relation_provenance}`;
+const INTERNAL_TRIGGER_WIRE_FIELDS = Object.freeze([
+  "relation_schema", "relation_name", "trigger_name", "enabled",
+  "constraint_schema", "constraint_name", "constraint_type",
+  "referencing_relation", "referenced_relation",
+  "function_schema", "function_name", "tgtype", "relation_provenance",
+]);
+
+const internalTriggerLine = (t) => INTERNAL_TRIGGER_WIRE_FIELDS.map((k) => t[k]).join("~|~");
 
 /** The stock internal-trigger surface as the probe's wire, optionally mutating one row. */
 function stockInternalTriggerRows(patch = null, targetTrigger = null) {
@@ -5802,10 +5831,82 @@ test("S-WIRE: the session execution plane is read through the gate's OWN connect
     `the failure was not attributed to the execution-state probe: ${JSON.stringify(failing.failure)}`);
 });
 
+// ── K1-K6: the STABLE SEMANTIC KEY ────────────────────────────────────────
+
+test("K1-K6: internal triggers are keyed by enforcement SEMANTICS, never by generated name or OID", () => {
+  // K1 — the key is built ONLY from certified constraint structure and trigger semantics.
+  // The generated name must not appear in it, on any row.
+  for (const t of STOCK_INTERNAL_TRIGGERS) {
+    const key = internalTriggerSemanticKey(t);
+    assert.ok(!key.includes(t.trigger_name),
+      `GENERATED_NAME_CERTIFIED=YES — the semantic key for ${t.constraint_name} embeds ${t.trigger_name}`);
+    assert.doesNotMatch(key, /RI_ConstraintTrigger/, `the semantic key embeds a generated trigger name: ${key}`);
+    assert.doesNotMatch(key, /\b\d{4,}\b/, `the semantic key embeds what looks like an OID: ${key}`);
+    for (const component of [t.constraint_schema, t.constraint_name, t.constraint_type,
+      t.referencing_relation, t.referenced_relation, t.function_name, t.tgtype]) {
+      assert.ok(key.includes(component), `the semantic key dropped ${component}: ${key}`);
+    }
+  }
+
+  // K2 — the key is UNIQUE over the whole measured surface. Verified live at 108/108
+  // distinct on the pristine stack; asserted here over the fixture.
+  const keys = STOCK_INTERNAL_TRIGGERS.map(internalTriggerSemanticKey);
+  assert.equal(new Set(keys).size, keys.length, `the semantic key is not unique: ${JSON.stringify(keys)}`);
+
+  // K3 — the key is STABLE across a rebuild: regenerate every cluster-allocated identifier
+  // and the key must not move. This is the property the generated name cannot provide.
+  const rebuilt = STOCK_INTERNAL_TRIGGERS.map((t, i) => ({ ...t, trigger_name: `RI_ConstraintTrigger_c_${900000 + i}` }));
+  assert.notDeepEqual(rebuilt.map((t) => t.trigger_name), STOCK_INTERNAL_TRIGGERS.map((t) => t.trigger_name),
+    "precondition: the rebuild must actually change every generated name");
+  assert.deepEqual(rebuilt.map(internalTriggerSemanticKey), keys,
+    "SEMANTIC_KEY_STABLE_ACROSS_REBUILD=NO — regenerated trigger names moved the certified key");
+  // And the classifier's verdict is identical on the rebuilt surface.
+  assert.deepEqual(classifyInternalTriggerExecutionState(rebuilt).problems,
+    classifyInternalTriggerExecutionState(STOCK_INTERNAL_TRIGGERS.map((t) => ({ ...t })).map((t) => t)).problems,
+    "a rebuilt cluster produced a different verdict");
+  assert.equal(classifyInternalTriggerExecutionState(rebuilt).baselineSatisfied, true,
+    "a rebuilt cluster with different generated names was refused");
+
+  // K4 — the key SEPARATES the two enforcement roles on each side. Changing only the
+  // function, or only the firing shape, must produce a different key: otherwise disabling
+  // one of the pair could hide behind the other.
+  const base = STOCK_INTERNAL_TRIGGERS.find((t) => t.function_name === "RI_FKey_check_ins");
+  assert.notEqual(internalTriggerSemanticKey(base), internalTriggerSemanticKey({ ...base, function_name: "RI_FKey_check_upd" }),
+    "the semantic key does not separate the two referencing-side enforcement functions");
+  assert.notEqual(internalTriggerSemanticKey(base), internalTriggerSemanticKey({ ...base, tgtype: "17" }),
+    "the semantic key does not separate firing shapes");
+  // K5 — and it separates the two SIDES of one constraint.
+  const referencing = STOCK_INTERNAL_TRIGGERS.filter((t) => t.constraint_name === "identities_user_id_fkey" && `${t.relation_schema}.${t.relation_name}` === t.referencing_relation);
+  const referenced = STOCK_INTERNAL_TRIGGERS.filter((t) => t.constraint_name === "identities_user_id_fkey" && `${t.relation_schema}.${t.relation_name}` === t.referenced_relation);
+  assert.equal(referencing.length, 2, "the fixture lost the referencing side");
+  assert.equal(referenced.length, 2, "the fixture lost the referenced side");
+  for (const a of referencing) {
+    for (const b of referenced) {
+      assert.notEqual(internalTriggerSemanticKey(a), internalTriggerSemanticKey(b), "the semantic key does not separate constraint sides");
+    }
+  }
+
+  // K6 — every component of the key is something the MANAGED-OBJECT profile already
+  // certifies as part of the constraint's structure, or a fixed PostgreSQL semantic. The
+  // key adds no new certified platform identity; it addresses machinery for structure that
+  // is already certified.
+  assert.equal(CERTIFIED_INTERNAL_TRIGGER_CONTYPE, "f", "the covered constraint class changed");
+  assert.ok(CERTIFIED_RI_ENFORCEMENT_FUNCTIONS.size >= 12,
+    "the referential-integrity function set is not PostgreSQL's complete closed set");
+  for (const fn of CERTIFIED_RI_ENFORCEMENT_FUNCTIONS) {
+    assert.match(fn, /^pg_catalog\.RI_FKey_/, `${fn} is not a PostgreSQL RI enforcement function`);
+  }
+  // The five the pristine stack actually exercises are all present.
+  for (const fn of ["RI_FKey_check_ins", "RI_FKey_check_upd", "RI_FKey_cascade_del", "RI_FKey_noaction_del", "RI_FKey_noaction_upd"]) {
+    assert.ok(CERTIFIED_RI_ENFORCEMENT_FUNCTIONS.has(`pg_catalog.${fn}`), `the measured function ${fn} is not certified`);
+  }
+});
+
 // ── T1-T8: internal constraint-trigger firing state, at the classifier ─────
 
 test("T1-T8: every internal constraint trigger on the managed surface must fire in origin mode", () => {
   assert.equal(CERTIFIED_INTERNAL_TRIGGER_ENABLED, "O", "the certified internal-trigger firing state changed");
+  assert.deepEqual([...TRIGGER_ENABLED_STATES], ["O", "D", "R", "A"], "the known firing-state domain changed");
   const observed = () => STOCK_INTERNAL_TRIGGERS.map((t) => ({ ...t }));
 
   // T1 — the measured stock surface certifies.
@@ -5814,81 +5915,133 @@ test("T1-T8: every internal constraint trigger on the managed surface must fire 
   assert.equal(t1.observedCount, STOCK_INTERNAL_TRIGGERS.length);
   assert.equal(t1.enabledOriginCount, STOCK_INTERNAL_TRIGGERS.length);
   assert.equal(t1.nonOriginCount, 0);
+  assert.deepEqual(t1.enabledDistribution, { O: STOCK_INTERNAL_TRIGGERS.length }, "the firing-state distribution is not reported");
 
   // T2/T3/T4 — D (disabled), R (replica-only) and A (always) are each drift, on every row.
-  // Carried exactly, never flattened to a boolean: replica and always are not "enabled".
-  for (const state of ["D", "R", "A"]) {
+  // ANY state that is not the explicitly certified 'O' fails closed; replica and always are
+  // never read as "enabled" just because they are not "disabled".
+  for (const state of TRIGGER_ENABLED_STATES.filter((s) => s !== CERTIFIED_INTERNAL_TRIGGER_ENABLED)) {
     for (const target of STOCK_INTERNAL_TRIGGERS) {
       const rows = observed().map((t) => (t.trigger_name === target.trigger_name ? { ...t, enabled: state } : t));
       const verdict = classifyInternalTriggerExecutionState(rows);
       assert.equal(verdict.baselineSatisfied, false,
-        `INTERNAL_TRIGGER_${state}_REFUSED=NO — ${target.relation_schema}.${target.relation_name} at tgenabled=${state} certified stock`);
-      assert.equal(verdict.nonOriginCount, 1, `${state} on ${target.trigger_name}: expected exactly one non-origin trigger`);
+        `INTERNAL_TRIGGER_${state}_REFUSED=NO — ${target.constraint_name} on ${target.relation_schema}.${target.relation_name} at tgenabled=${state} certified stock`);
+      assert.equal(verdict.nonOriginCount, 1, `${state} on ${target.constraint_name}: expected exactly one non-origin trigger`);
       assert.equal(verdict.enabledOriginCount, STOCK_INTERNAL_TRIGGERS.length - 1);
-      assert.ok(verdict.problems.some((p) => p.includes(`${target.relation_schema}.${target.relation_name}`) && p.includes(target.constraint_name)),
-        `the refusal named neither the relation nor the constraint: ${JSON.stringify(verdict.problems)}`);
-      // The unstable OID-derived name is diagnostics only — the CONSTRAINT leads.
-      assert.ok(verdict.problems.some((p) => p.indexOf(target.constraint_name) < p.indexOf(target.trigger_name)),
-        "the refusal leads with the unstable trigger name rather than the constraint");
+      assert.equal(verdict.enabledDistribution[state], 1, "the firing-state distribution did not record the drift");
+      // The refusal leads with the CONSTRAINT, and marks the generated name as uncertified.
+      const named = verdict.problems.find((p) => p.includes(target.constraint_name));
+      assert.ok(named, `the refusal did not name the constraint: ${JSON.stringify(verdict.problems)}`);
+      assert.ok(named.indexOf(target.constraint_name) < named.indexOf(target.trigger_name),
+        "the refusal leads with the generated trigger name rather than the constraint");
+      assert.match(named, /not certified/, "the generated name is not marked as uncertified in the diagnostic");
     }
   }
 
   // T5 — the load-bearing shape: the constraint DEFINITION is unchanged (it is not even an
-  // input here — the managed profile owns it) and the trigger is D. Reproduced live: the
-  // three auth.identities constraint definitions were byte-identical before and after
-  // ALTER TABLE ... DISABLE TRIGGER ALL, sha256 unchanged, yet the FK stopped enforcing.
-  const disabledPair = observed().map((t) =>
-    (t.relation_schema === "auth" && t.relation_name === "identities" ? { ...t, enabled: "D" } : t));
-  const t5 = classifyInternalTriggerExecutionState(disabledPair);
-  assert.equal(t5.baselineSatisfied, false, "a disabled foreign key with an intact constraint definition certified stock");
-  assert.equal(t5.nonOriginCount, 2, "both sides of the disabled foreign key were not reported");
+  // input here — the managed profile owns it) and one enforcement trigger is D. Reproduced
+  // live: ALTER TABLE auth.identities DISABLE TRIGGER <one internal trigger> left all 249
+  // managed-object fingerprints byte-identical (sha256 8b089aca…) and every constraint
+  // definition unchanged, yet that foreign key stopped checking inserts.
+  const oneDisabled = observed().map((t) =>
+    (t.constraint_name === "identities_user_id_fkey" && t.function_name === "RI_FKey_check_ins" ? { ...t, enabled: "D" } : t));
+  const t5 = classifyInternalTriggerExecutionState(oneDisabled);
+  assert.equal(t5.baselineSatisfied, false, "a disabled enforcement trigger with an intact constraint definition certified stock");
+  assert.equal(t5.nonOriginCount, 1, "exactly one disabled enforcement trigger was expected");
 
-  // T6 — an internal trigger on a relation no certified platform ships fails CLOSED, and is
-  // NOT silently ignored just because the enforcement question does not apply to it.
-  const alien = [...observed(), {
-    relation_schema: "auth", relation_name: "r37_impostor", trigger_name: "RI_ConstraintTrigger_c_99999",
-    enabled: "O", constraint_name: "r37_impostor_fkey", constraint_type: "f", referenced_relation: "auth.users", relation_provenance: "user",
-  }];
+  // T6 — an internal trigger on a relation no certified platform ships fails CLOSED.
+  const alien = [...observed(),
+    { relation_schema: "auth", relation_name: "r38_impostor", trigger_name: "RI_ConstraintTrigger_c_99999", enabled: "O",
+      constraint_schema: "auth", constraint_name: "r38_impostor_fkey", constraint_type: "f",
+      referencing_relation: "auth.r38_impostor", referenced_relation: "auth.users",
+      function_schema: "pg_catalog", function_name: "RI_FKey_check_ins", tgtype: "5", relation_provenance: "user" }];
   const t6 = classifyInternalTriggerExecutionState(alien);
   assert.equal(t6.baselineSatisfied, false, "an internal trigger on an uncertified managed relation was ignored");
   assert.ok(t6.problems.some((p) => /no certified platform profile ships/.test(p)), `unexpected problems: ${JSON.stringify(t6.problems)}`);
 
-  // T7 — malformed rows fail closed rather than being dropped or read as enabled.
-  for (const [label, patch] of [
-    ["a blank schema", { relation_schema: "" }],
-    ["a blank relation", { relation_name: "" }],
-    ["a blank trigger name", { trigger_name: "" }],
-    ["a blank firing state", { enabled: "" }],
-    ["an unknown firing state", { enabled: "X" }],
-    ["a lower-case firing state", { enabled: "o" }],
-    ["a missing firing state", { enabled: undefined }],
-  ]) {
-    const rows = observed().map((t, i) => (i === 0 ? { ...t, ...patch } : t));
-    const verdict = classifyInternalTriggerExecutionState(rows);
-    assert.equal(verdict.baselineSatisfied, false, `${label} was certified stock`);
-    assert.ok(verdict.problems.some((p) => /unreadable internal constraint-trigger evidence/.test(p)),
-      `${label}: unexpected problems ${JSON.stringify(verdict.problems)}`);
+  // T7 — malformed / UNRESOLVABLE rows fail closed rather than being dropped or read as
+  // enabled. Every field the semantic key is built from is load-bearing.
+  for (const field of ["relation_schema", "relation_name", "trigger_name", "enabled", "constraint_schema",
+    "constraint_name", "constraint_type", "referencing_relation", "referenced_relation",
+    "function_schema", "function_name", "tgtype"]) {
+    for (const blank of ["", "   ", null, undefined]) {
+      const rows = observed().map((t, i) => (i === 0 ? { ...t, [field]: blank } : t));
+      const verdict = classifyInternalTriggerExecutionState(rows);
+      assert.equal(verdict.baselineSatisfied, false, `a row with a blank ${field} was certified stock`);
+    }
   }
-  // An absent record is not an empty one: "no evidence" never certifies.
+  // tgconstraint = 0 arrives as a row with no constraint schema, name or type at all.
+  const noConstraint = observed().map((t, i) => (i === 0
+    ? { ...t, constraint_schema: "", constraint_name: "", constraint_type: "", referencing_relation: "", referenced_relation: "" } : t));
+  const zeroCon = classifyInternalTriggerExecutionState(noConstraint);
+  assert.equal(zeroCon.baselineSatisfied, false, "an internal trigger with no owning constraint (tgconstraint = 0) was certified stock");
+  assert.ok(zeroCon.problems.some((p) => /unresolvable internal constraint-trigger evidence/.test(p)),
+    `unexpected problems: ${JSON.stringify(zeroCon.problems)}`);
+  // A firing state outside PostgreSQL's own domain, and a non-numeric tgtype.
+  for (const [label, patch, pattern] of [
+    ["an unknown firing state", { enabled: "X" }, /not a PostgreSQL firing state/],
+    ["a lower-case firing state", { enabled: "o" }, /not a PostgreSQL firing state/],
+    ["a non-numeric tgtype", { tgtype: "row-before-insert" }, /not a firing-shape bitmask/],
+  ]) {
+    const verdict = classifyInternalTriggerExecutionState(observed().map((t, i) => (i === 0 ? { ...t, ...patch } : t)));
+    assert.equal(verdict.baselineSatisfied, false, `${label} was certified stock`);
+    assert.ok(verdict.problems.some((p) => pattern.test(p)), `${label}: unexpected problems ${JSON.stringify(verdict.problems)}`);
+  }
+
+  // T7b — NON-FK MACHINERY IS NOT GENERALIZED OVER. Cartography found none on any certified
+  // platform, so anything else is unmodelled and must be reported rather than assumed benign.
+  for (const contype of ["p", "u", "c", "x", "t"]) {
+    const verdict = classifyInternalTriggerExecutionState(observed().map((t, i) => (i === 0 ? { ...t, constraint_type: contype } : t)));
+    assert.equal(verdict.baselineSatisfied, false, `a contype=${contype} internal trigger was certified stock`);
+    assert.ok(verdict.problems.some((p) => /not ordinary foreign-key machinery/.test(p)),
+      `contype=${contype}: unexpected problems ${JSON.stringify(verdict.problems)}`);
+  }
+  // A trigger firing something that is not RI enforcement machinery.
+  for (const fn of [{ function_schema: "public", function_name: "RI_FKey_check_ins" },
+    { function_schema: "pg_catalog", function_name: "my_shadow_enforcer" }]) {
+    const verdict = classifyInternalTriggerExecutionState(observed().map((t, i) => (i === 0 ? { ...t, ...fn } : t)));
+    assert.equal(verdict.baselineSatisfied, false, `${fn.function_schema}.${fn.function_name} was certified as RI machinery`);
+    assert.ok(verdict.problems.some((p) => /not a PostgreSQL referential-integrity enforcement function/.test(p)),
+      `unexpected problems: ${JSON.stringify(verdict.problems)}`);
+  }
+  // A trigger attached to neither side of its own constraint.
+  const thirdRelation = classifyInternalTriggerExecutionState(observed().map((t, i) =>
+    (i === 0 ? { ...t, referencing_relation: "auth.sessions", referenced_relation: "auth.users" } : t)));
+  assert.equal(thirdRelation.baselineSatisfied, false, "a trigger on a third relation was certified stock");
+  assert.ok(thirdRelation.problems.some((p) => /sits on neither side of its constraint/.test(p)),
+    `unexpected problems: ${JSON.stringify(thirdRelation.problems)}`);
+
+  // T7c — a DUPLICATE enforcement role means the evidence cannot be resolved to one
+  // machinery graph. Two rows claiming the same semantic key fail closed even though each
+  // is individually well-formed and enabled.
+  const duplicated = [...observed(), { ...STOCK_INTERNAL_TRIGGERS[0], trigger_name: "RI_ConstraintTrigger_c_777777" }];
+  const dup = classifyInternalTriggerExecutionState(duplicated);
+  assert.equal(dup.baselineSatisfied, false, "a duplicated enforcement role was certified stock");
+  assert.ok(dup.problems.some((p) => /duplicate internal constraint-trigger enforcement role/.test(p)),
+    `unexpected problems: ${JSON.stringify(dup.problems)}`);
+
+  // T7d — SIDE COMPLETENESS. PostgreSQL creates exactly two RI triggers per constraint side,
+  // so a half-observed machinery graph is refused rather than passed as "everything I saw
+  // was enabled". This is what stops a probe that silently lost rows from certifying.
+  const halfObserved = observed().filter((t) => t.trigger_name !== "RI_ConstraintTrigger_c_17230");
+  const half = classifyInternalTriggerExecutionState(halfObserved);
+  assert.equal(half.baselineSatisfied, false, "a foreign key missing one enforcement trigger certified stock");
+  assert.ok(half.problems.some((p) => /incompletely observed/.test(p) && p.includes("identities_user_id_fkey")),
+    `unexpected problems: ${JSON.stringify(half.problems)}`);
+
+  // T8 — absent evidence is not empty evidence.
   for (const missing of [undefined, null, "none", {}]) {
     const verdict = classifyInternalTriggerExecutionState(missing);
     assert.equal(verdict.baselineSatisfied, false, `internal-trigger evidence ${JSON.stringify(missing)} was certified stock`);
     assert.ok(verdict.problemCount >= 1, "absent internal-trigger evidence produced no problem");
   }
-  // An EMPTY observed set is legitimately clean only in the sense that it flags nothing —
-  // it can never make a drifted surface clean, because each drifted row adds its own problem.
-  assert.equal(classifyInternalTriggerExecutionState([]).observedCount, 0);
 
   // ASSOCIATION is positive evidence, never a schema-name exemption.
   assert.ok(CERTIFIED_MANAGED_RELATION_KEYS.has("auth.identities"), "the certified relation surface lost auth.identities");
-  assert.ok(CERTIFIED_MANAGED_RELATION_KEYS.has("storage.objects"), "the certified relation surface lost storage.objects");
-  assert.equal(isCertifiedManagedTriggerRelation({ relation_schema: "auth", relation_name: "r37_impostor", relation_provenance: "user" }), false,
+  assert.equal(isCertifiedManagedTriggerRelation({ relation_schema: "auth", relation_name: "r38_impostor", relation_provenance: "user" }), false,
     "an unknown relation in a managed schema was treated as certified");
-  // Extension-owned relations are trusted through pg_depend, whose members the certified
-  // extension profile independently certifies — never through their schema.
   assert.equal(isCertifiedManagedTriggerRelation({ relation_schema: "cron", relation_name: "job", relation_provenance: "ext" }), true,
     "a positively extension-owned relation was not associated");
-  // The date-derived realtime daily partitions no static profile can hold.
   assert.equal(isCertifiedManagedTriggerRelation({ relation_schema: "realtime", relation_name: "messages_2026_09_05", relation_provenance: "user" }), true,
     "a certified dynamic realtime daily partition was not associated");
   assert.equal(isCertifiedManagedTriggerRelation({ relation_schema: "realtime", relation_name: "messages_not_a_date", relation_provenance: "user" }), false,
@@ -5904,17 +6057,37 @@ test("T-WIRE: a DISABLED internal foreign-key trigger reaches the emptiness verd
   assert.equal(stock.counts.user_internal_trigger_execution_state, 0, "a stock internal-trigger surface was flagged");
   assert.equal(stock.internalTriggerExecutionState.observedCount, STOCK_INTERNAL_TRIGGERS.length, "the surface did not survive the wire");
   assert.equal(stock.internalTriggerExecutionState.enabledOriginCount, STOCK_INTERNAL_TRIGGERS.length);
+  assert.equal(new Set(stock.internalTriggerExecutionState.semanticKeys).size, STOCK_INTERNAL_TRIGGERS.length,
+    "the semantic keys did not survive the wire uniquely");
   assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_internal_trigger_execution_state: 0 }).empty, true,
     "the control set is not otherwise empty, so the refusal below proves nothing");
 
-  // The probe must read the INTERNAL triggers, scoped to the managed surface, and carry the
-  // firing state and constraint identity.
+  // The probe reads INTERNAL triggers, scoped to the managed surface, and transports every
+  // component of the SEMANTIC key from catalog authority.
   assert.match(capture.internalTriggerQuery, /where t\.tgisinternal/, "the probe does not select internal triggers");
   assert.doesNotMatch(capture.internalTriggerQuery, /not t\.tgisinternal/, "the internal-trigger probe still excludes internal triggers");
-  assert.match(capture.internalTriggerQuery, /t\.tgenabled::text/, "the firing state is not transported");
-  assert.match(capture.internalTriggerQuery, /pg_constraint con on con\.oid = t\.tgconstraint/, "the constraint identity is not transported");
-  // Scoped to the MANAGED surface by the same predicate the managed-object inventory uses,
-  // so no PostgreSQL catalog-internal machinery unrelated to the platform is inventoried.
+  for (const [fragment, why] of [
+    ["t.tgenabled::text", "the firing state is not transported"],
+    ["t.tgtype::text", "the firing shape is not transported"],
+    ["con.conname", "the owning constraint name is not transported"],
+    ["con.contype", "the owning constraint type is not transported"],
+    ["cn.nspname", "the owning constraint schema is not transported"],
+    ["con.conrelid", "the referencing relation is not transported"],
+    ["con.confrelid", "the referenced relation is not transported"],
+    ["pr.proname", "the enforcement function is not transported"],
+  ]) {
+    assert.ok(capture.internalTriggerQuery.includes(fragment), why);
+  }
+  // ABSENCE MUST BE OBSERVED, NOT FILTERED AWAY. An inner join to pg_constraint or pg_proc
+  // would make an unresolvable row VANISH, and a row that disappears reads as a clean
+  // surface. Every optional join is a LEFT join.
+  for (const join of ["left join pg_constraint con on con.oid = t.tgconstraint",
+    "left join pg_proc pr on pr.oid = t.tgfoid", "left join pg_namespace cn on cn.oid = con.connamespace"]) {
+    assert.ok(capture.internalTriggerQuery.includes(join), `the probe does not LEFT join: ${join}`);
+  }
+  assert.doesNotMatch(capture.internalTriggerQuery, /\n\s+join pg_constraint/, "pg_constraint is inner-joined; unresolvable rows would vanish");
+  assert.doesNotMatch(capture.internalTriggerQuery, /\n\s+join pg_proc/, "pg_proc is inner-joined; unresolvable rows would vanish");
+  // Scoped to the MANAGED surface by the same predicate the managed-object inventory uses.
   for (const fragment of ["n.nspname = 'public'", "n.nspname <> 'information_schema'", "'supabase_migrations'"]) {
     assert.ok(capture.internalTriggerQuery.includes(fragment),
       `the internal-trigger probe is not scoped to the managed surface (missing ${fragment})`);
@@ -5922,18 +6095,21 @@ test("T-WIRE: a DISABLED internal foreign-key trigger reaches the emptiness verd
   // The ORDINARY five-trigger baseline keeps its own probe, and keeps excluding internals.
   assert.match(capture.triggerQuery, /where not t\.tgisinternal/, "the ordinary trigger probe changed its internal-trigger exclusion");
 
-  // THE LOAD-BEARING CASE, reproduced live on scratch: auth.identities' foreign key
-  // disabled while pg_constraint stays byte-identical.
+  // THE LOAD-BEARING CASE, reproduced live on scratch: ONE enforcement trigger of
+  // auth.identities_user_id_fkey disabled, pg_constraint and all 249 managed fingerprints
+  // byte-identical.
   const disabled = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({
     internalTriggerRows: STOCK_INTERNAL_TRIGGERS.map((t) =>
-      internalTriggerLine(t.relation_schema === "auth" && t.relation_name === "identities" ? { ...t, enabled: "D" } : t)),
+      internalTriggerLine(t.constraint_name === "identities_user_id_fkey" && t.function_name === "RI_FKey_check_ins"
+        ? { ...t, enabled: "D" } : t)),
   }));
   assert.equal(disabled.ok, true, `the probe failed on the drifted target: ${disabled.reason}`);
-  assert.equal(disabled.counts.user_internal_trigger_execution_state, 2,
-    "POST_R37_DISABLED_INTERNAL_TRIGGER_REFUSED=NO — a disabled foreign key reached the verdict as stock");
+  assert.equal(disabled.counts.user_internal_trigger_execution_state, 1,
+    "POST_REMEDIATION_DISABLED_INTERNAL_TRIGGER_REFUSED=NO — a disabled foreign-key check reached the verdict as stock");
   assert.equal(classifyObjectEmptiness({ ...EMPTY_COUNTS, user_internal_trigger_execution_state: disabled.counts.user_internal_trigger_execution_state }).empty, false,
     "DB_PUSH_REACHED — a target with foreign-key enforcement disabled certified as empty");
-  // Every OTHER counter is untouched: this is exactly why the pre-R37 gate could not see it.
+  // Every OTHER counter is untouched: this is exactly why the pre-remediation gate could
+  // not see it, and why the refusal is attributable to enforcement state alone.
   for (const k of ["user_managed_schema_objects", "user_schema_acl", "user_extensions", "user_event_triggers",
     "user_managed_table_rows", "user_authorization", "user_triggers", "user_session_execution_state"]) {
     assert.equal(disabled.counts[k], stock.counts[k], `${k} moved, so this is not the reported internal-trigger-only bypass`);
@@ -5941,36 +6117,47 @@ test("T-WIRE: a DISABLED internal foreign-key trigger reaches the emptiness verd
   assert.deepEqual(disabled.commonPlatformProfiles, stock.commonPlatformProfiles,
     "the platform profile moved, so the refusal is not attributable to the internal triggers alone");
 
-  // T3/T4 through the wire.
+  // T3/T4 through the wire, on a referenced-side trigger.
   for (const state of ["R", "A"]) {
     const out = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({
-      internalTriggerRows: stockInternalTriggerRows({ enabled: state }, "RI_ConstraintTrigger_c_16989"),
+      internalTriggerRows: stockInternalTriggerRows({ enabled: state }, "RI_ConstraintTrigger_a_16987"),
     }));
     assert.equal(out.counts.user_internal_trigger_execution_state, 1, `an internal trigger at tgenabled=${state} was not refused`);
     assert.equal(classifyObjectEmptiness(out.counts).empty, false, `DB_PUSH_REACHED — tgenabled=${state} certified as empty`);
   }
 
-  // T7 — a malformed row fails closed at the probe's own wire reader.
+  // MALFORMED WIRE fails closed at the probe's own reader.
   for (const [label, rows, pattern] of [
-    ["a short row", stockInternalTriggerRows().map((l, i) => (i === 0 ? l.split("~|~").slice(0, 5).join("~|~") : l)), /unrecognized row/],
+    ["a short row", stockInternalTriggerRows().map((l, i) => (i === 0 ? l.split("~|~").slice(0, 8).join("~|~") : l)), /unrecognized row/],
     ["a long row", stockInternalTriggerRows().map((l, i) => (i === 0 ? `${l}~|~extra` : l)), /unrecognized row/],
+    ["the pre-remediation eight-field wire", stockInternalTriggerRows().map((l) => l.split("~|~").slice(0, 8).join("~|~")), /unrecognized row/],
   ]) {
     const bad = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({ internalTriggerRows: rows }));
     assert.equal(bad.ok, false, `${label} was accepted`);
     assert.match(String(bad.reason), pattern, `${label}: unexpected reason ${bad.reason}`);
   }
-  // A blank field inside a well-shaped row is unreadable EVIDENCE, refused by the classifier.
-  const blank = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({
-    internalTriggerRows: stockInternalTriggerRows({ enabled: "" }, "RI_ConstraintTrigger_c_16989"),
-  }));
-  assert.ok(blank.counts.user_internal_trigger_execution_state > 0, "a row with a blank firing state certified as clean");
+  // A well-shaped row carrying unresolvable evidence is refused by the classifier.
+  for (const [label, patch] of [
+    ["a blank firing state", { enabled: "" }],
+    ["no owning constraint (tgconstraint = 0)", { constraint_schema: "", constraint_name: "", constraint_type: "" }],
+    ["an unresolvable enforcement function", { function_schema: "", function_name: "" }],
+  ]) {
+    const out = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({
+      internalTriggerRows: stockInternalTriggerRows(patch, "RI_ConstraintTrigger_c_16989"),
+    }));
+    assert.ok(out.counts.user_internal_trigger_execution_state > 0, `${label} certified as clean`);
+  }
 
-  // T6 through the wire — an unassociated managed relation.
+  // T6 through the wire — an unassociated managed relation, and a non-FK constraint class.
   const alien = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({
     internalTriggerRows: [...stockInternalTriggerRows(),
-      "auth~|~r37_impostor~|~RI_ConstraintTrigger_c_99999~|~O~|~r37_impostor_fkey~|~f~|~auth.users~|~user"],
+      "auth~|~r38_impostor~|~RI_ConstraintTrigger_c_99999~|~O~|~auth~|~r38_impostor_fkey~|~f~|~auth.r38_impostor~|~auth.users~|~pg_catalog~|~RI_FKey_check_ins~|~5~|~user"],
   }));
   assert.ok(alien.counts.user_internal_trigger_execution_state > 0, "an internal trigger on an uncertified relation was ignored");
+  const nonFk = probeHostedApplicationState("postgresql://stub", stubbedStockRunner({
+    internalTriggerRows: stockInternalTriggerRows({ constraint_type: "u" }, "RI_ConstraintTrigger_c_16989"),
+  }));
+  assert.ok(nonFk.counts.user_internal_trigger_execution_state > 0, "a non-foreign-key internal trigger was generalized over");
 
   // T8 — a probe failure is a refusal, never a zero.
   const failing = probeHostedApplicationState("postgresql://stub", (cmd, args) => {
